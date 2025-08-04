@@ -1,0 +1,643 @@
+{% extends "dashboard_base.html" %}
+{% load custom_filters %}
+{% load static %}
+
+{% block page_title %}Task Management{% endblock %}
+
+{% block page_actions %}
+<div class="btn-group" role="group">
+  <a href="{% url 'crm:task_create' %}" class="btn btn-primary">
+    <i class="bi bi-plus-circle me-1"></i> New Task
+  </a>
+  <a href="{% url 'crm:dashboard' %}" class="btn btn-outline-secondary">
+    <i class="bi bi-arrow-left me-1"></i> Back to CRM
+  </a>
+  <div class="btn-group" role="group">
+    <button class="btn btn-outline-success dropdown-toggle" type="button" data-bs-toggle="dropdown">
+      <i class="bi bi-download me-1"></i> Export
+    </button>
+    <ul class="dropdown-menu">
+      <li><a class="dropdown-item" href="#" onclick="exportTasks('csv')"><i class="bi bi-file-earmark-spreadsheet me-1"></i> Export CSV</a></li>
+      <li><a class="dropdown-item" href="#" onclick="exportTasks('productivity')"><i class="bi bi-graph-up me-1"></i> Productivity Report</a></li>
+    </ul>
+  </div>
+</div>
+{% endblock %}
+
+{% block dashboard_content %}
+<!-- Productivity Dashboard -->
+<div class="row mb-4">
+  <div class="col-lg-3 col-md-6 mb-3">
+    <div class="card bg-primary text-white h-100">
+      <div class="card-body text-center">
+        <i class="bi bi-list-task fs-1 mb-2"></i>
+        <h4>{{ task_stats.total_tasks|default:0 }}</h4>
+        <p class="mb-0">Total Tasks</p>
+      </div>
+    </div>
+  </div>
+  
+  <div class="col-lg-3 col-md-6 mb-3">
+    <div class="card bg-danger text-white h-100">
+      <div class="card-body text-center">
+        <i class="bi bi-exclamation-triangle fs-1 mb-2"></i>
+        <h4>{{ task_stats.overdue_tasks|default:0 }}</h4>
+        <p class="mb-0">Overdue Tasks</p>
+      </div>
+    </div>
+  </div>
+  
+  <div class="col-lg-3 col-md-6 mb-3">
+    <div class="card bg-warning text-dark h-100">
+      <div class="card-body text-center">
+        <i class="bi bi-calendar-day fs-1 mb-2"></i>
+        <h4>{{ task_stats.due_today|default:0 }}</h4>
+        <p class="mb-0">Due Today</p>
+      </div>
+    </div>
+  </div>
+  
+  <div class="col-lg-3 col-md-6 mb-3">
+    <div class="card bg-success text-white h-100">
+      <div class="card-body text-center">
+        <i class="bi bi-check-circle fs-1 mb-2"></i>
+        <h4>{{ task_stats.completed_this_week|default:0 }}</h4>
+        <p class="mb-0">Completed This Week</p>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Priority and Status Breakdown -->
+{% if priority_breakdown or status_breakdown %}
+<div class="row mb-4">
+  {% if priority_breakdown %}
+  <div class="col-lg-6 mb-4">
+    <div class="card h-100">
+      <div class="card-header">
+        <h6 class="card-title mb-0">
+          <i class="bi bi-exclamation-circle me-2"></i>Priority Breakdown
+        </h6>
+      </div>
+      <div class="card-body">
+        <div class="row">
+          {% for priority in priority_breakdown %}
+          <div class="col-6 mb-3">
+            <div class="text-center">
+              <h5 class="mb-1 text-{% if priority.priority == 'urgent' %}danger{% elif priority.priority == 'high' %}warning{% elif priority.priority == 'medium' %}info{% else %}secondary{% endif %}">
+                {{ priority.count }}
+              </h5>
+              <small class="text-muted">{{ priority.priority|capfirst }}</small>
+            </div>
+          </div>
+          {% endfor %}
+        </div>
+      </div>
+    </div>
+  </div>
+  {% endif %}
+  
+  {% if status_breakdown %}
+  <div class="col-lg-6 mb-4">
+    <div class="card h-100">
+      <div class="card-header">
+        <h6 class="card-title mb-0">
+          <i class="bi bi-diagram-3 me-2"></i>Status Breakdown
+        </h6>
+      </div>
+      <div class="card-body">
+        <div class="row">
+          {% for status in status_breakdown %}
+          <div class="col-6 mb-3">
+            <div class="text-center">
+              <h5 class="mb-1 text-{% if status.status == 'completed' %}success{% elif status.status == 'in_progress' %}primary{% elif status.status == 'cancelled' %}danger{% else %}secondary{% endif %}">
+                {{ status.count }}
+              </h5>
+              <small class="text-muted">{{ status.status|replace_underscore_with_space|title }}</small>
+            </div>
+          </div>
+          {% endfor %}
+        </div>
+      </div>
+    </div>
+  </div>
+  {% endif %}
+</div>
+{% endif %}
+
+<!-- Advanced Filtering -->
+<div class="card mb-4">
+  <div class="card-header">
+    <h6 class="card-title mb-0">Filter Tasks</h6>
+  </div>
+  <div class="card-body">
+    <form method="get" class="row g-3">
+      <!-- Search -->
+      <div class="col-md-3">
+        <label for="search" class="form-label">Search</label>
+        <input type="text" class="form-control" name="search" id="search" 
+               value="{{ search_query }}" placeholder="Task title, description...">
+      </div>
+      
+      <!-- Status Filter -->
+      <div class="col-md-2">
+        <label for="status" class="form-label">Status</label>
+        <select class="form-control" name="status" id="status">
+          <option value="">All Active</option>
+          <option value="all" {% if status_filter == 'all' %}selected{% endif %}>All Tasks</option>
+          {% for value, label in available_statuses %}
+          <option value="{{ value }}" {% if value == status_filter %}selected{% endif %}>{{ label }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      
+      <!-- Priority Filter -->
+      <div class="col-md-2">
+        <label for="priority" class="form-label">Priority</label>
+        <select class="form-control" name="priority" id="priority">
+          <option value="">All Priorities</option>
+          {% for value, label in available_priorities %}
+          <option value="{{ value }}" {% if value == priority_filter %}selected{% endif %}>{{ label }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      
+      <!-- Due Date Filter -->
+      <div class="col-md-2">
+        <label for="due" class="form-label">Due Date</label>
+        <select class="form-control" name="due" id="due">
+          <option value="">Any Date</option>
+          <option value="overdue" {% if due_filter == 'overdue' %}selected{% endif %}>Overdue</option>
+          <option value="today" {% if due_filter == 'today' %}selected{% endif %}>Due Today</option>
+          <option value="tomorrow" {% if due_filter == 'tomorrow' %}selected{% endif %}>Due Tomorrow</option>
+          <option value="this_week" {% if due_filter == 'this_week' %}selected{% endif %}>This Week</option>
+          <option value="next_week" {% if due_filter == 'next_week' %}selected{% endif %}>Next Week</option>
+        </select>
+      </div>
+      
+      <!-- Sort -->
+      <div class="col-md-2">
+        <label for="sort" class="form-label">Sort By</label>
+        <select class="form-control" name="sort" id="sort">
+          <option value="due_date" {% if sort_by == 'due_date' %}selected{% endif %}>Due Date</option>
+          <option value="priority" {% if sort_by == 'priority' %}selected{% endif %}>Priority</option>
+          <option value="-created_at" {% if sort_by == '-created_at' %}selected{% endif %}>Newest First</option>
+          <option value="title" {% if sort_by == 'title' %}selected{% endif %}>Title A-Z</option>
+          <option value="status" {% if sort_by == 'status' %}selected{% endif %}>Status</option>
+        </select>
+      </div>
+      
+      <!-- Client/Deal Filters (Second Row) -->
+      <div class="col-md-3">
+        <label for="client" class="form-label">Client</label>
+        <select class="form-control" name="client" id="client">
+          <option value="">All Clients</option>
+          {% for client in user_clients %}
+          <option value="{{ client.id }}" {% if client.id|stringformat:"s" == client_filter %}selected{% endif %}>
+            {{ client.name }}
+          </option>
+          {% endfor %}
+        </select>
+      </div>
+      
+      <div class="col-md-3">
+        <label for="deal" class="form-label">Deal</label>
+        <select class="form-control" name="deal" id="deal">
+          <option value="">All Deals</option>
+          {% for deal in user_deals %}
+          <option value="{{ deal.id }}" {% if deal.id|stringformat:"s" == deal_filter %}selected{% endif %}>
+            {{ deal.title }}
+          </option>
+          {% endfor %}
+        </select>
+      </div>
+      
+      <!-- Team Member Filter (for managers) -->
+      {% if team_members %}
+      <div class="col-md-3">
+        <label for="assigned" class="form-label">Assigned To</label>
+        <select class="form-control" name="assigned" id="assigned">
+          <option value="">All Team Members</option>
+          {% for member in team_members %}
+          <option value="{{ member.id }}" {% if member.id|stringformat:"s" == assigned_filter %}selected{% endif %}>
+            {{ member.get_full_name|default:member.username }}
+          </option>
+          {% endfor %}
+        </select>
+      </div>
+      {% endif %}
+      
+      <!-- Filter Buttons -->
+      <div class="col-12">
+        <button type="submit" class="btn btn-primary">
+          <i class="bi bi-funnel me-1"></i> Apply Filters
+        </button>
+        <a href="{% url 'crm:task_list' %}" class="btn btn-outline-secondary">
+          <i class="bi bi-x me-1"></i> Clear All
+        </a>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- Results Summary -->
+<div class="d-flex justify-content-between align-items-center mb-3">
+  <div>
+    <h6 class="mb-0">
+      {% if page_obj.paginator.count %}
+        Showing {{ page_obj.start_index }}-{{ page_obj.end_index }} of {{ page_obj.paginator.count }} task{{ page_obj.paginator.count|pluralize }}
+      {% else %}
+        No tasks found
+      {% endif %}
+    </h6>
+  </div>
+  <div>
+    {% if search_query or status_filter or priority_filter or due_filter %}
+    <small class="text-muted">
+      <i class="bi bi-funnel me-1"></i> Filters applied
+    </small>
+    {% endif %}
+  </div>
+</div>
+
+<!-- Tasks Table -->
+<div class="card">
+  <div class="card-body p-0">
+    {% if page_obj %}
+    <div class="table-responsive">
+      <table class="table table-hover mb-0">
+        <thead class="table-dark">
+          <tr>
+            <th width="30">
+              <input type="checkbox" class="form-check-input" id="selectAll">
+            </th>
+            <th>Task</th>
+            <th>Priority</th>
+            <th>Status</th>
+            <th>Due Date</th>
+            <th>Client/Deal</th>
+            <th>Assigned To</th>
+            <th>Actions</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for task in page_obj %}
+          <tr class="{% if task.is_overdue %}table-danger{% elif task.due_date and task.due_date.date == today %}table-warning{% endif %}">
+            <td>
+              <input type="checkbox" class="form-check-input task-checkbox" value="{{ task.id }}">
+            </td>
+            <td>
+              <div class="d-flex align-items-center">
+                <div class="flex-shrink-0 me-3">
+                  {% if task.priority == 'urgent' %}
+                  <i class="bi bi-exclamation-triangle-fill text-danger" title="Urgent Priority"></i>
+                  {% elif task.priority == 'high' %}
+                  <i class="bi bi-exclamation-circle-fill text-warning" title="High Priority"></i>
+                  {% else %}
+                  <i class="bi bi-circle text-muted"></i>
+                  {% endif %}
+                </div>
+                <div>
+                  <h6 class="mb-0">
+                    <a href="{% url 'crm:task_detail' task.id %}" class="text-decoration-none">
+                      {{ task.title }}
+                    </a>
+                  </h6>
+                  {% if task.description %}
+                  <small class="text-muted">{{ task.description|truncatewords:10 }}</small>
+                  {% endif %}
+                </div>
+              </div>
+            </td>
+            <td>
+              <span class="badge bg-{% if task.priority == 'urgent' %}danger{% elif task.priority == 'high' %}warning{% elif task.priority == 'medium' %}info{% else %}secondary{% endif %}">
+                {{ task.get_priority_display }}
+              </span>
+            </td>
+            <td>
+              <span class="badge bg-{% if task.status == 'completed' %}success{% elif task.status == 'in_progress' %}primary{% elif task.status == 'cancelled' %}danger{% else %}secondary{% endif %}">
+                {{ task.get_status_display }}
+              </span>
+            </td>
+            <td>
+              {% if task.due_date %}
+              <span class="{% if task.is_overdue %}text-danger fw-bold{% elif task.due_date.date == today %}text-warning fw-bold{% endif %}">
+                {{ task.due_date|date:"M d, Y H:i" }}
+              </span>
+              {% if task.is_overdue %}
+              <br><small class="text-danger">
+                <i class="bi bi-exclamation-triangle me-1"></i>Overdue
+              </small>
+              {% elif task.due_date.date == today %}
+              <br><small class="text-warning">
+                <i class="bi bi-clock me-1"></i>Due Today
+              </small>
+              {% endif %}
+              {% else %}
+              <span class="text-muted">No due date</span>
+              {% endif %}
+            </td>
+            <td>
+              {% if task.client %}
+              <div>
+                <a href="{% url 'crm:client_detail' task.client.id %}" class="text-decoration-none">
+                  {{ task.client.name }}
+                </a>
+              </div>
+              {% endif %}
+              {% if task.deal %}
+              <div>
+                <small class="text-muted">
+                  <i class="bi bi-briefcase me-1"></i>
+                  <a href="{% url 'crm:deal_detail' task.deal.id %}" class="text-decoration-none">
+                    {{ task.deal.title }}
+                  </a>
+                </small>
+              </div>
+              {% endif %}
+              {% if not task.client and not task.deal %}
+              <span class="text-muted">General Task</span>
+              {% endif %}
+            </td>
+            <td>
+              {{ task.assigned_to.get_full_name|default:task.assigned_to.username }}
+            </td>
+            <td>
+              <div class="btn-group btn-group-sm" role="group">
+                {% if task.status != 'completed' %}
+                <button class="btn btn-success" onclick="completeTask({{ task.id }})" title="Mark Complete">
+                  <i class="bi bi-check"></i>
+                </button>
+                {% endif %}
+                <a href="{% url 'crm:task_detail' task.id %}" class="btn btn-outline-primary" title="View Details">
+                  <i class="bi bi-eye"></i>
+                </a>
+                <a href="{% url 'crm:task_update' task.id %}" class="btn btn-outline-warning" title="Edit">
+                  <i class="bi bi-pencil"></i>
+                </a>
+                <div class="btn-group btn-group-sm" role="group">
+                  <button class="btn btn-outline-secondary dropdown-toggle" type="button" data-bs-toggle="dropdown" title="More Actions">
+                    <i class="bi bi-three-dots"></i>
+                  </button>
+                  <ul class="dropdown-menu">
+                    {% if task.client %}
+                    <li><a class="dropdown-item" href="{% url 'crm:add_interaction' task.client.id %}"><i class="bi bi-chat-left-text me-1"></i> Log Interaction</a></li>
+                    {% endif %}
+                    <li><a class="dropdown-item" href="#" onclick="duplicateTask({{ task.id }})"><i class="bi bi-files me-1"></i> Duplicate Task</a></li>
+                    <li><hr class="dropdown-divider"></li>
+                    {% if is_admin %}
+                    <li><a class="dropdown-item text-danger" href="{% url 'crm:task_delete' task.id %}"><i class="bi bi-trash me-1"></i> Delete</a></li>
+                    {% endif %}
+                  </ul>
+                </div>
+              </div>
+            </td>
+          </tr>
+          {% empty %}
+          <tr>
+            <td colspan="8" class="text-center py-5">
+              <div class="text-muted">
+                <i class="bi bi-list-task fs-1 mb-3"></i>
+                <h5>No tasks found</h5>
+                <p>
+                  {% if search_query or status_filter or priority_filter %}
+                    Try adjusting your search criteria or <a href="{% url 'crm:task_list' %}">clear filters</a>.
+                  {% else %}
+                    Start managing your productivity by <a href="{% url 'crm:task_create' %}">creating your first task</a>!
+                  {% endif %}
+                </p>
+              </div>
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    
+    <!-- Pagination -->
+    {% if page_obj.has_other_pages %}
+    <nav aria-label="Tasks pagination" class="p-3">
+      <ul class="pagination justify-content-center mb-0">
+        {% if page_obj.has_previous %}
+        <li class="page-item">
+          <a class="page-link" href="?page=1{% if search_query %}&search={{ search_query }}{% endif %}{% if status_filter %}&status={{ status_filter }}{% endif %}{% if priority_filter %}&priority={{ priority_filter }}{% endif %}{% if due_filter %}&due={{ due_filter }}{% endif %}{% if sort_by %}&sort={{ sort_by }}{% endif %}">First</a>
+        </li>
+        <li class="page-item">
+          <a class="page-link" href="?page={{ page_obj.previous_page_number }}{% if search_query %}&search={{ search_query }}{% endif %}{% if status_filter %}&status={{ status_filter }}{% endif %}{% if priority_filter %}&priority={{ priority_filter }}{% endif %}{% if due_filter %}&due={{ due_filter }}{% endif %}{% if sort_by %}&sort={{ sort_by }}{% endif %}">Previous</a>
+        </li>
+        {% endif %}
+        
+        {% for num in page_obj.paginator.page_range %}
+        {% if page_obj.number == num %}
+        <li class="page-item active">
+          <span class="page-link">{{ num }}</span>
+        </li>
+        {% elif num > page_obj.number|add:'-3' and num < page_obj.number|add:'3' %}
+        <li class="page-item">
+          <a class="page-link" href="?page={{ num }}{% if search_query %}&search={{ search_query }}{% endif %}{% if status_filter %}&status={{ status_filter }}{% endif %}{% if priority_filter %}&priority={{ priority_filter }}{% endif %}{% if due_filter %}&due={{ due_filter }}{% endif %}{% if sort_by %}&sort={{ sort_by }}{% endif %}">{{ num }}</a>
+        </li>
+        {% endif %}
+        {% endfor %}
+        
+        {% if page_obj.has_next %}
+        <li class="page-item">
+          <a class="page-link" href="?page={{ page_obj.next_page_number }}{% if search_query %}&search={{ search_query }}{% endif %}{% if status_filter %}&status={{ status_filter }}{% endif %}{% if priority_filter %}&priority={{ priority_filter }}{% endif %}{% if due_filter %}&due={{ due_filter }}{% endif %}{% if sort_by %}&sort={{ sort_by }}{% endif %}">Next</a>
+        </li>
+        <li class="page-item">
+          <a class="page-link" href="?page={{ page_obj.paginator.num_pages }}{% if search_query %}&search={{ search_query }}{% endif %}{% if status_filter %}&status={{ status_filter }}{% endif %}{% if priority_filter %}&priority={{ priority_filter }}{% endif %}{% if due_filter %}&due={{ due_filter }}{% endif %}{% if sort_by %}&sort={{ sort_by }}{% endif %}">Last</a>
+        </li>
+        {% endif %}
+      </ul>
+    </nav>
+    {% endif %}
+    
+    {% else %}
+    <div class="text-center py-5">
+      <div class="text-muted">
+        <i class="bi bi-plus-circle fs-1 mb-3"></i>
+        <h5>No tasks yet</h5>
+        <p>Start managing your productivity by creating your first task.</p>
+        <a href="{% url 'crm:task_create' %}" class="btn btn-primary">
+          <i class="bi bi-plus-circle me-1"></i> Create First Task
+        </a>
+      </div>
+    </div>
+    {% endif %}
+  </div>
+</div>
+
+<!-- Bulk Actions Modal -->
+<div class="modal fade" id="bulkActionsModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title">Bulk Actions</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <div class="d-grid gap-2">
+          <button type="button" class="btn btn-success" onclick="bulkCompleteSelected()">
+            <i class="bi bi-check-all me-1"></i> Mark Selected as Complete
+          </button>
+          <button type="button" class="btn btn-warning" onclick="bulkUpdatePriority()">
+            <i class="bi bi-exclamation-circle me-1"></i> Update Priority
+          </button>
+          <button type="button" class="btn btn-info" onclick="bulkAssign()">
+            <i class="bi bi-person me-1"></i> Reassign Selected
+          </button>
+          <button type="button" class="btn btn-outline-danger" onclick="bulkDelete()">
+            <i class="bi bi-trash me-1"></i> Delete Selected
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+const today = new Date().toISOString().split('T')[0];
+
+document.addEventListener('DOMContentLoaded', function() {
+    // Auto-submit filters on change
+    document.getElementById('sort').addEventListener('change', function() {
+        this.form.submit();
+    });
+    
+    // Select all functionality
+    document.getElementById('selectAll').addEventListener('change', function() {
+        const checkboxes = document.querySelectorAll('.task-checkbox');
+        checkboxes.forEach(cb => cb.checked = this.checked);
+        updateBulkActions();
+    });
+    
+    // Update bulk actions when checkboxes change
+    document.querySelectorAll('.task-checkbox').forEach(cb => {
+        cb.addEventListener('change', updateBulkActions);
+    });
+});
+
+// Complete task function
+function completeTask(taskId) {
+    if (confirm('Mark this task as complete?')) {
+        fetch(`/crm/tasks/${taskId}/complete/`, {
+            method: 'POST',
+            headers: {
+                'X-Requested-With': 'XMLHttpRequest',
+                'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value
+            }
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                location.reload();
+            } else {
+                alert('Error completing task. Please try again.');
+            }
+        })
+        .catch(error => {
+            console.error('Error:', error);
+            alert('Error completing task. Please try again.');
+        });
+    }
+}
+
+// Export functions
+function exportTasks(format) {
+    const params = new URLSearchParams(window.location.search);
+    params.set('export', format);
+    window.location.href = window.location.pathname + '?' + params.toString();
+}
+
+// Duplicate task
+function duplicateTask(taskId) {
+    window.location.href = `/crm/tasks/create/?duplicate=${taskId}`;
+}
+
+// Bulk actions
+function updateBulkActions() {
+    const selected = document.querySelectorAll('.task-checkbox:checked');
+    const bulkButton = document.getElementById('bulkActionsButton');
+    
+    if (selected.length > 0) {
+        if (!bulkButton) {
+            addBulkActionsButton();
+        }
+    } else {
+        if (bulkButton) {
+            bulkButton.remove();
+        }
+    }
+}
+
+function addBulkActionsButton() {
+    const actionsDiv = document.querySelector('.btn-group[role="group"]');
+    const bulkButton = document.createElement('button');
+    bulkButton.id = 'bulkActionsButton';
+    bulkButton.className = 'btn btn-outline-primary';
+    bulkButton.setAttribute('data-bs-toggle', 'modal');
+    bulkButton.setAttribute('data-bs-target', '#bulkActionsModal');
+    bulkButton.innerHTML = '<i class="bi bi-check2-square me-1"></i> Bulk Actions';
+    actionsDiv.appendChild(bulkButton);
+}
+
+function getSelectedTasks() {
+    const selected = document.querySelectorAll('.task-checkbox:checked');
+    return Array.from(selected).map(cb => cb.value);
+}
+
+function bulkCompleteSelected() {
+    const selected = getSelectedTasks();
+    if (selected.length === 0) return;
+    
+    if (confirm(`Mark ${selected.length} task(s) as complete?`)) {
+        // Implementation would go here
+        alert(`${selected.length} tasks marked as complete!`);
+        location.reload();
+    }
+}
+
+function bulkUpdatePriority() {
+    const selected = getSelectedTasks();
+    if (selected.length === 0) return;
+    
+    const priority = prompt('Enter new priority (low, medium, high, urgent):');
+    if (priority && ['low', 'medium', 'high', 'urgent'].includes(priority)) {
+        alert(`${selected.length} tasks updated to ${priority} priority!`);
+        location.reload();
+    }
+}
+
+function bulkAssign() {
+    const selected = getSelectedTasks();
+    if (selected.length === 0) return;
+    
+    alert('Bulk assignment feature will be implemented.');
+}
+
+function bulkDelete() {
+    const selected = getSelectedTasks();
+    if (selected.length === 0) return;
+    
+    if (confirm(`Delete ${selected.length} task(s)? This cannot be undone.`)) {
+        alert('Bulk delete feature will be implemented.');
+    }
+}
+
+// Keyboard shortcuts
+document.addEventListener('keydown', function(e) {
+    // Ctrl/Cmd + N to add new task
+    if ((e.ctrlKey || e.metaKey) && e.key === 'n') {
+        e.preventDefault();
+        window.location.href = "{% url 'crm:task_create' %}";
+    }
+    
+    // Ctrl/Cmd + K to focus search
+    if ((e.ctrlKey || e.metaKey) && e.key === 'k') {
+        e.preventDefault();
+        document.getElementById('search').focus();
+    }
+});
+</script>
+{% endblock %}

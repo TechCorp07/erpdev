@@ -1,0 +1,152 @@
+<!-- website/templates/website/contact.html -->
+{% extends "website_base.html" %}
+{% load crispy_forms_tags %}
+{% load static %}
+
+{% block title %}Contact - BlitzTech Electronics{% endblock %}
+
+{% block content %}
+  <h1 class="mb-4">Contact Us</h1>
+  
+  {% if messages %}
+    {% for message in messages %}
+      <div class="alert alert-{{ message.tags }}" role="alert">
+        {{ message }}
+      </div>
+    {% endfor %}
+  {% endif %}
+  
+  <div class="row">
+    <div class="col-md-6">
+      <p>We'd love to hear from you! Fill out the form below and we'll get back to you as soon as possible.</p>
+      
+      <form method="post">
+        {% csrf_token %}
+        {{ form|crispy }}
+        <button type="submit" class="btn btn-primary w-100">Submit</button>
+      </form>
+    </div>
+    
+    <div class="col-md-6">
+      <div class="card">
+        <div class="card-body">
+          <h3 class="card-title">Get in Touch</h3>
+          <p><i class="bi bi-geo-alt"></i> 904 Premium Close, Mount Pleasant, Business Park, Harare, Zimbabwe</p>
+          <p><i class="bi bi-envelope"></i> sales@blitztechelectronics.co.zw</p>
+          <p><i class="bi bi-telephone"></i> +263 774 613 020</p>
+          
+          <!-- Google Maps Embed -->
+          <div class="ratio ratio-16x9">
+            <iframe src="https://www.google.com/maps/embed?pb=!1m18!1m12!1m3!1d3797.7654326037607!2d31.061533514857965!3d-17.780557887838703!2m3!1f0!2f0!3f0!3m2!1i1024!2i768!4f13.1!3m3!1m2!1s0x1931a4fa1a7a1bed%3A0x30ba5d91e8ff17ca!2sMount%20Pleasant%2C%20Harare%2C%20Zimbabwe!5e0!3m2!1sen!2sus!4v1709770136411!5m2!1sen!2sus" 
+                    style="border:0;" allowfullscreen="" loading="lazy" 
+                    referrerpolicy="no-referrer-when-downgrade"></iframe>
+          </div>
+        </div>
+      </div>
+      
+      <!-- Office hours -->
+      <div class="card mt-4">
+        <div class="card-body">
+          <h3 class="card-title">Office Hours</h3>
+          <ul class="list-group list-group-flush">
+            <li class="list-group-item d-flex justify-content-between">
+              <span>Monday - Friday:</span>
+              <span>8:00 AM - 5:00 PM</span>
+            </li>
+            <li class="list-group-item d-flex justify-content-between">
+              <span>Saturday:</span>
+              <span>9:00 AM - 1:00 PM</span>
+            </li>
+            <li class="list-group-item d-flex justify-content-between">
+              <span>Sunday:</span>
+              <span>Closed</span>
+            </li>
+          </ul>
+        </div>
+      </div>
+      
+      <!-- Social media -->
+      <div class="card mt-4">
+        <div class="card-body">
+          <h3 class="card-title">Connect With Us</h3>
+          <div class="d-flex justify-content-around fs-2">
+            <a href="#" class="text-primary"><i class="bi bi-facebook"></i></a>
+            <a href="#" class="text-info"><i class="bi bi-twitter"></i></a>
+            <a href="#" class="text-primary"><i class="bi bi-linkedin"></i></a>
+            <a href="#" class="text-danger"><i class="bi bi-instagram"></i></a>
+            <a href="#" class="text-danger"><i class="bi bi-youtube"></i></a>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+  
+  <!-- FAQ Section -->
+  <section class="mt-5">
+    <div class="row">
+      <div class="col-12">
+        <h2 class="mb-4">Frequently Asked Questions</h2>
+        <div class="accordion" id="contactFaqAccordion">
+          <div class="accordion-item">
+            <h2 class="accordion-header" id="headingOne">
+              <button class="accordion-button" type="button" data-bs-toggle="collapse" data-bs-target="#collapseOne" aria-expanded="true" aria-controls="collapseOne">
+                How quickly will I receive a response to my inquiry?
+              </button>
+            </h2>
+            <div id="collapseOne" class="accordion-collapse collapse show" aria-labelledby="headingOne" data-bs-parent="#contactFaqAccordion">
+              <div class="accordion-body">
+                We strive to respond to all inquiries within 24 hours during regular business days. For urgent matters, we recommend calling our office directly at +263 774 613 020 for immediate assistance.
+              </div>
+            </div>
+          </div>
+          
+          <div class="accordion-item">
+            <h2 class="accordion-header" id="headingTwo">
+              <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#collapseTwo" aria-expanded="false" aria-controls="collapseTwo">
+                Do you offer consultations for custom projects?
+              </button>
+            </h2>
+            <div id="collapseTwo" class="accordion-collapse collapse" aria-labelledby="headingTwo" data-bs-parent="#contactFaqAccordion">
+              <div class="accordion-body">
+                Yes, we offer initial consultations to discuss your custom project requirements. You can request a consultation through our contact form, specifying your project needs, and our team will arrange a meeting to discuss how we can help bring your vision to life.
+              </div>
+            </div>
+          </div>
+          
+          <div class="accordion-item">
+            <h2 class="accordion-header" id="headingThree">
+              <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#collapseThree" aria-expanded="false" aria-controls="collapseThree">
+                Can I visit your location to see components in person?
+              </button>
+            </h2>
+            <div id="collapseThree" class="accordion-collapse collapse" aria-labelledby="headingThree" data-bs-parent="#contactFaqAccordion">
+              <div class="accordion-body">
+                Absolutely! We welcome visitors to our location at 904 Premium Close, Mount Pleasant Business Park in Harare during our regular business hours. We recommend calling ahead if you're looking for specific components to ensure they're in stock and available for viewing.
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+  
+  <!-- Call to Action -->
+  <section class="mt-5 mb-5">
+    <div class="row">
+      <div class="col-lg-8 mx-auto">
+        <div class="card bg-primary text-white text-center p-5">
+          <h2 class="fw-bold mb-3">Ready to get started?</h2>
+          <p class="lead mb-4">Contact us today to discuss your project requirements and discover how BlitzTech Electronics can help you transcend to the future.</p>
+          <div>
+            <a href="tel:+263774613020" class="btn btn-light btn-lg me-2">
+              <i class="bi bi-telephone me-2"></i>Call Us
+            </a>
+            <a href="mailto:sales@blitztechelectronics.co.zw" class="btn btn-outline-light btn-lg">
+              <i class="bi bi-envelope me-2"></i>Email Us
+            </a>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+{% endblock %}

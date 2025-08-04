@@ -1,0 +1,9 @@
+/* Custom CRM styles */
+.client-priority-vip {
+    border-left: 4px solid #ffc107;
+}
+
+.lead-score-high {
+    color: #28a745;
+    font-weight: bold;
+}

@@ -1,0 +1,645 @@
+<!-- templates/website/team/team_form.html -->
+{% extends "website_base.html" %}
+{% load crispy_forms_tags %}
+
+{% block title %}{{ title }} - BlitzTech Electronics{% endblock %}
+
+{% block extra_css %}
+<style>
+/* Custom styles for team form */
+.form-section {
+    background-color: #fff;
+    border-radius: 12px;
+    padding: 1.5rem;
+    margin-bottom: 1.5rem;
+    border: 1px solid #e9ecef;
+    position: relative;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+}
+.form-section::before {
+    content: '';
+    position: absolute;
+    left: 0;
+    top: 0;
+    bottom: 0;
+    width: 4px;
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    border-radius: 4px 0 0 4px;
+}
+.profile-preview {
+    background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
+    border-radius: 12px;
+    padding: 2rem;
+    text-align: center;
+    border: 1px solid #dee2e6;
+}
+.avatar-preview {
+    width: 120px;
+    height: 120px;
+    border-radius: 50%;
+    object-fit: cover;
+    margin: 0 auto 1rem;
+    border: 4px solid #fff;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+}
+.social-preview {
+    display: flex;
+    justify-content: center;
+    gap: 0.5rem;
+    margin-top: 1rem;
+}
+.social-preview a {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 36px;
+    height: 36px;
+    border-radius: 50%;
+    background: #007bff;
+    color: white;
+    text-decoration: none;
+    transition: all 0.3s ease;
+}
+.social-preview a:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(0,123,255,0.3);
+}
+.tips-section {
+    background: linear-gradient(135deg, #e3f2fd 0%, #f3e5f5 100%);
+    border: 1px solid #bbdefb;
+    border-radius: 8px;
+    padding: 1rem;
+}
+.bio-counter {
+    font-size: 0.875rem;
+    text-align: right;
+    color: #6c757d;
+    margin-top: 0.5rem;
+}
+.url-validator {
+    font-size: 0.875rem;
+    margin-top: 0.25rem;
+}
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container py-4">
+  <div class="row justify-content-center">
+    <div class="col-lg-10">
+      <!-- Form Header -->
+      <div class="d-flex align-items-center mb-4">
+        <a href="{% url 'website:manage_team' %}" class="btn btn-outline-secondary me-3">
+          <i class="bi bi-arrow-left"></i>
+        </a>
+        <div>
+          <h2 class="mb-0">
+            <i class="bi bi-people-fill me-2 text-primary"></i>{{ title }}
+          </h2>
+          <p class="text-muted mb-0">Add team members to showcase your expertise and build client trust</p>
+        </div>
+      </div>
+
+      <form method="post" enctype="multipart/form-data" class="needs-validation" novalidate>
+        {% csrf_token %}
+        
+        <!-- Basic Information Section -->
+        <div class="form-section">
+          <h5 class="mb-3">
+            <i class="bi bi-person me-2 text-primary"></i>Basic Information
+          </h5>
+          
+          <div class="row">
+            <div class="col-md-6">
+              <div class="mb-3">
+                <label for="{{ form.name.id_for_label }}" class="form-label fw-bold">
+                  Full Name <span class="text-danger">*</span>
+                </label>
+                {{ form.name }}
+                <div class="form-text">
+                  Professional name as it should appear on the website
+                </div>
+                {% if form.name.errors %}
+                  <div class="invalid-feedback d-block">
+                    {% for error in form.name.errors %}{{ error }}{% endfor %}
+                  </div>
+                {% endif %}
+              </div>
+            </div>
+            <div class="col-md-6">
+              <div class="mb-3">
+                <label for="{{ form.position.id_for_label }}" class="form-label fw-bold">
+                  Job Title <span class="text-danger">*</span>
+                </label>
+                {{ form.position }}
+                <div class="form-text">
+                  Official position or role (e.g., "Senior Electronics Engineer", "Project Manager")
+                </div>
+                {% if form.position.errors %}
+                  <div class="invalid-feedback d-block">
+                    {% for error in form.position.errors %}{{ error }}{% endfor %}
+                  </div>
+                {% endif %}
+              </div>
+            </div>
+          </div>
+
+          <div class="mb-3">
+            <label for="{{ form.bio.id_for_label }}" class="form-label fw-bold">
+              Biography
+            </label>
+            {{ form.bio }}
+            <div class="form-text">
+              Brief professional background, expertise, and what they bring to the team. Keep it engaging but professional.
+            </div>
+            <div class="bio-counter" id="bio-counter"></div>
+            {% if form.bio.errors %}
+              <div class="invalid-feedback d-block">
+                {% for error in form.bio.errors %}{{ error }}{% endfor %}
+              </div>
+            {% endif %}
+          </div>
+
+          <!-- Bio Writing Tips -->
+          <div class="tips-section">
+            <h6 class="mb-2"><i class="bi bi-lightbulb me-1"></i>Writing Effective Team Bios</h6>
+            <div class="row small">
+              <div class="col-md-6">
+                <p class="mb-1"><strong>Include:</strong></p>
+                <ul class="mb-2">
+                  <li>Years of experience</li>
+                  <li>Key areas of expertise</li>
+                  <li>Notable achievements</li>
+                  <li>Education or certifications</li>
+                </ul>
+              </div>
+              <div class="col-md-6">
+                <p class="mb-1"><strong>Keep it:</strong></p>
+                <ul class="mb-0">
+                  <li>Professional but personable</li>
+                  <li>Client-focused (what they can do for clients)</li>
+                  <li>Concise (2-3 sentences ideal)</li>
+                  <li>Current and relevant</li>
+                </ul>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Profile Photo Section -->
+        <div class="form-section">
+          <h5 class="mb-3">
+            <i class="bi bi-camera me-2 text-primary"></i>Profile Photo
+          </h5>
+          
+          <div class="row">
+            <div class="col-md-8">
+              <div class="mb-3">
+                <label for="{{ form.image.id_for_label }}" class="form-label fw-bold">
+                  Professional Headshot <span class="text-danger">*</span>
+                </label>
+                {{ form.image }}
+                <div class="form-text">
+                  High-quality professional photo (recommended: 400x400px, square format)
+                </div>
+                {% if form.image.errors %}
+                  <div class="invalid-feedback d-block">
+                    {% for error in form.image.errors %}{{ error }}{% endfor %}
+                  </div>
+                {% endif %}
+              </div>
+
+              <!-- Photo Guidelines -->
+              <div class="tips-section">
+                <h6 class="mb-2"><i class="bi bi-camera2 me-1"></i>Photo Guidelines</h6>
+                <div class="row small">
+                  <div class="col-md-6">
+                    <p class="mb-1"><strong>✓ Good photos:</strong></p>
+                    <ul class="mb-0">
+                      <li>Well-lit and clear</li>
+                      <li>Professional attire</li>
+                      <li>Neutral background</li>
+                      <li>Square aspect ratio</li>
+                    </ul>
+                  </div>
+                  <div class="col-md-6">
+                    <p class="mb-1"><strong>Technical specs:</strong></p>
+                    <ul class="mb-0">
+                      <li>Format: JPG or PNG</li>
+                      <li>Size: Under 1MB</li>
+                      <li>Dimensions: 400x400px minimum</li>
+                      <li>Resolution: 72-150 DPI</li>
+                    </ul>
+                  </div>
+                </div>
+              </div>
+            </div>
+            <div class="col-md-4">
+              {% if object and object.image %}
+                <div class="text-center">
+                  <img src="{{ object.image.url }}" 
+                       alt="{{ object.name }}" 
+                       class="avatar-preview">
+                  <p class="text-muted small mt-2">Current photo</p>
+                </div>
+              {% else %}
+                <div class="text-center">
+                  <div class="avatar-preview bg-light d-flex align-items-center justify-content-center mx-auto" id="photo-preview">
+                    <i class="bi bi-person-fill fs-1 text-muted"></i>
+                  </div>
+                  <p class="text-muted small mt-2">Photo preview</p>
+                </div>
+              {% endif %}
+            </div>
+          </div>
+        </div>
+
+        <!-- Contact Information Section -->
+        <div class="form-section">
+          <h5 class="mb-3">
+            <i class="bi bi-envelope me-2 text-primary"></i>Contact Information
+          </h5>
+          
+          <div class="mb-3">
+            <label for="{{ form.email.id_for_label }}" class="form-label fw-bold">
+              Email Address
+            </label>
+            {{ form.email }}
+            <div class="form-text">
+              Professional email address (optional - will be displayed publicly if provided)
+            </div>
+            {% if form.email.errors %}
+              <div class="invalid-feedback d-block">
+                {% for error in form.email.errors %}{{ error }}{% endfor %}
+              </div>
+            {% endif %}
+          </div>
+        </div>
+
+        <!-- Social Media Section -->
+        <div class="form-section">
+          <h5 class="mb-3">
+            <i class="bi bi-share me-2 text-primary"></i>Professional Social Media
+          </h5>
+          
+          <div class="row">
+            <div class="col-md-6">
+              <div class="mb-3">
+                <label for="{{ form.linkedin.id_for_label }}" class="form-label fw-bold">
+                  <i class="bi bi-linkedin me-1 text-primary"></i>LinkedIn Profile
+                </label>
+                {{ form.linkedin }}
+                <div class="form-text">
+                  Full LinkedIn profile URL (e.g., https://linkedin.com/in/yourname)
+                </div>
+                <div class="url-validator" id="linkedin-validator"></div>
+                {% if form.linkedin.errors %}
+                  <div class="invalid-feedback d-block">
+                    {% for error in form.linkedin.errors %}{{ error }}{% endfor %}
+                  </div>
+                {% endif %}
+              </div>
+            </div>
+            <div class="col-md-6">
+              <div class="mb-3">
+                <label for="{{ form.twitter.id_for_label }}" class="form-label fw-bold">
+                  <i class="bi bi-twitter me-1 text-info"></i>Twitter Profile
+                </label>
+                {{ form.twitter }}
+                <div class="form-text">
+                  Full Twitter profile URL (e.g., https://twitter.com/yourhandle)
+                </div>
+                <div class="url-validator" id="twitter-validator"></div>
+                {% if form.twitter.errors %}
+                  <div class="invalid-feedback d-block">
+                    {% for error in form.twitter.errors %}{{ error }}{% endfor %}
+                  </div>
+                {% endif %}
+              </div>
+            </div>
+          </div>
+
+          <div class="row">
+            <div class="col-md-6">
+              <div class="mb-3">
+                <label for="{{ form.github.id_for_label }}" class="form-label fw-bold">
+                  <i class="bi bi-github me-1 text-dark"></i>GitHub Profile
+                </label>
+                {{ form.github }}
+                <div class="form-text">
+                  Full GitHub profile URL (e.g., https://github.com/yourusername)
+                </div>
+                <div class="url-validator" id="github-validator"></div>
+                {% if form.github.errors %}
+                  <div class="invalid-feedback d-block">
+                    {% for error in form.github.errors %}{{ error }}{% endfor %}
+                  </div>
+                {% endif %}
+              </div>
+            </div>
+          </div>
+
+          <div class="alert alert-info" role="alert">
+            <i class="bi bi-info-circle me-2"></i>
+            <strong>Note:</strong> Social media links are optional but help build credibility and allow clients to learn more about team members' professional backgrounds.
+          </div>
+        </div>
+
+        <!-- Display Settings Section -->
+        <div class="form-section">
+          <h5 class="mb-3">
+            <i class="bi bi-gear me-2 text-primary"></i>Display Settings
+          </h5>
+          
+          <div class="row">
+            <div class="col-md-6">
+              <div class="mb-3">
+                <label for="{{ form.order.id_for_label }}" class="form-label fw-bold">
+                  Display Order
+                </label>
+                {{ form.order }}
+                <div class="form-text">
+                  {{ form.order.help_text }}
+                </div>
+                {% if form.order.errors %}
+                  <div class="invalid-feedback d-block">
+                    {% for error in form.order.errors %}{{ error }}{% endfor %}
+                  </div>
+                {% endif %}
+              </div>
+            </div>
+            <div class="col-md-6">
+              <div class="mb-3">
+                <div class="form-check">
+                  {{ form.is_active }}
+                  <label class="form-check-label fw-bold" for="{{ form.is_active.id_for_label }}">
+                    Active (Show on website)
+                  </label>
+                </div>
+                <div class="form-text">
+                  Only active team members appear on your website. Use this to control visibility without deleting profiles.
+                </div>
+                {% if form.is_active.errors %}
+                  <div class="invalid-feedback d-block">
+                    {% for error in form.is_active.errors %}{{ error }}{% endfor %}
+                  </div>
+                {% endif %}
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Live Preview Section -->
+        <div class="form-section">
+          <h5 class="mb-3">
+            <i class="bi bi-eye me-2 text-primary"></i>Profile Preview
+          </h5>
+          
+          <div class="profile-preview" id="profile-preview">
+            <div id="preview-avatar" class="mb-3">
+              <div class="avatar-preview bg-light d-flex align-items-center justify-content-center mx-auto">
+                <i class="bi bi-person-fill fs-1 text-muted"></i>
+              </div>
+            </div>
+            
+            <h5 id="preview-name" class="mb-1">Team Member Name</h5>
+            <p id="preview-position" class="text-primary mb-2 fw-semibold">Position Title</p>
+            
+            <p id="preview-bio" class="text-muted small mb-3">
+              Team member biography will appear here as you type...
+            </p>
+            
+            <div id="preview-email" class="mb-2" style="display: none;">
+              <small class="text-muted">
+                <i class="bi bi-envelope me-1"></i>
+                <span id="preview-email-text"></span>
+              </small>
+            </div>
+            
+            <div class="social-preview" id="preview-social">
+              <!-- Social links will be added dynamically -->
+            </div>
+          </div>
+        </div>
+
+        <!-- Form Actions -->
+        <div class="d-flex gap-2 pt-3">
+          <button class="btn btn-primary btn-lg" type="submit">
+            <i class="bi bi-check-lg me-2"></i>
+            {% if object %}Update Team Member{% else %}Add Team Member{% endif %}
+          </button>
+          <a href="{% url 'website:manage_team' %}" class="btn btn-outline-secondary btn-lg">
+            <i class="bi bi-x-lg me-2"></i>Cancel
+          </a>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // Form elements
+    const nameField = document.getElementById('{{ form.name.id_for_label }}');
+    const positionField = document.getElementById('{{ form.position.id_for_label }}');
+    const bioField = document.getElementById('{{ form.bio.id_for_label }}');
+    const emailField = document.getElementById('{{ form.email.id_for_label }}');
+    const linkedinField = document.getElementById('{{ form.linkedin.id_for_label }}');
+    const twitterField = document.getElementById('{{ form.twitter.id_for_label }}');
+    const githubField = document.getElementById('{{ form.github.id_for_label }}');
+    const imageField = document.getElementById('{{ form.image.id_for_label }}');
+    
+    // Preview elements
+    const previewName = document.getElementById('preview-name');
+    const previewPosition = document.getElementById('preview-position');
+    const previewBio = document.getElementById('preview-bio');
+    const previewEmail = document.getElementById('preview-email');
+    const previewEmailText = document.getElementById('preview-email-text');
+    const previewSocial = document.getElementById('preview-social');
+    const previewAvatar = document.getElementById('preview-avatar');
+    
+    // Counters and validators
+    const bioCounter = document.getElementById('bio-counter');
+    const linkedinValidator = document.getElementById('linkedin-validator');
+    const twitterValidator = document.getElementById('twitter-validator');
+    const githubValidator = document.getElementById('github-validator');
+    
+    // Bio character counter
+    function updateBioCounter() {
+        if (bioField && bioCounter) {
+            const length = bioField.value.length;
+            const words = bioField.value.trim().split(/\s+/).filter(word => word.length > 0).length;
+            bioCounter.textContent = `${length} characters, ${words} words`;
+            
+            if (length > 400) {
+                bioCounter.className = 'bio-counter text-warning';
+            } else if (length > 200) {
+                bioCounter.className = 'bio-counter text-info';
+            } else {
+                bioCounter.className = 'bio-counter text-muted';
+            }
+        }
+    }
+    
+    // URL validators
+    function validateURL(field, validator, platform) {
+        if (!field || !validator) return;
+        
+        const url = field.value.trim();
+        if (!url) {
+            validator.textContent = '';
+            return;
+        }
+        
+        let isValid = false;
+        let message = '';
+        
+        switch(platform) {
+            case 'linkedin':
+                isValid = url.includes('linkedin.com/in/') || url.includes('linkedin.com/pub/');
+                message = isValid ? '✓ Valid LinkedIn URL' : '✗ Should be a LinkedIn profile URL';
+                break;
+            case 'twitter':
+                isValid = url.includes('twitter.com/') || url.includes('x.com/');
+                message = isValid ? '✓ Valid Twitter URL' : '✗ Should be a Twitter profile URL';
+                break;
+            case 'github':
+                isValid = url.includes('github.com/');
+                message = isValid ? '✓ Valid GitHub URL' : '✗ Should be a GitHub profile URL';
+                break;
+        }
+        
+        validator.textContent = message;
+        validator.className = `url-validator ${isValid ? 'text-success' : 'text-warning'}`;
+    }
+    
+    // Live preview updates
+    function updatePreview() {
+        if (nameField && previewName) {
+            previewName.textContent = nameField.value || 'Team Member Name';
+        }
+        
+        if (positionField && previewPosition) {
+            previewPosition.textContent = positionField.value || 'Position Title';
+        }
+        
+        if (bioField && previewBio) {
+            const bio = bioField.value || 'Team member biography will appear here as you type...';
+            previewBio.textContent = bio;
+        }
+        
+        if (emailField && previewEmail && previewEmailText) {
+            const email = emailField.value.trim();
+            if (email) {
+                previewEmailText.textContent = email;
+                previewEmail.style.display = 'block';
+            } else {
+                previewEmail.style.display = 'none';
+            }
+        }
+        
+        // Update social links
+        if (previewSocial) {
+            let socialHTML = '';
+            
+            if (linkedinField && linkedinField.value.trim()) {
+                socialHTML += '<a href="#" class="linkedin"><i class="bi bi-linkedin"></i></a>';
+            }
+            if (twitterField && twitterField.value.trim()) {
+                socialHTML += '<a href="#" class="twitter"><i class="bi bi-twitter"></i></a>';
+            }
+            if (githubField && githubField.value.trim()) {
+                socialHTML += '<a href="#" class="github"><i class="bi bi-github"></i></a>';
+            }
+            
+            previewSocial.innerHTML = socialHTML || '<small class="text-muted">No social links</small>';
+        }
+    }
+    
+    // Image preview
+    if (imageField) {
+        imageField.addEventListener('change', function(event) {
+            const file = event.target.files[0];
+            if (file) {
+                const reader = new FileReader();
+                reader.onload = function(e) {
+                    if (previewAvatar) {
+                        previewAvatar.innerHTML = `<img src="${e.target.result}" alt="Preview" class="avatar-preview">`;
+                    }
+                    
+                    // Also update the photo preview section
+                    const photoPreview = document.getElementById('photo-preview');
+                    if (photoPreview) {
+                        photoPreview.innerHTML = `<img src="${e.target.result}" alt="Preview" class="avatar-preview">`;
+                    }
+                };
+                reader.readAsDataURL(file);
+            }
+        });
+    }
+    
+    // Add event listeners
+    if (nameField) nameField.addEventListener('input', updatePreview);
+    if (positionField) positionField.addEventListener('input', updatePreview);
+    if (bioField) {
+        bioField.addEventListener('input', () => {
+            updatePreview();
+            updateBioCounter();
+        });
+    }
+    if (emailField) emailField.addEventListener('input', updatePreview);
+    
+    // Social media fields
+    if (linkedinField) {
+        linkedinField.addEventListener('input', () => {
+            updatePreview();
+            validateURL(linkedinField, linkedinValidator, 'linkedin');
+        });
+    }
+    if (twitterField) {
+        twitterField.addEventListener('input', () => {
+            updatePreview();
+            validateURL(twitterField, twitterValidator, 'twitter');
+        });
+    }
+    if (githubField) {
+        githubField.addEventListener('input', () => {
+            updatePreview();
+            validateURL(githubField, githubValidator, 'github');
+        });
+    }
+    
+    // Auto-add https:// to URLs
+    [linkedinField, twitterField, githubField].forEach(field => {
+        if (field) {
+            field.addEventListener('blur', function() {
+                const value = this.value.trim();
+                if (value && !value.startsWith('http://') && !value.startsWith('https://')) {
+                    this.value = 'https://' + value;
+                    updatePreview();
+                }
+            });
+        }
+    });
+    
+    // Initialize
+    updatePreview();
+    updateBioCounter();
+    validateURL(linkedinField, linkedinValidator, 'linkedin');
+    validateURL(twitterField, twitterValidator, 'twitter');
+    validateURL(githubField, githubValidator, 'github');
+    
+    // Form validation
+    const form = document.querySelector('.needs-validation');
+    if (form) {
+        form.addEventListener('submit', function(event) {
+            if (!form.checkValidity()) {
+                event.preventDefault();
+                event.stopPropagation();
+            }
+            form.classList.add('was-validated');
+        });
+    }
+});
+</script>
+{% endblock %}

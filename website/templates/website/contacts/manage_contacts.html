@@ -1,0 +1,60 @@
+{% extends "website_base.html" %}
+{% load static %}
+
+{% block title %}Manage Contacts - BlitzTech Electronics{% endblock %}
+
+{% block content %}
+<div class="container py-4">
+  <!-- Header -->
+  <div class="d-flex justify-content-between align-items-center mb-4">
+    <div>
+      <h2><i class="bi bi-envelope-open me-2 text-primary"></i>Manage Contacts</h2>
+      <p class="text-muted mb-0">Review all inquiries submitted via your contact form</p>
+    </div>
+    <a href="{% url 'website:manage_dashboard' %}" class="btn btn-outline-secondary">
+      <i class="bi bi-arrow-left"></i> Back to Dashboard
+    </a>
+  </div>
+
+  <!-- Table -->
+  {% if contacts %}
+    <div class="table-responsive">
+      <table class="table table-hover table-bordered align-middle">
+        <thead class="table-light">
+          <tr>
+            <th scope="col">#</th>
+            <th scope="col">Full Name</th>
+            <th scope="col">Email</th>
+            <th scope="col">Subject</th>
+            <th scope="col">Date</th>
+            <th scope="col">Actions</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for contact in contacts %}
+          <tr>
+            <td>{{ forloop.counter }}</td>
+            <td>{{ contact.name }}</td>
+            <td><a href="mailto:{{ contact.email }}">{{ contact.email }}</a></td>
+            <td>{{ contact.subject|truncatechars:50 }}</td>
+            <td>{{ contact.created_at|date:"M d, Y H:i" }}</td>
+            <td>
+              <a href="{% url 'website:view_contact' contact.pk %}" class="btn btn-sm btn-outline-primary">
+                <i class="bi bi-eye"></i> View
+              </a>
+              <a href="{% url 'website:delete_contact' contact.pk %}" class="btn btn-sm btn-outline-danger" onclick="return confirm('Are you sure you want to delete this contact?');">
+                <i class="bi bi-trash"></i> Delete
+              </a>
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  {% else %}
+    <div class="alert alert-info text-center">
+      <i class="bi bi-info-circle"></i> No contact inquiries have been submitted yet.
+    </div>
+  {% endif %}
+</div>
+{% endblock %}

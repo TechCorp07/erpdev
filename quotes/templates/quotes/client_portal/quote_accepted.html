@@ -1,0 +1,59 @@
+<!-- quotes/templates/quotes/client_portal/quote_accepted.html -->
+{% extends "quotes/client_portal/base.html" %}
+
+{% block content %}
+<div class="text-center py-5">
+    <div class="quote-card">
+        <div class="p-5">
+            <div class="text-success mb-4">
+                <i class="bi bi-check-circle" style="font-size: 4rem;"></i>
+            </div>
+            
+            <h2 class="text-success mb-3">Quote Accepted Successfully!</h2>
+            
+            <p class="lead mb-4">
+                Thank you for accepting Quote {{ quote.quote_number }}. 
+                We're excited to work with you!
+            </p>
+            
+            <div class="alert alert-success alert-custom">
+                <h5><i class="bi bi-calendar-check me-2"></i>What Happens Next?</h5>
+                <ul class="list-unstyled mb-0">
+                    <li class="mb-2">✅ Your acceptance has been recorded and our team notified</li>
+                    <li class="mb-2">📞 We'll contact you within 4 hours to confirm order details</li>
+                    <li class="mb-2">📋 You'll receive a formal purchase order for your records</li>
+                    <li class="mb-0">🚚 We'll begin processing and arrange delivery</li>
+                </ul>
+            </div>
+            
+            {% if client_comments %}
+            <div class="alert alert-info alert-custom">
+                <h6><i class="bi bi-chat-left-text me-1"></i>Your Comments:</h6>
+                <p class="mb-0 font-monospace">{{ client_comments }}</p>
+            </div>
+            {% endif %}
+            
+            <div class="mt-4">
+                <h5>Order Summary</h5>
+                <p class="mb-1"><strong>Quote Number:</strong> {{ quote.quote_number }}</p>
+                <p class="mb-1"><strong>Total Amount:</strong> ${{ quote.total_amount|floatformat:2 }} {{ quote.currency }}</p>
+                <p class="mb-1"><strong>Payment Terms:</strong> {{ quote.payment_terms }} days</p>
+                <p class="mb-3"><strong>Accepted:</strong> {{ quote.response_date|date:"F d, Y H:i" }}</p>
+            </div>
+            
+            <div class="contact-info">
+                <h5><i class="bi bi-headset me-2"></i>Need to Contact Us?</h5>
+                <p class="mb-1">
+                    <strong>Email:</strong> <a href="mailto:{{ company_info.email }}">{{ company_info.email }}</a>
+                </p>
+                <p class="mb-1">
+                    <strong>Phone:</strong> {{ company_info.phone }}
+                </p>
+                <p class="mb-0">
+                    <strong>Reference:</strong> Quote {{ quote.quote_number }}
+                </p>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

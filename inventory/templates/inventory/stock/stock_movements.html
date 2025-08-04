@@ -1,0 +1,594 @@
+{% extends "inventory_base.html" %}
+{% load static %}
+
+<!-- This template creates a comprehensive audit trail for all inventory movements.
+     It's designed to help users understand exactly what happened to their stock,
+     when it happened, and who was responsible. This transparency is crucial for
+     both operational management and compliance requirements. -->
+
+{% block inventory_title %}Stock Movement History{% endblock %}
+
+{% block inventory_breadcrumbs %}
+  {{ block.super }}
+  {% with inventory_breadcrumbs=breadcrumbs %}{% endwith %}
+{% endblock %}
+
+{% block inventory_actions %}
+  <!-- Action buttons are organized by frequency of use and user permissions.
+       Export functions are prominent because movement data is often needed
+       for analysis and reporting to management. -->
+  <div class="btn-group me-2" role="group">
+    {% if app_permissions.inventory == 'edit' or app_permissions.inventory == 'admin' %}
+      <a href="{% url 'inventory:stock_adjust' %}" class="btn btn-success btn-sm quick-action-btn">
+        <i class="bi bi-plus-minus me-1"></i>Adjust Stock
+      </a>
+      <a href="{% url 'inventory:stock_transfer' %}" class="btn btn-warning btn-sm quick-action-btn">
+        <i class="bi bi-arrow-left-right me-1"></i>Transfer Stock
+      </a>
+    {% endif %}
+  </div>
+  
+  <div class="btn-group" role="group">
+    <button type="button" class="btn btn-outline-primary btn-sm" data-bs-toggle="modal" data-bs-target="#movementFilterModal">
+      <i class="bi bi-funnel me-1"></i>Filters
+    </button>
+    <a href="{% url 'inventory:stock_movements_export' %}{% if request.GET %}?{{ request.GET.urlencode }}{% endif %}" 
+       class="btn btn-outline-secondary btn-sm quick-action-btn">
+      <i class="bi bi-download me-1"></i>Export
+    </a>
+    <a href="{% url 'inventory:stock_overview' %}" class="btn btn-outline-info btn-sm quick-action-btn">
+      <i class="bi bi-graph-up me-1"></i>Overview
+    </a>
+  </div>
+{% endblock %}
+
+{% block inventory_content %}
+  <!-- Summary cards provide quick insights into movement patterns.
+       These metrics help users understand inventory activity at a glance
+       before diving into detailed records. -->
+  <div class="row mb-4">
+    <div class="col-lg-3 col-md-6 mb-3">
+      <div class="card border-primary">
+        <div class="card-body text-center">
+          <i class="bi bi-activity text-primary fs-1 mb-2"></i>
+          <h5 class="card-title">{{ total_movements }}</h5>
+          <p class="card-text text-muted">Total Movements</p>
+          <small class="text-muted">
+            {% if date_range %}{{ date_range }}{% else %}All time{% endif %}
+          </small>
+        </div>
+      </div>
+    </div>
+    
+    <div class="col-lg-3 col-md-6 mb-3">
+      <div class="card border-success">
+        <div class="card-body text-center">
+          <i class="bi bi-arrow-up-circle text-success fs-1 mb-2"></i>
+          <h5 class="card-title">{{ stock_in_total|default:0 }}</h5>
+          <p class="card-text text-muted">Units In</p>
+          <small class="text-success">Stock increases</small>
+        </div>
+      </div>
+    </div>
+    
+    <div class="col-lg-3 col-md-6 mb-3">
+      <div class="card border-danger">
+        <div class="card-body text-center">
+          <i class="bi bi-arrow-down-circle text-danger fs-1 mb-2"></i>
+          <h5 class="card-title">{{ stock_out_total|default:0 }}</h5>
+          <p class="card-text text-muted">Units Out</p>
+          <small class="text-danger">Stock decreases</small>
+        </div>
+      </div>
+    </div>
+    
+    <div class="col-lg-3 col-md-6 mb-3">
+      <div class="card border-info">
+        <div class="card-body text-center">
+          <i class="bi bi-currency-dollar text-info fs-1 mb-2"></i>
+          <h5 class="card-title">${{ total_value|floatformat:0|default:0 }}</h5>
+          <p class="card-text text-muted">Movement Value</p>
+          <small class="text-info">Total transaction value</small>
+        </div>
+      </div>
+    </div>
+  </div>
+  
+  <!-- Search and filter interface provides users with powerful tools
+       to find specific movements. The layout prioritizes the most common
+       search patterns while keeping advanced filters easily accessible. -->
+  <div class="card inventory-card mb-4">
+    <div class="card-header">
+      <h6 class="card-title mb-0">
+        <i class="bi bi-search me-2"></i>Search & Filter Movements
+      </h6>
+    </div>
+    <div class="card-body">
+      <form method="get" class="row g-3">
+        <!-- Product search is the most common filter, so it gets prominent placement -->
+        <div class="col-md-4">
+          <label class="form-label">Product</label>
+          <input type="text" name="product" class="form-control" 
+                 placeholder="Search by product name or SKU..."
+                 value="{{ request.GET.product }}">
+        </div>
+        
+        <!-- Movement type helps categorize the nature of transactions -->
+        <div class="col-md-3">
+          <label class="form-label">Movement Type</label>
+          <select name="movement_type" class="form-select">
+            <option value="">All Types</option>
+            <option value="in" {% if request.GET.movement_type == 'in' %}selected{% endif %}>Stock In</option>
+            <option value="out" {% if request.GET.movement_type == 'out' %}selected{% endif %}>Stock Out</option>
+            <option value="adjustment" {% if request.GET.movement_type == 'adjustment' %}selected{% endif %}>Adjustment</option>
+            <option value="transfer" {% if request.GET.movement_type == 'transfer' %}selected{% endif %}>Transfer</option>
+            <option value="sale" {% if request.GET.movement_type == 'sale' %}selected{% endif %}>Sale</option>
+            <option value="purchase" {% if request.GET.movement_type == 'purchase' %}selected{% endif %}>Purchase</option>
+            <option value="return" {% if request.GET.movement_type == 'return' %}selected{% endif %}>Return</option>
+          </select>
+        </div>
+        
+        <!-- Date range filtering is essential for audit trails and reporting -->
+        <div class="col-md-2">
+          <label class="form-label">From Date</label>
+          <input type="date" name="date_from" class="form-control" 
+                 value="{{ request.GET.date_from }}">
+        </div>
+        
+        <div class="col-md-2">
+          <label class="form-label">To Date</label>
+          <input type="date" name="date_to" class="form-control" 
+                 value="{{ request.GET.date_to }}">
+        </div>
+        
+        <!-- Action button placement encourages users to apply filters -->
+        <div class="col-md-1 d-flex align-items-end">
+          <button type="submit" class="btn btn-primary w-100">
+            <i class="bi bi-search"></i>
+          </button>
+        </div>
+      </form>
+      
+      <!-- Clear filters link provides an easy reset option -->
+      {% if request.GET %}
+        <div class="mt-3">
+          <a href="{% url 'inventory:stock_movements' %}" class="btn btn-outline-secondary btn-sm">
+            <i class="bi bi-x-circle me-1"></i>Clear Filters
+          </a>
+          <span class="text-muted ms-2">
+            Showing {{ movements.count }} of {{ total_movements }} movements
+          </span>
+        </div>
+      {% endif %}
+    </div>
+  </div>
+  
+  <!-- Movement list is the core content. We use a responsive table design
+       that gracefully handles different screen sizes while maintaining
+       readability of the audit information. -->
+  <div class="card inventory-card">
+    <div class="card-header d-flex justify-content-between align-items-center">
+      <h6 class="card-title mb-0">
+        <i class="bi bi-list-ul me-2"></i>Movement Records
+      </h6>
+      
+      <!-- Sort options help users organize data by their preferred criteria -->
+      <div class="dropdown">
+        <button class="btn btn-outline-secondary btn-sm dropdown-toggle" type="button" data-bs-toggle="dropdown">
+          <i class="bi bi-sort-down me-1"></i>Sort by
+        </button>
+        <ul class="dropdown-menu">
+          <li><a class="dropdown-item" href="?{% if request.GET %}{{ request.GET.urlencode }}&{% endif %}sort=-created_at">
+            <i class="bi bi-clock me-2"></i>Most Recent
+          </a></li>
+          <li><a class="dropdown-item" href="?{% if request.GET %}{{ request.GET.urlencode }}&{% endif %}sort=created_at">
+            <i class="bi bi-clock-history me-2"></i>Oldest First
+          </a></li>
+          <li><a class="dropdown-item" href="?{% if request.GET %}{{ request.GET.urlencode }}&{% endif %}sort=product__name">
+            <i class="bi bi-sort-alpha-down me-2"></i>Product Name
+          </a></li>
+          <li><a class="dropdown-item" href="?{% if request.GET %}{{ request.GET.urlencode }}&{% endif %}sort=-quantity">
+            <i class="bi bi-sort-numeric-down me-2"></i>Quantity
+          </a></li>
+        </ul>
+      </div>
+    </div>
+    
+    <div class="card-body p-0">
+      {% if movements %}
+        <!-- Responsive table wrapper ensures the table works on mobile devices
+             while maintaining the detailed information users need for audit purposes -->
+        <div class="table-responsive">
+          <table class="table table-hover table-striped mb-0">
+            <thead class="table-dark">
+              <tr>
+                <th>Date & Time</th>
+                <th>Product</th>
+                <th>Type</th>
+                <th>Quantity</th>
+                <th>From</th>
+                <th>To</th>
+                <th>Reference</th>
+                <th>User</th>
+                <th>Value</th>
+                <th>Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for movement in movements %}
+                <tr>
+                  <!-- Timestamp formatting provides clear chronological information -->
+                  <td>
+                    <div class="fw-bold">{{ movement.created_at|date:"M d, Y" }}</div>
+                    <small class="text-muted">{{ movement.created_at|time:"H:i" }}</small>
+                  </td>
+                  
+                  <!-- Product information with links for easy navigation -->
+                  <td>
+                    <div>
+                      <a href="{% url 'inventory:product_detail' movement.product.pk %}" 
+                         class="text-decoration-none fw-bold">
+                        {{ movement.product.name }}
+                      </a>
+                    </div>
+                    <small class="text-muted">{{ movement.product.sku }}</small>
+                  </td>
+                  
+                  <!-- Movement type with visual indicators for quick scanning -->
+                  <td>
+                    <span class="badge bg-{% if movement.movement_type == 'in' or movement.movement_type == 'purchase' %}success{% elif movement.movement_type == 'out' or movement.movement_type == 'sale' %}danger{% elif movement.movement_type == 'adjustment' %}warning{% elif movement.movement_type == 'transfer' %}info{% else %}secondary{% endif %}">
+                      {{ movement.get_movement_type_display }}
+                    </span>
+                  </td>
+                  
+                  <!-- Quantity with positive/negative indicators for directional clarity -->
+                  <td>
+                    <span class="fw-bold {% if movement.quantity > 0 %}text-success{% elif movement.quantity < 0 %}text-danger{% endif %}">
+                      {% if movement.quantity > 0 %}+{% endif %}{{ movement.quantity }}
+                    </span>
+                  </td>
+                  
+                  <!-- Location information helps track stock flow between areas -->
+                  <td>
+                    {% if movement.from_location %}
+                      <small class="text-muted">{{ movement.from_location.name }}</small>
+                    {% else %}
+                      <small class="text-muted">—</small>
+                    {% endif %}
+                  </td>
+                  
+                  <td>
+                    {% if movement.to_location %}
+                      <small class="text-muted">{{ movement.to_location.name }}</small>
+                    {% else %}
+                      <small class="text-muted">—</small>
+                    {% endif %}
+                  </td>
+                  
+                  <!-- Reference information provides context for the movement -->
+                  <td>
+                    <div class="small">{{ movement.reference|truncatechars:20 }}</div>
+                  </td>
+                  
+                  <!-- User information for accountability -->
+                  <td>
+                    {% if movement.created_by %}
+                      <small class="text-muted">{{ movement.created_by.get_full_name|default:movement.created_by.username }}</small>
+                    {% else %}
+                      <small class="text-muted">System</small>
+                    {% endif %}
+                  </td>
+                  
+                  <!-- Financial value when available -->
+                  <td>
+                    {% if movement.total_cost %}
+                      <span class="fw-bold">${{ movement.total_cost|floatformat:2 }}</span>
+                    {% else %}
+                      <small class="text-muted">—</small>
+                    {% endif %}
+                  </td>
+                  
+                  <!-- Action buttons for detailed view and related operations -->
+                  <td>
+                    <div class="btn-group" role="group">
+                      <a href="{% url 'inventory:stock_movement_detail' movement.pk %}" 
+                         class="btn btn-outline-primary btn-sm" 
+                         title="View Details">
+                        <i class="bi bi-eye"></i>
+                      </a>
+                      {% if movement.product %}
+                        <a href="{% url 'inventory:product_stock_history' movement.product.pk %}" 
+                           class="btn btn-outline-info btn-sm" 
+                           title="Product History">
+                          <i class="bi bi-clock-history"></i>
+                        </a>
+                      {% endif %}
+                    </div>
+                  </td>
+                </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+        
+        <!-- Pagination helps manage large datasets while maintaining performance -->
+        {% if is_paginated %}
+          <div class="card-footer bg-light">
+            <nav aria-label="Movement pagination">
+              <ul class="pagination pagination-sm justify-content-center mb-0">
+                {% if page_obj.has_previous %}
+                  <li class="page-item">
+                    <a class="page-link" href="?page=1{% if request.GET.urlencode %}&{{ request.GET.urlencode }}{% endif %}">First</a>
+                  </li>
+                  <li class="page-item">
+                    <a class="page-link" href="?page={{ page_obj.previous_page_number }}{% if request.GET.urlencode %}&{{ request.GET.urlencode }}{% endif %}">Previous</a>
+                  </li>
+                {% endif %}
+                
+                <li class="page-item active">
+                  <span class="page-link">
+                    Page {{ page_obj.number }} of {{ page_obj.paginator.num_pages }}
+                    <small class="text-muted">({{ movements.count }} records)</small>
+                  </span>
+                </li>
+                
+                {% if page_obj.has_next %}
+                  <li class="page-item">
+                    <a class="page-link" href="?page={{ page_obj.next_page_number }}{% if request.GET.urlencode %}&{{ request.GET.urlencode }}{% endif %}">Next</a>
+                  </li>
+                  <li class="page-item">
+                    <a class="page-link" href="?page={{ page_obj.paginator.num_pages }}{% if request.GET.urlencode %}&{{ request.GET.urlencode }}{% endif %}">Last</a>
+                  </li>
+                {% endif %}
+              </ul>
+            </nav>
+          </div>
+        {% endif %}
+        
+      {% else %}
+        <!-- Empty state provides guidance and encourages action -->
+        <div class="text-center py-5">
+          <i class="bi bi-inbox fs-1 text-muted mb-3"></i>
+          <h5 class="text-muted">No Stock Movements Found</h5>
+          <p class="text-muted mb-4">
+            {% if request.GET %}
+              No movements match your current filters. Try adjusting your search criteria.
+            {% else %}
+              No stock movements have been recorded yet. Start by adjusting stock levels or transferring inventory.
+            {% endif %}
+          </p>
+          
+          {% if not request.GET and app_permissions.inventory == 'edit' or app_permissions.inventory == 'admin' %}
+            <div class="btn-group" role="group">
+              <a href="{% url 'inventory:stock_adjust' %}" class="btn btn-primary">
+                <i class="bi bi-plus-minus me-1"></i>Adjust Stock
+              </a>
+              <a href="{% url 'inventory:stock_transfer' %}" class="btn btn-outline-primary">
+                <i class="bi bi-arrow-left-right me-1"></i>Transfer Stock
+              </a>
+            </div>
+          {% endif %}
+        </div>
+      {% endif %}
+    </div>
+  </div>
+{% endblock %}
+
+<!-- Advanced Filter Modal provides additional filtering options
+     without cluttering the main interface. This progressive disclosure
+     keeps the UI clean while providing power users with advanced capabilities. -->
+<div class="modal fade" id="movementFilterModal" tabindex="-1">
+  <div class="modal-dialog modal-lg">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title">
+          <i class="bi bi-funnel me-2"></i>Advanced Filters
+        </h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      
+      <form method="get">
+        <div class="modal-body">
+          <div class="row">
+            <!-- User filter for accountability tracking -->
+            <div class="col-md-6 mb-3">
+              <label class="form-label">User</label>
+              <select name="user" class="form-select">
+                <option value="">All Users</option>
+                {% for user in users_with_movements %}
+                  <option value="{{ user.id }}" {% if request.GET.user == user.id|stringformat:"s" %}selected{% endif %}>
+                    {{ user.get_full_name|default:user.username }}
+                  </option>
+                {% endfor %}
+              </select>
+            </div>
+            
+            <!-- Location filters for tracking stock flow -->
+            <div class="col-md-6 mb-3">
+              <label class="form-label">Location</label>
+              <select name="location" class="form-select">
+                <option value="">All Locations</option>
+                {% for location in locations %}
+                  <option value="{{ location.id }}" {% if request.GET.location == location.id|stringformat:"s" %}selected{% endif %}>
+                    {{ location.name }}
+                  </option>
+                {% endfor %}
+              </select>
+            </div>
+            
+            <!-- Category filter for grouping related products -->
+            <div class="col-md-6 mb-3">
+              <label class="form-label">Product Category</label>
+              <select name="category" class="form-select">
+                <option value="">All Categories</option>
+                {% for category in categories %}
+                  <option value="{{ category.id }}" {% if request.GET.category == category.id|stringformat:"s" %}selected{% endif %}>
+                    {{ category.name }}
+                  </option>
+                {% endfor %}
+              </select>
+            </div>
+            
+            <!-- Reference filter for finding specific transactions -->
+            <div class="col-md-6 mb-3">
+              <label class="form-label">Reference</label>
+              <input type="text" name="reference" class="form-control" 
+                     placeholder="PO number, invoice, etc."
+                     value="{{ request.GET.reference }}">
+            </div>
+            
+            <!-- Quantity filters for identifying significant movements -->
+            <div class="col-md-6 mb-3">
+              <label class="form-label">Minimum Quantity</label>
+              <input type="number" name="min_quantity" class="form-control" 
+                     placeholder="Filter by minimum quantity"
+                     value="{{ request.GET.min_quantity }}">
+            </div>
+            
+            <div class="col-md-6 mb-3">
+              <label class="form-label">Maximum Quantity</label>
+              <input type="number" name="max_quantity" class="form-control" 
+                     placeholder="Filter by maximum quantity"
+                     value="{{ request.GET.max_quantity }}">
+            </div>
+          </div>
+        </div>
+        
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+          <button type="submit" class="btn btn-primary" data-bs-dismiss="modal">Apply Filters</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+
+{% block extra_js %}
+{{ block.super }}
+<script>
+// Enhanced JavaScript functionality for the stock movements interface
+document.addEventListener('DOMContentLoaded', function() {
+  // Auto-refresh movements every 30 seconds to show real-time updates
+  // This helps users stay current with inventory activity
+  let autoRefreshInterval;
+  
+  function startAutoRefresh() {
+    autoRefreshInterval = setInterval(function() {
+      // Only refresh if no modals are open and user hasn't interacted recently
+      if (!document.querySelector('.modal.show') && 
+          Date.now() - lastUserInteraction > 10000) {
+        window.location.reload();
+      }
+    }, 30000);
+  }
+  
+  // Track user interaction to prevent disruptive refreshes
+  let lastUserInteraction = Date.now();
+  document.addEventListener('click', function() {
+    lastUserInteraction = Date.now();
+  });
+  
+  document.addEventListener('keypress', function() {
+    lastUserInteraction = Date.now();
+  });
+  
+  // Start auto-refresh unless user explicitly disabled it
+  if (!localStorage.getItem('disableAutoRefresh')) {
+    startAutoRefresh();
+  }
+  
+  // Enhanced search functionality with debouncing
+  // This provides responsive search without overwhelming the server
+  const productSearchField = document.querySelector('input[name="product"]');
+  let searchTimeout;
+  
+  if (productSearchField) {
+    productSearchField.addEventListener('input', function() {
+      clearTimeout(searchTimeout);
+      searchTimeout = setTimeout(() => {
+        if (this.value.length >= 3 || this.value.length === 0) {
+          this.form.submit();
+        }
+      }, 500);
+    });
+  }
+  
+  // Preserve scroll position on page refresh
+  // This maintains user context when they return from detail views
+  if (sessionStorage.getItem('movementsScrollPosition')) {
+    window.scrollTo(0, parseInt(sessionStorage.getItem('movementsScrollPosition')));
+    sessionStorage.removeItem('movementsScrollPosition');
+  }
+  
+  // Save scroll position when navigating away
+  document.querySelectorAll('a[href*="stock_movement_detail"]').forEach(link => {
+    link.addEventListener('click', function() {
+      sessionStorage.setItem('movementsScrollPosition', window.scrollY);
+    });
+  });
+  
+  // Filter form enhancements
+  // Preserve filter state and provide user feedback
+  const filterForm = document.querySelector('#movementFilterModal form');
+  if (filterForm) {
+    // Show loading state when filters are applied
+    filterForm.addEventListener('submit', function() {
+      const submitButton = this.querySelector('button[type="submit"]');
+      const originalText = submitButton.innerHTML;
+      submitButton.innerHTML = '<i class="spinner-border spinner-border-sm me-1"></i>Applying...';
+      submitButton.disabled = true;
+      
+      // Re-enable if there's an error (page doesn't navigate)
+      setTimeout(() => {
+        submitButton.innerHTML = originalText;
+        submitButton.disabled = false;
+      }, 5000);
+    });
+  }
+  
+  // Keyboard shortcuts for power users
+  // These shortcuts improve efficiency for frequent users
+  document.addEventListener('keydown', function(e) {
+    // Ctrl/Cmd + F to focus search
+    if ((e.ctrlKey || e.metaKey) && e.key === 'f' && !e.shiftKey) {
+      e.preventDefault();
+      if (productSearchField) {
+        productSearchField.focus();
+        productSearchField.select();
+      }
+    }
+    
+    // Ctrl/Cmd + Shift + F to open advanced filters
+    if ((e.ctrlKey || e.metaKey) && e.key === 'F') {
+      e.preventDefault();
+      const filterModal = new bootstrap.Modal(document.getElementById('movementFilterModal'));
+      filterModal.show();
+    }
+    
+    // Escape to clear filters
+    if (e.key === 'Escape' && !document.querySelector('.modal.show')) {
+      const clearLink = document.querySelector('a[href*="stock_movements"]:not([href*="?"])');
+      if (clearLink && window.location.search) {
+        window.location.href = clearLink.href;
+      }
+    }
+  });
+  
+  // Progressive enhancement for table sorting
+  // Provides visual feedback and loading states for better UX
+  document.querySelectorAll('.dropdown-menu a[href*="sort="]').forEach(link => {
+    link.addEventListener('click', function(e) {
+      // Add loading indicator
+      const icon = this.querySelector('i');
+      const originalClass = icon.className;
+      icon.className = 'spinner-border spinner-border-sm me-2';
+      
+      // Restore icon if navigation fails
+      setTimeout(() => {
+        icon.className = originalClass;
+      }, 3000);
+    });
+  });
+});
+</script>
+{% endblock %}

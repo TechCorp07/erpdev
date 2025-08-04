@@ -1,0 +1,30 @@
+{% extends "pdf_base.html" %}   {# if you already have a PDF base #}
+{% load zip_filter %}
+
+{% block body %}
+<h2>Quote Analytics Report</h2>
+<p>Period: {{ request.GET.start_date|default:"N/A" }} – {{ request.GET.end_date|default:"N/A" }}</p>
+
+<table>
+  <tr><th>Total Quotes</th><td>{{ total_quotes }}</td></tr>
+  <tr><th>Total Value</th><td>${{ total_value|floatformat:2 }}</td></tr>
+  <tr><th>Avg Deal</th><td>${{ avg_value|floatformat:2 }}</td></tr>
+  <tr><th>Conversion %</th><td>{{ conversion_pct|floatformat:1 }}%</td></tr>
+</table>
+
+<h3>Status Distribution</h3>
+<ul>
+{% for lbl, cnt in status_labels|zip_lists:status_data %}
+  <li>{{ lbl }} – {{ cnt }}</li>
+{% endfor %}
+</ul>
+
+<h3>Top Clients</h3>
+<ol>
+{% for row in top_clients %}
+  <li>{{ row.client__name }} – ${{ row.total|floatformat:2 }}</li>
+{% empty %}
+  <li>No data</li>
+{% endfor %}
+</ol>
+{% endblock %}

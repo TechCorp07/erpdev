@@ -1,0 +1,148 @@
+<!-- website/templates/website/blog.html -->
+{% extends "website_base.html" %}
+{% load crispy_forms_tags %}
+{% load static %}
+
+{% block title %}Blog - BlitzTech{% endblock %}
+
+{% block content %}
+  <h1 class="mb-4">Our Blog</h1>
+  
+  <div class="row">
+    <div class="col-md-8">
+      {% for post in posts %}
+        <article class="card mb-4">
+          <div class="card-body">
+            <h2 class="card-title">{{ post.title }}</h2>
+            <p class="card-text text-muted">
+              Published by {{ post.author.get_full_name|default:post.author.username }} 
+              on {{ post.created_at|date:"F j, Y" }}
+            </p>
+            <p class="card-text">{{ post.content|truncatewords:50 }}</p>
+            <a href="#" class="btn btn-primary">Read More</a>
+          </div>
+        </article>
+      {% empty %}
+        <div class="alert alert-info">
+          No blog posts available at the moment. Check back soon!
+        </div>
+      {% endfor %}
+      
+      <!-- Pagination -->
+      {% if posts.has_other_pages %}
+        <nav aria-label="Page navigation">
+          <ul class="pagination justify-content-center">
+            {% if posts.has_previous %}
+              <li class="page-item">
+                <a class="page-link" href="?page={{ posts.previous_page_number }}" aria-label="Previous">
+                  <span aria-hidden="true">&laquo;</span>
+                </a>
+              </li>
+            {% else %}
+              <li class="page-item disabled">
+                <span class="page-link" aria-hidden="true">&laquo;</span>
+              </li>
+            {% endif %}
+            
+            {% for i in posts.paginator.page_range %}
+              {% if posts.number == i %}
+                <li class="page-item active"><span class="page-link">{{ i }}</span></li>
+              {% else %}
+                <li class="page-item"><a class="page-link" href="?page={{ i }}">{{ i }}</a></li>
+              {% endif %}
+            {% endfor %}
+            
+            {% if posts.has_next %}
+              <li class="page-item">
+                <a class="page-link" href="?page={{ posts.next_page_number }}" aria-label="Next">
+                  <span aria-hidden="true">&raquo;</span>
+                </a>
+              </li>
+            {% else %}
+              <li class="page-item disabled">
+                <span class="page-link" aria-hidden="true">&raquo;</span>
+              </li>
+            {% endif %}
+          </ul>
+        </nav>
+      {% endif %}
+    </div>
+    
+    <div class="col-md-4">
+      <!-- Search box -->
+      <div class="card mb-4">
+        <div class="card-body">
+          <h3 class="card-title">Search</h3>
+          <form action="{% url 'website:blog' %}" method="get">
+            <div class="input-group">
+              <input type="text" name="search" class="form-control" placeholder="Search articles..." value="{{ request.GET.search|default:'' }}">
+              <button class="btn btn-primary" type="submit">
+                <i class="bi bi-search"></i>
+              </button>
+            </div>
+          </form>
+        </div>
+      </div>
+    
+      <!-- Recent posts -->
+      <div class="card mb-4">
+        <div class="card-body">
+          <h3 class="card-title">Recent Posts</h3>
+          <ul class="list-group list-group-flush">
+            {% for post in posts|slice:":5" %}
+              <li class="list-group-item">
+                <a href="#">{{ post.title }}</a>
+                <small class="d-block text-muted">{{ post.created_at|date:"M j, Y" }}</small>
+              </li>
+            {% empty %}
+              <li class="list-group-item">No recent posts</li>
+            {% endfor %}
+          </ul>
+        </div>
+      </div>
+      
+      <!-- Categories -->
+      <div class="card mb-4">
+        <div class="card-body">
+          <h3 class="card-title">Categories</h3>
+          <ul class="list-group list-group-flush">
+            <li class="list-group-item d-flex justify-content-between align-items-center">
+              Web Development
+              <span class="badge bg-primary rounded-pill">12</span>
+            </li>
+            <li class="list-group-item d-flex justify-content-between align-items-center">
+              Mobile Apps
+              <span class="badge bg-primary rounded-pill">8</span>
+            </li>
+            <li class="list-group-item d-flex justify-content-between align-items-center">
+              Digital Marketing
+              <span class="badge bg-primary rounded-pill">15</span>
+            </li>
+            <li class="list-group-item d-flex justify-content-between align-items-center">
+              UI/UX Design
+              <span class="badge bg-primary rounded-pill">6</span>
+            </li>
+            <li class="list-group-item d-flex justify-content-between align-items-center">
+              Technology
+              <span class="badge bg-primary rounded-pill">9</span>
+            </li>
+          </ul>
+        </div>
+      </div>
+      
+      <!-- Newsletter -->
+      <div class="card">
+        <div class="card-body">
+          <h3 class="card-title">Subscribe to Newsletter</h3>
+          <p>Stay updated with our latest news and articles.</p>
+          <form>
+            <div class="mb-3">
+              <input type="email" class="form-control" placeholder="Your email address">
+            </div>
+            <button type="submit" class="btn btn-primary w-100">Subscribe</button>
+          </form>
+        </div>
+      </div>
+    </div>
+  </div>
+{% endblock %}

@@ -1,0 +1,22 @@
+{% extends "dashboard_base.html" %}
+{% load crispy_forms_tags %}
+
+{% block title %}Delete Client{% endblock %}
+
+{% block page_title %}Delete Client{% endblock %}
+
+{% block dashboard_content %}
+<div class="container mt-4">
+    <h2 class="mb-4">Delete Client</h2>
+    <div class="alert alert-warning">
+        Are you sure you want to delete the client <strong>{{ client.name }}</strong>?
+    </div>
+    <form method="post">
+        {% csrf_token %}
+        <div class="d-flex gap-2">
+            <button type="submit" class="btn btn-danger">Confirm Delete</button>
+            <a href="{% url 'client_list' %}" class="btn btn-secondary">Cancel</a>
+        </div>
+    </form>
+</div>
+{% endblock %}

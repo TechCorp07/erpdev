@@ -1,0 +1,319 @@
+<!-- templates/website/services/service_form.html -->
+{% extends "website_base.html" %}
+{% load crispy_forms_tags %}
+
+{% block title %}{{ title }} - BlitzTech Electronics{% endblock %}
+
+{% block extra_css %}
+<style>
+/* Custom styles for service form */
+.icon-preview-container {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    border-radius: 8px;
+    width: 80px;
+    height: 80px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: white;
+    font-size: 2rem;
+    margin: 0 auto;
+}
+.category-description {
+    font-size: 0.875rem;
+    color: #6c757d;
+    background-color: #f8f9fa;
+    padding: 0.75rem;
+    border-radius: 0.375rem;
+    border-left: 4px solid #007bff;
+}
+.form-section {
+    background-color: #fff;
+    border-radius: 8px;
+    padding: 1.5rem;
+    margin-bottom: 1.5rem;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+}
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container py-4">
+  <div class="row justify-content-center">
+    <div class="col-lg-8">
+      <!-- Form Header -->
+      <div class="d-flex align-items-center mb-4">
+        <a href="{% url 'website:manage_services' %}" class="btn btn-outline-secondary me-3">
+          <i class="bi bi-arrow-left"></i>
+        </a>
+        <div>
+          <h2 class="mb-0">
+            <i class="bi bi-cpu me-2 text-primary"></i>{{ title }}
+          </h2>
+          <p class="text-muted mb-0">Define what services your company offers to clients</p>
+        </div>
+      </div>
+
+      <form method="post" enctype="multipart/form-data" class="needs-validation" novalidate>
+        {% csrf_token %}
+        
+        <!-- Basic Information Section -->
+        <div class="form-section">
+          <h5 class="mb-3">
+            <i class="bi bi-info-circle me-2 text-primary"></i>Basic Information
+          </h5>
+          
+          <div class="row">
+            <div class="col-md-8">
+              <div class="mb-3">
+                <label for="{{ form.title.id_for_label }}" class="form-label fw-bold">
+                  Service Title <span class="text-danger">*</span>
+                </label>
+                {{ form.title }}
+                <div class="form-text">
+                  A clear, concise name for your service (e.g., "PCB Design & Fabrication", "IoT System Development")
+                </div>
+                {% if form.title.errors %}
+                  <div class="invalid-feedback d-block">
+                    {% for error in form.title.errors %}{{ error }}{% endfor %}
+                  </div>
+                {% endif %}
+              </div>
+            </div>
+            <div class="col-md-4">
+              <div class="mb-3">
+                <label for="{{ form.category.id_for_label }}" class="form-label fw-bold">
+                  Category <span class="text-danger">*</span>
+                </label>
+                {{ form.category }}
+                <div class="form-text">
+                  Group similar services together
+                </div>
+                {% if form.category.errors %}
+                  <div class="invalid-feedback d-block">
+                    {% for error in form.category.errors %}{{ error }}{% endfor %}
+                  </div>
+                {% endif %}
+              </div>
+            </div>
+          </div>
+
+          <div class="mb-3">
+            <label for="{{ form.description.id_for_label }}" class="form-label fw-bold">
+              Service Description <span class="text-danger">*</span>
+            </label>
+            {{ form.description }}
+            <div class="form-text">
+              Describe what this service includes, what problems it solves, and what benefits clients get. Be specific and focus on value.
+            </div>
+            {% if form.description.errors %}
+              <div class="invalid-feedback d-block">
+                {% for error in form.description.errors %}{{ error }}{% endfor %}
+              </div>
+            {% endif %}
+          </div>
+        </div>
+
+        <!-- Visual Elements Section -->
+        <div class="form-section">
+          <h5 class="mb-3">
+            <i class="bi bi-palette me-2 text-primary"></i>Visual Elements
+          </h5>
+          
+          <div class="row">
+            <div class="col-md-6">
+              <div class="mb-3">
+                <label for="{{ form.icon.id_for_label }}" class="form-label fw-bold">
+                  Service Icon
+                </label>
+                {{ form.icon }}
+                <div class="form-text">
+                  {{ form.icon.help_text }}
+                </div>
+                
+                <!-- Icon Preview -->
+                <div class="text-center mt-3">
+                  <div class="icon-preview-container" id="icon-preview">
+                    <i class="bi bi-gear" id="icon-display"></i>
+                  </div>
+                  <small class="text-muted mt-2 d-block">Icon Preview</small>
+                </div>
+                
+                {% if form.icon.errors %}
+                  <div class="invalid-feedback d-block">
+                    {% for error in form.icon.errors %}{{ error }}{% endfor %}
+                  </div>
+                {% endif %}
+              </div>
+            </div>
+            <div class="col-md-6">
+              <div class="mb-3">
+                <label for="{{ form.image.id_for_label }}" class="form-label fw-bold">
+                  Service Image
+                </label>
+                {{ form.image }}
+                <div class="form-text">
+                  Optional image to illustrate your service (recommended: 400x300px)
+                </div>
+                
+                {% if object and object.image %}
+                  <div class="mt-3 text-center">
+                    <img src="{{ object.image.url }}" 
+                         alt="{{ object.title }}" 
+                         class="img-thumbnail"
+                         style="max-width: 200px; max-height: 150px; object-fit: cover;">
+                    <br>
+                    <small class="text-muted">Current image</small>
+                  </div>
+                {% endif %}
+                
+                {% if form.image.errors %}
+                  <div class="invalid-feedback d-block">
+                    {% for error in form.image.errors %}{{ error }}{% endfor %}
+                  </div>
+                {% endif %}
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Display Settings Section -->
+        <div class="form-section">
+          <h5 class="mb-3">
+            <i class="bi bi-gear me-2 text-primary"></i>Display Settings
+          </h5>
+          
+          <div class="row">
+            <div class="col-md-6">
+              <div class="mb-3">
+                <label for="{{ form.order.id_for_label }}" class="form-label fw-bold">
+                  Display Order
+                </label>
+                {{ form.order }}
+                <div class="form-text">
+                  {{ form.order.help_text }}
+                </div>
+                {% if form.order.errors %}
+                  <div class="invalid-feedback d-block">
+                    {% for error in form.order.errors %}{{ error }}{% endfor %}
+                  </div>
+                {% endif %}
+              </div>
+            </div>
+            <div class="col-md-6">
+              <!-- Service category information -->
+              <div class="category-description">
+                <h6 class="mb-2"><i class="bi bi-info-circle me-1"></i>Category Information</h6>
+                <p class="mb-1 small"><strong>Components:</strong> Electronic parts, supplies, and hardware</p>
+                <p class="mb-1 small"><strong>Software:</strong> Custom development and programming services</p>
+                <p class="mb-1 small"><strong>Security:</strong> Surveillance and protection systems</p>
+                <p class="mb-0 small"><strong>IoT:</strong> Internet of Things and smart device solutions</p>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Form Actions -->
+        <div class="d-flex gap-2 pt-3">
+          <button class="btn btn-primary btn-lg" type="submit">
+            <i class="bi bi-check-lg me-2"></i>
+            {% if object %}Update Service{% else %}Create Service{% endif %}
+          </button>
+          <a href="{% url 'website:manage_services' %}" class="btn btn-outline-secondary btn-lg">
+            <i class="bi bi-x-lg me-2"></i>Cancel
+          </a>
+        </div>
+      </form>
+
+      <!-- Service Writing Tips -->
+      <div class="mt-4">
+        <div class="card border-info">
+          <div class="card-header bg-info text-white">
+            <h6 class="mb-0"><i class="bi bi-lightbulb me-2"></i>Service Description Tips</h6>
+          </div>
+          <div class="card-body">
+            <div class="row">
+              <div class="col-md-6">
+                <h6 class="text-success">✓ Good Examples:</h6>
+                <ul class="small mb-3">
+                  <li>"Custom PCB design and fabrication with rapid prototyping"</li>
+                  <li>"End-to-end IoT solutions from sensors to cloud integration"</li>
+                  <li>"24/7 security monitoring with mobile app alerts"</li>
+                </ul>
+              </div>
+              <div class="col-md-6">
+                <h6 class="text-danger">✗ Avoid:</h6>
+                <ul class="small mb-0">
+                  <li>Vague terms like "quality service" or "best solutions"</li>
+                  <li>Technical jargon without explanation</li>
+                  <li>Focusing on features instead of benefits</li>
+                </ul>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // Icon preview functionality
+    const iconField = document.getElementById('{{ form.icon.id_for_label }}');
+    const iconDisplay = document.getElementById('icon-display');
+    
+    if (iconField && iconDisplay) {
+        // Update preview when icon changes
+        iconField.addEventListener('input', function() {
+            const iconName = this.value.trim();
+            if (iconName) {
+                iconDisplay.className = `bi bi-${iconName}`;
+            } else {
+                iconDisplay.className = 'bi bi-gear';
+            }
+        });
+        
+        // Set initial preview
+        if (iconField.value) {
+            iconDisplay.className = `bi bi-${iconField.value}`;
+        }
+    }
+    
+    // Form validation
+    const form = document.querySelector('.needs-validation');
+    if (form) {
+        form.addEventListener('submit', function(event) {
+            if (!form.checkValidity()) {
+                event.preventDefault();
+                event.stopPropagation();
+            }
+            form.classList.add('was-validated');
+        });
+    }
+    
+    // Character counter for description
+    const descriptionField = document.getElementById('{{ form.description.id_for_label }}');
+    if (descriptionField) {
+        const maxLength = 500; // Reasonable limit for descriptions
+        const counter = document.createElement('div');
+        counter.className = 'form-text text-end';
+        counter.style.fontSize = '0.8rem';
+        
+        function updateCounter() {
+            const length = descriptionField.value.length;
+            counter.textContent = `${length} characters`;
+            if (length > maxLength * 0.8) {
+                counter.className = 'form-text text-end text-warning';
+            } else {
+                counter.className = 'form-text text-end text-muted';
+            }
+        }
+        
+        descriptionField.addEventListener('input', updateCounter);
+        descriptionField.parentNode.appendChild(counter);
+        updateCounter();
+    }
+});
+</script>
+{% endblock %}

@@ -1,0 +1,395 @@
+{% extends "dashboard_base.html" %}
+{% load static %}
+
+{% block page_title %}Client Management{% endblock %}
+
+{% block page_actions %}
+<div class="btn-group" role="group">
+  <a href="{% url 'crm:client_create' %}" class="btn btn-primary">
+    <i class="bi bi-person-plus me-1"></i> Add New Client
+  </a>
+  <a href="{% url 'crm:analytics' %}" class="btn btn-outline-info">
+    <i class="bi bi-graph-up me-1"></i> Analytics
+  </a>
+  <div class="btn-group" role="group">
+    <button class="btn btn-outline-secondary dropdown-toggle" type="button" data-bs-toggle="dropdown">
+      <i class="bi bi-download me-1"></i> Export
+    </button>
+    <ul class="dropdown-menu">
+      <li><a class="dropdown-item" href="#" onclick="exportClients('csv')"><i class="bi bi-file-earmark-spreadsheet me-1"></i> Export CSV</a></li>
+      <li><a class="dropdown-item" href="#" onclick="exportClients('excel')"><i class="bi bi-file-earmark-excel me-1"></i> Export Excel</a></li>
+    </ul>
+  </div>
+</div>
+{% endblock %}
+
+{% block dashboard_content %}
+<!-- Search and Filter Section -->
+<div class="card mb-4">
+  <div class="card-header">
+    <h5 class="card-title mb-0">Search & Filter Clients</h5>
+  </div>
+  <div class="card-body">
+    <form method="get" class="row g-3">
+      <!-- Search -->
+      <div class="col-md-4">
+        <label for="search" class="form-label">Search</label>
+        <input type="text" class="form-control" name="search" id="search" 
+               value="{{ search_query }}" placeholder="Name, email, company, phone...">
+      </div>
+      
+      <!-- Status Filter -->
+      <div class="col-md-2">
+        <label for="status" class="form-label">Status</label>
+        <select class="form-control" name="status" id="status">
+          <option value="">All Statuses</option>
+          {% for value, label in status_choices %}
+          <option value="{{ value }}" {% if value == status_filter %}selected{% endif %}>{{ label }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      
+      <!-- Customer Type Filter -->
+      <div class="col-md-2">
+        <label for="customer_type" class="form-label">Type</label>
+        <select class="form-control" name="customer_type" id="customer_type">
+          <option value="">All Types</option>
+          {% for value, label in customer_type_choices %}
+          <option value="{{ value }}" {% if value == customer_type_filter %}selected{% endif %}>{{ label }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      
+      <!-- Region Filter -->
+      <div class="col-md-2">
+        <label for="region" class="form-label">Region</label>
+        <input type="text" class="form-control" name="region" id="region" 
+               value="{{ region_filter }}" list="regions" placeholder="Country/Region">
+        <datalist id="regions">
+          {% for region in regions %}
+          <option value="{{ region }}">
+          {% endfor %}
+        </datalist>
+      </div>
+      
+      <!-- Sort -->
+      <div class="col-md-2">
+        <label for="sort" class="form-label">Sort By</label>
+        <select class="form-control" name="sort" id="sort">
+          <option value="-created_at" {% if sort_by == '-created_at' %}selected{% endif %}>Newest First</option>
+          <option value="created_at" {% if sort_by == 'created_at' %}selected{% endif %}>Oldest First</option>
+          <option value="name" {% if sort_by == 'name' %}selected{% endif %}>Name A-Z</option>
+          <option value="-name" {% if sort_by == '-name' %}selected{% endif %}>Name Z-A</option>
+          <option value="-last_contacted" {% if sort_by == '-last_contacted' %}selected{% endif %}>Recently Contacted</option>
+          <option value="last_contacted" {% if sort_by == 'last_contacted' %}selected{% endif %}>Least Recently Contacted</option>
+          <option value="-total_value" {% if sort_by == '-total_value' %}selected{% endif %}>Highest Value</option>
+          <option value="total_value" {% if sort_by == 'total_value' %}selected{% endif %}>Lowest Value</option>
+        </select>
+      </div>
+      
+      <!-- Filter Buttons -->
+      <div class="col-12">
+        <button type="submit" class="btn btn-primary">
+          <i class="bi bi-search me-1"></i> Filter
+        </button>
+        <a href="{% url 'crm:client_list' %}" class="btn btn-outline-secondary">
+          <i class="bi bi-x me-1"></i> Clear
+        </a>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- Results Summary -->
+<div class="d-flex justify-content-between align-items-center mb-3">
+  <div>
+    <h6 class="mb-0">
+      {% if page_obj.paginator.count %}
+        Showing {{ page_obj.start_index }}-{{ page_obj.end_index }} of {{ page_obj.paginator.count }} client{{ page_obj.paginator.count|pluralize }}
+      {% else %}
+        No clients found
+      {% endif %}
+    </h6>
+  </div>
+  <div>
+    {% if search_query or status_filter or customer_type_filter or region_filter %}
+    <small class="text-muted">
+      <i class="bi bi-filter me-1"></i> Filters applied
+    </small>
+    {% endif %}
+  </div>
+</div>
+
+<!-- Clients Table -->
+<div class="card">
+  <div class="card-body p-0">
+    {% if page_obj %}
+    <div class="table-responsive">
+      <table class="table table-hover mb-0">
+        <thead class="table-dark">
+          <tr>
+            <th>Client</th>
+            <th>Contact</th>
+            <th>Status</th>
+            <th>Type</th>
+            <th>Last Contact</th>
+            <th>Value</th>
+            <th>Actions</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for client in page_obj %}
+          <tr>
+            <td>
+              <div class="d-flex align-items-center">
+                <div class="flex-shrink-0 me-3">
+                  {% if client.priority == 'vip' %}
+                  <i class="bi bi-star-fill text-warning" title="VIP Client"></i>
+                  {% elif client.priority == 'high' %}
+                  <i class="bi bi-exclamation-triangle-fill text-danger" title="High Priority"></i>
+                  {% else %}
+                  <i class="bi bi-person-circle text-muted"></i>
+                  {% endif %}
+                </div>
+                <div>
+                  <h6 class="mb-0">
+                    <a href="{% url 'crm:client_detail' client.id %}" class="text-decoration-none">
+                      {{ client.name }}
+                    </a>
+                  </h6>
+                  {% if client.company %}
+                  <small class="text-muted">{{ client.company }}</small>
+                  {% endif %}
+                </div>
+              </div>
+            </td>
+            <td>
+              <div>
+                <div class="small">
+                  <i class="bi bi-envelope me-1"></i>
+                  <a href="mailto:{{ client.email }}" class="text-decoration-none">{{ client.email }}</a>
+                </div>
+                {% if client.phone %}
+                <div class="small text-muted">
+                  <i class="bi bi-telephone me-1"></i>
+                  <a href="tel:{{ client.phone }}" class="text-decoration-none">{{ client.phone }}</a>
+                </div>
+                {% endif %}
+              </div>
+            </td>
+            <td>
+              <span class="badge bg-{% if client.status == 'client' %}success{% elif client.status == 'prospect' %}warning{% elif client.status == 'lead' %}info{% elif client.status == 'inactive' %}secondary{% else %}danger{% endif %}">
+                {{ client.get_status_display }}
+              </span>
+            </td>
+            <td>
+              <small class="text-muted">{{ client.get_customer_type_display }}</small>
+            </td>
+            <td>
+              {% if client.last_contacted %}
+              <span class="small" title="{{ client.last_contacted|date:'M d, Y H:i' }}">
+                {{ client.last_contacted|timesince }} ago
+              </span>
+              {% if client.is_overdue_followup %}
+              <br><small class="text-danger">
+                <i class="bi bi-exclamation-triangle me-1"></i>Overdue
+              </small>
+              {% endif %}
+              {% else %}
+              <span class="text-muted small">Never contacted</span>
+              {% endif %}
+            </td>
+            <td>
+              {% if client.total_value > 0 %}
+              <span class="fw-bold">${{ client.total_value|floatformat:0 }}</span>
+              <br><small class="text-muted">{{ client.total_orders }} order{{ client.total_orders|pluralize }}</small>
+              {% else %}
+              <span class="text-muted">No orders</span>
+              {% endif %}
+            </td>
+            <td>
+              <div class="btn-group btn-group-sm" role="group">
+                <a href="{% url 'crm:client_detail' client.id %}" class="btn btn-outline-primary" title="View Details">
+                  <i class="bi bi-eye"></i>
+                </a>
+                <a href="{% url 'crm:client_update' client.id %}" class="btn btn-outline-warning" title="Edit">
+                  <i class="bi bi-pencil"></i>
+                </a>
+                <a href="{% url 'crm:add_interaction' client.id %}" class="btn btn-outline-success" title="Add Interaction">
+                  <i class="bi bi-chat-left-text"></i>
+                </a>
+                <div class="btn-group btn-group-sm" role="group">
+                  <button class="btn btn-outline-secondary dropdown-toggle" type="button" data-bs-toggle="dropdown" title="More Actions">
+                    <i class="bi bi-three-dots"></i>
+                  </button>
+                  <ul class="dropdown-menu">
+                    <li><a class="dropdown-item" href="mailto:{{ client.email }}"><i class="bi bi-envelope me-1"></i> Send Email</a></li>
+                    {% if client.phone %}
+                    <li><a class="dropdown-item" href="tel:{{ client.phone }}"><i class="bi bi-telephone me-1"></i> Call</a></li>
+                    {% endif %}
+                    <li><hr class="dropdown-divider"></li>
+                    {% if is_admin %}
+                    <li><a class="dropdown-item text-danger" href="{% url 'crm:client_delete' client.id %}"><i class="bi bi-trash me-1"></i> Delete</a></li>
+                    {% endif %}
+                  </ul>
+                </div>
+              </div>
+            </td>
+          </tr>
+          {% empty %}
+          <tr>
+            <td colspan="7" class="text-center py-5">
+              <div class="text-muted">
+                <i class="bi bi-person-x fs-1 mb-3"></i>
+                <h5>No clients found</h5>
+                <p>
+                  {% if search_query or status_filter or customer_type_filter or region_filter %}
+                    Try adjusting your search criteria or <a href="{% url 'crm:client_list' %}">clear filters</a>.
+                  {% else %}
+                    Get started by <a href="{% url 'crm:client_create' %}">adding your first client</a>!
+                  {% endif %}
+                </p>
+              </div>
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    
+    <!-- Pagination -->
+    {% if page_obj.has_other_pages %}
+    <nav aria-label="Clients pagination" class="p-3">
+      <ul class="pagination justify-content-center mb-0">
+        {% if page_obj.has_previous %}
+        <li class="page-item">
+          <a class="page-link" href="?page=1{% if search_query %}&search={{ search_query }}{% endif %}{% if status_filter %}&status={{ status_filter }}{% endif %}{% if customer_type_filter %}&customer_type={{ customer_type_filter }}{% endif %}{% if region_filter %}&region={{ region_filter }}{% endif %}{% if sort_by %}&sort={{ sort_by }}{% endif %}">First</a>
+        </li>
+        <li class="page-item">
+          <a class="page-link" href="?page={{ page_obj.previous_page_number }}{% if search_query %}&search={{ search_query }}{% endif %}{% if status_filter %}&status={{ status_filter }}{% endif %}{% if customer_type_filter %}&customer_type={{ customer_type_filter }}{% endif %}{% if region_filter %}&region={{ region_filter }}{% endif %}{% if sort_by %}&sort={{ sort_by }}{% endif %}">Previous</a>
+        </li>
+        {% endif %}
+        
+        {% for num in page_obj.paginator.page_range %}
+        {% if page_obj.number == num %}
+        <li class="page-item active">
+          <span class="page-link">{{ num }}</span>
+        </li>
+        {% elif num > page_obj.number|add:'-3' and num < page_obj.number|add:'3' %}
+        <li class="page-item">
+          <a class="page-link" href="?page={{ num }}{% if search_query %}&search={{ search_query }}{% endif %}{% if status_filter %}&status={{ status_filter }}{% endif %}{% if customer_type_filter %}&customer_type={{ customer_type_filter }}{% endif %}{% if region_filter %}&region={{ region_filter }}{% endif %}{% if sort_by %}&sort={{ sort_by }}{% endif %}">{{ num }}</a>
+        </li>
+        {% endif %}
+        {% endfor %}
+        
+        {% if page_obj.has_next %}
+        <li class="page-item">
+          <a class="page-link" href="?page={{ page_obj.next_page_number }}{% if search_query %}&search={{ search_query }}{% endif %}{% if status_filter %}&status={{ status_filter }}{% endif %}{% if customer_type_filter %}&customer_type={{ customer_type_filter }}{% endif %}{% if region_filter %}&region={{ region_filter }}{% endif %}{% if sort_by %}&sort={{ sort_by }}{% endif %}">Next</a>
+        </li>
+        <li class="page-item">
+          <a class="page-link" href="?page={{ page_obj.paginator.num_pages }}{% if search_query %}&search={{ search_query }}{% endif %}{% if status_filter %}&status={{ status_filter }}{% endif %}{% if customer_type_filter %}&customer_type={{ customer_type_filter }}{% endif %}{% if region_filter %}&region={{ region_filter }}{% endif %}{% if sort_by %}&sort={{ sort_by }}{% endif %}">Last</a>
+        </li>
+        {% endif %}
+      </ul>
+    </nav>
+    {% endif %}
+    
+    {% else %}
+    <div class="text-center py-5">
+      <div class="text-muted">
+        <i class="bi bi-person-plus fs-1 mb-3"></i>
+        <h5>No clients yet</h5>
+        <p>Start building your customer database by adding your first client.</p>
+        <a href="{% url 'crm:client_create' %}" class="btn btn-primary">
+          <i class="bi bi-person-plus me-1"></i> Add First Client
+        </a>
+      </div>
+    </div>
+    {% endif %}
+  </div>
+</div>
+
+<!-- Quick Action Modal -->
+<div class="modal fade" id="quickActionModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title">Quick Actions</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <div class="modal-body">
+        <div class="d-grid gap-2">
+          <button type="button" class="btn btn-outline-primary" onclick="bulkAction('status', 'client')">
+            <i class="bi bi-person-check me-1"></i> Mark Selected as Active Clients
+          </button>
+          <button type="button" class="btn btn-outline-warning" onclick="bulkAction('status', 'prospect')">
+            <i class="bi bi-person-exclamation me-1"></i> Mark Selected as Prospects
+          </button>
+          <button type="button" class="btn btn-outline-info" onclick="bulkExport()">
+            <i class="bi bi-download me-1"></i> Export Selected
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+// Auto-submit search form on sort change
+document.getElementById('sort').addEventListener('change', function() {
+    this.form.submit();
+});
+
+// Export functions
+function exportClients(format) {
+    const params = new URLSearchParams(window.location.search);
+    params.set('export', format);
+    window.location.href = window.location.pathname + '?' + params.toString();
+}
+
+// Bulk actions (placeholder for future implementation)
+function bulkAction(field, value) {
+    alert('Bulk actions will be implemented in a future update.');
+}
+
+function bulkExport() {
+    alert('Bulk export will be implemented in a future update.');
+}
+
+// Real-time search (debounced)
+let searchTimeout;
+document.getElementById('search').addEventListener('input', function() {
+    clearTimeout(searchTimeout);
+    searchTimeout = setTimeout(() => {
+        // Auto-submit after 500ms of no typing
+        // this.form.submit();
+    }, 500);
+});
+
+// Keyboard shortcuts
+document.addEventListener('keydown', function(e) {
+    // Ctrl/Cmd + K to focus search
+    if ((e.ctrlKey || e.metaKey) && e.key === 'k') {
+        e.preventDefault();
+        document.getElementById('search').focus();
+    }
+    
+    // Ctrl/Cmd + N to add new client
+    if ((e.ctrlKey || e.metaKey) && e.key === 'n') {
+        e.preventDefault();
+        window.location.href = "{% url 'crm:client_create' %}";
+    }
+});
+
+// Show search shortcuts hint
+document.getElementById('search').addEventListener('focus', function() {
+    this.setAttribute('placeholder', 'Search clients... (Ctrl+K to focus, Ctrl+N for new client)');
+});
+
+document.getElementById('search').addEventListener('blur', function() {
+    this.setAttribute('placeholder', 'Name, email, company, phone...');
+});
+</script>
+{% endblock %}

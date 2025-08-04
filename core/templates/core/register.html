@@ -1,0 +1,456 @@
+{% extends "auth_base.html" %}
+{% load crispy_forms_tags %}
+{% load static %}
+
+{% block title %}
+  {% if registration_type == 'blog' %}
+    Blogger Registration - BlitzTech Electronics
+  {% else %}
+    Create Account - BlitzTech Electronics
+  {% endif %}
+{% endblock %}
+
+{% block extra_auth_head %}
+<style>
+  .auth-card {
+    max-width: 600px !important; /* Wider for registration form */
+  }
+  
+  .password-requirements {
+    font-size: 0.875rem;
+    background-color: #f8f9fa;
+    border-radius: 0.375rem;
+    padding: 1rem;
+    margin-top: 1rem;
+    border-left: 4px solid #007bff;
+  }
+  
+  .password-requirements ul {
+    margin-bottom: 0;
+    padding-left: 1.5rem;
+  }
+  
+  .username-feedback {
+    margin-top: 0.25rem;
+    font-size: 0.875rem;
+  }
+  
+  .form-check-input:checked {
+    background-color: #667eea;
+    border-color: #667eea;
+  }
+  
+  .btn-success {
+    background: linear-gradient(45deg, #28a745, #20c997);
+    border: none;
+  }
+  
+  .btn-success:hover {
+    background: linear-gradient(45deg, #218838, #1dd1a1);
+    transform: translateY(-1px);
+  }
+</style>
+{% endblock %}
+
+{% block auth_content %}
+<div class="auth-card">
+  <div class="auth-header">
+    <img src="{% static 'website/img/blitztech-logo.png' %}" alt="BlitzTech Electronics" class="mb-3" style="max-height: 60px;">
+
+    {% if registration_type == 'blog' %}
+      <span class="auth-type-badge blogger-badge">
+        <i class="bi bi-pen me-1"></i> Blogger Registration
+      </span>
+      <h4 class="text-dark mb-0">Join Our Blog Community</h4>
+      <p class="text-muted mb-0">Create your blogger account to start writing</p>
+    {% else %}
+      <span class="auth-type-badge customer-badge">
+        <i class="bi bi-person me-1"></i> Customer Registration
+      </span>
+      <h4 class="text-dark mb-0">Create Your Account</h4>
+      <p class="text-muted mb-0">Join BlitzTech Electronics today</p>
+    {% endif %}
+  </div>
+
+  <div class="card-body p-4">
+    {% if messages %}
+      {% for message in messages %}
+        <div class="alert alert-{{ message.tags }} alert-dismissible fade show" role="alert">
+          {{ message }}
+          <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+        </div>
+      {% endfor %}
+    {% endif %}
+
+    <form method="post" id="registrationForm">
+      {% csrf_token %}
+
+      {% if form.non_field_errors %}
+        <div class="alert alert-danger">
+          {% for error in form.non_field_errors %}
+            {{ error }}
+          {% endfor %}
+        </div>
+      {% endif %}
+
+      <div class="row mb-3">
+        <div class="col-md-6 mb-3 mb-md-0">
+          <label for="id_first_name" class="form-label">First Name <span class="text-danger">*</span></label>
+          {{ form.first_name }}
+          {% if form.first_name.errors %}
+            <div class="text-danger small">
+              {% for error in form.first_name.errors %}
+                {{ error }}
+              {% endfor %}
+            </div>
+          {% endif %}
+        </div>
+        <div class="col-md-6">
+          <label for="id_last_name" class="form-label">Last Name <span class="text-danger">*</span></label>
+          {{ form.last_name }}
+          {% if form.last_name.errors %}
+            <div class="text-danger small">
+              {% for error in form.last_name.errors %}
+                {{ error }}
+              {% endfor %}
+            </div>
+          {% endif %}
+        </div>
+      </div>
+
+      <div class="mb-3">
+        <label for="id_username" class="form-label">Username <span class="text-danger">*</span></label>
+        {{ form.username }}
+        <div class="form-text">This will be your unique identifier. Choose wisely!</div>
+        {% if form.username.errors %}
+          <div class="text-danger small">
+            {% for error in form.username.errors %}
+              {{ error }}
+            {% endfor %}
+          </div>
+        {% endif %}
+      </div>
+
+      <div class="mb-3">
+        <label for="id_email" class="form-label">Email Address <span class="text-danger">*</span></label>
+        {{ form.email }}
+        {% if form.email.errors %}
+          <div class="text-danger small">
+            {% for error in form.email.errors %}
+              {{ error }}
+            {% endfor %}
+          </div>
+        {% endif %}
+      </div>
+
+      <div class="mb-3">
+        <label for="id_phone" class="form-label">Phone Number</label>
+        {{ form.phone }}
+        <div class="form-text">Optional - for order updates and support</div>
+        {% if form.phone.errors %}
+          <div class="text-danger small">
+            {% for error in form.phone.errors %}
+              {{ error }}
+            {% endfor %}
+          </div>
+        {% endif %}
+      </div>
+
+      <div class="mb-3">
+        <label for="id_address" class="form-label">Address</label>
+        {{ form.address }}
+        <div class="form-text">Optional - helpful for delivery and billing</div>
+        {% if form.address.errors %}
+          <div class="text-danger small">
+            {% for error in form.address.errors %}
+              {{ error }}
+            {% endfor %}
+          </div>
+        {% endif %}
+      </div>
+
+      <div class="row mb-3">
+        <div class="col-md-6 mb-3 mb-md-0">
+          <label for="id_password1" class="form-label">Password <span class="text-danger">*</span></label>
+          {{ form.password1 }}
+          {% if form.password1.errors %}
+            <div class="text-danger small">
+              {% for error in form.password1.errors %}
+                {{ error }}
+              {% endfor %}
+            </div>
+          {% endif %}
+        </div>
+        <div class="col-md-6">
+          <label for="id_password2" class="form-label">Confirm Password <span class="text-danger">*</span></label>
+          {{ form.password2 }}
+          {% if form.password2.errors %}
+            <div class="text-danger small">
+              {% for error in form.password2.errors %}
+                {{ error }}
+              {% endfor %}
+            </div>
+          {% endif %}
+        </div>
+      </div>
+
+      <div class="password-requirements">
+        <h6><i class="bi bi-shield-lock me-1"></i> Password Requirements</h6>
+        <ul class="small">
+          <li>Must contain at least 8 characters</li>
+          <li>Cannot be too similar to your personal information</li>
+          <li>Cannot be a commonly used password</li>
+          <li>Cannot be entirely numeric</li>
+        </ul>
+      </div>
+
+      <div class="form-check mt-3 mb-3">
+        <input class="form-check-input" type="checkbox" id="agreeTerms" required>
+        <label class="form-check-label" for="agreeTerms">
+          I agree to the <a href="#" class="text-primary" data-bs-toggle="modal" data-bs-target="#termsModal">Terms of Service</a> and <a href="#" class="text-primary" data-bs-toggle="modal" data-bs-target="#privacyModal">Privacy Policy</a> <span class="text-danger">*</span>
+        </label>
+      </div>
+
+      {% if registration_type == 'blog' %}
+      <div class="form-check mb-4">
+        <input class="form-check-input" type="checkbox" id="contentGuidelines" required>
+        <label class="form-check-label" for="contentGuidelines">
+          I understand and agree to follow the <a href="#" class="text-primary" data-bs-toggle="modal" data-bs-target="#guidelinesModal">Content Guidelines</a> for bloggers <span class="text-danger">*</span>
+        </label>
+      </div>
+      {% endif %}
+
+      <div class="d-grid">
+        {% if registration_type == 'blog' %}
+          <button type="submit" class="btn btn-success btn-lg">
+            <i class="bi bi-pen me-1"></i> Create Blogger Account
+          </button>
+        {% else %}
+          <button type="submit" class="btn btn-primary btn-lg">
+            <i class="bi bi-person-plus me-1"></i> Create Account
+          </button>
+        {% endif %}
+      </div>
+    </form>
+  </div>
+
+  <div class="auth-footer">
+    <p class="text-muted mb-3">Already have an account?</p>
+    {% if registration_type == 'blog' %}
+      <a href="{% url 'core:login' %}?type=blogger" class="btn btn-outline-success">
+        <i class="bi bi-box-arrow-in-right me-1"></i> Sign In to Blogger Portal
+      </a>
+    {% else %}
+      <a href="{% url 'core:login' %}" class="btn btn-outline-primary">
+        <i class="bi bi-box-arrow-in-right me-1"></i> Sign In
+      </a>
+    {% endif %}
+
+    <div class="mt-3">
+      <a href="{% url 'website:home' %}" class="text-muted text-decoration-none">
+        <i class="bi bi-arrow-left me-1"></i> Back to Website
+      </a>
+    </div>
+  </div>
+</div>
+
+<!-- Terms of Service Modal -->
+<div class="modal fade" id="termsModal" tabindex="-1">
+  <div class="modal-dialog modal-lg">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title">Terms of Service</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <p>By creating an account with BlitzTech Electronics, you agree to our terms of service...</p>
+        <!-- Add your actual terms content here -->
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Privacy Policy Modal -->
+<div class="modal fade" id="privacyModal" tabindex="-1">
+  <div class="modal-dialog modal-lg">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title">Privacy Policy</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <p>Your privacy is important to us. This policy explains how we collect, use, and protect your information...</p>
+        <!-- Add your actual privacy policy content here -->
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Content Guidelines Modal (for bloggers) -->
+{% if registration_type == 'blog' %}
+<div class="modal fade" id="guidelinesModal" tabindex="-1">
+  <div class="modal-dialog modal-lg">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title">Content Guidelines for Bloggers</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <p>As a blogger on our platform, please follow these guidelines...</p>
+        <!-- Add your actual content guidelines here -->
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+      </div>
+    </div>
+  </div>
+</div>
+{% endif %}
+{% endblock %}
+
+{% block extra_auth_js %}
+<script>
+// Enhanced registration functionality
+document.addEventListener('DOMContentLoaded', function() {
+  // Real-time username availability checking
+  const usernameField = document.getElementById('id_username');
+  
+  if (usernameField) {
+    let timeoutId;
+
+    usernameField.addEventListener('input', function() {
+      clearTimeout(timeoutId);
+      const username = this.value;
+
+      // Remove existing feedback
+      const existingFeedback = usernameField.parentNode.querySelector('.username-feedback');
+      if (existingFeedback) {
+        existingFeedback.remove();
+      }
+
+      if (username.length >= 3) {
+        timeoutId = setTimeout(() => {
+          fetch(`/auth/check-username/?username=${encodeURIComponent(username)}`, {
+            headers: {
+              'X-Requested-With': 'XMLHttpRequest',
+            }
+          })
+          .then(response => response.json())
+          .then(data => {
+            const feedback = document.createElement('div');
+            feedback.className = `username-feedback ${data.available ? 'text-success' : 'text-danger'}`;
+            feedback.innerHTML = `<i class="bi bi-${data.available ? 'check-circle' : 'x-circle'} me-1"></i>${data.message}`;
+            usernameField.parentNode.appendChild(feedback);
+          })
+          .catch(error => console.error('Error checking username:', error));
+        }, 500);
+      }
+    });
+  }
+
+  // Password strength indicator
+  const passwordField = document.getElementById('id_password1');
+  if (passwordField) {
+    passwordField.addEventListener('input', function() {
+      const password = this.value;
+      const strength = calculatePasswordStrength(password);
+      updatePasswordStrengthIndicator(strength);
+    });
+  }
+
+  // Password match validation
+  const confirmPasswordField = document.getElementById('id_password2');
+  if (confirmPasswordField && passwordField) {
+    confirmPasswordField.addEventListener('input', function() {
+      const password = passwordField.value;
+      const confirmPassword = this.value;
+      
+      const existingFeedback = this.parentNode.querySelector('.password-match-feedback');
+      if (existingFeedback) {
+        existingFeedback.remove();
+      }
+
+      if (confirmPassword.length > 0) {
+        const feedback = document.createElement('div');
+        feedback.className = `password-match-feedback small ${password === confirmPassword ? 'text-success' : 'text-danger'}`;
+        feedback.innerHTML = `<i class="bi bi-${password === confirmPassword ? 'check-circle' : 'x-circle'} me-1"></i>${password === confirmPassword ? 'Passwords match' : 'Passwords do not match'}`;
+        this.parentNode.appendChild(feedback);
+      }
+    });
+  }
+
+  // Enhanced form validation
+  const form = document.getElementById('registrationForm');
+  if (form) {
+    form.addEventListener('submit', function(e) {
+      let hasErrors = false;
+
+      // Check required fields
+      const requiredFields = form.querySelectorAll('[required]');
+      requiredFields.forEach(field => {
+        if (!field.value.trim()) {
+          field.classList.add('is-invalid');
+          hasErrors = true;
+        } else {
+          field.classList.remove('is-invalid');
+        }
+      });
+
+      // Check password match
+      if (passwordField && confirmPasswordField) {
+        if (passwordField.value !== confirmPasswordField.value) {
+          confirmPasswordField.classList.add('is-invalid');
+          hasErrors = true;
+        }
+      }
+
+      if (hasErrors) {
+        e.preventDefault();
+        const firstError = form.querySelector('.is-invalid');
+        if (firstError) {
+          firstError.focus();
+          firstError.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        }
+      }
+    });
+  }
+});
+
+function calculatePasswordStrength(password) {
+  let strength = 0;
+  if (password.length >= 8) strength++;
+  if (/[a-z]/.test(password)) strength++;
+  if (/[A-Z]/.test(password)) strength++;
+  if (/[0-9]/.test(password)) strength++;
+  if (/[^A-Za-z0-9]/.test(password)) strength++;
+  return strength;
+}
+
+function updatePasswordStrengthIndicator(strength) {
+  const passwordField = document.getElementById('id_password1');
+  let existingIndicator = passwordField.parentNode.querySelector('.password-strength');
+  
+  if (!existingIndicator) {
+    existingIndicator = document.createElement('div');
+    existingIndicator.className = 'password-strength small mt-1';
+    passwordField.parentNode.appendChild(existingIndicator);
+  }
+
+  const strengthTexts = ['Very Weak', 'Weak', 'Fair', 'Good', 'Strong'];
+  const strengthColors = ['text-danger', 'text-warning', 'text-info', 'text-success', 'text-success'];
+  
+  if (strength > 0) {
+    existingIndicator.className = `password-strength small mt-1 ${strengthColors[strength - 1]}`;
+    existingIndicator.innerHTML = `<i class="bi bi-shield${strength > 2 ? '-check' : ''} me-1"></i>Password strength: ${strengthTexts[strength - 1]}`;
+  } else {
+    existingIndicator.innerHTML = '';
+  }
+}
+</script>
+{% endblock %}

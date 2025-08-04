@@ -1,0 +1,1001 @@
+{% extends "inventory_base.html" %}
+{% load static %}
+
+{% block inventory_title %}Product Catalog{% endblock %}
+
+{% block extra_head %}
+{{ block.super }}
+<style>
+  .product-card {
+    transition: all 0.3s ease;
+    border: 1px solid #e3e6f0;
+    border-radius: 0.75rem;
+    overflow: hidden;
+  }
+  
+  .product-card:hover {
+    transform: translateY(-3px);
+    box-shadow: 0 0.5rem 1rem rgba(0, 0, 0, 0.1);
+    border-color: #5a5c69;
+  }
+  
+  .product-image {
+    width: 100%;
+    height: 150px;
+    background: linear-gradient(135deg, #f8f9fc 0%, #e3e6f0 100%);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-bottom: 1px solid #e3e6f0;
+  }
+  
+  .stock-indicator {
+    width: 12px;
+    height: 12px;
+    border-radius: 50%;
+    display: inline-block;
+    margin-right: 0.5rem;
+  }
+  
+  .stock-in-stock { background-color: #28a745; }
+  .stock-low-stock { background-color: #ffc107; }
+  .stock-out-of-stock { background-color: #dc3545; }
+  .stock-discontinued { background-color: #6c757d; }
+  
+  .filter-sidebar {
+    background: #f8f9fc;
+    border-radius: 0.75rem;
+    padding: 1.5rem;
+    border: 1px solid #e3e6f0;
+  }
+  
+  .search-container {
+    position: relative;
+  }
+  
+  .search-results-dropdown {
+    position: absolute;
+    top: 100%;
+    left: 0;
+    right: 0;
+    background: white;
+    border: 1px solid #d1d3e2;
+    border-top: none;
+    border-radius: 0 0 0.375rem 0.375rem;
+    max-height: 300px;
+    overflow-y: auto;
+    z-index: 1000;
+    display: none;
+  }
+  
+  .bulk-actions-bar {
+    background: #e3f2fd;
+    border: 1px solid #2196f3;
+    border-radius: 0.5rem;
+    padding: 1rem;
+    margin-bottom: 1rem;
+    display: none;
+  }
+  
+  .product-table th {
+    background: #f8f9fc;
+    border-bottom: 2px solid #e3e6f0;
+    font-weight: 600;
+    color: #5a5c69;
+  }
+  
+  .product-actions {
+    opacity: 0;
+    transition: opacity 0.2s ease;
+  }
+  
+  .product-card:hover .product-actions,
+  tr:hover .product-actions {
+    opacity: 1;
+  }
+  
+  .view-toggle {
+    border: 1px solid #d1d3e2;
+    border-radius: 0.375rem;
+    overflow: hidden;
+  }
+  
+  .view-toggle .btn {
+    border: none;
+    border-radius: 0;
+  }
+  
+  .view-toggle .btn.active {
+    background-color: #5a5c69;
+    color: white;
+  }
+  
+  .product-badge {
+    font-size: 0.7rem;
+    padding: 0.2rem 0.4rem;
+    border-radius: 0.25rem;
+  }
+  
+  @media (max-width: 768px) {
+    .filter-sidebar {
+      margin-bottom: 1rem;
+    }
+    
+    .product-card {
+      margin-bottom: 1rem;
+    }
+    
+    .table-responsive {
+      font-size: 0.875rem;
+    }
+  }
+</style>
+{% endblock %}
+
+{% block inventory_breadcrumbs %}
+  {% with inventory_breadcrumbs=breadcrumbs %}
+    {{ block.super }}
+  {% endwith %}
+{% endblock %}
+
+{% block inventory_actions %}
+<div class="d-flex flex-wrap align-items-center gap-2">
+  <!-- View Toggle -->
+  <div class="btn-group view-toggle me-2" role="group">
+    <button type="button" class="btn btn-sm {% if view_mode == 'grid' %}active{% endif %}" 
+            onclick="setViewMode('grid')" data-bs-toggle="tooltip" title="Grid View">
+      <i class="bi bi-grid-3x3"></i>
+    </button>
+    <button type="button" class="btn btn-sm {% if view_mode == 'table' or not view_mode %}active{% endif %}" 
+            onclick="setViewMode('table')" data-bs-toggle="tooltip" title="Table View">
+      <i class="bi bi-list"></i>
+    </button>
+  </div>
+  
+  <!-- Actions for authorized users -->
+  {% if app_permissions.inventory == 'edit' or app_permissions.inventory == 'admin' %}
+    <div class="btn-group me-2" role="group">
+      <a href="{% url 'inventory:product_create' %}" class="btn btn-success btn-sm">
+        <i class="bi bi-plus-circle me-1"></i>Add Product
+      </a>
+      <a href="{% url 'inventory:product_import' %}" class="btn btn-info btn-sm">
+        <i class="bi bi-upload me-1"></i>Import
+      </a>
+    </div>
+  {% endif %}
+  
+  <!-- Export Options -->
+  <div class="btn-group" role="group">
+    <button type="button" class="btn btn-outline-secondary btn-sm dropdown-toggle" 
+            data-bs-toggle="dropdown">
+      <i class="bi bi-download me-1"></i>Export
+    </button>
+    <ul class="dropdown-menu">
+      <li><a class="dropdown-item" href="{% url 'inventory:product_export' %}?format=csv{% if request.GET.urlencode %}&{{ request.GET.urlencode }}{% endif %}">
+        <i class="bi bi-filetype-csv me-2"></i>CSV Format
+      </a></li>
+      <li><a class="dropdown-item" href="{% url 'inventory:product_export' %}?format=xlsx{% if request.GET.urlencode %}&{{ request.GET.urlencode }}{% endif %}">
+        <i class="bi bi-filetype-xlsx me-2"></i>Excel Format
+      </a></li>
+      <li><hr class="dropdown-divider"></li>
+      <li><a class="dropdown-item" href="#" onclick="printProductList()">
+        <i class="bi bi-printer me-2"></i>Print List
+      </a></li>
+    </ul>
+  </div>
+</div>
+{% endblock %}
+
+{% block inventory_content %}
+<!-- Bulk Actions Bar -->
+<div id="bulkActionsBar" class="bulk-actions-bar">
+  <div class="d-flex justify-content-between align-items-center">
+    <div>
+      <strong id="selectedCount">0</strong> products selected
+    </div>
+    <div class="btn-group">
+      {% if app_permissions.inventory == 'edit' or app_permissions.inventory == 'admin' %}
+        <button type="button" class="btn btn-sm btn-primary" onclick="bulkUpdatePrices()">
+          <i class="bi bi-tags me-1"></i>Update Prices
+        </button>
+        <button type="button" class="btn btn-sm btn-warning" onclick="bulkAdjustStock()">
+          <i class="bi bi-arrows-move me-1"></i>Adjust Stock
+        </button>
+        <button type="button" class="btn btn-sm btn-success" onclick="bulkActivate()">
+          <i class="bi bi-check-circle me-1"></i>Activate
+        </button>
+        <button type="button" class="btn btn-sm btn-secondary" onclick="bulkDeactivate()">
+          <i class="bi bi-x-circle me-1"></i>Deactivate
+        </button>
+      {% endif %}
+      <button type="button" class="btn btn-sm btn-outline-secondary" onclick="clearSelection()">
+        <i class="bi bi-x me-1"></i>Clear Selection
+      </button>
+    </div>
+  </div>
+</div>
+
+<div class="row">
+  <!-- Filters Sidebar -->
+  <div class="col-lg-3 col-md-4 mb-4">
+    <div class="filter-sidebar">
+      <h6 class="mb-3">
+        <i class="bi bi-funnel me-2"></i>Filters
+      </h6>
+      
+      <form method="get" id="filterForm">
+        <!-- Search -->
+        <div class="mb-3">
+          <label for="search" class="form-label">Search Products</label>
+          <div class="search-container">
+            <input type="text" 
+                   class="form-control" 
+                   id="search" 
+                   name="search" 
+                   value="{{ search_form.search.value|default:'' }}"
+                   placeholder="Name, SKU, or barcode..."
+                   autocomplete="off">
+            <div id="searchResults" class="search-results-dropdown"></div>
+          </div>
+        </div>
+        
+        <!-- Category Filter -->
+        <div class="mb-3">
+          <label for="category" class="form-label">Category</label>
+          <select class="form-select" id="category" name="category">
+            <option value="">All Categories</option>
+            {% for category in categories %}
+              <option value="{{ category.id }}" 
+                      {% if search_form.category.value == category.id|stringformat:"s" %}selected{% endif %}>
+                {{ category.name }}
+              </option>
+            {% endfor %}
+          </select>
+        </div>
+        
+        <!-- Supplier Filter -->
+        <div class="mb-3">
+          <label for="supplier" class="form-label">Supplier</label>
+          <select class="form-select" id="supplier" name="supplier">
+            <option value="">All Suppliers</option>
+            {% for supplier in suppliers %}
+              <option value="{{ supplier.id }}"
+                      {% if search_form.supplier.value == supplier.id|stringformat:"s" %}selected{% endif %}>
+                {{ supplier.name }}
+              </option>
+            {% endfor %}
+          </select>
+        </div>
+        
+        <!-- Stock Status Filter -->
+        <div class="mb-3">
+          <label for="stock_status" class="form-label">Stock Status</label>
+          <select class="form-select" id="stock_status" name="stock_status">
+            <option value="">All Status</option>
+            <option value="in_stock" {% if search_form.stock_status.value == "in_stock" %}selected{% endif %}>In Stock</option>
+            <option value="low_stock" {% if search_form.stock_status.value == "low_stock" %}selected{% endif %}>Low Stock</option>
+            <option value="out_of_stock" {% if search_form.stock_status.value == "out_of_stock" %}selected{% endif %}>Out of Stock</option>
+          </select>
+        </div>
+        
+        <!-- Price Range -->
+        <div class="mb-3">
+          <label class="form-label">Price Range</label>
+          <div class="row">
+            <div class="col-6">
+              <input type="number" 
+                     class="form-control form-control-sm" 
+                     name="min_price" 
+                     value="{{ search_form.min_price.value|default:'' }}"
+                     placeholder="Min"
+                     step="0.01">
+            </div>
+            <div class="col-6">
+              <input type="number" 
+                     class="form-control form-control-sm" 
+                     name="max_price" 
+                     value="{{ search_form.max_price.value|default:'' }}"
+                     placeholder="Max"
+                     step="0.01">
+            </div>
+          </div>
+        </div>
+        
+        <!-- Active Status -->
+        <div class="mb-3">
+          <label for="is_active" class="form-label">Status</label>
+          <select class="form-select" id="is_active" name="is_active">
+            <option value="">All Products</option>
+            <option value="true" {% if search_form.is_active.value == "true" %}selected{% endif %}>Active Only</option>
+            <option value="false" {% if search_form.is_active.value == "false" %}selected{% endif %}>Inactive Only</option>
+          </select>
+        </div>
+        
+        <!-- Filter Actions -->
+        <div class="d-grid gap-2">
+          <button type="submit" class="btn btn-primary btn-sm">
+            <i class="bi bi-search me-1"></i>Apply Filters
+          </button>
+          <a href="{% url 'inventory:product_list' %}" class="btn btn-outline-secondary btn-sm">
+            <i class="bi bi-arrow-clockwise me-1"></i>Clear All
+          </a>
+        </div>
+      </form>
+      
+      <!-- Filter Summary -->
+      {% if request.GET %}
+        <div class="mt-3 pt-3 border-top">
+          <h6 class="small text-muted">Active Filters:</h6>
+          {% for key, value in request.GET.items %}
+            {% if value and key != 'page' %}
+              <span class="badge bg-secondary me-1 mb-1">
+                {{ key|capfirst }}: {{ value }}
+                <a href="?{% for k, v in request.GET.items %}{% if k != key and v %}{{ k }}={{ v }}&{% endif %}{% endfor %}" 
+                   class="text-white text-decoration-none ms-1">×</a>
+              </span>
+            {% endif %}
+          {% endfor %}
+        </div>
+      {% endif %}
+    </div>
+  </div>
+  
+  <!-- Products Display Area -->
+  <div class="col-lg-9 col-md-8">
+    <!-- Results Header -->
+    <div class="d-flex justify-content-between align-items-center mb-3">
+      <div>
+        <h6 class="mb-0">
+          {% if products %}
+            Showing {{ products|length }} of {{ paginator.count }} products
+          {% else %}
+            No products found
+          {% endif %}
+        </h6>
+        {% if request.GET %}
+          <small class="text-muted">Filtered results</small>
+        {% endif %}
+      </div>
+      
+      <!-- Sort Options -->
+      <div class="d-flex align-items-center">
+        <label class="form-label me-2 mb-0 small">Sort by:</label>
+        <select class="form-select form-select-sm" onchange="applySorting(this.value)" style="width: auto;">
+          <option value="name" {% if request.GET.sort == 'name' %}selected{% endif %}>Name A-Z</option>
+          <option value="-name" {% if request.GET.sort == '-name' %}selected{% endif %}>Name Z-A</option>
+          <option value="sku" {% if request.GET.sort == 'sku' %}selected{% endif %}>SKU A-Z</option>
+          <option value="-created_at" {% if request.GET.sort == '-created_at' %}selected{% endif %}>Newest First</option>
+          <option value="created_at" {% if request.GET.sort == 'created_at' %}selected{% endif %}>Oldest First</option>
+          <option value="-selling_price" {% if request.GET.sort == '-selling_price' %}selected{% endif %}>Price High-Low</option>
+          <option value="selling_price" {% if request.GET.sort == 'selling_price' %}selected{% endif %}>Price Low-High</option>
+          <option value="current_stock" {% if request.GET.sort == 'current_stock' %}selected{% endif %}>Stock Low-High</option>
+          <option value="-current_stock" {% if request.GET.sort == '-current_stock' %}selected{% endif %}>Stock High-Low</option>
+        </select>
+      </div>
+    </div>
+    
+    <!-- Grid View -->
+    <div id="gridView" class="{% if view_mode != 'grid' %}d-none{% endif %}">
+      <div class="row">
+        {% for product in products %}
+          <div class="col-xl-4 col-lg-6 col-md-6 mb-4">
+            <div class="product-card">
+              <!-- Product Image/Icon -->
+              <div class="product-image">
+                {% if product.image %}
+                  <img src="{{ product.image.url }}" alt="{{ product.name }}" class="img-fluid">
+                {% else %}
+                  <i class="bi bi-box-seam fs-1 text-muted"></i>
+                {% endif %}
+              </div>
+              
+              <!-- Product Details -->
+              <div class="card-body">
+                <div class="d-flex justify-content-between align-items-start mb-2">
+                  <h6 class="card-title mb-0">
+                    <a href="{% url 'inventory:product_detail' product.pk %}" 
+                       class="text-decoration-none text-dark">
+                      {{ product.name|truncatechars:30 }}
+                    </a>
+                  </h6>
+                  <div class="product-actions">
+                    <div class="btn-group" role="group">
+                      <a href="{% url 'inventory:product_detail' product.pk %}" 
+                         class="btn btn-sm btn-outline-primary" 
+                         data-bs-toggle="tooltip" title="View Details">
+                        <i class="bi bi-eye"></i>
+                      </a>
+                      {% if app_permissions.inventory == 'edit' or app_permissions.inventory == 'admin' %}
+                        <a href="{% url 'inventory:product_edit' product.pk %}" 
+                           class="btn btn-sm btn-outline-secondary"
+                           data-bs-toggle="tooltip" title="Edit Product">
+                          <i class="bi bi-pencil"></i>
+                        </a>
+                      {% endif %}
+                    </div>
+                  </div>
+                </div>
+                
+                <p class="card-text small text-muted mb-2">
+                  SKU: {{ product.sku }}<br>
+                  Category: {{ product.category.name }}
+                </p>
+                
+                <!-- Stock Status -->
+                <div class="d-flex align-items-center mb-2">
+                  <span class="stock-indicator stock-{{ product.stock_status }}"></span>
+                  <span class="small">
+                    {{ product.current_stock }} units 
+                    <span class="text-muted">({{ product.get_stock_status_display }})</span>
+                  </span>
+                </div>
+                
+                <!-- Price and Actions -->
+                <div class="d-flex justify-content-between align-items-center">
+                  <div>
+                    <strong class="text-primary">${{ product.selling_price }}</strong>
+                    {% if can_view_costs %}
+                      <br><small class="text-muted">Cost: ${{ product.cost_price }}</small>
+                    {% endif %}
+                  </div>
+                  
+                  <!-- Quick Actions -->
+                  {% if app_permissions.inventory == 'edit' or app_permissions.inventory == 'admin' %}
+                    <div class="btn-group" role="group">
+                      <button type="button" 
+                              class="btn btn-sm btn-outline-warning"
+                              onclick="quickStockAdjust({{ product.pk }})"
+                              data-bs-toggle="tooltip" title="Adjust Stock">
+                        <i class="bi bi-arrows-move"></i>
+                      </button>
+                    </div>
+                  {% endif %}
+                </div>
+                
+                <!-- Product Badges -->
+                <div class="mt-2">
+                  {% if not product.is_active %}
+                    <span class="product-badge bg-secondary">Inactive</span>
+                  {% endif %}
+                  {% if product.needs_reorder %}
+                    <span class="product-badge bg-warning text-dark">Reorder</span>
+                  {% endif %}
+                  {% if product.is_serialized %}
+                    <span class="product-badge bg-info">Serialized</span>
+                  {% endif %}
+                </div>
+                
+                <!-- Bulk Selection -->
+                <div class="form-check mt-2">
+                  <input class="form-check-input product-checkbox" 
+                         type="checkbox" 
+                         value="{{ product.pk }}" 
+                         id="product{{ product.pk }}">
+                  <label class="form-check-label small" for="product{{ product.pk }}">
+                    Select for bulk actions
+                  </label>
+                </div>
+              </div>
+            </div>
+          </div>
+        {% empty %}
+          <div class="col-12">
+            <div class="text-center py-5">
+              <i class="bi bi-inbox fs-1 text-muted mb-3"></i>
+              <h5 class="text-muted">No products found</h5>
+              <p class="text-muted">
+                {% if request.GET %}
+                  Try adjusting your filters or <a href="{% url 'inventory:product_list' %}">view all products</a>.
+                {% else %}
+                  Get started by <a href="{% url 'inventory:product_create' %}">adding your first product</a>.
+                {% endif %}
+              </p>
+            </div>
+          </div>
+        {% endfor %}
+      </div>
+    </div>
+    
+    <!-- Table View -->
+    <div id="tableView" class="{% if view_mode == 'grid' %}d-none{% endif %}">
+      <div class="table-responsive">
+        <table class="table table-hover product-table">
+          <thead>
+            <tr>
+              <th width="40">
+                <input type="checkbox" id="selectAll" class="form-check-input">
+              </th>
+              <th>Product</th>
+              <th>SKU</th>
+              <th>Category</th>
+              <th>Stock</th>
+              <th>Status</th>
+              <th>Price</th>
+              {% if can_view_costs %}
+                <th>Cost</th>
+                <th>Margin</th>
+              {% endif %}
+              <th width="120">Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for product in products %}
+              <tr>
+                <td>
+                  <input type="checkbox" 
+                         class="form-check-input product-checkbox" 
+                         value="{{ product.pk }}">
+                </td>
+                <td>
+                  <div class="d-flex align-items-center">
+                    <div class="me-3">
+                      {% if product.image %}
+                        <img src="{{ product.image.url }}" 
+                             alt="{{ product.name }}" 
+                             class="rounded" 
+                             style="width: 40px; height: 40px; object-fit: cover;">
+                      {% else %}
+                        <div class="bg-light rounded d-flex align-items-center justify-content-center" 
+                             style="width: 40px; height: 40px;">
+                          <i class="bi bi-box-seam text-muted"></i>
+                        </div>
+                      {% endif %}
+                    </div>
+                    <div>
+                      <h6 class="mb-0">
+                        <a href="{% url 'inventory:product_detail' product.pk %}" 
+                           class="text-decoration-none">
+                          {{ product.name }}
+                        </a>
+                      </h6>
+                      <small class="text-muted">{{ product.supplier.name }}</small>
+                    </div>
+                  </div>
+                </td>
+                <td>
+                  <code class="text-primary">{{ product.sku }}</code>
+                </td>
+                <td>{{ product.category.name }}</td>
+                <td>
+                  <div class="d-flex align-items-center">
+                    <span class="stock-indicator stock-{{ product.stock_status }}"></span>
+                    <span>{{ product.current_stock }}</span>
+                    {% if product.needs_reorder %}
+                      <i class="bi bi-exclamation-triangle text-warning ms-1" 
+                         data-bs-toggle="tooltip" 
+                         title="Below reorder level ({{ product.reorder_level }})"></i>
+                    {% endif %}
+                  </div>
+                </td>
+                <td>
+                  <span class="badge bg-{% if product.stock_status == 'in_stock' %}success{% elif product.stock_status == 'low_stock' %}warning{% elif product.stock_status == 'out_of_stock' %}danger{% else %}secondary{% endif %}">
+                    {{ product.get_stock_status_display }}
+                  </span>
+                  {% if not product.is_active %}
+                    <span class="badge bg-secondary">Inactive</span>
+                  {% endif %}
+                </td>
+                <td>
+                  <strong>${{ product.selling_price }}</strong>
+                </td>
+                {% if can_view_costs %}
+                  <td class="text-muted">${{ product.cost_price }}</td>
+                  <td>
+                    <span class="{% if product.profit_margin_percentage < 10 %}text-danger{% elif product.profit_margin_percentage < 25 %}text-warning{% else %}text-success{% endif %}">
+                      {{ product.profit_margin_percentage|floatformat:1 }}%
+                    </span>
+                  </td>
+                {% endif %}
+                <td>
+                  <div class="product-actions">
+                    <div class="btn-group" role="group">
+                      <a href="{% url 'inventory:product_detail' product.pk %}" 
+                         class="btn btn-sm btn-outline-primary"
+                         data-bs-toggle="tooltip" title="View Details">
+                        <i class="bi bi-eye"></i>
+                      </a>
+                      {% if app_permissions.inventory == 'edit' or app_permissions.inventory == 'admin' %}
+                        <a href="{% url 'inventory:product_edit' product.pk %}" 
+                           class="btn btn-sm btn-outline-secondary"
+                           data-bs-toggle="tooltip" title="Edit">
+                          <i class="bi bi-pencil"></i>
+                        </a>
+                        <button type="button" 
+                                class="btn btn-sm btn-outline-warning"
+                                onclick="quickStockAdjust({{ product.pk }})"
+                                data-bs-toggle="tooltip" title="Adjust Stock">
+                          <i class="bi bi-arrows-move"></i>
+                        </button>
+                      {% endif %}
+                    </div>
+                  </div>
+                </td>
+              </tr>
+            {% empty %}
+              <tr>
+                <td colspan="{% if can_view_costs %}10{% else %}8{% endif %}" class="text-center py-5">
+                  <i class="bi bi-inbox fs-1 text-muted mb-3"></i>
+                  <h5 class="text-muted">No products found</h5>
+                  <p class="text-muted">
+                    {% if request.GET %}
+                      Try adjusting your filters or <a href="{% url 'inventory:product_list' %}">view all products</a>.
+                    {% else %}
+                      Get started by <a href="{% url 'inventory:product_create' %}">adding your first product</a>.
+                    {% endif %}
+                  </p>
+                </td>
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+    
+    <!-- Pagination -->
+    {% if is_paginated %}
+      <nav aria-label="Product pagination" class="mt-4">
+        <ul class="pagination justify-content-center">
+          {% if page_obj.has_previous %}
+            <li class="page-item">
+              <a class="page-link" href="?page=1{% if request.GET.urlencode %}&{{ request.GET.urlencode }}{% endif %}">
+                <i class="bi bi-chevron-double-left"></i>
+              </a>
+            </li>
+            <li class="page-item">
+              <a class="page-link" href="?page={{ page_obj.previous_page_number }}{% if request.GET.urlencode %}&{{ request.GET.urlencode }}{% endif %}">
+                <i class="bi bi-chevron-left"></i>
+              </a>
+            </li>
+          {% endif %}
+          
+          {% for num in page_obj.paginator.page_range %}
+            {% if page_obj.number == num %}
+              <li class="page-item active">
+                <span class="page-link">{{ num }}</span>
+              </li>
+            {% elif num > page_obj.number|add:'-3' and num < page_obj.number|add:'3' %}
+              <li class="page-item">
+                <a class="page-link" href="?page={{ num }}{% if request.GET.urlencode %}&{{ request.GET.urlencode }}{% endif %}">{{ num }}</a>
+              </li>
+            {% endif %}
+          {% endfor %}
+          
+          {% if page_obj.has_next %}
+            <li class="page-item">
+              <a class="page-link" href="?page={{ page_obj.next_page_number }}{% if request.GET.urlencode %}&{{ request.GET.urlencode }}{% endif %}">
+                <i class="bi bi-chevron-right"></i>
+              </a>
+            </li>
+            <li class="page-item">
+              <a class="page-link" href="?page={{ page_obj.paginator.num_pages }}{% if request.GET.urlencode %}&{{ request.GET.urlencode }}{% endif %}">
+                <i class="bi bi-chevron-double-right"></i>
+              </a>
+            </li>
+          {% endif %}
+        </ul>
+      </nav>
+    {% endif %}
+  </div>
+</div>
+
+<!-- Quick Stock Adjustment Modal -->
+<div class="modal fade" id="quickStockModal" tabindex="-1">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title">
+          <i class="bi bi-arrows-move me-2"></i>Quick Stock Adjustment
+        </h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <form id="quickStockForm">
+          {% csrf_token %}
+          <input type="hidden" id="adjustProductId" name="product_id">
+          
+          <div class="mb-3">
+            <label class="form-label">Product</label>
+            <input type="text" class="form-control" id="adjustProductName" readonly>
+          </div>
+          
+          <div class="mb-3">
+            <label class="form-label">Current Stock</label>
+            <input type="text" class="form-control" id="adjustCurrentStock" readonly>
+          </div>
+          
+          <div class="mb-3">
+            <label for="adjustmentType" class="form-label">Adjustment Type</label>
+            <select class="form-select" id="adjustmentType" name="adjustment_type" required>
+              <option value="add">Add to current stock</option>
+              <option value="subtract">Subtract from current stock</option>
+              <option value="set">Set to specific amount</option>
+            </select>
+          </div>
+          
+          <div class="mb-3">
+            <label for="adjustmentQuantity" class="form-label">Quantity</label>
+            <input type="number" class="form-control" id="adjustmentQuantity" name="quantity" min="0" required>
+          </div>
+          
+          <div class="mb-3">
+            <label for="adjustmentReason" class="form-label">Reason</label>
+            <input type="text" class="form-control" id="adjustmentReason" name="reason" 
+                   placeholder="e.g., Stock count correction" required>
+          </div>
+        </form>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+        <button type="button" class="btn btn-primary" onclick="submitStockAdjustment()">
+          <i class="bi bi-check me-1"></i>Adjust Stock
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+{{ block.super }}
+<script>
+let currentViewMode = '{{ view_mode|default:"table" }}';
+let selectedProducts = new Set();
+
+document.addEventListener('DOMContentLoaded', function() {
+  // Initialize tooltips
+  var tooltipTriggerList = [].slice.call(document.querySelectorAll('[data-bs-toggle="tooltip"]'));
+  tooltipTriggerList.map(function (tooltipTriggerEl) {
+    return new bootstrap.Tooltip(tooltipTriggerEl);
+  });
+  
+  // Search functionality
+  setupSearchAutocomplete();
+  
+  // Bulk selection handling
+  setupBulkSelection();
+  
+  // Auto-submit filters on change
+  setupAutoFilters();
+});
+
+function setViewMode(mode) {
+  currentViewMode = mode;
+  
+  // Update view
+  if (mode === 'grid') {
+    document.getElementById('gridView').classList.remove('d-none');
+    document.getElementById('tableView').classList.add('d-none');
+  } else {
+    document.getElementById('gridView').classList.add('d-none');
+    document.getElementById('tableView').classList.remove('d-none');
+  }
+  
+  // Update button states
+  document.querySelectorAll('.view-toggle .btn').forEach(btn => {
+    btn.classList.remove('active');
+  });
+  event.target.classList.add('active');
+  
+  // Save preference
+  localStorage.setItem('inventoryViewMode', mode);
+}
+
+function applySorting(sortBy) {
+  const url = new URL(window.location);
+  url.searchParams.set('sort', sortBy);
+  url.searchParams.delete('page'); // Reset to first page
+  window.location.href = url.toString();
+}
+
+function setupSearchAutocomplete() {
+  const searchInput = document.getElementById('search');
+  const searchResults = document.getElementById('searchResults');
+  let searchTimeout;
+  
+  searchInput.addEventListener('input', function() {
+    clearTimeout(searchTimeout);
+    const query = this.value.trim();
+    
+    if (query.length < 2) {
+      searchResults.style.display = 'none';
+      return;
+    }
+    
+    searchTimeout = setTimeout(() => {
+      fetch(`{% url 'inventory:product_search_api' %}?q=${encodeURIComponent(query)}&limit=5`)
+        .then(response => response.json())
+        .then(data => {
+          if (data.success && data.results.length > 0) {
+            let html = '';
+            data.results.forEach(product => {
+              html += `
+                <div class="list-group-item list-group-item-action" 
+                     onclick="selectSearchResult('${product.sku}')">
+                  <div class="d-flex w-100 justify-content-between">
+                    <h6 class="mb-1">${product.name}</h6>
+                    <small class="text-muted">${product.sku}</small>
+                  </div>
+                  <p class="mb-1 small">${product.category} | Stock: ${product.current_stock}</p>
+                </div>
+              `;
+            });
+            searchResults.innerHTML = html;
+            searchResults.style.display = 'block';
+          } else {
+            searchResults.style.display = 'none';
+          }
+        })
+        .catch(error => {
+          console.error('Search error:', error);
+          searchResults.style.display = 'none';
+        });
+    }, 300);
+  });
+  
+  // Hide results when clicking outside
+  document.addEventListener('click', function(e) {
+    if (!searchInput.contains(e.target) && !searchResults.contains(e.target)) {
+      searchResults.style.display = 'none';
+    }
+  });
+}
+
+function selectSearchResult(sku) {
+  document.getElementById('search').value = sku;
+  document.getElementById('searchResults').style.display = 'none';
+  document.getElementById('filterForm').submit();
+}
+
+function setupBulkSelection() {
+  const selectAllCheckbox = document.getElementById('selectAll');
+  const bulkActionsBar = document.getElementById('bulkActionsBar');
+  const selectedCountSpan = document.getElementById('selectedCount');
+  
+  // Select all functionality
+  if (selectAllCheckbox) {
+    selectAllCheckbox.addEventListener('change', function() {
+      const productCheckboxes = document.querySelectorAll('.product-checkbox');
+      productCheckboxes.forEach(checkbox => {
+        checkbox.checked = this.checked;
+        if (this.checked) {
+          selectedProducts.add(checkbox.value);
+        } else {
+          selectedProducts.delete(checkbox.value);
+        }
+      });
+      updateBulkActionsBar();
+    });
+  }
+  
+  // Individual checkbox handling
+  document.addEventListener('change', function(e) {
+    if (e.target.classList.contains('product-checkbox')) {
+      if (e.target.checked) {
+        selectedProducts.add(e.target.value);
+      } else {
+        selectedProducts.delete(e.target.value);
+        if (selectAllCheckbox) selectAllCheckbox.checked = false;
+      }
+      updateBulkActionsBar();
+    }
+  });
+  
+  function updateBulkActionsBar() {
+    if (selectedProducts.size > 0) {
+      bulkActionsBar.style.display = 'block';
+      selectedCountSpan.textContent = selectedProducts.size;
+    } else {
+      bulkActionsBar.style.display = 'none';
+    }
+  }
+}
+
+function setupAutoFilters() {
+  const filterSelects = document.querySelectorAll('#filterForm select');
+  filterSelects.forEach(select => {
+    select.addEventListener('change', function() {
+      if (this.value !== '' || this.name === 'is_active') {
+        document.getElementById('filterForm').submit();
+      }
+    });
+  });
+}
+
+function clearSelection() {
+  selectedProducts.clear();
+  document.querySelectorAll('.product-checkbox').forEach(checkbox => {
+    checkbox.checked = false;
+  });
+  const selectAllCheckbox = document.getElementById('selectAll');
+  if (selectAllCheckbox) selectAllCheckbox.checked = false;
+  document.getElementById('bulkActionsBar').style.display = 'none';
+}
+
+function quickStockAdjust(productId) {
+  // Fetch product details
+  fetch(`{% url 'inventory:product_details_api' 0 %}`.replace('0', productId))
+    .then(response => response.json())
+    .then(data => {
+      if (data.success) {
+        document.getElementById('adjustProductId').value = productId;
+        document.getElementById('adjustProductName').value = data.product.name;
+        document.getElementById('adjustCurrentStock').value = data.product.current_stock;
+        
+        const modal = new bootstrap.Modal(document.getElementById('quickStockModal'));
+        modal.show();
+      }
+    })
+    .catch(error => {
+      console.error('Error fetching product details:', error);
+      alert('Error loading product details');
+    });
+}
+
+function submitStockAdjustment() {
+  const form = document.getElementById('quickStockForm');
+  const formData = new FormData(form);
+  
+  fetch(`{% url 'inventory:stock_adjust_api' %}`, {
+    method: 'POST',
+    body: formData,
+    headers: {
+      'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value
+    }
+  })
+  .then(response => response.json())
+  .then(data => {
+    if (data.success) {
+      const modal = bootstrap.Modal.getInstance(document.getElementById('quickStockModal'));
+      modal.hide();
+      
+      showStockStatusUpdate(
+        `Stock adjusted for ${data.product_sku}: ${data.previous_stock} → ${data.new_stock}`,
+        'success'
+      );
+      
+      // Refresh the page to show updated stock
+      setTimeout(() => window.location.reload(), 1500);
+    } else {
+      alert(data.error || 'Stock adjustment failed');
+    }
+  })
+  .catch(error => {
+    console.error('Stock adjustment error:', error);
+    alert('Stock adjustment failed');
+  });
+}
+
+// Bulk operations (placeholder functions)
+function bulkUpdatePrices() {
+  if (selectedProducts.size === 0) return;
+  alert(`Bulk price update for ${selectedProducts.size} products (feature coming soon)`);
+}
+
+function bulkAdjustStock() {
+  if (selectedProducts.size === 0) return;
+  alert(`Bulk stock adjustment for ${selectedProducts.size} products (feature coming soon)`);
+}
+
+function bulkActivate() {
+  if (selectedProducts.size === 0) return;
+  alert(`Activate ${selectedProducts.size} products (feature coming soon)`);
+}
+
+function bulkDeactivate() {
+  if (selectedProducts.size === 0) return;
+  alert(`Deactivate ${selectedProducts.size} products (feature coming soon)`);
+}
+
+function printProductList() {
+  window.print();
+}
+
+// Load saved view preference
+document.addEventListener('DOMContentLoaded', function() {
+  const savedViewMode = localStorage.getItem('inventoryViewMode');
+  if (savedViewMode && savedViewMode !== currentViewMode) {
+    setViewMode(savedViewMode);
+  }
+});
+</script>
+{% endblock %}

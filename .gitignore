@@ -1,0 +1,17 @@
+#Files
+db.sqlite3*
+*.pyc
+.anima/
+.vscode/
+.env
+sshkey
+sshkey.pub
+blitzhubkey.ppk
+blitzhubkeypub
+
+#Folders
+media
+staticfiles
+__pycache__
+venv/
+documentation/

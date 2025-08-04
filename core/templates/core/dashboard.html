@@ -1,0 +1,831 @@
+{% extends "dashboard_base.html" %}
+{% load static %}
+
+{% block page_title %}Dashboard{% endblock %}
+
+{% block extra_dashboard_head %}
+<style>
+  .metric-card {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    border-radius: 15px;
+    color: white;
+    transition: transform 0.3s ease, box-shadow 0.3s ease;
+    border: none;
+  }
+  .metric-card:hover {
+    transform: translateY(-5px);
+    box-shadow: 0 15px 35px rgba(102, 126, 234, 0.3);
+  }
+  .metric-card-success {
+    background: linear-gradient(135deg, #11998e 0%, #38ef7d 100%);
+  }
+  .metric-card-success:hover {
+    box-shadow: 0 15px 35px rgba(17, 153, 142, 0.3);
+  }
+  .metric-card-warning {
+    background: linear-gradient(135deg, #ffecd2 0%, #fcb69f 100%);
+    color: #333 !important;
+  }
+  .metric-card-warning:hover {
+    box-shadow: 0 15px 35px rgba(252, 182, 159, 0.3);
+  }
+  .metric-card-info {
+    background: linear-gradient(135deg, #ff9a9e 0%, #fecfef 100%);
+    color: #333 !important;
+  }
+  .metric-card-info:hover {
+    box-shadow: 0 15px 35px rgba(255, 154, 158, 0.3);
+  }
+  .quote-status-badge {
+    font-size: 0.8em;
+    padding: 4px 10px;
+    border-radius: 20px;
+    font-weight: 600;
+  }
+  .attention-item {
+    border-left: 4px solid #ffc107;
+    background: linear-gradient(135deg, #fff9c4 0%, #fff176 30%);
+    transition: all 0.3s ease;
+    border-radius: 8px;
+    margin-bottom: 10px;
+  }
+  .attention-item:hover {
+    background: linear-gradient(135deg, #fff176 0%, #ffeb3b 30%);
+    transform: translateX(8px);
+    box-shadow: 0 4px 15px rgba(255, 193, 7, 0.3);
+  }
+  .welcome-card {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: white;
+    border-radius: 15px;
+    border: none;
+    transition: transform 0.2s ease, box-shadow 0.2s ease;
+  }
+  .welcome-card:hover {
+    transform: translateY(-3px);
+    box-shadow: 0 10px 30px rgba(102, 126, 234, 0.2);
+  }
+  .activity-item {
+    transition: all 0.2s ease;
+    border-radius: 10px;
+    padding: 15px;
+    border: 1px solid #e9ecef;
+    margin-bottom: 10px;
+  }
+  .activity-item:hover {
+    background-color: #f8f9fa;
+    border-color: #667eea;
+    transform: translateX(5px);
+    box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+  }
+  .recent-quote-row {
+    transition: all 0.2s ease;
+  }
+  .recent-quote-row:hover {
+    background-color: #f8f9fa;
+    transform: scale(1.01);
+  }
+  .notification-item {
+    transition: all 0.2s ease;
+    border-radius: 10px;
+    border: none !important;
+    margin-bottom: 4px;
+  }
+  .notification-item:hover {
+    background-color: #f0f0f0 !important;
+    transform: translateX(3px);
+  }
+  .quick-action-btn {
+    transition: all 0.2s ease;
+    border-radius: 10px;
+  }
+  .quick-action-btn:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 15px rgba(0,0,0,0.2);
+  }
+  .card {
+    border-radius: 12px;
+    border: none;
+    transition: transform 0.2s ease, box-shadow 0.2s ease;
+  }
+  .card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 8px 25px rgba(0,0,0,0.1);
+  }
+  .btn {
+    border-radius: 8px;
+    transition: all 0.2s ease;
+  }
+  .btn:hover {
+    transform: translateY(-1px);
+  }
+  .client-avatar {
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: bold;
+    color: white;
+    font-size: 0.9rem;
+    transition: transform 0.2s ease;
+  }
+  .client-avatar:hover {
+    transform: scale(1.1);
+  }
+  .stats-indicator {
+    width: 50px;
+    height: 50px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.2rem;
+    transition: all 0.2s ease;
+  }
+  .stats-indicator:hover {
+    transform: scale(1.1);
+  }
+</style>
+{% endblock %}
+
+{% block dashboard_content %}
+<!-- Enhanced Welcome Header with Role-Aware Greeting -->
+<div class="row mb-4">
+  <div class="col-12">
+    <div class="welcome-card p-4 shadow-sm">
+      <div class="d-flex justify-content-between align-items-center">
+        <div>
+          <h1 class="h3 mb-2 text-white">
+            Welcome back, {{ user.first_name|default:user.username }}!
+            {% if user_profile.user_type == 'sales_rep' %}
+              <span class="badge bg-light text-primary ms-2">Sales Representative</span>
+            {% elif user_profile.user_type == 'sales_manager' %}
+              <span class="badge bg-light text-info ms-2">Sales Manager</span>
+            {% elif user_profile.user_type == 'blitzhub_admin' %}
+              <span class="badge bg-light text-danger ms-2">Administrator</span>
+            {% elif user_profile.user_type == 'it_admin' %}
+              <span class="badge bg-light text-dark ms-2">IT Administrator</span>
+            {% endif %}
+          </h1>
+          <p class="text-white-75 mb-0">
+            <i class="bi bi-calendar me-1"></i>{% now "l, F j, Y" %} • 
+            <i class="bi bi-clock me-1"></i>Last login: {{ user.last_login|date:"M j, H:i"|default:"Never" }}
+            {% if user_profile.department %}
+             • <i class="bi bi-building me-1"></i>{{ user_profile.get_department_display }} Department
+            {% endif %}
+          </p>
+        </div>
+        <div class="d-flex gap-2">
+          {% if app_permissions.quotes == 'edit' or app_permissions.quotes == 'admin' %}
+          <a href="{% url 'quotes:quote_create' %}" class="btn btn-light">
+            <i class="bi bi-plus-circle me-1"></i> New Quote
+          </a>
+          {% endif %}
+          <div class="dropdown">
+            <button class="btn btn-outline-light dropdown-toggle" type="button" data-bs-toggle="dropdown">
+              Quick Actions
+            </button>
+            <ul class="dropdown-menu">
+              {% if app_permissions.crm %}
+              <li><a class="dropdown-item" href="{% url 'crm:client_create' %}">
+                <i class="bi bi-person-plus me-2"></i>Add Client
+              </a></li>
+              {% endif %}
+              {% if app_permissions.quotes %}
+              <li><a class="dropdown-item" href="{% url 'quotes:quote_list' %}">
+                <i class="bi bi-list me-2"></i>View All Quotes
+              </a></li>
+              {% endif %}
+              {% if app_permissions.inventory %}
+              <li><a class="dropdown-item" href="{% url 'inventory:product_create' %}">
+                <i class="bi bi-box me-2"></i>Add Product
+              </a></li>
+              {% endif %}
+              <li><hr class="dropdown-divider"></li>
+              <li><a class="dropdown-item" href="{% url 'core:profile' %}">
+                <i class="bi bi-person me-2"></i>My Profile
+              </a></li>
+            </ul>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Enhanced Metrics Grid with Quote Integration -->
+<div class="row mb-4">
+  {% if app_permissions.quotes %}
+  <!-- Quote Metrics for Sales Team -->
+  <div class="col-lg-3 col-md-6 mb-3">
+    <div class="card metric-card h-100 text-white shadow-sm">
+      <div class="card-body">
+        <div class="d-flex justify-content-between align-items-center">
+          <div>
+            <h6 class="card-title text-white-50 mb-1">Active Quotes</h6>
+            <h2 class="mb-0" id="active-quotes-count" data-stat="active-quotes">{{ quote_stats.active_quotes|default:0 }}</h2>
+            <small class="text-white-75">{{ quote_stats.total_quotes|default:0 }} total this month</small>
+          </div>
+          <div class="stats-indicator bg-white bg-opacity-25">
+            <i class="bi bi-file-earmark-text"></i>
+          </div>
+        </div>
+      </div>
+      <div class="card-footer bg-transparent text-white-50">
+        <a href="{% url 'quotes:quote_list' %}?status=draft,sent,viewed,under_review" class="text-white text-decoration-none">
+          <i class="bi bi-arrow-right me-1"></i>View Active Quotes
+        </a>
+      </div>
+    </div>
+  </div>
+
+  <div class="col-lg-3 col-md-6 mb-3">
+    <div class="card metric-card metric-card-success h-100 text-white shadow-sm">
+      <div class="card-body">
+        <div class="d-flex justify-content-between align-items-center">
+          <div>
+            <h6 class="card-title text-white-50 mb-1">This Month</h6>
+            <h2 class="mb-0" data-stat="month-value">${{ quote_stats.month_value|floatformat:0|default:0 }}</h2>
+            <small class="text-white-75">{{ quote_stats.month_count|default:0 }} quotes</small>
+          </div>
+          <div class="stats-indicator bg-white bg-opacity-25">
+            <i class="bi bi-graph-up"></i>
+          </div>
+        </div>
+      </div>
+      <div class="card-footer bg-transparent text-white-50">
+        <a href="{% url 'quotes:quote_analytics' %}" class="text-white text-decoration-none">
+          <i class="bi bi-arrow-right me-1"></i>View Analytics
+        </a>
+      </div>
+    </div>
+  </div>
+
+  <div class="col-lg-3 col-md-6 mb-3">
+    <div class="card metric-card metric-card-warning h-100 shadow-sm">
+      <div class="card-body">
+        <div class="d-flex justify-content-between align-items-center">
+          <div>
+            <h6 class="card-title mb-1" style="color: #666;">Need Attention</h6>
+            <h2 class="mb-0" style="color: #333;">{{ quote_stats.needs_attention|default:0 }}</h2>
+            <small style="color: #666;">Drafts & overdue</small>
+          </div>
+          <div class="stats-indicator" style="background: rgba(255, 107, 107, 0.2);">
+            <i class="bi bi-exclamation-triangle" style="color: #ff6b6b;"></i>
+          </div>
+        </div>
+      </div>
+      <div class="card-footer bg-transparent" style="color: #666;">
+        <a href="{% url 'quotes:quote_list' %}?status=draft" style="color: #333; text-decoration: none;">
+          <i class="bi bi-arrow-right me-1"></i>Review Drafts
+        </a>
+      </div>
+    </div>
+  </div>
+
+  <div class="col-lg-3 col-md-6 mb-3">
+    <div class="card metric-card metric-card-info h-100 shadow-sm">
+      <div class="card-body">
+        <div class="d-flex justify-content-between align-items-center">
+          <div>
+            <h6 class="card-title mb-1" style="color: #666;">Expiring Soon</h6>
+            <h2 class="mb-0" style="color: #333;">{{ quote_stats.expiring_soon|default:0 }}</h2>
+            <small style="color: #666;">Next 7 days</small>
+          </div>
+          <div class="stats-indicator" style="background: rgba(255, 107, 107, 0.2);">
+            <i class="bi bi-clock" style="color: #ff6b6b;"></i>
+          </div>
+        </div>
+      </div>
+      <div class="card-footer bg-transparent" style="color: #666;">
+        <a href="{% url 'quotes:quote_list' %}?expiring_soon=true" style="color: #333; text-decoration: none;">
+          <i class="bi bi-arrow-right me-1"></i>Review Expiring
+        </a>
+      </div>
+    </div>
+  </div>
+  {% else %}
+  <!-- Non-quote users see different metrics -->
+  <div class="col-lg-3 col-md-6 mb-3">
+    <div class="card metric-card h-100 text-white shadow-sm">
+      <div class="card-body text-center">
+        <div class="stats-indicator bg-white bg-opacity-25 mx-auto mb-3">
+          <i class="bi bi-person-check"></i>
+        </div>
+        <h5>Welcome to BlitzTech</h5>
+        <p class="mb-0">Your employee dashboard</p>
+      </div>
+    </div>
+  </div>
+  
+  <div class="col-lg-3 col-md-6 mb-3">
+    <div class="card h-100 border-info shadow-sm">
+      <div class="card-body text-center">
+        <div class="stats-indicator bg-info text-white mx-auto mb-3">
+          <i class="bi bi-building"></i>
+        </div>
+        <h6 class="text-info">{{ user_profile.get_department_display|default:"No Department" }}</h6>
+        <p class="text-muted mb-0">Your Department</p>
+      </div>
+    </div>
+  </div>
+  
+  <div class="col-lg-3 col-md-6 mb-3">
+    <div class="card h-100 border-success shadow-sm">
+      <div class="card-body text-center">
+        <div class="stats-indicator bg-success text-white mx-auto mb-3">
+          <i class="bi bi-calendar3"></i>
+        </div>
+        <h6 class="text-success">{{ user.date_joined|date:"M Y" }}</h6>
+        <p class="text-muted mb-0">Joined BlitzTech</p>
+      </div>
+    </div>
+  </div>
+  {% endif %}
+
+  <!-- Notification indicator for all users -->
+  <div class="col-lg-3 col-md-6 mb-3">
+    <div class="card h-100 border-primary shadow-sm">
+      <div class="card-body">
+        <div class="d-flex justify-content-between align-items-center">
+          <div>
+            <h6 class="card-title text-primary mb-1">Notifications</h6>
+            <h2 class="mb-0 text-primary">{{ unread_notification_count }}</h2>
+            <small class="text-muted">Unread messages</small>
+          </div>
+          <div class="stats-indicator bg-primary text-white">
+            <i class="bi bi-bell"></i>
+          </div>
+        </div>
+      </div>
+      <div class="card-footer bg-primary text-white">
+        <a href="{% url 'core:notifications' %}" class="text-white text-decoration-none">
+          <i class="bi bi-arrow-right me-1"></i>View All Notifications
+        </a>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Main Content Grid -->
+<div class="row">
+  <!-- Left Column: Recent Activity and Quotes -->
+  <div class="col-lg-8">
+    {% if app_permissions.quotes and recent_quotes %}
+    <!-- Recent Quotes Section -->
+    <div class="card mb-4 shadow-sm">
+      <div class="card-header d-flex justify-content-between align-items-center bg-white">
+        <h5 class="mb-0">
+          <i class="bi bi-file-earmark-text me-2 text-primary"></i>Recent Quotes
+        </h5>
+        <a href="{% url 'quotes:quote_list' %}" class="btn btn-sm btn-outline-primary">View All</a>
+      </div>
+      <div class="card-body p-0">
+        <div class="table-responsive">
+          <table class="table table-hover mb-0">
+            <thead class="table-light">
+              <tr>
+                <th>Quote #</th>
+                <th>Client</th>
+                <th>Amount</th>
+                <th>Status</th>
+                <th>Created</th>
+                <th>Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for quote in recent_quotes %}
+              <tr class="recent-quote-row">
+                <td>
+                  <a href="{% url 'quotes:quote_detail' quote.id %}" class="text-decoration-none fw-bold">
+                    {{ quote.quote_number }}
+                  </a>
+                </td>
+                <td>
+                  <div class="d-flex align-items-center">
+                    <div class="client-avatar bg-primary me-2">
+                      {{ quote.client.name|first }}
+                    </div>
+                    <div>
+                      <div class="fw-bold">{{ quote.client.name }}</div>
+                      <small class="text-muted">{{ quote.client.company|default:"No company" }}</small>
+                    </div>
+                  </div>
+                </td>
+                <td class="fw-bold text-success">${{ quote.total_amount|floatformat:2 }}</td>
+                <td>
+                  <span class="quote-status-badge 
+                      {% if quote.status == 'draft' %}bg-secondary text-white
+                      {% elif quote.status == 'sent' %}bg-primary text-white
+                      {% elif quote.status == 'viewed' %}bg-info text-white
+                      {% elif quote.status == 'accepted' %}bg-success text-white
+                      {% elif quote.status == 'rejected' %}bg-danger text-white
+                      {% else %}bg-warning text-dark{% endif %}">
+                      {{ quote.get_status_display }}
+                  </span>
+                </td>
+                <td>
+                  <div>{{ quote.created_at|date:"M j" }}</div>
+                  <small class="text-muted">{{ quote.created_at|time:"H:i" }}</small>
+                </td>
+                <td>
+                  <div class="btn-group btn-group-sm">
+                    <a href="{% url 'quotes:quote_detail' quote.id %}" class="btn btn-outline-primary btn-sm" title="View">
+                      <i class="bi bi-eye"></i>
+                    </a>
+                    {% if quote.status == 'draft' and app_permissions.quotes != 'view' %}
+                    <a href="{% url 'quotes:quote_builder' quote.id %}" class="btn btn-outline-secondary btn-sm" title="Edit">
+                      <i class="bi bi-pencil"></i>
+                    </a>
+                    {% endif %}
+                    <a href="{% url 'quotes:quote_pdf' quote.id %}" class="btn btn-outline-info btn-sm" title="Download PDF">
+                      <i class="bi bi-download"></i>
+                    </a>
+                  </div>
+                </td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+    {% endif %}
+
+    {% if attention_quotes %}
+    <!-- Quotes Needing Attention -->
+    <div class="card mb-4 border-warning shadow-sm">
+      <div class="card-header bg-warning text-dark">
+        <h5 class="mb-0">
+          <i class="bi bi-exclamation-triangle me-2"></i>Quotes Needing Attention
+        </h5>
+      </div>
+      <div class="card-body">
+        {% for quote in attention_quotes %}
+        <div class="attention-item p-3">
+          <div class="d-flex justify-content-between align-items-start">
+            <div class="flex-grow-1">
+              <div class="d-flex align-items-center mb-2">
+                <div class="client-avatar bg-warning text-dark me-2" style="width: 35px; height: 35px; font-size: 0.8rem;">
+                  {{ quote.client.name|first }}
+                </div>
+                <h6 class="mb-0">
+                  <a href="{% url 'quotes:quote_detail' quote.id %}" class="text-decoration-none">
+                    {{ quote.quote_number }}
+                  </a>
+                  - {{ quote.client.name }}
+                </h6>
+              </div>
+              <p class="mb-1 text-muted">{{ quote.title|default:"No title" }}</p>
+              <small class="text-warning fw-bold">
+                <i class="bi bi-info-circle me-1"></i>
+                {% if quote.status == 'draft' %}
+                  {% if quote.total_amount >= high_value_threshold %}
+                    High-value draft requiring approval (>${{ high_value_threshold|floatformat:0 }})
+                  {% else %}
+                    Draft quote incomplete - needs review
+                  {% endif %}
+                {% elif quote.status in 'sent,viewed' %}
+                  Sent {{ quote.sent_date|timesince }} ago - follow-up recommended
+                {% elif quote.days_until_expiry <= 7 %}
+                  Expires in {{ quote.days_until_expiry }} days
+                {% endif %}
+              </small>
+            </div>
+            <div class="text-end">
+              <div class="fw-bold text-success mb-1">${{ quote.total_amount|floatformat:2 }}</div>
+              <small class="text-muted">{{ quote.get_status_display }}</small>
+              {% if quote.days_until_expiry <= 7 %}
+              <div class="badge bg-danger mt-1">{{ quote.days_until_expiry }} days left</div>
+              {% endif %}
+            </div>
+          </div>
+          <div class="mt-3">
+            <a href="{% url 'quotes:quote_detail' quote.id %}" class="btn btn-sm btn-primary me-2">Review</a>
+            {% if quote.status == 'draft' %}
+            <a href="{% url 'quotes:quote_builder' quote.id %}" class="btn btn-sm btn-outline-secondary">Edit</a>
+            {% endif %}
+          </div>
+        </div>
+        {% endfor %}
+      </div>
+    </div>
+    {% endif %}
+
+    {% if recent_interactions %}
+    <!-- Recent CRM Activity -->
+    <div class="card mb-4 shadow-sm">
+      <div class="card-header bg-white">
+        <h5 class="mb-0">
+          <i class="bi bi-activity me-2 text-success"></i>Recent Client Activity
+        </h5>
+      </div>
+      <div class="card-body">
+        {% for interaction in recent_interactions %}
+        <div class="activity-item d-flex align-items-start">
+          <div class="flex-shrink-0">
+            <div class="client-avatar bg-success">
+              {{ interaction.client.name|first }}
+            </div>
+          </div>
+          <div class="flex-grow-1 ms-3">
+            <div class="d-flex justify-content-between align-items-start mb-1">
+              <h6 class="mb-0">{{ interaction.subject }}</h6>
+              <small class="text-muted">{{ interaction.created_at|timesince }} ago</small>
+            </div>
+            <p class="mb-1 text-muted small">{{ interaction.notes|truncatewords:15 }}</p>
+            <div class="d-flex align-items-center">
+              <small class="text-muted">
+                <strong>{{ interaction.client.name }}</strong>
+                {% if interaction.interaction_type %}
+                • {{ interaction.get_interaction_type_display }}
+                {% endif %}
+              </small>
+            </div>
+          </div>
+          <div class="flex-shrink-0 ms-2">
+            <a href="{% url 'crm:interaction_detail' interaction.id %}" class="btn btn-sm btn-outline-primary">
+              <i class="bi bi-arrow-right"></i>
+            </a>
+          </div>
+        </div>
+        {% endfor %}
+      </div>
+      <div class="card-footer bg-transparent">
+        <a href="{% url 'crm:interaction_list' %}" class="btn btn-sm btn-success">
+          <i class="bi bi-list me-1"></i>View All Activity
+        </a>
+      </div>
+    </div>
+    {% endif %}
+  </div>
+
+  <!-- Right Column: Notifications and Quick Actions -->
+  <div class="col-lg-4">
+    <!-- Recent Notifications -->
+    <div class="card mb-4 shadow-sm">
+      <div class="card-header d-flex justify-content-between align-items-center bg-white">
+        <h5 class="mb-0">
+          <i class="bi bi-bell me-2 text-info"></i>Recent Notifications
+        </h5>
+        {% if unread_notification_count > 0 %}
+        <span class="badge bg-danger">{{ unread_notification_count }}</span>
+        {% endif %}
+      </div>
+      <div class="card-body p-0">
+        {% if notifications %}
+        <div class="list-group list-group-flush">
+          {% for notification in notifications|slice:":5" %}
+          <div class="list-group-item notification-item {% if not notification.is_read %}bg-light border-start border-primary border-3{% endif %}">
+            <div class="d-flex w-100 justify-content-between align-items-start">
+              <div class="flex-grow-1">
+                <h6 class="mb-1 {% if not notification.is_read %}fw-bold{% endif %}">{{ notification.title }}</h6>
+                <p class="mb-1 small">{{ notification.message|truncatewords:10 }}</p>
+                <div class="d-flex justify-content-between align-items-center">
+                  <small class="text-muted">
+                    <span class="badge 
+                        {% if notification.type == 'success' %}bg-success
+                        {% elif notification.type == 'warning' %}bg-warning text-dark
+                        {% elif notification.type == 'error' %}bg-danger
+                        {% elif notification.type == 'quote' %}bg-primary
+                        {% else %}bg-info{% endif %}">
+                        {{ notification.get_type_display }}
+                    </span>
+                  </small>
+                  {% if notification.action_url and notification.action_text %}
+                  <a href="{{ notification.action_url }}" class="btn btn-sm btn-outline-primary">
+                    {{ notification.action_text }}
+                  </a>
+                  {% endif %}
+                </div>
+              </div>
+              <small class="text-muted ms-2">{{ notification.created_at|timesince }} ago</small>
+            </div>
+          </div>
+          {% endfor %}
+        </div>
+        {% else %}
+        <div class="text-center py-4">
+          <i class="bi bi-bell-slash text-muted fa-2x mb-3"></i>
+          <p class="text-muted mb-0">No notifications</p>
+        </div>
+        {% endif %}
+      </div>
+      {% if notifications %}
+      <div class="card-footer text-center bg-transparent">
+        <a href="{% url 'core:notifications' %}" class="btn btn-sm btn-info">View All Notifications</a>
+      </div>
+      {% endif %}
+    </div>
+
+    {% if app_permissions.quotes %}
+    <!-- Quick Quote Actions -->
+    <div class="card mb-4 shadow-sm">
+      <div class="card-header bg-white">
+        <h5 class="mb-0">
+          <i class="bi bi-lightning me-2 text-warning"></i>Quick Quote Actions
+        </h5>
+      </div>
+      <div class="card-body">
+        <div class="d-grid gap-2">
+          {% if app_permissions.quotes == 'edit' or app_permissions.quotes == 'admin' %}
+          <a href="{% url 'quotes:quote_create' %}" class="btn btn-primary quick-action-btn">
+            <i class="bi bi-plus-circle me-2"></i>Create New Quote
+          </a>
+          {% endif %}
+          <a href="{% url 'quotes:quote_list' %}?status=draft" class="btn btn-outline-warning quick-action-btn">
+            <i class="bi bi-file-earmark me-2"></i>My Draft Quotes 
+            {% if quote_stats.needs_attention %}
+            <span class="badge bg-warning text-dark ms-1">{{ quote_stats.needs_attention }}</span>
+            {% endif %}
+          </a>
+          <a href="{% url 'quotes:quote_list' %}?status=sent,viewed,under_review" class="btn btn-outline-info quick-action-btn">
+            <i class="bi bi-send me-2"></i>Pending Quotes 
+            {% if quote_stats.active_quotes %}
+            <span class="badge bg-info ms-1">{{ quote_stats.active_quotes }}</span>
+            {% endif %}
+          </a>
+          {% if app_permissions.quotes == 'admin' %}
+          <a href="{% url 'quotes:quote_analytics' %}" class="btn btn-outline-success quick-action-btn">
+            <i class="bi bi-graph-up me-2"></i>View Analytics
+          </a>
+          {% endif %}
+          <a href="{% url 'quotes:quote_templates' %}" class="btn btn-outline-secondary quick-action-btn">
+            <i class="bi bi-bookmark me-2"></i>Quote Templates
+          </a>
+        </div>
+      </div>
+    </div>
+    {% endif %}
+
+    <!-- System Status (for admins) -->
+    {% if is_admin %}
+    <div class="card shadow-sm">
+      <div class="card-header bg-white">
+        <h5 class="mb-0">
+          <i class="bi bi-gear me-2 text-secondary"></i>System Status
+        </h5>
+      </div>
+      <div class="card-body">
+        <div class="d-flex justify-content-between align-items-center mb-3">
+          <span class="small">Total Users</span>
+          <span class="badge bg-primary">{{ total_users|default:0 }}</span>
+        </div>
+        <div class="d-flex justify-content-between align-items-center mb-3">
+          <span class="small">Active Sessions</span>
+          <span class="badge bg-success">{{ active_sessions|default:0 }}</span>
+        </div>
+        {% if app_permissions.quotes %}
+        <div class="d-flex justify-content-between align-items-center mb-3">
+          <span class="small">Total Quotes</span>
+          <span class="badge bg-info">{{ quote_stats.total_quotes|default:0 }}</span>
+        </div>
+        <div class="d-flex justify-content-between align-items-center mb-3">
+          <span class="small">This Month Revenue</span>
+          <span class="badge bg-success">${{ quote_stats.month_revenue|floatformat:0|default:0 }}</span>
+        </div>
+        {% endif %}
+        <hr>
+        <div class="d-grid gap-1">
+          <a href="{% url 'admin:index' %}" class="btn btn-sm btn-outline-primary quick-action-btn">
+            <i class="bi bi-tools me-1"></i>Admin Panel
+          </a>
+          <a href="{% url 'core:system_logs' %}" class="btn btn-sm btn-outline-secondary quick-action-btn">
+            <i class="bi bi-file-text me-1"></i>System Logs
+          </a>
+        </div>
+      </div>
+    </div>
+    {% endif %}
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_dashboard_js %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+  // Auto-refresh dashboard stats every 5 minutes
+  setInterval(function() {
+    if (document.visibilityState === 'visible') {
+      fetch('{% url "core:get_dashboard_stats" %}')
+        .then(response => response.json())
+        .then(data => {
+          if (data.success) {
+            updateDashboardStats(data.stats);
+          }
+        })
+        .catch(error => console.log('Dashboard update error:', error));
+    }
+  }, 300000); // 5 minutes
+  
+  // Initialize tooltips
+  const tooltipTriggerList = [].slice.call(document.querySelectorAll('[data-bs-toggle="tooltip"]'));
+  const tooltipList = tooltipTriggerList.map(function (tooltipTriggerEl) {
+    return new bootstrap.Tooltip(tooltipTriggerEl);
+  });
+  
+  // Add smooth scroll behavior
+  document.querySelectorAll('a[href^="#"]').forEach(anchor => {
+    anchor.addEventListener('click', function (e) {
+      e.preventDefault();
+      const target = document.querySelector(this.getAttribute('href'));
+      if (target) {
+        target.scrollIntoView({
+          behavior: 'smooth',
+          block: 'start'
+        });
+      }
+    });
+  });
+});
+
+function updateDashboardStats(stats) {
+  // Update quote statistics
+  if (stats.quotes) {
+    const activeQuotesEl = document.getElementById('active-quotes-count');
+    if (activeQuotesEl) {
+      activeQuotesEl.textContent = stats.quotes.active_quotes;
+    }
+    
+    // Update other quote metrics
+    const monthValueEl = document.querySelector('[data-stat="month-value"]');
+    if (monthValueEl) {
+      monthValueEl.textContent = '$' + stats.quotes.month_value.toLocaleString();
+    }
+  }
+  
+  // Update notification counts
+  if (stats.notifications) {
+    const notificationBadges = document.querySelectorAll('.badge');
+    notificationBadges.forEach(badge => {
+      if (badge.closest('.nav-link[href*="notifications"]') || 
+          badge.closest('.card-title') && badge.closest('.card-title').textContent.includes('Notifications')) {
+        if (stats.notifications.unread_count > 0) {
+          badge.textContent = stats.notifications.unread_count;
+          badge.style.display = 'inline';
+        } else {
+          badge.style.display = 'none';
+        }
+      }
+    });
+  }
+}
+
+// Mark notifications as read when clicked
+document.querySelectorAll('.notification-item').forEach(function(item) {
+  item.addEventListener('click', function() {
+    const notificationId = this.dataset.notificationId;
+    if (notificationId && this.classList.contains('bg-light')) {
+      fetch(`{% url "core:mark_notification_read" 0 %}`.replace('0', notificationId), {
+        method: 'POST',
+        headers: {
+          'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value,
+          'X-Requested-With': 'XMLHttpRequest'
+        }
+      }).then(() => {
+        this.classList.remove('bg-light', 'border-start', 'border-primary', 'border-3');
+      });
+    }
+  });
+});
+
+// Add keyboard shortcuts
+document.addEventListener('keydown', function(e) {
+  // Ctrl/Cmd + N for new quote (if available)
+  {% if app_permissions.quotes == 'edit' or app_permissions.quotes == 'admin' %}
+  if ((e.ctrlKey || e.metaKey) && e.key === 'n') {
+    e.preventDefault();
+    window.location.href = '{% url "quotes:quote_create" %}';
+  }
+  {% endif %}
+  
+  // Ctrl/Cmd + D for dashboard
+  if ((e.ctrlKey || e.metaKey) && e.key === 'd') {
+    e.preventDefault();
+    window.location.href = '{% url "core:dashboard" %}';
+  }
+});
+
+// Enhance card hover effects
+document.querySelectorAll('.metric-card').forEach(card => {
+  card.addEventListener('mouseenter', function() {
+    this.style.transform = 'translateY(-5px)';
+  });
+  card.addEventListener('mouseleave', function() {
+    this.style.transform = 'translateY(0)';
+  });
+});
+
+// Enhance attention items
+document.querySelectorAll('.attention-item').forEach(item => {
+  item.addEventListener('mouseenter', function() {
+    this.style.transform = 'translateX(8px)';
+  });
+  item.addEventListener('mouseleave', function() {
+    this.style.transform = 'translateX(0)';
+  });
+});
+</script>
+{% endblock %}

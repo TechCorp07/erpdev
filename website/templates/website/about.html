@@ -1,0 +1,280 @@
+<!-- website/templates/website/about.html -->
+{% extends "website_base.html" %}
+{% load crispy_forms_tags %}
+{% load static %}
+
+{% block title %}About Us - BlitzTech Electronics{% endblock %}
+
+{% block extra_css %}
+<style>
+  .value-item {
+    transition: all 0.3s ease;
+    border-radius: 10px;
+    padding: 20px;
+    margin-bottom: 20px;
+  }
+  
+  .value-item:hover {
+    transform: translateY(-5px);
+    box-shadow: 0 10px 20px rgba(0,0,0,0.1);
+  }
+  
+  .value-icon {
+    font-size: 2.5rem;
+    margin-bottom: 15px;
+    color: #0d6efd;
+  }
+
+  .team-member {
+    transition: all 0.3s ease;
+  }
+  
+  .team-member:hover {
+    transform: translateY(-5px);
+  }
+  
+  .team-member img {
+    transition: all 0.3s ease;
+  }
+  
+  .team-member:hover img {
+    box-shadow: 0 10px 20px rgba(0,0,0,0.1);
+  }
+</style>
+{% endblock %}
+
+{% block content %}
+  <!-- Hero Section -->
+  <section class="py-5 bg-light">
+    <div class="container">
+      <div class="row align-items-center">
+        <div class="col-md-6">
+          <h1 class="fw-bold mb-4">About BlitzTech Electronics</h1>
+          <p class="lead mb-4">We are a global tech intermediary that facilitates seamless connections between the African business and consumer sectors and the international marketplace.</p>
+          <p>Our mission is to enhance economic collaboration and value creation across borders through technology-enabled interactions.</p>
+        </div>
+        <div class="col-md-6">
+          <img src="{% static 'website/img/about-hero.jpg' %}" alt="About BlitzTech Electronics" class="img-fluid rounded shadow">
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Vision & Mission Section -->
+  <section class="py-5">
+    <div class="container">
+      <div class="row">
+        <div class="col-md-6 mb-4 mb-md-0">
+          <div class="card h-100">
+            <div class="card-body">
+              <h2 class="card-title text-primary mb-4">Our Vision</h2>
+              <p class="card-text">Elevation of our clients' business and lives through the power of custom-fit solutions.</p>
+              <p class="card-text">We envision a Zimbabwe where technological innovation drives economic growth and creates opportunities for all. Our aim is to be at the forefront of this transformation, providing solutions that are both cutting-edge and accessible.</p>
+            </div>
+          </div>
+        </div>
+        
+        <div class="col-md-6">
+          <div class="card h-100">
+            <div class="card-body">
+              <h2 class="card-title text-primary mb-4">Our Mission</h2>
+              <p class="card-text">To become the leading innovative electronic systems developers in Zimbabwe by exceeding customers' quality expectations through delivery of transcendent, tailor-made services of unstinting high quality and value addition.</p>
+              <p class="card-text">We aim to bridge the gap between supply and demand in electronics, making components and technology accessible throughout Zimbabwe while supporting local innovation.</p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Our Values Section -->
+  <section class="py-5 bg-light">
+    <div class="container">
+      <h2 class="text-center fw-bold mb-5">Our Core Values</h2>
+      
+      <div class="row">
+        <div class="col-md-4">
+          <div class="value-item bg-white text-center">
+            <div class="value-icon">
+              <i class="bi bi-award"></i>
+            </div>
+            <h4>Resilience</h4>
+            <p>We adapt to changing needs and environments to ensure that our service quality maintains its high standards and meets your expectations at all times.</p>
+          </div>
+        </div>
+        
+        <div class="col-md-4">
+          <div class="value-item bg-white text-center">
+            <div class="value-icon">
+              <i class="bi bi-people"></i>
+            </div>
+            <h4>Customer Commitment</h4>
+            <p>We foster lasting, professional relationships that make indelible improvements to our customers' lives and businesses.</p>
+          </div>
+        </div>
+        
+        <div class="col-md-4">
+          <div class="value-item bg-white text-center">
+            <div class="value-icon">
+              <i class="bi bi-briefcase"></i>
+            </div>
+            <h4>Professionalism</h4>
+            <p>We foster lasting, professional relationships that make indelible improvements to our customers' lives and businesses.</p>
+          </div>
+        </div>
+        
+        <div class="col-md-6">
+          <div class="value-item bg-white text-center">
+            <div class="value-icon">
+              <i class="bi bi-shield-check"></i>
+            </div>
+            <h4>Integrity</h4>
+            <p>We uphold the highest standards of integrity in all our actions and projects.</p>
+          </div>
+        </div>
+        
+        <div class="col-md-6">
+          <div class="value-item bg-white text-center">
+            <div class="value-icon">
+              <i class="bi bi-lightbulb"></i>
+            </div>
+            <h4>Innovation</h4>
+            <p>Listening to each client allows us to adopt new, unique perspectives through which to explore, create and adapt new technology that works, every time.</p>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Our Motto Section -->
+  <section class="py-5 bg-primary text-center text-white">
+    <div class="container">
+      <h2 class="fw-bold mb-3">Our Motto</h2>
+      <p class="lead mb-0">"Transcend to the future."</p>
+    </div>
+  </section>
+
+  <!-- Our Passion Section -->
+  <section class="py-5">
+    <div class="container">
+      <div class="row align-items-center">
+        <div class="col-md-6 order-md-2">
+          <h2 class="fw-bold mb-4">The Passion</h2>
+          <p>Our passion is, put simply, electronics, and its capacity to enable individuals to change the world. Just like every circuit and system we build starts with careful attention to details and individual components, the world we seek to change is built upon our focus on individual clients, and we value each client greatly.</p>
+          <p>BlitzTech Electronics strongly believes in nurturing long-term fulfilling relationships with clients, continuously evolving our service to best match their needs. We believe in creating quality solutions that address real challenges in Zimbabwe and beyond.</p>
+        </div>
+        <div class="col-md-6 order-md-1 mb-4 mb-md-0">
+          <img src="{% static 'website/img/passion-image.jpg' %}" alt="Our Passion" class="img-fluid rounded shadow">
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Company Facts Section -->
+  <section class="py-5 bg-light">
+    <div class="container">
+      <h2 class="text-center fw-bold mb-5">Company Facts</h2>
+      
+      <div class="row">
+        <div class="col-md-6 mb-4">
+          <div class="card">
+            <div class="card-body">
+              <h3 class="card-title">Our Beginnings</h3>
+              <p>BlitzTech Electronics was launched in August 2017 with a vision to revolutionize the electronics industry in Zimbabwe. By August 2018, we had gained a market share of about 50% among students of local tertiary institutes specializing in electronics-related programs.</p>
+              <p>Our growth has been exceptional, with a year-over-year revenue increase of at least 300% through smart partnerships with global giants like Arduino, Hikvision, Centurion, and Microchip.</p>
+            </div>
+          </div>
+        </div>
+        
+        <div class="col-md-6 mb-4">
+          <div class="card">
+            <div class="card-body">
+              <h3 class="card-title">Quick Facts</h3>
+              <ul class="list-group list-group-flush">
+                <li class="list-group-item d-flex justify-content-between align-items-center">
+                  Founded
+                  <span class="badge bg-primary rounded-pill">2017</span>
+                </li>
+                <li class="list-group-item d-flex justify-content-between align-items-center">
+                  Employees
+                  <span class="badge bg-primary rounded-pill">25+</span>
+                </li>
+                <li class="list-group-item d-flex justify-content-between align-items-center">
+                  Clients Served
+                  <span class="badge bg-primary rounded-pill">100+</span>
+                </li>
+                <li class="list-group-item d-flex justify-content-between align-items-center">
+                  Projects Completed
+                  <span class="badge bg-primary rounded-pill">250+</span>
+                </li>
+                <li class="list-group-item d-flex justify-content-between align-items-center">
+                  Annual Growth
+                  <span class="badge bg-primary rounded-pill">300%+</span>
+                </li>
+              </ul>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Leadership Team Section -->
+  <section class="py-5">
+    <div class="container">
+      <h2 class="text-center fw-bold mb-5">Our Leadership Team</h2>
+      
+      <div class="row">
+        <div class="col-md-4 mb-4">
+          <div class="card team-member text-center h-100">
+            <img src="{% static 'website/img/team1.jpg' %}" class="card-img-top" alt="E. Makuyana">
+            <div class="card-body">
+              <h5 class="card-title">E. Makuyana</h5>
+              <p class="text-primary">Chief Executive Officer</p>
+              <p class="card-text">Bachelor Of Technology Honors Degree in Electronic Engineering. National Certificate in Instrumentation and Control.</p>
+            </div>
+          </div>
+        </div>
+        
+        <div class="col-md-4 mb-4">
+          <div class="card team-member text-center h-100">
+            <img src="{% static 'website/img/team2.jpg' %}" class="card-img-top" alt="Nyamupigodhi">
+            <div class="card-body">
+              <h5 class="card-title">Nyamupigodhi</h5>
+              <p class="text-primary">Director</p>
+              <p class="card-text">Bachelor Of Technology Honors Degree in Electronic Engineering. National Certificate in Electrical Power Engineering Journeyman Class ONE. Founder and Director of Liftech.</p>
+            </div>
+          </div>
+        </div>
+        
+        <div class="col-md-4 mb-4">
+          <div class="card team-member text-center h-100">
+            <img src="{% static 'website/img/team3.jpg' %}" class="card-img-top" alt="T. Sibanda">
+            <div class="card-body">
+              <h5 class="card-title">T. Sibanda</h5>
+              <p class="text-primary">Chief Technology Officer</p>
+              <p class="card-text">Bachelor Of Technology Honors Degree in Computer Science. Founder and CTO OF Chevron Digital, Capetown.</p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Call to Action -->
+  <section class="py-5 bg-light">
+    <div class="container">
+      <div class="row">
+        <div class="col-lg-8 mx-auto">
+          <div class="card bg-primary text-white text-center p-5">
+            <h2 class="fw-bold mb-3">Ready to work with us?</h2>
+            <p class="lead mb-4">Join the technological revolution in Zimbabwe with BlitzTech Electronics as your partner.</p>
+            <div>
+              <a href="{% url 'website:contact' %}" class="btn btn-light btn-lg">Contact Us Today</a>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+{% endblock %}

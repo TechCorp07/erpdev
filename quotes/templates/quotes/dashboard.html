@@ -1,0 +1,439 @@
+{% extends "dashboard_base.html" %}
+{% load static %}
+
+{% block page_title %}Quote Management Dashboard{% endblock %}
+
+{% block page_actions %}
+<div class="btn-group" role="group">
+  <a href="{% url 'quotes:quote_create' %}" class="btn btn-primary">
+    <i class="bi bi-plus-circle me-1"></i> New Quote
+  </a>
+  <a href="{% url 'quotes:quote_list' %}" class="btn btn-outline-secondary">
+    <i class="bi bi-list me-1"></i> All Quotes
+  </a>
+  <div class="btn-group" role="group">
+    <button class="btn btn-outline-info dropdown-toggle" type="button" data-bs-toggle="dropdown">
+      <i class="bi bi-graph-up me-1"></i> Reports
+    </button>
+    <ul class="dropdown-menu">
+      <li><a class="dropdown-item" href="#" onclick="generateReport('monthly')">
+        <i class="bi bi-calendar-month me-1"></i> Monthly Report
+      </a></li>
+      <li><a class="dropdown-item" href="#" onclick="generateReport('client')">
+        <i class="bi bi-people me-1"></i> Client Analysis
+      </a></li>
+      <li><a class="dropdown-item" href="#" onclick="generateReport('performance')">
+        <i class="bi bi-speedometer2 me-1"></i> Performance Metrics
+      </a></li>
+    </ul>
+  </div>
+</div>
+{% endblock %}
+
+{% block dashboard_content %}
+<!-- Critical Alerts Section - Always visible if there are issues -->
+{% if quotes_needing_attention > 0 or expiring_soon > 0 %}
+<div class="row mb-4">
+  <div class="col-12">
+    {% if quotes_needing_attention > 0 %}
+    <div class="alert alert-warning d-flex align-items-center" role="alert">
+      <i class="bi bi-exclamation-triangle-fill me-2"></i>
+      <div class="flex-grow-1">
+        <strong>{{ quotes_needing_attention }} quote{{ quotes_needing_attention|pluralize }} need{{ quotes_needing_attention|pluralize:"s," }} your attention!</strong>
+        These quotes are still in draft status and should be reviewed or sent to clients.
+      </div>
+      <a href="{% url 'quotes:quote_list' %}?status=draft" class="btn btn-sm btn-outline-warning">
+        Review Drafts
+      </a>
+    </div>
+    {% endif %}
+    
+    {% if expiring_soon > 0 %}
+    <div class="alert alert-danger d-flex align-items-center" role="alert">
+      <i class="bi bi-clock-fill me-2"></i>
+      <div class="flex-grow-1">
+        <strong>{{ expiring_soon }} quote{{ expiring_soon|pluralize }} expiring within 7 days!</strong>
+        Follow up with clients to avoid losing these opportunities.
+      </div>
+      <a href="{% url 'quotes:quote_list' %}?expiring=true" class="btn btn-sm btn-outline-danger">
+        View Expiring
+      </a>
+    </div>
+    {% endif %}
+  </div>
+</div>
+{% endif %}
+
+<!-- Key Performance Indicators - The business heartbeat -->
+<div class="row mb-4">
+  <div class="col-lg-3 col-md-6 mb-3">
+    <div class="card bg-primary text-white h-100">
+      <div class="card-body">
+        <div class="d-flex align-items-center">
+          <div class="flex-shrink-0 me-3">
+            <i class="bi bi-file-earmark-text fs-1"></i>
+          </div>
+          <div>
+            <h5 class="card-title">Total Quotes</h5>
+            <h2 class="mb-0">{{ total_quotes|default:0 }}</h2>
+            <small class="opacity-75">All time</small>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+  
+  <div class="col-lg-3 col-md-6 mb-3">
+    <div class="card bg-success text-white h-100">
+      <div class="card-body">
+        <div class="d-flex align-items-center">
+          <div class="flex-shrink-0 me-3">
+            <i class="bi bi-graph-up fs-1"></i>
+          </div>
+          <div>
+            <h5 class="card-title">Active Quotes</h5>
+            <h2 class="mb-0">{{ active_quotes|default:0 }}</h2>
+            <small class="opacity-75">In pipeline</small>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+  
+  <div class="col-lg-3 col-md-6 mb-3">
+    <div class="card bg-warning text-dark h-100">
+      <div class="card-body">
+        <div class="d-flex align-items-center">
+          <div class="flex-shrink-0 me-3">
+            <i class="bi bi-currency-dollar fs-1"></i>
+          </div>
+          <div>
+            <h5 class="card-title">Month Value</h5>
+            <h2 class="mb-0">${{ month_quotes_value|floatformat:0 }}</h2>
+            <small class="opacity-75">Accepted quotes</small>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+  
+  <div class="col-lg-3 col-md-6 mb-3">
+    <div class="card bg-info text-white h-100">
+      <div class="card-body">
+        <div class="d-flex align-items-center">
+          <div class="flex-shrink-0 me-3">
+            <i class="bi bi-clock-history fs-1"></i>
+          </div>
+          <div>
+            <h5 class="card-title">Pending</h5>
+            <h2 class="mb-0">{{ pending_quotes|default:0 }}</h2>
+            <small class="opacity-75">Awaiting response</small>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Main Content Row - Recent Activity and Analytics -->
+<div class="row">
+  <!-- Recent Quotes - Left Side -->
+  <div class="col-lg-8 mb-4">
+    <div class="card h-100">
+      <div class="card-header d-flex justify-content-between align-items-center">
+        <h5 class="card-title mb-0">
+          <i class="bi bi-clock-history me-2"></i>Recent Quote Activity
+        </h5>
+        <a href="{% url 'quotes:quote_list' %}" class="btn btn-sm btn-outline-primary">
+          View All Quotes
+        </a>
+      </div>
+      <div class="card-body">
+        {% if recent_quotes %}
+        <div class="table-responsive">
+          <table class="table table-hover">
+            <thead class="table-light">
+              <tr>
+                <th>Quote #</th>
+                <th>Client</th>
+                <th>Value</th>
+                <th>Status</th>
+                <th>Created</th>
+                <th>Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for quote in recent_quotes %}
+              <tr>
+                <td>
+                  <a href="{% url 'quotes:quote_detail' quote.id %}" class="text-decoration-none fw-bold">
+                    {{ quote.quote_number }}
+                  </a>
+                </td>
+                <td>
+                  <div>
+                    {{ quote.client.name }}
+                    {% if quote.client.company %}
+                    <br><small class="text-muted">{{ quote.client.company }}</small>
+                    {% endif %}
+                  </div>
+                </td>
+                <td>
+                  <span class="fw-bold">${{ quote.total_amount|floatformat:2 }}</span>
+                  <br><small class="text-muted">{{ quote.currency }}</small>
+                </td>
+                <td>
+                  <span class="badge bg-{% if quote.status == 'accepted' %}success{% elif quote.status == 'sent' %}primary{% elif quote.status == 'draft' %}warning{% elif quote.status == 'rejected' %}danger{% else %}secondary{% endif %}">
+                    {{ quote.get_status_display }}
+                  </span>
+                </td>
+                <td>
+                  <span title="{{ quote.created_at|date:'M d, Y H:i' }}">
+                    {{ quote.created_at|timesince }} ago
+                  </span>
+                  <br><small class="text-muted">by {{ quote.created_by.get_full_name|default:quote.created_by.username }}</small>
+                </td>
+                <td>
+                  <div class="btn-group btn-group-sm">
+                    <a href="{% url 'quotes:quote_detail' quote.id %}" class="btn btn-outline-primary" title="View">
+                      <i class="bi bi-eye"></i>
+                    </a>
+                    {% if quote.status == 'draft' %}
+                    <a href="{% url 'quotes:quote_builder' quote.id %}" class="btn btn-outline-warning" title="Edit">
+                      <i class="bi bi-pencil"></i>
+                    </a>
+                    {% endif %}
+                  </div>
+                </td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+        {% else %}
+        <div class="text-center py-4 text-muted">
+          <i class="bi bi-file-earmark-text fs-1 mb-3"></i>
+          <h6>No quotes yet</h6>
+          <p>Create your first quote to start tracking your sales pipeline.</p>
+          <a href="{% url 'quotes:quote_create' %}" class="btn btn-primary">
+            <i class="bi bi-plus-circle me-1"></i> Create First Quote
+          </a>
+        </div>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+  
+  <!-- Analytics and Quick Stats - Right Side -->
+  <div class="col-lg-4 mb-4">
+    <!-- Quote Status Distribution -->
+    <div class="card mb-3">
+      <div class="card-header">
+        <h6 class="card-title mb-0">
+          <i class="bi bi-pie-chart me-2"></i>Quote Pipeline
+        </h6>
+      </div>
+      <div class="card-body">
+        {% if status_distribution %}
+        <canvas id="statusChart" height="200"></canvas>
+        {% else %}
+        <div class="text-center py-3 text-muted">
+          <i class="bi bi-pie-chart fs-3 mb-2"></i>
+          <p class="small">No data available yet</p>
+        </div>
+        {% endif %}
+      </div>
+    </div>
+    
+    <!-- Monthly Trend -->
+    <div class="card">
+      <div class="card-header">
+        <h6 class="card-title mb-0">
+          <i class="bi bi-graph-up me-2"></i>6-Month Trend
+        </h6>
+      </div>
+      <div class="card-body">
+        {% if monthly_stats %}
+        <canvas id="monthlyChart" height="150"></canvas>
+        {% else %}
+        <div class="text-center py-3 text-muted">
+          <i class="bi bi-graph-up fs-3 mb-2"></i>
+          <p class="small">Building trend data...</p>
+        </div>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Quick Actions Section -->
+<div class="row mt-4">
+  <div class="col-12">
+    <div class="card">
+      <div class="card-header">
+        <h6 class="card-title mb-0">
+          <i class="bi bi-lightning me-2"></i>Quick Actions
+        </h6>
+      </div>
+      <div class="card-body">
+        <div class="row">
+          <div class="col-md-3 mb-2">
+            <a href="{% url 'quotes:quote_create' %}" class="btn btn-outline-primary w-100">
+              <i class="bi bi-plus-circle me-1"></i> New Quote
+            </a>
+          </div>
+          <div class="col-md-3 mb-2">
+            <button class="btn btn-outline-info w-100" onclick="showQuickSearch()">
+              <i class="bi bi-search me-1"></i> Find Quote
+            </button>
+          </div>
+          <div class="col-md-3 mb-2">
+            <a href="{% url 'quotes:quote_list' %}?status=draft" class="btn btn-outline-warning w-100">
+              <i class="bi bi-pencil me-1"></i> Review Drafts
+            </a>
+          </div>
+          <div class="col-md-3 mb-2">
+            <button class="btn btn-outline-success w-100" onclick="bulkOperations()">
+              <i class="bi bi-gear me-1"></i> Bulk Actions
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // Color scheme for consistency across charts
+    const colors = {
+        primary: '#0d6efd',
+        success: '#198754', 
+        warning: '#ffc107',
+        danger: '#dc3545',
+        info: '#0dcaf0',
+        secondary: '#6c757d'
+    };
+
+    // Status Distribution Chart
+    {% if status_distribution %}
+    const statusCtx = document.getElementById('statusChart');
+    if (statusCtx) {
+        new Chart(statusCtx, {
+            type: 'doughnut',
+            data: {
+                labels: [
+                    {% for stat in status_distribution %}
+                    '{{ stat.status|capfirst }}'{% if not forloop.last %},{% endif %}
+                    {% endfor %}
+                ],
+                datasets: [{
+                    data: [
+                        {% for stat in status_distribution %}
+                        {{ stat.count }}{% if not forloop.last %},{% endif %}
+                        {% endfor %}
+                    ],
+                    backgroundColor: [
+                        colors.success, // accepted
+                        colors.primary, // sent  
+                        colors.warning, // draft
+                        colors.danger,  // rejected
+                        colors.secondary // others
+                    ]
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: {
+                        position: 'bottom',
+                        labels: {
+                            usePointStyle: true,
+                            padding: 15
+                        }
+                    }
+                }
+            }
+        });
+    }
+    {% endif %}
+
+    // Monthly Trend Chart  
+    {% if monthly_stats %}
+    const monthlyCtx = document.getElementById('monthlyChart');
+    if (monthlyCtx) {
+        new Chart(monthlyCtx, {
+            type: 'line',
+            data: {
+                labels: [
+                    {% for stat in monthly_stats %}
+                    '{{ stat.month }}'{% if not forloop.last %},{% endif %}
+                    {% endfor %}
+                ],
+                datasets: [{
+                    label: 'Quotes Created',
+                    data: [
+                        {% for stat in monthly_stats %}
+                        {{ stat.count }}{% if not forloop.last %},{% endif %}
+                        {% endfor %}
+                    ],
+                    borderColor: colors.primary,
+                    backgroundColor: colors.primary + '20',
+                    tension: 0.4,
+                    fill: true
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: {
+                        display: false
+                    }
+                },
+                scales: {
+                    y: {
+                        beginAtZero: true,
+                        ticks: {
+                            stepSize: 1
+                        }
+                    }
+                }
+            }
+        });
+    }
+    {% endif %}
+});
+
+// Quick action functions
+function showQuickSearch() {
+    // This could open a modal with advanced search
+    const searchTerm = prompt('Enter quote number or client name:');
+    if (searchTerm) {
+        window.location.href = `{% url 'quotes:quote_list' %}?search=${encodeURIComponent(searchTerm)}`;
+    }
+}
+
+function bulkOperations() {
+    // Redirect to quote list with bulk operations enabled
+    window.location.href = `{% url 'quotes:quote_list' %}?bulk=true`;
+}
+
+function generateReport(type) {
+    // Placeholder for report generation
+    alert(`${type.charAt(0).toUpperCase() + type.slice(1)} report generation will be available in the next update.`);
+}
+
+// Auto-refresh dashboard every 5 minutes to keep data current
+setInterval(function() {
+    if (document.visibilityState === 'visible') {
+        // Only refresh if user is actively viewing the page
+        location.reload();
+    }
+}, 300000); // 5 minutes
+</script>
+{% endblock %}

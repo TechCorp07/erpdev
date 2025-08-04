@@ -1,0 +1,101 @@
+{% extends "dashboard_base.html" %}
+{% block page_title %}Employee Performance Report{% endblock %}
+{% load dict_extras %}
+
+{% block dashboard_content %}
+<h2>Employee Performance Report</h2>
+
+<a href="?{{ request.GET.urlencode }}&export=1" class="btn btn-success mb-3">
+  <i class="bi bi-download"></i> Export to CSV
+</a>
+
+<!-- Filter Bar -->
+<form method="get" class="row g-3 mb-3">
+  <div class="col-md-3">
+    <label>Department</label>
+    <select name="department" class="form-select">
+      <option value="">All</option>
+      {% for code, name in departments %}
+        <option value="{{ code }}" {% if request.GET.department == code %}selected{% endif %}>{{ name }}</option>
+      {% endfor %}
+    </select>
+  </div>
+  <div class="col-md-3">
+    <label>Role</label>
+    <select name="user_type" class="form-select">
+      <option value="">All</option>
+      {% for code, name in user_types %}
+        <option value="{{ code }}" {% if request.GET.user_type == code %}selected{% endif %}>{{ name }}</option>
+      {% endfor %}
+    </select>
+  </div>
+  <div class="col-md-3">
+    <label>Date From</label>
+    <input type="date" name="from" class="form-control" value="{{ request.GET.from }}">
+  </div>
+  <div class="col-md-3">
+    <label>Date To</label>
+    <input type="date" name="to" class="form-control" value="{{ request.GET.to }}">
+  </div>
+  <div class="col-md-3">
+    <label>Search</label>
+    <input type="text" name="search" class="form-control" placeholder="Name or Email" value="{{ request.GET.search }}">
+  </div>
+  <div class="col-md-3 align-self-end">
+    <button type="submit" class="btn btn-primary">Apply Filters</button>
+    <a href="{% url 'core:employee_performance_report' %}" class="btn btn-outline-secondary">Reset</a>
+  </div>
+</form>
+
+<!-- Data Table -->
+<div class="table-responsive">
+  <table class="table table-bordered table-hover align-middle">
+    <thead>
+      <tr>
+        <th><a href="?{% if request.GET %}{{ request.GET|query_replace:'sort' }}&{% endif %}sort=user__first_name">Name</a></th>
+        <th>Department</th>
+        <th>Role</th>
+        <th>Email</th>
+        <th>Last Login</th>
+        <th>Quotes Created</th>
+        <th>Total Quote Value</th>
+        <th>Conversion Rate</th>
+        <th>Avg Logins/Week</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for employee in employees %}
+        <tr>
+          <td>{{ employee.user.get_full_name|default:employee.user.username }}</td>
+          <td>{{ employee.get_department_display }}</td>
+          <td>{{ employee.get_user_type_display }}</td>
+          <td>{{ employee.user.email }}</td>
+          <td>
+            {% if employee.last_login %}
+              {{ employee.last_login|date:"M d, Y H:i" }}
+            {% else %}
+              Never
+            {% endif %}
+          </td>
+          <td>
+            {% if employee.quote_count %}{{ employee.quote_count }}{% else %}N/A{% endif %}
+          </td>
+          <td>
+            {% if employee.total_quote_value %}${{ employee.total_quote_value|floatformat:0 }}{% else %}N/A{% endif %}
+          </td>
+          <td>
+            {% if employee.conversion_rate %}{{ employee.conversion_rate|floatformat:1 }}%{% else %}N/A{% endif %}
+          </td>
+          <td>
+            {% if employee.avg_login_frequency %}{{ employee.avg_login_frequency }}{% else %}N/A{% endif %}
+          </td>
+        </tr>
+      {% empty %}
+        <tr>
+          <td colspan="9" class="text-center text-muted">No employees found for this filter.</td>
+        </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endblock %}

@@ -1,0 +1,24 @@
+{% extends "dashboard_base.html" %}
+{% load static %}
+
+{% block page_title %}
+  {% if client %}{{ client.name }} - Interactions{% else %}All Interactions{% endif %}
+{% endblock %}
+
+{% block dashboard_content %}
+<!-- Basic interaction list template -->
+<div class="card">
+  <div class="card-header">
+    <h5>Interactions</h5>
+  </div>
+  <div class="card-body">
+    {% for interaction in page_obj %}
+    <div class="border-bottom pb-2 mb-2">
+      <h6>{{ interaction.get_interaction_type_display }}</h6>
+      <p>{{ interaction.notes|truncatewords:20 }}</p>
+      <small class="text-muted">{{ interaction.created_at|date:"M d, Y H:i" }}</small>
+    </div>
+    {% endfor %}
+  </div>
+</div>
+{% endblock %}

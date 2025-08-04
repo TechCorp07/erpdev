@@ -1,0 +1,614 @@
+{% extends "inventory_base.html" %}
+{% load static %}
+
+<!-- This template manages physical stock counting operations, which are essential
+     for maintaining inventory accuracy. The design supports both planned and ad-hoc
+     stock takes, with comprehensive variance tracking and resolution workflows. -->
+
+{% block inventory_title %}
+  {% if stock_take %}Stock Take: {{ stock_take.reference }}{% else %}Physical Stock Count{% endif %}
+{% endblock %}
+
+{% block inventory_breadcrumbs %}
+  {{ block.super }}
+  {% with inventory_breadcrumbs=breadcrumbs %}{% endwith %}
+{% endblock %}
+
+{% block inventory_actions %}
+  <!-- Actions change based on stock take status and user permissions -->
+  {% if stock_take %}
+    <div class="btn-group me-2" role="group">
+      {% if stock_take.status == 'planned' and app_permissions.inventory == 'edit' or app_permissions.inventory == 'admin' %}
+        <a href="{% url 'inventory:start_stock_take' stock_take.pk %}" class="btn btn-success btn-sm">
+          <i class="bi bi-play-circle me-1"></i>Start Count
+        </a>
+        <a href="{% url 'inventory:stock_take_edit' stock_take.pk %}" class="btn btn-outline-primary btn-sm">
+          <i class="bi bi-pencil me-1"></i>Edit
+        </a>
+      {% elif stock_take.status == 'in_progress' %}
+        <a href="{% url 'inventory:stock_take_counting' stock_take.pk %}" class="btn btn-primary btn-sm">
+          <i class="bi bi-calculator me-1"></i>Continue Counting
+        </a>
+        {% if app_permissions.inventory == 'admin' %}
+          <a href="{% url 'inventory:complete_stock_take' stock_take.pk %}" class="btn btn-warning btn-sm">
+            <i class="bi bi-check-circle me-1"></i>Complete
+          </a>
+        {% endif %}
+      {% elif stock_take.status == 'completed' %}
+        <a href="{% url 'inventory:stock_take_report' stock_take.pk %}" class="btn btn-info btn-sm">
+          <i class="bi bi-file-earmark-text me-1"></i>Report
+        </a>
+        {% if stock_take.variances_found > 0 and app_permissions.inventory == 'admin' %}
+          <a href="{% url 'inventory:stock_take_adjustments' stock_take.pk %}" class="btn btn-warning btn-sm">
+            <i class="bi bi-plus-minus me-1"></i>Process Adjustments
+          </a>
+        {% endif %}
+      {% endif %}
+    </div>
+  {% endif %}
+  
+  <div class="btn-group" role="group">
+    <a href="{% url 'inventory:stock_take_list' %}" class="btn btn-outline-secondary btn-sm">
+      <i class="bi bi-list me-1"></i>All Stock Takes
+    </a>
+    {% if app_permissions.inventory == 'edit' or app_permissions.inventory == 'admin' %}
+      <a href="{% url 'inventory:stock_take_create' %}" class="btn btn-outline-success btn-sm">
+        <i class="bi bi-plus-circle me-1"></i>New Stock Take
+      </a>
+    {% endif %}
+    <a href="{% url 'inventory:stock_overview' %}" class="btn btn-outline-info btn-sm">
+      <i class="bi bi-graph-up me-1"></i>Overview
+    </a>
+  </div>
+{% endblock %}
+
+{% block inventory_content %}
+  {% if stock_take %}
+    <!-- Stock take details and progress -->
+    <div class="row mb-4">
+      <!-- Stock take information card -->
+      <div class="col-lg-4 mb-4">
+        <div class="card inventory-card">
+          <div class="card-header d-flex justify-content-between align-items-center">
+            <h6 class="card-title mb-0">
+              <i class="bi bi-info-circle me-2"></i>Stock Take Details
+            </h6>
+            <span class="badge bg-{% if stock_take.status == 'planned' %}secondary{% elif stock_take.status == 'in_progress' %}warning{% elif stock_take.status == 'completed' %}success{% else %}danger{% endif %}">
+              {{ stock_take.get_status_display }}
+            </span>
+          </div>
+          
+          <div class="card-body">
+            <div class="mb-3">
+              <label class="text-muted small">Reference</label>
+              <div class="fw-bold">{{ stock_take.reference }}</div>
+            </div>
+            
+            <div class="mb-3">
+              <label class="text-muted small">Description</label>
+              <div>{{ stock_take.description }}</div>
+            </div>
+            
+            {% if stock_take.location %}
+              <div class="mb-3">
+                <label class="text-muted small">Location</label>
+                <div>
+                  <i class="bi bi-geo-alt me-1"></i>
+                  <a href="{% url 'inventory:location_detail' stock_take.location.pk %}" class="text-decoration-none">
+                    {{ stock_take.location.name }}
+                  </a>
+                </div>
+              </div>
+            {% else %}
+              <div class="mb-3">
+                <label class="text-muted small">Scope</label>
+                <div><i class="bi bi-building me-1"></i>All Locations</div>
+              </div>
+            {% endif %}
+            
+            <div class="mb-3">
+              <label class="text-muted small">Scheduled Date</label>
+              <div>{{ stock_take.scheduled_date|date:"M d, Y H:i" }}</div>
+            </div>
+            
+            {% if stock_take.started_at %}
+              <div class="mb-3">
+                <label class="text-muted small">Started</label>
+                <div>{{ stock_take.started_at|date:"M d, Y H:i" }}</div>
+              </div>
+            {% endif %}
+            
+            {% if stock_take.completed_at %}
+              <div class="mb-3">
+                <label class="text-muted small">Completed</label>
+                <div>{{ stock_take.completed_at|date:"M d, Y H:i" }}</div>
+              </div>
+            {% endif %}
+            
+            <div class="mb-3">
+              <label class="text-muted small">Created By</label>
+              <div>{{ stock_take.created_by.get_full_name|default:stock_take.created_by.username }}</div>
+            </div>
+            
+            {% if stock_take.approved_by %}
+              <div class="mb-3">
+                <label class="text-muted small">Approved By</label>
+                <div>{{ stock_take.approved_by.get_full_name|default:stock_take.approved_by.username }}</div>
+              </div>
+            {% endif %}
+          </div>
+        </div>
+      </div>
+      
+      <!-- Progress and statistics -->
+      <div class="col-lg-8 mb-4">
+        <div class="row">
+          <!-- Progress metrics -->
+          <div class="col-md-3 mb-3">
+            <div class="card border-primary text-center">
+              <div class="card-body">
+                <i class="bi bi-list-check text-primary fs-2 mb-2"></i>
+                <h4 class="text-primary">{{ stock_take.items_counted }}</h4>
+                <p class="card-text small text-muted">Items Counted</p>
+              </div>
+            </div>
+          </div>
+          
+          <div class="col-md-3 mb-3">
+            <div class="card border-{% if stock_take.variances_found > 0 %}warning{% else %}success{% endif %} text-center">
+              <div class="card-body">
+                <i class="bi bi-exclamation-triangle text-{% if stock_take.variances_found > 0 %}warning{% else %}success{% endif %} fs-2 mb-2"></i>
+                <h4 class="text-{% if stock_take.variances_found > 0 %}warning{% else %}success{% endif %}">{{ stock_take.variances_found }}</h4>
+                <p class="card-text small text-muted">Variances Found</p>
+              </div>
+            </div>
+          </div>
+          
+          <div class="col-md-3 mb-3">
+            <div class="card border-info text-center">
+              <div class="card-body">
+                <i class="bi bi-currency-dollar text-info fs-2 mb-2"></i>
+                <h4 class="text-info">${{ stock_take.total_adjustment_value|floatformat:0|default:0 }}</h4>
+                <p class="card-text small text-muted">Adjustment Value</p>
+              </div>
+            </div>
+          </div>
+          
+          <div class="col-md-3 mb-3">
+            <div class="card border-secondary text-center">
+              <div class="card-body">
+                <i class="bi bi-percent text-secondary fs-2 mb-2"></i>
+                <h4 class="text-secondary">{{ completion_percentage|floatformat:0 }}%</h4>
+                <p class="card-text small text-muted">Complete</p>
+              </div>
+            </div>
+          </div>
+        </div>
+        
+        <!-- Progress bar for visual status -->
+        {% if stock_take.status == 'in_progress' %}
+          <div class="card inventory-card mb-4">
+            <div class="card-body">
+              <h6 class="card-title">Counting Progress</h6>
+              <div class="progress mb-2" style="height: 20px;">
+                <div class="progress-bar bg-primary" 
+                     style="width: {{ completion_percentage }}%"
+                     role="progressbar">
+                  {{ completion_percentage|floatformat:0 }}%
+                </div>
+              </div>
+              <small class="text-muted">
+                {{ stock_take.items_counted }} of {{ total_items_to_count }} items counted
+              </small>
+            </div>
+          </div>
+        {% endif %}
+        
+        <!-- Variance summary for completed stock takes -->
+        {% if stock_take.status == 'completed' and stock_take.variances_found > 0 %}
+          <div class="card border-warning">
+            <div class="card-header bg-warning text-dark">
+              <h6 class="card-title mb-0">
+                <i class="bi bi-exclamation-triangle me-2"></i>Variance Summary
+              </h6>
+            </div>
+            <div class="card-body">
+              <div class="row text-center">
+                <div class="col-md-4">
+                  <div class="text-danger">
+                    <h5>{{ negative_variances }}</h5>
+                    <small>Items Short</small>
+                  </div>
+                </div>
+                <div class="col-md-4">
+                  <div class="text-success">
+                    <h5>{{ positive_variances }}</h5>
+                    <small>Items Over</small>
+                  </div>
+                </div>
+                <div class="col-md-4">
+                  <div class="text-info">
+                    <h5>${{ total_variance_value|floatformat:2 }}</h5>
+                    <small>Net Value Impact</small>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        {% endif %}
+      </div>
+    </div>
+    
+    <!-- Stock take items listing -->
+    <div class="card inventory-card">
+      <div class="card-header d-flex justify-content-between align-items-center">
+        <h6 class="card-title mb-0">
+          <i class="bi bi-list me-2"></i>Stock Take Items
+        </h6>
+        
+        <div class="btn-group" role="group">
+          {% if stock_take.status == 'in_progress' %}
+            <a href="{% url 'inventory:stock_take_counting' stock_take.pk %}" class="btn btn-primary btn-sm">
+              <i class="bi bi-calculator me-1"></i>Count Items
+            </a>
+          {% endif %}
+          <div class="dropdown">
+            <button class="btn btn-outline-secondary btn-sm dropdown-toggle" type="button" data-bs-toggle="dropdown">
+              <i class="bi bi-filter me-1"></i>Filter
+            </button>
+            <ul class="dropdown-menu">
+              <li><a class="dropdown-item" href="?filter=all">All Items</a></li>
+              <li><a class="dropdown-item" href="?filter=counted">Counted Only</a></li>
+              <li><a class="dropdown-item" href="?filter=uncounted">Not Counted</a></li>
+              <li><a class="dropdown-item" href="?filter=variances">Variances Only</a></li>
+            </ul>
+          </div>
+        </div>
+      </div>
+      
+      <div class="card-body p-0">
+        {% if stock_take_items %}
+          <div class="table-responsive">
+            <table class="table table-hover table-striped mb-0">
+              <thead class="table-dark">
+                <tr>
+                  <th>Product</th>
+                  <th>Location</th>
+                  <th>System Qty</th>
+                  <th>Counted Qty</th>
+                  <th>Variance</th>
+                  <th>Value Impact</th>
+                  <th>Status</th>
+                  <th>Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                {% for item in stock_take_items %}
+                  <tr class="{% if item.variance != 0 %}table-warning{% endif %}">
+                    <td>
+                      <div>
+                        <a href="{% url 'inventory:product_detail' item.product.pk %}" class="text-decoration-none fw-bold">
+                          {{ item.product.name }}
+                        </a>
+                      </div>
+                      <small class="text-muted">{{ item.product.sku }}</small>
+                    </td>
+                    
+                    <td>
+                      <small class="text-muted">{{ item.location.name }}</small>
+                    </td>
+                    
+                    <td>
+                      <span class="fw-bold">{{ item.system_quantity }}</span>
+                    </td>
+                    
+                    <td>
+                      {% if item.counted_quantity is not None %}
+                        <span class="fw-bold">{{ item.counted_quantity }}</span>
+                      {% else %}
+                        <span class="text-muted">Not counted</span>
+                      {% endif %}
+                    </td>
+                    
+                    <td>
+                      {% if item.variance != 0 %}
+                        <span class="fw-bold {% if item.variance > 0 %}text-success{% else %}text-danger{% endif %}">
+                          {% if item.variance > 0 %}+{% endif %}{{ item.variance }}
+                        </span>
+                      {% elif item.counted_quantity is not None %}
+                        <span class="text-success">✓</span>
+                      {% else %}
+                        <span class="text-muted">—</span>
+                      {% endif %}
+                    </td>
+                    
+                    <td>
+                      {% if item.variance_value %}
+                        <span class="fw-bold {% if item.variance_value > 0 %}text-success{% else %}text-danger{% endif %}">
+                          ${{ item.variance_value|floatformat:2 }}
+                        </span>
+                      {% else %}
+                        <span class="text-muted">—</span>
+                      {% endif %}
+                    </td>
+                    
+                    <td>
+                      {% if item.counted_quantity is not None %}
+                        <span class="badge bg-success">Counted</span>
+                      {% else %}
+                        <span class="badge bg-secondary">Pending</span>
+                      {% endif %}
+                    </td>
+                    
+                    <td>
+                      {% if stock_take.status == 'in_progress' %}
+                        <a href="{% url 'inventory:count_stock_take_item' stock_take.pk item.pk %}" 
+                           class="btn btn-outline-primary btn-sm" title="Count Item">
+                          <i class="bi bi-calculator"></i>
+                        </a>
+                      {% endif %}
+                      {% if item.variance != 0 and stock_take.status == 'completed' %}
+                        <button class="btn btn-outline-warning btn-sm" 
+                                data-bs-toggle="modal" 
+                                data-bs-target="#varianceModal{{ item.pk }}"
+                                title="View Variance Details">
+                          <i class="bi bi-exclamation-triangle"></i>
+                        </button>
+                      {% endif %}
+                    </td>
+                  </tr>
+                {% endfor %}
+              </tbody>
+            </table>
+          </div>
+          
+          <!-- Pagination for large stock takes -->
+          {% if is_paginated %}
+            <div class="card-footer bg-light">
+              <nav aria-label="Stock take items pagination">
+                <ul class="pagination pagination-sm justify-content-center mb-0">
+                  {% if page_obj.has_previous %}
+                    <li class="page-item">
+                      <a class="page-link" href="?page={{ page_obj.previous_page_number }}">Previous</a>
+                    </li>
+                  {% endif %}
+                  
+                  <li class="page-item active">
+                    <span class="page-link">
+                      Page {{ page_obj.number }} of {{ page_obj.paginator.num_pages }}
+                    </span>
+                  </li>
+                  
+                  {% if page_obj.has_next %}
+                    <li class="page-item">
+                      <a class="page-link" href="?page={{ page_obj.next_page_number }}">Next</a>
+                    </li>
+                  {% endif %}
+                </ul>
+              </nav>
+            </div>
+          {% endif %}
+          
+        {% else %}
+          <div class="text-center py-5">
+            <i class="bi bi-inbox fs-1 text-muted mb-3"></i>
+            <h5 class="text-muted">No Items to Count</h5>
+            <p class="text-muted mb-4">
+              {% if stock_take.status == 'planned' %}
+                Items will be added when the stock take is started.
+              {% else %}
+                No items found for this stock take.
+              {% endif %}
+            </p>
+          </div>
+        {% endif %}
+      </div>
+    </div>
+    
+    <!-- Notes section -->
+    {% if stock_take.notes %}
+      <div class="card inventory-card mt-4">
+        <div class="card-header">
+          <h6 class="card-title mb-0">
+            <i class="bi bi-sticky me-2"></i>Notes
+          </h6>
+        </div>
+        <div class="card-body">
+          <p class="mb-0">{{ stock_take.notes|linebreaks }}</p>
+        </div>
+      </div>
+    {% endif %}
+    
+  {% else %}
+    <!-- Stock take creation form for new stock takes -->
+    <div class="row justify-content-center">
+      <div class="col-lg-8">
+        <div class="card inventory-card">
+          <div class="card-header">
+            <h5 class="card-title mb-0">
+              <i class="bi bi-plus-circle me-2"></i>Schedule New Stock Take
+            </h5>
+            <small class="text-muted">
+              Plan a physical inventory count to verify stock accuracy
+            </small>
+          </div>
+          
+          <form method="post" class="needs-validation" novalidate>
+            {% csrf_token %}
+            
+            <div class="card-body">
+              {% if form.errors %}
+                <div class="alert alert-danger">
+                  <i class="bi bi-exclamation-triangle me-2"></i>
+                  <strong>Please correct the following errors:</strong>
+                  <ul class="mb-0 mt-2">
+                    {% for field, errors in form.errors.items %}
+                      {% for error in errors %}
+                        <li>{{ field|title }}: {{ error }}</li>
+                      {% endfor %}
+                    {% endfor %}
+                  </ul>
+                </div>
+              {% endif %}
+              
+              <!-- Basic stock take information -->
+              <div class="row mb-4">
+                <div class="col-12">
+                  <h6 class="border-bottom pb-2 mb-3">
+                    <i class="bi bi-info-circle me-2"></i>Stock Take Details
+                  </h6>
+                </div>
+                
+                <div class="col-md-6 mb-3">
+                  <label for="{{ form.reference.id_for_label }}" class="form-label">
+                    Reference <span class="text-danger">*</span>
+                  </label>
+                  {{ form.reference }}
+                  {% if form.reference.errors %}
+                    <div class="invalid-feedback d-block">
+                      {% for error in form.reference.errors %}{{ error }}{% endfor %}
+                    </div>
+                  {% endif %}
+                  <div class="form-text">Unique identifier for this stock take</div>
+                </div>
+                
+                <div class="col-md-6 mb-3">
+                  <label for="{{ form.scheduled_date.id_for_label }}" class="form-label">
+                    Scheduled Date <span class="text-danger">*</span>
+                  </label>
+                  {{ form.scheduled_date }}
+                  {% if form.scheduled_date.errors %}
+                    <div class="invalid-feedback d-block">
+                      {% for error in form.scheduled_date.errors %}{{ error }}{% endfor %}
+                    </div>
+                  {% endif %}
+                  <div class="form-text">When the physical count will take place</div>
+                </div>
+                
+                <div class="col-12 mb-3">
+                  <label for="{{ form.description.id_for_label }}" class="form-label">
+                    Description <span class="text-danger">*</span>
+                  </label>
+                  {{ form.description }}
+                  {% if form.description.errors %}
+                    <div class="invalid-feedback d-block">
+                      {% for error in form.description.errors %}{{ error }}{% endfor %}
+                    </div>
+                  {% endif %}
+                  <div class="form-text">Brief description of the stock take purpose</div>
+                </div>
+                
+                <div class="col-md-6 mb-3">
+                  <label for="{{ form.location.id_for_label }}" class="form-label">
+                    Location
+                  </label>
+                  {{ form.location }}
+                  {% if form.location.errors %}
+                    <div class="invalid-feedback d-block">
+                      {% for error in form.location.errors %}{{ error }}{% endfor %}
+                    </div>
+                  {% endif %}
+                  <div class="form-text">Leave blank to count all locations</div>
+                </div>
+              </div>
+              
+              <!-- Additional notes -->
+              <div class="row mb-4">
+                <div class="col-12">
+                  <h6 class="border-bottom pb-2 mb-3">
+                    <i class="bi bi-sticky me-2"></i>Additional Information
+                  </h6>
+                </div>
+                
+                <div class="col-12 mb-3">
+                  <label for="{{ form.notes.id_for_label }}" class="form-label">
+                    Notes
+                  </label>
+                  {{ form.notes }}
+                  {% if form.notes.errors %}
+                    <div class="invalid-feedback d-block">
+                      {% for error in form.notes.errors %}{{ error }}{% endfor %}
+                    </div>
+                  {% endif %}
+                  <div class="form-text">
+                    Special instructions, scope details, or other relevant information
+                  </div>
+                </div>
+              </div>
+            </div>
+            
+            <div class="card-footer bg-light">
+              <div class="d-flex justify-content-between align-items-center">
+                <div class="text-muted small">
+                  <i class="bi bi-info-circle me-1"></i>
+                  Stock take will be created in planned status
+                </div>
+                
+                <div class="btn-group">
+                  <a href="{% url 'inventory:stock_take_list' %}" class="btn btn-outline-secondary">
+                    <i class="bi bi-x-circle me-1"></i>Cancel
+                  </a>
+                  <button type="submit" class="btn btn-success">
+                    <i class="bi bi-check-circle me-1"></i>Schedule Stock Take
+                  </button>
+                </div>
+              </div>
+            </div>
+          </form>
+        </div>
+      </div>
+    </div>
+  {% endif %}
+{% endblock %}
+
+{% block extra_js %}
+{{ block.super }}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+  // Auto-generate stock take reference if creating new
+  const referenceField = document.getElementById('{{ form.reference.id_for_label }}');
+  if (referenceField && !referenceField.value) {
+    generateStockTakeReference();
+  }
+  
+  // Set default scheduled date to next business day
+  const scheduledDateField = document.getElementById('{{ form.scheduled_date.id_for_label }}');
+  if (scheduledDateField && !scheduledDateField.value) {
+    const tomorrow = new Date();
+    tomorrow.setDate(tomorrow.getDate() + 1);
+    // Set to 9 AM
+    tomorrow.setHours(9, 0, 0, 0);
+    scheduledDateField.value = tomorrow.toISOString().slice(0, 16);
+  }
+  
+  function generateStockTakeReference() {
+    const now = new Date();
+    const dateStr = now.getFullYear().toString() + 
+                   (now.getMonth() + 1).toString().padStart(2, '0') + 
+                   now.getDate().toString().padStart(2, '0');
+    const sequence = Math.floor(Math.random() * 100).toString().padStart(2, '0');
+    
+    referenceField.value = `ST-${dateStr}-${sequence}`;
+  }
+  
+  // Enhanced form validation
+  const form = document.querySelector('form');
+  if (form) {
+    form.addEventListener('submit', function(e) {
+      if (!form.checkValidity()) {
+        e.preventDefault();
+        e.stopPropagation();
+      }
+      form.classList.add('was-validated');
+    });
+  }
+  
+  // Auto-refresh progress for in-progress stock takes
+  {% if stock_take.status == 'in_progress' %}
+    setInterval(function() {
+      location.reload();
+    }, 30000); // Refresh every 30 seconds
+  {% endif %}
+});
+</script>
+{% endblock %}

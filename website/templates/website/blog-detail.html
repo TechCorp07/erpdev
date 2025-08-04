@@ -1,0 +1,276 @@
+{% extends "website_base.html" %}
+{% load crispy_forms_tags %}
+{% load static %}
+
+{% block title %}{{ post.title }} - BlitzTech{% endblock %}
+
+{% block extra_css %}
+<style>
+  .blog-content img {
+    max-width: 100%;
+    height: auto;
+    margin: 20px 0;
+  }
+  .blog-content h2, .blog-content h3 {
+    margin-top: 30px;
+    margin-bottom: 15px;
+  }
+  .blog-content p {
+    margin-bottom: 20px;
+  }
+  .blog-content blockquote {
+    border-left: 4px solid #dee2e6;
+    padding-left: 20px;
+    font-style: italic;
+    margin: 20px 0;
+  }
+  .social-share a {
+    display: inline-block;
+    margin-right: 10px;
+    width: 40px;
+    height: 40px;
+    line-height: 40px;
+    text-align: center;
+    border-radius: 50%;
+    color: white;
+  }
+  .facebook {
+    background-color: #3b5998;
+  }
+  .twitter {
+    background-color: #1da1f2;
+  }
+  .linkedin {
+    background-color: #0077b5;
+  }
+  .author-card {
+    background-color: #f8f9fa;
+  }
+</style>
+{% endblock %}
+
+{% block content %}
+  <div class="row">
+    <div class="col-md-8">
+      <!-- Blog Post -->
+      <article>
+        <h1 class="mb-3">{{ post.title }}</h1>
+        
+        <div class="d-flex align-items-center mb-4">
+          <img src="/static/website/img/avatar.jpg" alt="Author" class="rounded-circle me-2" style="width: 50px; height: 50px; object-fit: cover;">
+          <div>
+            <p class="mb-0">{{ post.author.get_full_name|default:post.author.username }}</p>
+            <p class="text-muted mb-0 small">Published on {{ post.created_at|date:"F j, Y" }}</p>
+          </div>
+        </div>
+        
+        <div class="blog-content">
+          {{ post.content|safe }}
+        </div>
+        
+        <!-- Tags -->
+        <div class="mt-4">
+          <h5>Tags:</h5>
+          <div>
+            <a href="#" class="badge bg-secondary text-decoration-none link-light">Web Development</a>
+            <a href="#" class="badge bg-secondary text-decoration-none link-light">Technology</a>
+            <a href="#" class="badge bg-secondary text-decoration-none link-light">Design</a>
+          </div>
+        </div>
+        
+        <!-- Social Share -->
+        <div class="mt-4">
+          <h5>Share This Post:</h5>
+          <div class="social-share">
+            <a href="#" class="facebook"><i class="bi bi-facebook"></i></a>
+            <a href="#" class="twitter"><i class="bi bi-twitter"></i></a>
+            <a href="#" class="linkedin"><i class="bi bi-linkedin"></i></a>
+          </div>
+        </div>
+        
+        <!-- Author Bio -->
+        <div class="card author-card mt-5">
+          <div class="card-body">
+            <div class="d-flex">
+              <img src="/static/website/img/avatar.jpg" alt="Author" class="rounded-circle me-3" style="width: 100px; height: 100px; object-fit: cover;">
+              <div>
+                <h4>About {{ post.author.get_full_name|default:post.author.username }}</h4>
+                <p>Lorem ipsum dolor sit amet, consectetur adipiscing elit. Vivamus quis semper lectus, vel ultricies nisi. Cras id dapibus eros, at dignissim nulla.</p>
+                <div class="d-flex">
+                  <a href="#" class="me-2 text-dark"><i class="bi bi-twitter"></i></a>
+                  <a href="#" class="me-2 text-dark"><i class="bi bi-linkedin"></i></a>
+                  <a href="#" class="me-2 text-dark"><i class="bi bi-globe"></i></a>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+        
+        <!-- Comments -->
+        <div class="mt-5">
+          <h3>Comments (3)</h3>
+          
+          <!-- Comment 1 -->
+          <div class="card mb-3">
+            <div class="card-body">
+              <div class="d-flex mb-3">
+                <img src="/static/website/img/user1.jpg" alt="User" class="rounded-circle me-2" style="width: 40px; height: 40px; object-fit: cover;">
+                <div>
+                  <h5 class="mb-0">John Smith</h5>
+                  <p class="text-muted small mb-0">March 2, 2025</p>
+                </div>
+              </div>
+              <p>Great article! I found the insights on technology trends particularly enlightening. Looking forward to more content like this.</p>
+              <button class="btn btn-sm btn-outline-primary">Reply</button>
+            </div>
+          </div>
+          
+          <!-- Comment 2 -->
+          <div class="card mb-3">
+            <div class="card-body">
+              <div class="d-flex mb-3">
+                <img src="/static/website/img/user2.jpg" alt="User" class="rounded-circle me-2" style="width: 40px; height: 40px; object-fit: cover;">
+                <div>
+                  <h5 class="mb-0">Sarah Johnson</h5>
+                  <p class="text-muted small mb-0">March 1, 2025</p>
+                </div>
+              </div>
+              <p>Thanks for sharing this information. I have a question about the implementation details you mentioned. Could you elaborate on that aspect?</p>
+              <button class="btn btn-sm btn-outline-primary">Reply</button>
+            </div>
+          </div>
+          
+          <!-- Comment 3 -->
+          <div class="card mb-3">
+            <div class="card-body">
+              <div class="d-flex mb-3">
+                <img src="/static/website/img/user3.jpg" alt="User" class="rounded-circle me-2" style="width: 40px; height: 40px; object-fit: cover;">
+                <div>
+                  <h5 class="mb-0">Michael Brown</h5>
+                  <p class="text-muted small mb-0">February 28, 2025</p>
+                </div>
+              </div>
+              <p>I've been following your blog for a while now, and I must say this is one of your best articles yet. The depth of analysis is impressive.</p>
+              <button class="btn btn-sm btn-outline-primary">Reply</button>
+            </div>
+          </div>
+          
+          <!-- Comment Form -->
+          <div class="card mt-4">
+            <div class="card-body">
+              <h4>Leave a Comment</h4>
+              <form>
+                <div class="mb-3">
+                  <label for="comment" class="form-label">Comment</label>
+                  <textarea class="form-control" id="comment" rows="4" required></textarea>
+                </div>
+                <div class="row">
+                  <div class="col-md-6 mb-3">
+                    <label for="name" class="form-label">Name</label>
+                    <input type="text" class="form-control" id="name" required>
+                  </div>
+                  <div class="col-md-6 mb-3">
+                    <label for="email" class="form-label">Email</label>
+                    <input type="email" class="form-control" id="email" required>
+                  </div>
+                </div>
+                <div class="mb-3 form-check">
+                  <input type="checkbox" class="form-check-input" id="saveInfo">
+                  <label class="form-check-label" for="saveInfo">Save my name and email for the next time I comment</label>
+                </div>
+                <button type="submit" class="btn btn-primary">Post Comment</button>
+              </form>
+            </div>
+          </div>
+        </div>
+      </article>
+    </div>
+    
+    <div class="col-md-4">
+      <!-- Search box -->
+      <div class="card mb-4">
+        <div class="card-body">
+          <h3 class="card-title">Search</h3>
+          <form action="{% url 'website:blog' %}" method="get">
+            <div class="input-group">
+              <input type="text" name="search" class="form-control" placeholder="Search articles..." value="{{ request.GET.search|default:'' }}">
+              <button class="btn btn-primary" type="submit">
+                <i class="bi bi-search"></i>
+              </button>
+            </div>
+          </form>
+        </div>
+      </div>
+      
+      <!-- Recent posts -->
+      <div class="card mb-4">
+        <div class="card-body">
+          <h3 class="card-title">Recent Posts</h3>
+          <ul class="list-group list-group-flush">
+            {% for recent_post in recent_posts %}
+              <li class="list-group-item">
+                <a href="{% url 'website:blog_detail' recent_post.slug %}">{{ recent_post.title }}</a>
+                <small class="d-block text-muted">{{ recent_post.created_at|date:"M j, Y" }}</small>
+              </li>
+            {% empty %}
+              <li class="list-group-item">No recent posts</li>
+            {% endfor %}
+          </ul>
+        </div>
+      </div>
+      
+      <!-- Categories -->
+      <div class="card mb-4">
+        <div class="card-body">
+          <h3 class="card-title">Categories</h3>
+          <ul class="list-group list-group-flush">
+            <li class="list-group-item d-flex justify-content-between align-items-center">
+              Web Development
+              <span class="badge bg-primary rounded-pill">12</span>
+            </li>
+            <li class="list-group-item d-flex justify-content-between align-items-center">
+              Mobile Apps
+              <span class="badge bg-primary rounded-pill">8</span>
+            </li>
+            <li class="list-group-item d-flex justify-content-between align-items-center">
+              Digital Marketing
+              <span class="badge bg-primary rounded-pill">15</span>
+            </li>
+            <li class="list-group-item d-flex justify-content-between align-items-center">
+              UI/UX Design
+              <span class="badge bg-primary rounded-pill">6</span>
+            </li>
+            <li class="list-group-item d-flex justify-content-between align-items-center">
+              Technology
+              <span class="badge bg-primary rounded-pill">9</span>
+            </li>
+          </ul>
+        </div>
+      </div>
+      
+      <!-- Related Posts -->
+      <div class="card">
+        <div class="card-body">
+          <h3 class="card-title">Related Posts</h3>
+          {% for related_post in related_posts %}
+            <div class="card mb-3">
+              <div class="row g-0">
+                <div class="col-4">
+                  <img src="/static/website/img/blog-thumb.jpg" class="img-fluid rounded-start" alt="Blog Thumbnail">
+                </div>
+                <div class="col-8">
+                  <div class="card-body p-2">
+                    <h5 class="card-title fs-6">{{ related_post.title }}</h5>
+                    <p class="card-text"><small class="text-muted">{{ related_post.created_at|date:"M j, Y" }}</small></p>
+                  </div>
+                </div>
+              </div>
+            </div>
+          {% empty %}
+            <p>No related posts found.</p>
+          {% endfor %}
+        </div>
+      </div>
+    </div>
+  </div>
+{% endblock %}

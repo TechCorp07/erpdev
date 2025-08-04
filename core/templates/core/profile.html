@@ -1,0 +1,750 @@
+{% extends "dashboard_base.html" %}
+{% load static %}
+
+{% block page_title %}My Profile{% endblock %}
+
+{% block extra_dashboard_head %}
+<style>
+  .profile-header {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: white;
+    border-radius: 15px;
+    transition: transform 0.2s ease, box-shadow 0.2s ease;
+  }
+  .profile-header:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 8px 25px rgba(0,0,0,0.15);
+  }
+  .profile-image {
+    border: 4px solid white;
+    box-shadow: 0 4px 20px rgba(0,0,0,0.1);
+    transition: transform 0.2s ease;
+  }
+  .profile-image:hover {
+    transform: scale(1.05);
+  }
+  .stats-card {
+    background: linear-gradient(135deg, #11998e 0%, #38ef7d 100%);
+    color: white;
+    border-radius: 12px;
+    border: none;
+    transition: transform 0.2s ease, box-shadow 0.2s ease;
+  }
+  .stats-card:hover {
+    transform: translateY(-3px);
+    box-shadow: 0 8px 25px rgba(0,0,0,0.1);
+  }
+  .performance-chart {
+    background: linear-gradient(135deg, #ffecd2 0%, #fcb69f 100%);
+    border-radius: 12px;
+    border: none;
+    transition: transform 0.2s ease;
+  }
+  .performance-chart:hover {
+    transform: translateY(-2px);
+  }
+  .permission-badge {
+    background: rgba(255, 255, 255, 0.2);
+    color: white;
+    border: 1px solid rgba(255, 255, 255, 0.3);
+    border-radius: 20px;
+    padding: 4px 12px;
+    font-size: 0.85em;
+    margin: 2px;
+    display: inline-block;
+    transition: all 0.2s ease;
+  }
+  .permission-badge:hover {
+    background: rgba(255, 255, 255, 0.3);
+    transform: translateY(-1px);
+  }
+  .activity-timeline {
+    border-left: 2px solid #e9ecef;
+    padding-left: 20px;
+    margin-left: 10px;
+  }
+  .activity-item {
+    position: relative;
+    padding-bottom: 20px;
+    transition: all 0.2s ease;
+  }
+  .activity-item:hover {
+    background-color: #f8f9fa;
+    border-radius: 8px;
+    padding: 10px;
+    margin: -10px;
+  }
+  .activity-item::before {
+    content: '';
+    position: absolute;
+    left: -26px;
+    top: 5px;
+    width: 12px;
+    height: 12px;
+    border-radius: 50%;
+    background: #667eea;
+    transition: all 0.2s ease;
+  }
+  .activity-item:hover::before {
+    background: #11998e;
+    transform: scale(1.2);
+  }
+  .quick-action-card {
+    transition: all 0.2s ease;
+    border-radius: 12px;
+    border: none;
+  }
+  .quick-action-card:hover {
+    transform: translateY(-3px);
+    box-shadow: 0 8px 25px rgba(0,0,0,0.1);
+  }
+  .form-control {
+    border-radius: 8px;
+    transition: all 0.2s ease;
+    border: 1px solid #dee2e6;
+  }
+  .form-control:focus {
+    box-shadow: 0 0 0 0.2rem rgba(102, 126, 234, 0.25);
+    border-color: #667eea;
+  }
+  .btn {
+    border-radius: 8px;
+    transition: all 0.2s ease;
+  }
+  .btn:hover {
+    transform: translateY(-1px);
+  }
+</style>
+{% endblock %}
+
+{% block page_actions %}
+<div class="d-flex gap-2">
+  <a href="{% url 'core:password_change' %}" class="btn btn-outline-secondary">
+    <i class="bi bi-shield-lock me-1"></i> Change Password
+  </a>
+  {% if user_profile.user_type in 'sales_rep,sales_manager' and app_permissions.quotes %}
+  <a href="{% url 'quotes:user_performance' user.id %}" class="btn btn-outline-info">
+    <i class="bi bi-graph-up me-1"></i> Performance Report
+  </a>
+  {% endif %}
+  <div class="dropdown">
+    <button class="btn btn-outline-primary dropdown-toggle" type="button" data-bs-toggle="dropdown">
+      <i class="bi bi-gear me-1"></i> Settings
+    </button>
+    <ul class="dropdown-menu">
+      <li><a class="dropdown-item" href="{% url 'core:notification_settings' %}">
+        <i class="bi bi-bell me-2"></i>Notification Settings
+      </a></li>
+      <li><a class="dropdown-item" href="{% url 'core:privacy_settings' %}">
+        <i class="bi bi-shield me-2"></i>Privacy Settings
+      </a></li>
+      <li><hr class="dropdown-divider"></li>
+      <li><a class="dropdown-item" href="{% url 'core:export_data' %}">
+        <i class="bi bi-download me-2"></i>Export My Data
+      </a></li>
+    </ul>
+  </div>
+</div>
+{% endblock %}
+
+{% block dashboard_content %}
+<!-- Enhanced Profile Header -->
+<div class="row mb-4">
+  <div class="col-12">
+    <div class="profile-header p-4 shadow-sm">
+      <div class="row align-items-center">
+        <div class="col-md-3 text-center">
+          {% if user.profile.profile_image %}
+            <img src="{{ user.profile.profile_image.url }}" 
+                 alt="{{ user.username }}" 
+                 class="rounded-circle profile-image mb-3" 
+                 width="120" height="120"
+                 style="object-fit: cover;">
+          {% else %}
+            <div class="rounded-circle profile-image bg-white text-primary d-flex align-items-center justify-content-center mx-auto mb-3" 
+                 style="width: 120px; height: 120px;">
+              <i class="bi bi-person fa-3x"></i>
+            </div>
+          {% endif %}
+          <h4 class="text-white mb-1">{{ user.get_full_name|default:user.username }}</h4>
+          <p class="text-white-75 mb-0">{{ user_profile.get_user_type_display }}</p>
+        </div>
+        <div class="col-md-6">
+          <div class="row">
+            <div class="col-sm-6 mb-3">
+              <h6 class="text-white-50 mb-1">Department</h6>
+              <p class="text-white mb-0">{{ user_profile.get_department_display|default:"Not Assigned" }}</p>
+            </div>
+            <div class="col-sm-6 mb-3">
+              <h6 class="text-white-50 mb-1">Employee Since</h6>
+              <p class="text-white mb-0">{{ user.date_joined|date:"F Y" }}</p>
+            </div>
+            <div class="col-sm-6 mb-3">
+              <h6 class="text-white-50 mb-1">Email</h6>
+              <p class="text-white mb-0">{{ user.email }}</p>
+            </div>
+            <div class="col-sm-6 mb-3">
+              <h6 class="text-white-50 mb-1">Phone</h6>
+              <p class="text-white mb-0">{{ user_profile.phone|default:"Not provided" }}</p>
+            </div>
+          </div>
+        </div>
+        <div class="col-md-3">
+          <div class="text-center">
+            <h6 class="text-white-50 mb-2">System Access</h6>
+            <div>
+              {% for app, level in app_permissions.items %}
+              {% if level %}
+              <span class="permission-badge">{{ app|title }}: {{ level|title }}</span>
+              {% endif %}
+              {% empty %}
+              <span class="permission-badge">No specific permissions</span>
+              {% endfor %}
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Performance Statistics (for sales team) -->
+{% if user_profile.user_type in 'sales_rep,sales_manager' and app_permissions.quotes %}
+<div class="row mb-4">
+  <div class="col-lg-3 col-md-6 mb-3">
+    <div class="card stats-card h-100 text-white shadow-sm">
+      <div class="card-body text-center">
+        <i class="bi bi-file-earmark-text fa-2x mb-2 opacity-75"></i>
+        <h3 class="mb-1">{{ quote_statistics.total_quotes|default:0 }}</h3>
+        <p class="mb-0 text-white-75">Total Quotes</p>
+      </div>
+    </div>
+  </div>
+  <div class="col-lg-3 col-md-6 mb-3">
+    <div class="card stats-card h-100 text-white shadow-sm" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);">
+      <div class="card-body text-center">
+        <i class="bi bi-check-circle fa-2x mb-2 opacity-75"></i>
+        <h3 class="mb-1">{{ quote_statistics.accepted_quotes|default:0 }}</h3>
+        <p class="mb-0 text-white-75">Accepted Quotes</p>
+      </div>
+    </div>
+  </div>
+  <div class="col-lg-3 col-md-6 mb-3">
+    <div class="card stats-card h-100 shadow-sm" style="background: linear-gradient(135deg, #ffecd2 0%, #fcb69f 100%); color: #333 !important;">
+      <div class="card-body text-center">
+        <i class="bi bi-currency-dollar fa-2x mb-2 opacity-75" style="color: #666;"></i>
+        <h3 class="mb-1" style="color: #333;">${{ quote_statistics.total_value|floatformat:0|default:0 }}</h3>
+        <p class="mb-0" style="color: #666;">Total Value</p>
+      </div>
+    </div>
+  </div>
+  <div class="col-lg-3 col-md-6 mb-3">
+    <div class="card stats-card h-100 shadow-sm" style="background: linear-gradient(135deg, #ff9a9e 0%, #fecfef 100%); color: #333 !important;">
+      <div class="card-body text-center">
+        <i class="bi bi-graph-up fa-2x mb-2 opacity-75" style="color: #666;"></i>
+        <h3 class="mb-1" style="color: #333;">{{ quote_statistics.conversion_rate|floatformat:1|default:0 }}%</h3>
+        <p class="mb-0" style="color: #666;">Conversion Rate</p>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Performance Chart -->
+<div class="row mb-4">
+  <div class="col-12">
+    <div class="card performance-chart shadow-sm">
+      <div class="card-header bg-transparent">
+        <h5 class="mb-0">
+          <i class="bi bi-bar-chart me-2"></i>Monthly Performance
+        </h5>
+      </div>
+      <div class="card-body">
+        <canvas id="performanceChart" width="400" height="200"></canvas>
+      </div>
+    </div>
+  </div>
+</div>
+{% endif %}
+
+<!-- Main Content -->
+<div class="row">
+  <!-- Profile Form Column -->
+  <div class="col-lg-8">
+    <div class="card shadow-sm">
+      <div class="card-header bg-white">
+        <h5 class="mb-0">
+          <i class="bi bi-person me-2"></i>Profile Information
+        </h5>
+      </div>
+      <div class="card-body">
+        <form method="post" enctype="multipart/form-data">
+          {% csrf_token %}
+          
+          <!-- Profile Image Upload Section -->
+          <div class="row mb-4">
+            <div class="col-md-4 text-center">
+              <div class="position-relative d-inline-block">
+                {% if user_profile.profile_image %}
+                <img src="{{ user_profile.profile_image.url }}" 
+                     class="rounded-circle mb-3" 
+                     width="120" height="120"
+                     alt="Profile Image"
+                     style="object-fit: cover; border: 3px solid #dee2e6;">
+                {% else %}
+                <div class="rounded-circle bg-light text-primary d-flex align-items-center justify-content-center mx-auto mb-3"
+                     style="width: 120px; height: 120px; border: 3px solid #dee2e6;">
+                  <i class="bi bi-person fa-3x"></i>
+                </div>
+                {% endif %}
+                <label for="{{ form.profile_image.id_for_label }}" class="btn btn-sm btn-primary position-absolute bottom-0 end-0" style="border-radius: 50%; width: 36px; height: 36px;" title="Change Photo">
+                  <i class="bi bi-camera"></i>
+                </label>
+              </div>
+              {% if user_profile.profile_image %}
+              <div class="mt-2">
+                <button type="submit" name="remove_image" class="btn btn-sm btn-outline-danger">
+                  <i class="bi bi-trash me-1"></i>Remove Image
+                </button>
+              </div>
+              {% endif %}
+            </div>
+            <div class="col-md-8">
+              <div class="mb-3" style="display: none;">
+                {{ form.profile_image }}
+              </div>
+              
+              <!-- Account Status Information -->
+              <div class="alert alert-info">
+                <div class="d-flex align-items-center">
+                  <i class="bi bi-info-circle me-2"></i>
+                  <div>
+                    <strong>Account Status:</strong>
+                    {% if user_profile.is_account_locked %}
+                    <span class="badge bg-danger ms-2">Locked</span>
+                    {% elif user_profile.requires_password_change %}
+                    <span class="badge bg-warning text-dark ms-2">Password Change Required</span>
+                    {% else %}
+                    <span class="badge bg-success ms-2">Active</span>
+                    {% endif %}
+                  </div>
+                </div>
+                <small class="text-muted d-block mt-1">
+                  Last password change: {{ user_profile.last_password_change|date:"M j, Y"|default:"Never" }}
+                </small>
+              </div>
+            </div>
+          </div>
+
+          <!-- Form Fields -->
+          <div class="row">
+            <div class="col-md-6 mb-3">
+              <label for="{{ form.first_name.id_for_label }}" class="form-label fw-bold">
+                <i class="bi bi-person me-1"></i>First Name
+              </label>
+              {{ form.first_name }}
+              {% if form.first_name.errors %}
+                <div class="text-danger small">
+                  {% for error in form.first_name.errors %}{{ error }}{% endfor %}
+                </div>
+              {% endif %}
+            </div>
+            <div class="col-md-6 mb-3">
+              <label for="{{ form.last_name.id_for_label }}" class="form-label fw-bold">
+                <i class="bi bi-person me-1"></i>Last Name
+              </label>
+              {{ form.last_name }}
+              {% if form.last_name.errors %}
+                <div class="text-danger small">
+                  {% for error in form.last_name.errors %}{{ error }}{% endfor %}
+                </div>
+              {% endif %}
+            </div>
+          </div>
+          
+          <div class="mb-3">
+            <label for="{{ form.email.id_for_label }}" class="form-label fw-bold">
+              <i class="bi bi-envelope me-1"></i>Email Address
+            </label>
+            {{ form.email }}
+            {% if form.email.errors %}
+              <div class="text-danger small">
+                {% for error in form.email.errors %}{{ error }}{% endfor %}
+              </div>
+            {% endif %}
+          </div>
+          
+          <div class="row">
+            <div class="col-md-6 mb-3">
+              <label for="{{ form.phone.id_for_label }}" class="form-label fw-bold">
+                <i class="bi bi-telephone me-1"></i>Phone Number
+              </label>
+              {{ form.phone }}
+              {% if form.phone.errors %}
+                <div class="text-danger small">
+                  {% for error in form.phone.errors %}{{ error }}{% endfor %}
+                </div>
+              {% endif %}
+            </div>
+            <div class="col-md-6 mb-3">
+              <label for="{{ form.address.id_for_label }}" class="form-label fw-bold">
+                <i class="bi bi-geo-alt me-1"></i>Address
+              </label>
+              {{ form.address }}
+              {% if form.address.errors %}
+                <div class="text-danger small">
+                  {% for error in form.address.errors %}{{ error }}{% endfor %}
+                </div>
+              {% endif %}
+            </div>
+          </div>
+
+          <!-- Preferences Section -->
+          <div class="card bg-light mb-3 shadow-sm">
+            <div class="card-header bg-transparent">
+              <h6 class="mb-0">
+                <i class="bi bi-sliders me-2"></i>Preferences
+              </h6>
+            </div>
+            <div class="card-body">
+              <div class="row">
+                <div class="col-md-6 mb-3">
+                  <label class="form-label fw-bold">Email Notifications</label>
+                  <div class="form-check">
+                    <input class="form-check-input" type="checkbox" id="emailNotifications" {{ user_profile.email_notifications|yesno:"checked," }}>
+                    <label class="form-check-label" for="emailNotifications">
+                      Receive email notifications
+                    </label>
+                  </div>
+                </div>
+                <div class="col-md-6 mb-3">
+                  <label class="form-label fw-bold">Theme Preference</label>
+                  <select class="form-select" id="themePreference">
+                    <option value="light" {% if user_profile.theme_preference == 'light' %}selected{% endif %}>Light</option>
+                    <option value="dark" {% if user_profile.theme_preference == 'dark' %}selected{% endif %}>Dark</option>
+                    <option value="auto" {% if user_profile.theme_preference == 'auto' %}selected{% endif %}>Auto</option>
+                  </select>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="d-grid gap-2 d-md-flex justify-content-md-end">
+            <a href="{% url 'core:dashboard' %}" class="btn btn-outline-secondary me-md-2">Cancel</a>
+            <button type="submit" class="btn btn-primary">
+              <i class="bi bi-save me-1"></i>Update Profile
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <!-- Right Column -->
+  <div class="col-lg-4">
+    <!-- Quick Actions Card -->
+    <div class="card quick-action-card mb-4 shadow-sm">
+      <div class="card-header bg-white">
+        <h5 class="mb-0">
+          <i class="bi bi-lightning me-2"></i>Quick Actions
+        </h5>
+      </div>
+      <div class="card-body">
+        <div class="d-grid gap-2">
+          <a href="{% url 'core:password_change' %}" class="btn btn-outline-primary">
+            <i class="bi bi-key me-1"></i>Change Password
+          </a>
+          <a href="{% url 'core:notifications' %}" class="btn btn-outline-info">
+            <i class="bi bi-bell me-1"></i>View Notifications
+            {% if unread_notification_count > 0 %}
+            <span class="badge bg-danger">{{ unread_notification_count }}</span>
+            {% endif %}
+          </a>
+          {% if app_permissions.quotes %}
+          <a href="{% url 'quotes:dashboard' %}" class="btn btn-outline-success">
+            <i class="bi bi-file-earmark-text me-1"></i>Quote Dashboard
+          </a>
+          {% if user_profile.user_type in 'sales_rep,sales_manager' %}
+          <a href="{% url 'quotes:user_performance' user.id %}" class="btn btn-outline-warning">
+            <i class="bi bi-graph-up me-1"></i>My Performance
+          </a>
+          {% endif %}
+          {% endif %}
+          {% if app_permissions.crm %}
+          <a href="{% url 'crm:dashboard' %}" class="btn btn-outline-secondary">
+            <i class="bi bi-people me-1"></i>CRM Dashboard
+          </a>
+          {% endif %}
+        </div>
+      </div>
+    </div>
+
+    {% if recent_activity %}
+    <!-- Recent Activity -->
+    <div class="card mb-4 shadow-sm">
+      <div class="card-header bg-white">
+        <h5 class="mb-0">
+          <i class="bi bi-clock-history me-2"></i>Recent Activity
+        </h5>
+      </div>
+      <div class="card-body">
+        <div class="activity-timeline">
+          {% for activity in recent_activity|slice:":5" %}
+          <div class="activity-item">
+            <div class="d-flex justify-content-between align-items-start">
+              <div>
+                <h6 class="mb-1">{{ activity.action }}</h6>
+                <p class="mb-1 text-muted small">{{ activity.description }}</p>
+                <small class="text-muted">{{ activity.timestamp|timesince }} ago</small>
+              </div>
+              {% if activity.related_object_url %}
+              <a href="{{ activity.related_object_url }}" class="btn btn-sm btn-outline-primary">
+                <i class="bi bi-arrow-right"></i>
+              </a>
+              {% endif %}
+            </div>
+          </div>
+          {% endfor %}
+        </div>
+      </div>
+      <div class="card-footer bg-transparent">
+        <a href="{% url 'core:user_activity_log' user.id %}" class="btn btn-sm btn-primary">View Full Activity Log</a>
+      </div>
+    </div>
+    {% endif %}
+
+    <!-- System Information -->
+    <div class="card shadow-sm">
+      <div class="card-header bg-white">
+        <h5 class="mb-0">
+          <i class="bi bi-info-circle me-2"></i>System Information
+        </h5>
+      </div>
+      <div class="card-body">
+        <div class="d-flex justify-content-between align-items-center mb-2">
+          <span class="small">Account Created</span>
+          <span class="badge bg-light text-dark">{{ user.date_joined|date:"M d, Y" }}</span>
+        </div>
+        <div class="d-flex justify-content-between align-items-center mb-2">
+          <span class="small">Last Login</span>
+          <span class="badge bg-light text-dark">{{ user.last_login|date:"M d, H:i"|default:"Never" }}</span>
+        </div>
+        <div class="d-flex justify-content-between align-items-center mb-2">
+          <span class="small">Login Count</span>
+          <span class="badge bg-light text-dark">{{ user_profile.login_count|default:0 }}</span>
+        </div>
+        {% if app_permissions.quotes and user_profile.user_type in 'sales_rep,sales_manager' %}
+        <div class="d-flex justify-content-between align-items-center mb-2">
+          <span class="small">Quotes Created</span>
+          <span class="badge bg-primary">{{ quote_statistics.total_quotes|default:0 }}</span>
+        </div>
+        <div class="d-flex justify-content-between align-items-center mb-2">
+          <span class="small">Success Rate</span>
+          <span class="badge bg-success">{{ quote_statistics.conversion_rate|floatformat:1|default:0 }}%</span>
+        </div>
+        {% endif %}
+        <hr>
+        <div class="d-flex justify-content-between align-items-center">
+          <span class="small">Account Status</span>
+          {% if user_profile.is_account_locked %}
+          <span class="badge bg-danger">Locked</span>
+          {% elif user_profile.requires_password_change %}
+          <span class="badge bg-warning text-dark">Password Change Required</span>
+          {% else %}
+          <span class="badge bg-success">Active</span>
+          {% endif %}
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_dashboard_js %}
+<!-- Chart.js for performance chart -->
+{% if user_profile.user_type in 'sales_rep,sales_manager' and app_permissions.quotes %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script>
+// Performance Chart
+const ctx = document.getElementById('performanceChart').getContext('2d');
+const performanceChart = new Chart(ctx, {
+    type: 'line',
+    data: {
+        labels: {{ performance_data.months|safe }},
+        datasets: [{
+            label: 'Quotes Created',
+            data: {{ performance_data.quote_counts|safe }},
+            borderColor: '#667eea',
+            backgroundColor: 'rgba(102, 126, 234, 0.1)',
+            tension: 0.4,
+            fill: true
+        }, {
+            label: 'Quote Value ($)',
+            data: {{ performance_data.quote_values|safe }},
+            borderColor: '#11998e',
+            backgroundColor: 'rgba(17, 153, 142, 0.1)',
+            tension: 0.4,
+            fill: true,
+            yAxisID: 'y1'
+        }]
+    },
+    options: {
+        responsive: true,
+        interaction: {
+            mode: 'index',
+            intersect: false,
+        },
+        scales: {
+            y: {
+                type: 'linear',
+                display: true,
+                position: 'left',
+                title: {
+                    display: true,
+                    text: 'Quote Count'
+                }
+            },
+            y1: {
+                type: 'linear',
+                display: true,
+                position: 'right',
+                title: {
+                    display: true,
+                    text: 'Quote Value ($)'
+                },
+                grid: {
+                    drawOnChartArea: false,
+                },
+            }
+        },
+        plugins: {
+            tooltip: {
+                backgroundColor: 'rgba(0, 0, 0, 0.8)',
+                titleColor: 'white',
+                bodyColor: 'white',
+                borderColor: '#667eea',
+                borderWidth: 1
+            },
+            legend: {
+                position: 'top'
+            }
+        }
+    }
+});
+</script>
+{% endif %}
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // Handle profile image upload
+    document.getElementById('{{ form.profile_image.id_for_label }}').addEventListener('change', function(e) {
+        if (e.target.files && e.target.files[0]) {
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                const img = document.querySelector('img[alt="Profile Image"], .rounded-circle img');
+                if (img) {
+                    img.src = e.target.result;
+                } else {
+                    // Replace the placeholder div with an image
+                    const placeholder = document.querySelector('.rounded-circle.bg-light');
+                    if (placeholder) {
+                        const newImg = document.createElement('img');
+                        newImg.src = e.target.result;
+                        newImg.className = 'rounded-circle mb-3';
+                        newImg.width = 120;
+                        newImg.height = 120;
+                        newImg.style.objectFit = 'cover';
+                        newImg.style.border = '3px solid #dee2e6';
+                        newImg.alt = 'Profile Image';
+                        placeholder.parentNode.replaceChild(newImg, placeholder);
+                    }
+                }
+            };
+            reader.readAsDataURL(e.target.files[0]);
+        }
+    });
+
+    // Handle preference changes
+    document.getElementById('emailNotifications').addEventListener('change', function() {
+        updatePreference('email_notifications', this.checked);
+    });
+
+    document.getElementById('themePreference').addEventListener('change', function() {
+        updatePreference('theme_preference', this.value);
+        applyTheme(this.value);
+    });
+
+    // Apply current theme
+    const currentTheme = '{{ user_profile.theme_preference|default:"light" }}';
+    applyTheme(currentTheme);
+});
+
+function updatePreference(key, value) {
+    fetch('{% url "core:update_user_preference" %}', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value
+        },
+        body: JSON.stringify({
+            preference: key,
+            value: value
+        })
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            showToast('Preference updated successfully', 'success');
+        } else {
+            showToast('Error updating preference', 'error');
+        }
+    })
+    .catch(error => {
+        console.error('Error updating preference:', error);
+        showToast('Error updating preference', 'error');
+    });
+}
+
+function applyTheme(theme) {
+    const body = document.body;
+    body.classList.remove('theme-light', 'theme-dark');
+    
+    if (theme === 'dark') {
+        body.classList.add('theme-dark');
+    } else if (theme === 'light') {
+        body.classList.add('theme-light');
+    } else if (theme === 'auto') {
+        if (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches) {
+            body.classList.add('theme-dark');
+        } else {
+            body.classList.add('theme-light');
+        }
+    }
+}
+
+function showToast(message, type) {
+    const toast = document.createElement('div');
+    toast.className = `position-fixed bottom-0 end-0 p-3`;
+    toast.style.zIndex = '1050';
+    toast.innerHTML = `
+        <div class="toast" role="alert">
+            <div class="toast-header">
+                <i class="bi ${type === 'success' ? 'bi-check-circle-fill text-success' : 'bi-x-circle-fill text-danger'} me-2"></i>
+                <strong class="me-auto">${type === 'success' ? 'Success' : 'Error'}</strong>
+                <button type="button" class="btn-close" data-bs-dismiss="toast"></button>
+            </div>
+            <div class="toast-body">
+                ${message}
+            </div>
+        </div>
+    `;
+    
+    document.body.appendChild(toast);
+    const bsToast = new bootstrap.Toast(toast.querySelector('.toast'));
+    bsToast.show();
+    
+    toast.querySelector('.toast').addEventListener('hidden.bs.toast', () => {
+        toast.remove();
+    });
+}
+</script>
+{% endblock %}

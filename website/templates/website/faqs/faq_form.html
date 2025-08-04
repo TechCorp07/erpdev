@@ -1,0 +1,357 @@
+<!-- templates/website/faqs/faq_form.html -->
+{% extends "website_base.html" %}
+{% load crispy_forms_tags %}
+
+{% block title %}{{ title }} - BlitzTech Electronics{% endblock %}
+
+{% block extra_css %}
+<style>
+/* Custom styles for FAQ form */
+.form-section {
+    background-color: #fff;
+    border-radius: 8px;
+    padding: 1.5rem;
+    margin-bottom: 1.5rem;
+    border: 1px solid #e9ecef;
+    position: relative;
+}
+.form-section::before {
+    content: '';
+    position: absolute;
+    left: 0;
+    top: 0;
+    bottom: 0;
+    width: 4px;
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    border-radius: 4px 0 0 4px;
+}
+.category-guide {
+    background: linear-gradient(135deg, #e8f4fd 0%, #f3e8ff 100%);
+    border: 1px solid #b3d9ff;
+    border-radius: 8px;
+    padding: 1rem;
+}
+.faq-preview {
+    background: #f8f9fa;
+    border: 1px solid #e9ecef;
+    border-radius: 8px;
+    padding: 1.5rem;
+    border-left: 4px solid #28a745;
+}
+.character-counter {
+    font-size: 0.875rem;
+    color: #6c757d;
+}
+.writing-tips {
+    background: linear-gradient(135deg, #fff3cd 0%, #f8d7da 100%);
+    border: 1px solid #ffeaa7;
+    border-radius: 8px;
+    padding: 1rem;
+}
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container py-4">
+  <div class="row justify-content-center">
+    <div class="col-lg-8">
+      <!-- Form Header -->
+      <div class="d-flex align-items-center mb-4">
+        <a href="{% url 'website:manage_faqs' %}" class="btn btn-outline-secondary me-3">
+          <i class="bi bi-arrow-left"></i>
+        </a>
+        <div>
+          <h2 class="mb-0">
+            <i class="bi bi-question-circle me-2 text-primary"></i>{{ title }}
+          </h2>
+          <p class="text-muted mb-0">Help customers find answers to common questions</p>
+        </div>
+      </div>
+
+      <form method="post" class="needs-validation" novalidate>
+        {% csrf_token %}
+        
+        <!-- Question Section -->
+        <div class="form-section">
+          <h5 class="mb-3">
+            <i class="bi bi-chat-question me-2 text-primary"></i>The Question
+          </h5>
+          
+          <div class="mb-3">
+            <label for="{{ form.question.id_for_label }}" class="form-label fw-bold">
+              Question <span class="text-danger">*</span>
+            </label>
+            {{ form.question }}
+            <div class="form-text">
+              Write the question exactly as customers would ask it. Use their language, not technical jargon.
+            </div>
+            <div class="character-counter" id="question-counter"></div>
+            {% if form.question.errors %}
+              <div class="invalid-feedback d-block">
+                {% for error in form.question.errors %}{{ error }}{% endfor %}
+              </div>
+            {% endif %}
+          </div>
+
+          <!-- Question Writing Tips -->
+          <div class="writing-tips">
+            <h6 class="mb-2"><i class="bi bi-lightbulb me-1"></i>Question Writing Tips</h6>
+            <div class="row small">
+              <div class="col-md-6">
+                <p class="mb-1"><strong>✓ Good examples:</strong></p>
+                <ul class="mb-0">
+                  <li>"How long does PCB fabrication take?"</li>
+                  <li>"What's included in your security system installation?"</li>
+                  <li>"Do you offer warranty on IoT devices?"</li>
+                </ul>
+              </div>
+              <div class="col-md-6">
+                <p class="mb-1"><strong>✗ Avoid:</strong></p>
+                <ul class="mb-0">
+                  <li>Overly technical language</li>
+                  <li>Multiple questions in one</li>
+                  <li>Company-specific jargon</li>
+                </ul>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Answer Section -->
+        <div class="form-section">
+          <h5 class="mb-3">
+            <i class="bi bi-chat-text me-2 text-primary"></i>The Answer
+          </h5>
+          
+          <div class="mb-3">
+            <label for="{{ form.answer.id_for_label }}" class="form-label fw-bold">
+              Answer <span class="text-danger">*</span>
+            </label>
+            {{ form.answer }}
+            <div class="form-text">
+              Provide a clear, helpful answer. Include specific details, examples, or next steps when relevant.
+            </div>
+            <div class="character-counter" id="answer-counter"></div>
+            {% if form.answer.errors %}
+              <div class="invalid-feedback d-block">
+                {% for error in form.answer.errors %}{{ error }}{% endfor %}
+              </div>
+            {% endif %}
+          </div>
+
+          <!-- Answer Writing Guide -->
+          <div class="category-guide">
+            <h6 class="mb-2"><i class="bi bi-check-circle me-1"></i>Writing Effective Answers</h6>
+            <div class="row small">
+              <div class="col-md-6">
+                <p class="mb-1"><strong>Structure your answer:</strong></p>
+                <ol class="mb-2">
+                  <li>Direct answer to the question</li>
+                  <li>Additional context or details</li>
+                  <li>Next steps or call to action</li>
+                </ol>
+              </div>
+              <div class="col-md-6">
+                <p class="mb-1"><strong>Best practices:</strong></p>
+                <ul class="mb-0">
+                  <li>Be specific with timeframes and costs</li>
+                  <li>Link to relevant pages when helpful</li>
+                  <li>Address follow-up concerns</li>
+                  <li>End with contact info if needed</li>
+                </ul>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Categorization Section -->
+        <div class="form-section">
+          <h5 class="mb-3">
+            <i class="bi bi-tags me-2 text-primary"></i>Organization
+          </h5>
+          
+          <div class="row">
+            <div class="col-md-6">
+              <div class="mb-3">
+                <label for="{{ form.category.id_for_label }}" class="form-label fw-bold">
+                  Category <span class="text-danger">*</span>
+                </label>
+                {{ form.category }}
+                <div class="form-text">
+                  Group related questions together for better organization
+                </div>
+                {% if form.category.errors %}
+                  <div class="invalid-feedback d-block">
+                    {% for error in form.category.errors %}{{ error }}{% endfor %}
+                  </div>
+                {% endif %}
+              </div>
+            </div>
+            <div class="col-md-6">
+              <div class="mb-3">
+                <label for="{{ form.order.id_for_label }}" class="form-label fw-bold">
+                  Display Order
+                </label>
+                {{ form.order }}
+                <div class="form-text">
+                  {{ form.order.help_text }}
+                </div>
+                {% if form.order.errors %}
+                  <div class="invalid-feedback d-block">
+                    {% for error in form.order.errors %}{{ error }}{% endfor %}
+                  </div>
+                {% endif %}
+              </div>
+            </div>
+          </div>
+
+          <!-- Category Descriptions -->
+          <div class="category-guide">
+            <h6 class="mb-2"><i class="bi bi-info-circle me-1"></i>Category Descriptions</h6>
+            <div class="row small">
+              <div class="col-md-6">
+                <p class="mb-1"><strong>Components:</strong> Parts, supplies, availability</p>
+                <p class="mb-1"><strong>Security:</strong> System features, installation</p>
+                <p class="mb-1"><strong>IoT:</strong> Smart devices, connectivity</p>
+                <p class="mb-0"><strong>PCB:</strong> Design process, specifications</p>
+              </div>
+              <div class="col-md-6">
+                <p class="mb-1"><strong>Power:</strong> Solar, electrical systems</p>
+                <p class="mb-1"><strong>Payment:</strong> Pricing, ordering, billing</p>
+                <p class="mb-1"><strong>Contact:</strong> Support, communication</p>
+                <p class="mb-0"><strong>General:</strong> Company info, misc questions</p>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Preview Section -->
+        {% if object %}
+          <div class="form-section">
+            <h5 class="mb-3">
+              <i class="bi bi-eye me-2 text-primary"></i>Current FAQ Preview
+            </h5>
+            
+            <div class="faq-preview">
+              <h6 class="text-primary mb-2">{{ object.question }}</h6>
+              <p class="mb-0">{{ object.answer|linebreaks }}</p>
+              <hr>
+              <small class="text-muted">
+                <i class="bi bi-tag me-1"></i>{{ object.get_category_display }} • 
+                <i class="bi bi-sort-numeric-up me-1"></i>Order: {{ object.order }}
+              </small>
+            </div>
+          </div>
+        {% endif %}
+
+        <!-- Form Actions -->
+        <div class="d-flex gap-2 pt-3">
+          <button class="btn btn-primary btn-lg" type="submit">
+            <i class="bi bi-check-lg me-2"></i>
+            {% if object %}Update FAQ{% else %}Create FAQ{% endif %}
+          </button>
+          <a href="{% url 'website:manage_faqs' %}" class="btn btn-outline-secondary btn-lg">
+            <i class="bi bi-x-lg me-2"></i>Cancel
+          </a>
+        </div>
+      </form>
+
+      <!-- FAQ Best Practices -->
+      <div class="mt-4">
+        <div class="card border-info">
+          <div class="card-header bg-info text-white">
+            <h6 class="mb-0"><i class="bi bi-award me-2"></i>FAQ Best Practices</h6>
+          </div>
+          <div class="card-body">
+            <div class="row">
+              <div class="col-md-6">
+                <h6 class="text-success">Customer-Focused Approach</h6>
+                <ul class="small mb-3">
+                  <li>Use the customer's language and terminology</li>
+                  <li>Answer the question completely and directly</li>
+                  <li>Provide specific details (times, costs, processes)</li>
+                  <li>Include next steps or related actions</li>
+                </ul>
+              </div>
+              <div class="col-md-6">
+                <h6 class="text-info">SEO Benefits</h6>
+                <ul class="small mb-0">
+                  <li>Well-written FAQs improve search rankings</li>
+                  <li>Use natural question phrasing for voice search</li>
+                  <li>Include relevant keywords naturally</li>
+                  <li>Help Google understand your expertise</li>
+                </ul>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // Character counters
+    const questionField = document.getElementById('{{ form.question.id_for_label }}');
+    const answerField = document.getElementById('{{ form.answer.id_for_label }}');
+    const questionCounter = document.getElementById('question-counter');
+    const answerCounter = document.getElementById('answer-counter');
+    
+    function updateCounter(field, counter, recommended) {
+        if (!field || !counter) return;
+        
+        const length = field.value.length;
+        const words = field.value.trim().split(/\s+/).filter(word => word.length > 0).length;
+        
+        counter.innerHTML = `${length} characters, ${words} words`;
+        
+        if (length > recommended * 1.5) {
+            counter.className = 'character-counter text-warning';
+        } else if (length > recommended) {
+            counter.className = 'character-counter text-info';
+        } else {
+            counter.className = 'character-counter text-muted';
+        }
+    }
+    
+    if (questionField && questionCounter) {
+        questionField.addEventListener('input', () => updateCounter(questionField, questionCounter, 100));
+        updateCounter(questionField, questionCounter, 100);
+    }
+    
+    if (answerField && answerCounter) {
+        answerField.addEventListener('input', () => updateCounter(answerField, answerCounter, 300));
+        updateCounter(answerField, answerCounter, 300);
+    }
+    
+    // Form validation
+    const form = document.querySelector('.needs-validation');
+    if (form) {
+        form.addEventListener('submit', function(event) {
+            if (!form.checkValidity()) {
+                event.preventDefault();
+                event.stopPropagation();
+            }
+            form.classList.add('was-validated');
+        });
+    }
+    
+    // Auto-resize textareas
+    function autoResize(textarea) {
+        textarea.style.height = 'auto';
+        textarea.style.height = textarea.scrollHeight + 'px';
+    }
+    
+    if (questionField) {
+        questionField.addEventListener('input', () => autoResize(questionField));
+        autoResize(questionField);
+    }
+    
+    if (answerField) {
+        answerField.addEventListener('input', () => autoResize(answerField));
+        autoResize(answerField);
+    }
+});
+</script>
+{% endblock %}

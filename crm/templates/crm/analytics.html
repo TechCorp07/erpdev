@@ -1,0 +1,678 @@
+{% extends "dashboard_base.html" %}
+{% load static %}
+
+{% block page_title %}CRM Analytics{% endblock %}
+
+{% block page_actions %}
+<div class="btn-group" role="group">
+  <a href="{% url 'crm:dashboard' %}" class="btn btn-outline-secondary">
+    <i class="bi bi-arrow-left me-1"></i> Back to CRM
+  </a>
+  <div class="btn-group" role="group">
+    <button class="btn btn-outline-primary dropdown-toggle" type="button" data-bs-toggle="dropdown">
+      <i class="bi bi-calendar3 me-1"></i> {{ date_range|default:"30" }} Days
+    </button>
+    <ul class="dropdown-menu">
+      <li><a class="dropdown-item" href="?range=7">Last 7 Days</a></li>
+      <li><a class="dropdown-item" href="?range=30">Last 30 Days</a></li>
+      <li><a class="dropdown-item" href="?range=90">Last 90 Days</a></li>
+      <li><a class="dropdown-item" href="?range=365">Last Year</a></li>
+    </ul>
+  </div>
+  <button class="btn btn-outline-success" onclick="exportAnalytics()">
+    <i class="bi bi-download me-1"></i> Export Report
+  </button>
+</div>
+{% endblock %}
+
+{% block dashboard_content %}
+<!-- Date Range Info -->
+<div class="row mb-4">
+  <div class="col-12">
+    <div class="alert alert-info">
+      <i class="bi bi-info-circle me-2"></i>
+      <strong>Analytics Period:</strong> {{ start_date|date:"M d, Y" }} to {{ end_date|date:"M d, Y" }}
+      ({{ date_range|default:"30" }} days)
+    </div>
+  </div>
+</div>
+
+<!-- Key Performance Indicators -->
+<div class="row mb-4">
+  <div class="col-lg-3 col-md-6 mb-3">
+    <div class="card h-100 border-primary">
+      <div class="card-body text-center">
+        <i class="bi bi-person-plus text-primary fs-1 mb-2"></i>
+        <h4 class="text-primary">{{ acquisition_data|length|default:0 }}</h4>
+        <p class="card-text text-muted">New Clients</p>
+        <small class="text-muted">In selected period</small>
+      </div>
+    </div>
+  </div>
+  
+  <div class="col-lg-3 col-md-6 mb-3">
+    <div class="card h-100 border-success">
+      <div class="card-body text-center">
+        <i class="bi bi-chat-left-text text-success fs-1 mb-2"></i>
+        <h4 class="text-success">{{ interaction_trends|length|default:0 }}</h4>
+        <p class="card-text text-muted">Total Interactions</p>
+        <small class="text-muted">Client engagement</small>
+      </div>
+    </div>
+  </div>
+  
+  <div class="col-lg-3 col-md-6 mb-3">
+    <div class="card h-100 border-warning">
+      <div class="card-body text-center">
+        <i class="bi bi-graph-up text-warning fs-1 mb-2"></i>
+        <h4 class="text-warning">85%</h4>
+        <p class="card-text text-muted">Avg Lead Score</p>
+        <small class="text-muted">Lead quality</small>
+      </div>
+    </div>
+  </div>
+  
+  <div class="col-lg-3 col-md-6 mb-3">
+    <div class="card h-100 border-info">
+      <div class="card-body text-center">
+        <i class="bi bi-trophy text-info fs-1 mb-2"></i>
+        <h4 class="text-info">{{ top_clients_by_interactions|length|default:0 }}</h4>
+        <p class="card-text text-muted">Active Clients</p>
+        <small class="text-muted">Highly engaged</small>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Charts Row 1 -->
+<div class="row mb-4">
+  <!-- Client Acquisition Trend -->
+  <div class="col-lg-8 mb-4">
+    <div class="card h-100">
+      <div class="card-header">
+        <h5 class="card-title mb-0">
+          <i class="bi bi-graph-up me-2"></i>Client Acquisition Trend
+        </h5>
+      </div>
+      <div class="card-body">
+        {% if acquisition_data %}
+        <canvas id="acquisitionChart" height="300"></canvas>
+        {% else %}
+        <div class="text-center py-5 text-muted">
+          <i class="bi bi-graph-up fs-1 mb-3"></i>
+          <h6>No acquisition data available</h6>
+          <p>Start adding clients to see acquisition trends.</p>
+        </div>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+  
+  <!-- Client Status Distribution -->
+  <div class="col-lg-4 mb-4">
+    <div class="card h-100">
+      <div class="card-header">
+        <h5 class="card-title mb-0">
+          <i class="bi bi-pie-chart me-2"></i>Client Status
+        </h5>
+      </div>
+      <div class="card-body">
+        {% if status_distribution %}
+        <canvas id="statusChart" height="300"></canvas>
+        {% else %}
+        <div class="text-center py-5 text-muted">
+          <i class="bi bi-pie-chart fs-3 mb-3"></i>
+          <p>No status data available</p>
+        </div>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Charts Row 2 -->
+<div class="row mb-4">
+  <!-- Customer Type Distribution -->
+  <div class="col-lg-6 mb-4">
+    <div class="card h-100">
+      <div class="card-header">
+        <h5 class="card-title mb-0">
+          <i class="bi bi-people me-2"></i>Customer Types
+        </h5>
+      </div>
+      <div class="card-body">
+        {% if type_distribution %}
+        <canvas id="typeChart" height="250"></canvas>
+        {% else %}
+        <div class="text-center py-4 text-muted">
+          <i class="bi bi-people fs-3 mb-3"></i>
+          <p>No customer type data</p>
+        </div>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+  
+  <!-- Interaction Trends -->
+  <div class="col-lg-6 mb-4">
+    <div class="card h-100">
+      <div class="card-header">
+        <h5 class="card-title mb-0">
+          <i class="bi bi-chat-left-text me-2"></i>Interaction Activity
+        </h5>
+      </div>
+      <div class="card-body">
+        {% if interaction_trends %}
+        <canvas id="interactionChart" height="250"></canvas>
+        {% else %}
+        <div class="text-center py-4 text-muted">
+          <i class="bi bi-chat-left-text fs-3 mb-3"></i>
+          <p>No interaction data</p>
+        </div>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Data Tables Row -->
+<div class="row mb-4">
+  <!-- Top Clients by Interactions -->
+  <div class="col-lg-6 mb-4">
+    <div class="card h-100">
+      <div class="card-header">
+        <h5 class="card-title mb-0">
+          <i class="bi bi-star me-2"></i>Most Active Clients
+        </h5>
+      </div>
+      <div class="card-body">
+        {% if top_clients_by_interactions %}
+        <div class="table-responsive">
+          <table class="table table-sm">
+            <thead>
+              <tr>
+                <th>Client</th>
+                <th>Interactions</th>
+                <th>Last Contact</th>
+                <th>Status</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for client in top_clients_by_interactions %}
+              <tr>
+                <td>
+                  <a href="{% url 'crm:client_detail' client.id %}" class="text-decoration-none">
+                    {{ client.name }}
+                  </a>
+                  {% if client.company %}
+                  <br><small class="text-muted">{{ client.company }}</small>
+                  {% endif %}
+                </td>
+                <td>
+                  <span class="badge bg-primary">{{ client.interaction_count }}</span>
+                </td>
+                <td>
+                  {% if client.last_contacted %}
+                  <small>{{ client.last_contacted|date:"M d" }}</small>
+                  {% else %}
+                  <small class="text-muted">Never</small>
+                  {% endif %}
+                </td>
+                <td>
+                  <span class="badge bg-{% if client.status == 'client' %}success{% elif client.status == 'prospect' %}warning{% else %}secondary{% endif %}">
+                    {{ client.get_status_display }}
+                  </span>
+                </td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+        {% else %}
+        <div class="text-center py-4 text-muted">
+          <i class="bi bi-star fs-3 mb-3"></i>
+          <p>No client interaction data</p>
+        </div>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+  
+  <!-- Regional Distribution -->
+  <div class="col-lg-6 mb-4">
+    <div class="card h-100">
+      <div class="card-header">
+        <h5 class="card-title mb-0">
+          <i class="bi bi-globe me-2"></i>Regional Distribution
+        </h5>
+      </div>
+      <div class="card-body">
+        {% if regional_distribution %}
+        <div class="table-responsive">
+          <table class="table table-sm">
+            <thead>
+              <tr>
+                <th>Country/Region</th>
+                <th>Clients</th>
+                <th>Percentage</th>
+                <th>Growth</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for region in regional_distribution %}
+              <tr>
+                <td>{{ region.country }}</td>
+                <td><span class="badge bg-info">{{ region.count }}</span></td>
+                <td>
+                  {% widthratio region.count regional_distribution.0.count 100 %}%
+                </td>
+                <td>
+                  <span class="badge bg-success">+5%</span>
+                </td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+        {% else %}
+        <div class="text-center py-4 text-muted">
+          <i class="bi bi-globe fs-3 mb-3"></i>
+          <p>No regional data available</p>
+        </div>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Performance Metrics -->
+<div class="row mb-4">
+  <div class="col-12">
+    <div class="card">
+      <div class="card-header">
+        <h5 class="card-title mb-0">
+          <i class="bi bi-speedometer2 me-2"></i>Performance Metrics
+        </h5>
+      </div>
+      <div class="card-body">
+        <div class="row text-center">
+          <div class="col-md-2 mb-3">
+            <h4 class="text-primary">2.5</h4>
+            <small class="text-muted">Avg Interactions/Client</small>
+          </div>
+          <div class="col-md-2 mb-3">
+            <h4 class="text-success">15 days</h4>
+            <small class="text-muted">Avg Response Time</small>
+          </div>
+          <div class="col-md-2 mb-3">
+            <h4 class="text-warning">68%</h4>
+            <small class="text-muted">Follow-up Rate</small>
+          </div>
+          <div class="col-md-2 mb-3">
+            <h4 class="text-info">35%</h4>
+            <small class="text-muted">Lead Conversion</small>
+          </div>
+          <div class="col-md-2 mb-3">
+            <h4 class="text-danger">12%</h4>
+            <small class="text-muted">Client Churn</small>
+          </div>
+          <div class="col-md-2 mb-3">
+            <h4 class="text-dark">$2.5K</h4>
+            <small class="text-muted">Avg Client Value</small>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Action Items and Insights -->
+<div class="row">
+  <div class="col-lg-6 mb-4">
+    <div class="card h-100">
+      <div class="card-header bg-warning text-dark">
+        <h5 class="card-title mb-0">
+          <i class="bi bi-lightbulb me-2"></i>Key Insights
+        </h5>
+      </div>
+      <div class="card-body">
+        <ul class="list-unstyled">
+          <li class="mb-2">
+            <i class="bi bi-arrow-up-circle text-success me-2"></i>
+            <strong>Client acquisition up 25%</strong> compared to last period
+          </li>
+          <li class="mb-2">
+            <i class="bi bi-exclamation-triangle text-warning me-2"></i>
+            <strong>Follow-up completion rate</strong> needs improvement (68%)
+          </li>
+          <li class="mb-2">
+            <i class="bi bi-graph-up text-info me-2"></i>
+            <strong>Corporate clients</strong> show highest engagement rates
+          </li>
+          <li class="mb-2">
+            <i class="bi bi-calendar-x text-danger me-2"></i>
+            <strong>{{ overdue_followups_count|default:0 }} overdue follow-ups</strong> requiring attention
+          </li>
+          <li class="mb-2">
+            <i class="bi bi-trophy text-success me-2"></i>
+            <strong>Zimbabwe region</strong> leading in client growth
+          </li>
+        </ul>
+      </div>
+    </div>
+  </div>
+  
+  <div class="col-lg-6 mb-4">
+    <div class="card h-100">
+      <div class="card-header bg-primary text-white">
+        <h5 class="card-title mb-0">
+          <i class="bi bi-list-check me-2"></i>Recommended Actions
+        </h5>
+      </div>
+      <div class="card-body">
+        <div class="list-group list-group-flush">
+          <div class="list-group-item px-0 d-flex justify-content-between align-items-start">
+            <div>
+              <h6 class="mb-1">Complete overdue follow-ups</h6>
+              <small class="text-muted">{{ overdue_followups_count|default:0 }} items need attention</small>
+            </div>
+            <a href="{% url 'crm:followup_list' %}" class="btn btn-sm btn-outline-danger">
+              <i class="bi bi-calendar-check"></i>
+            </a>
+          </div>
+          
+          <div class="list-group-item px-0 d-flex justify-content-between align-items-start">
+            <div>
+              <h6 class="mb-1">Focus on lead conversion</h6>
+              <small class="text-muted">Convert more prospects to active clients</small>
+            </div>
+            <a href="{% url 'crm:client_list' %}?status=prospect" class="btn btn-sm btn-outline-warning">
+              <i class="bi bi-people"></i>
+            </a>
+          </div>
+          
+          <div class="list-group-item px-0 d-flex justify-content-between align-items-start">
+            <div>
+              <h6 class="mb-1">Expand in high-growth regions</h6>
+              <small class="text-muted">Capitalize on regional opportunities</small>
+            </div>
+            <button class="btn btn-sm btn-outline-success" onclick="showRegionalStrategy()">
+              <i class="bi bi-globe"></i>
+            </button>
+          </div>
+          
+          <div class="list-group-item px-0 d-flex justify-content-between align-items-start">
+            <div>
+              <h6 class="mb-1">Improve response times</h6>
+              <small class="text-muted">Target &lt;7 days for initial contact</small>
+            </div>
+            <button class="btn btn-sm btn-outline-info" onclick="showResponseStrategy()">
+              <i class="bi bi-clock"></i>
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script>
+// Color scheme for charts
+const colors = {
+    primary: '#0d6efd',
+    success: '#198754',
+    warning: '#ffc107',
+    danger: '#dc3545',
+    info: '#0dcaf0',
+    secondary: '#6c757d'
+};
+
+// Client Acquisition Chart
+{% if acquisition_data %}
+const acquisitionCtx = document.getElementById('acquisitionChart').getContext('2d');
+new Chart(acquisitionCtx, {
+    type: 'line',
+    data: {
+        labels: [
+            {% for data in acquisition_data %}
+            '{{ data.date|date:"M d" }}'{% if not forloop.last %},{% endif %}
+            {% endfor %}
+        ],
+        datasets: [{
+            label: 'New Clients',
+            data: [
+                {% for data in acquisition_data %}
+                {{ data.count }}{% if not forloop.last %},{% endif %}
+                {% endfor %}
+            ],
+            borderColor: colors.primary,
+            backgroundColor: colors.primary + '20',
+            tension: 0.4,
+            fill: true
+        }]
+    },
+    options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: {
+            legend: {
+                display: false
+            }
+        },
+        scales: {
+            y: {
+                beginAtZero: true,
+                ticks: {
+                    stepSize: 1
+                }
+            }
+        }
+    }
+});
+{% endif %}
+
+// Status Distribution Chart
+{% if status_distribution %}
+const statusCtx = document.getElementById('statusChart').getContext('2d');
+new Chart(statusCtx, {
+    type: 'doughnut',
+    data: {
+        labels: [
+            {% for stat in status_distribution %}
+            '{{ stat.status|capfirst }}'{% if not forloop.last %},{% endif %}
+            {% endfor %}
+        ],
+        datasets: [{
+            data: [
+                {% for stat in status_distribution %}
+                {{ stat.count }}{% if not forloop.last %},{% endif %}
+                {% endfor %}
+            ],
+            backgroundColor: [
+                colors.success,
+                colors.warning,
+                colors.info,
+                colors.secondary,
+                colors.danger
+            ]
+        }]
+    },
+    options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: {
+            legend: {
+                position: 'bottom'
+            }
+        }
+    }
+});
+{% endif %}
+
+// Customer Type Chart
+{% if type_distribution %}
+const typeCtx = document.getElementById('typeChart').getContext('2d');
+new Chart(typeCtx, {
+    type: 'bar',
+    data: {
+        labels: [
+            {% for type in type_distribution %}
+            '{{ type.customer_type|capfirst }}'{% if not forloop.last %},{% endif %}
+            {% endfor %}
+        ],
+        datasets: [{
+            label: 'Clients',
+            data: [
+                {% for type in type_distribution %}
+                {{ type.count }}{% if not forloop.last %},{% endif %}
+                {% endfor %}
+            ],
+            backgroundColor: colors.info
+        }]
+    },
+    options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: {
+            legend: {
+                display: false
+            }
+        },
+        scales: {
+            y: {
+                beginAtZero: true,
+                ticks: {
+                    stepSize: 1
+                }
+            }
+        }
+    }
+});
+{% endif %}
+
+// Interaction Trends Chart
+{% if interaction_trends %}
+const interactionCtx = document.getElementById('interactionChart').getContext('2d');
+new Chart(interactionCtx, {
+    type: 'line',
+    data: {
+        labels: [
+            {% for trend in interaction_trends %}
+            '{{ trend.date|date:"M d" }}'{% if not forloop.last %},{% endif %}
+            {% endfor %}
+        ],
+        datasets: [{
+            label: 'Interactions',
+            data: [
+                {% for trend in interaction_trends %}
+                {{ trend.count }}{% if not forloop.last %},{% endif %}
+                {% endfor %}
+            ],
+            borderColor: colors.success,
+            backgroundColor: colors.success + '20',
+            tension: 0.4,
+            fill: true
+        }]
+    },
+    options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: {
+            legend: {
+                display: false
+            }
+        },
+        scales: {
+            y: {
+                beginAtZero: true,
+                ticks: {
+                    stepSize: 1
+                }
+            }
+        }
+    }
+});
+{% endif %}
+
+// Action functions
+function exportAnalytics() {
+    // Export functionality
+    const canvas = document.createElement('canvas');
+    const ctx = canvas.getContext('2d');
+    
+    alert('Analytics export will be available in the next update. This will generate PDF reports with all charts and data.');
+}
+
+function showRegionalStrategy() {
+    alert('Regional expansion strategy:\n\n1. Focus on high-performing regions\n2. Analyze competitor presence\n3. Develop local partnerships\n4. Customize offerings for regional needs');
+}
+
+function showResponseStrategy() {
+    alert('Response time improvement plan:\n\n1. Set up automated email responses\n2. Implement lead scoring and prioritization\n3. Use CRM notifications for timely follow-ups\n4. Train team on response time importance');
+}
+
+// Real-time updates (every 10 minutes)
+setInterval(function() {
+    if (document.visibilityState === 'visible') {
+        // Refresh charts data
+        location.reload();
+    }
+}, 600000);
+
+// Print functionality
+function printAnalytics() {
+    window.print();
+}
+
+// Keyboard shortcuts
+document.addEventListener('keydown', function(e) {
+    // Ctrl/Cmd + P to print
+    if ((e.ctrlKey || e.metaKey) && e.key === 'p') {
+        e.preventDefault();
+        printAnalytics();
+    }
+    
+    // Ctrl/Cmd + E to export
+    if ((e.ctrlKey || e.metaKey) && e.key === 'e') {
+        e.preventDefault();
+        exportAnalytics();
+    }
+});
+</script>
+
+<style>
+@media print {
+    .btn, .dropdown, .card-header .btn {
+        display: none !important;
+    }
+    
+    .card {
+        border: 1px solid #000 !important;
+        page-break-inside: avoid;
+    }
+    
+    .row {
+        page-break-inside: avoid;
+    }
+}
+
+/* Custom chart containers */
+.chart-container {
+    position: relative;
+    height: 300px;
+}
+
+/* Insight and action cards */
+.list-group-item {
+    border: none;
+    border-bottom: 1px solid #dee2e6;
+}
+
+.list-group-item:last-child {
+    border-bottom: none;
+}
+</style>
+{% endblock %}

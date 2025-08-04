@@ -1,0 +1,590 @@
+{% extends "dashboard_base.html" %}
+{% load static %}
+
+{% block page_title %}{{ task.title }}{% endblock %}
+
+{% block page_actions %}
+<div class="btn-group" role="group">
+  <a href="{% url 'crm:task_update' task.id %}" class="btn btn-warning">
+    <i class="bi bi-pencil me-1"></i> Edit Task
+  </a>
+  {% if task.status != 'completed' %}
+  <button class="btn btn-success" onclick="completeTask()">
+    <i class="bi bi-check me-1"></i> Mark Complete
+  </button>
+  {% endif %}
+  <div class="btn-group" role="group">
+    <button class="btn btn-outline-primary dropdown-toggle" type="button" data-bs-toggle="dropdown">
+      <i class="bi bi-three-dots me-1"></i> More Actions
+    </button>
+    <ul class="dropdown-menu">
+      {% if task.client %}
+      <li><a class="dropdown-item" href="{% url 'crm:add_interaction' task.client.id %}"><i class="bi bi-chat-left-text me-1"></i> Log Client Interaction</a></li>
+      {% endif %}
+      {% if task.deal %}
+      <li><a class="dropdown-item" href="{% url 'crm:deal_detail' task.deal.id %}"><i class="bi bi-briefcase me-1"></i> View Related Deal</a></li>
+      {% endif %}
+      <li><hr class="dropdown-divider"></li>
+      <li><a class="dropdown-item" href="#" onclick="duplicateTask()"><i class="bi bi-files me-1"></i> Duplicate Task</a></li>
+      <li><a class="dropdown-item" href="#" onclick="createFollowupTask()"><i class="bi bi-calendar-plus me-1"></i> Create Follow-up Task</a></li>
+      <li><hr class="dropdown-divider"></li>
+      {% if is_admin %}
+      <li><a class="dropdown-item text-danger" href="{% url 'crm:task_delete' task.id %}"><i class="bi bi-trash me-1"></i> Delete Task</a></li>
+      {% endif %}
+    </ul>
+  </div>
+  <a href="{% url 'crm:task_list' %}" class="btn btn-outline-secondary">
+    <i class="bi bi-arrow-left me-1"></i> Back to Tasks
+  </a>
+</div>
+{% endblock %}
+
+{% block dashboard_content %}
+<!-- Task Header -->
+<div class="row mb-4">
+  <div class="col-md-8">
+    <div class="d-flex align-items-center">
+      <div class="flex-shrink-0 me-3">
+        {% if task.priority == 'urgent' %}
+        <div class="bg-danger rounded-circle d-flex align-items-center justify-content-center" style="width: 60px; height: 60px;">
+          <i class="bi bi-exclamation-triangle-fill text-white fs-3"></i>
+        </div>
+        {% elif task.priority == 'high' %}
+        <div class="bg-warning rounded-circle d-flex align-items-center justify-content-center" style="width: 60px; height: 60px;">
+          <i class="bi bi-exclamation-circle-fill text-white fs-3"></i>
+        </div>
+        {% else %}
+        <div class="bg-primary rounded-circle d-flex align-items-center justify-content-center" style="width: 60px; height: 60px;">
+          <i class="bi bi-list-task text-white fs-3"></i>
+        </div>
+        {% endif %}
+      </div>
+      <div>
+        <h2 class="mb-1">{{ task.title }}</h2>
+        {% if task.client %}
+        <p class="text-muted mb-1 fs-5">
+          For: <a href="{% url 'crm:client_detail' task.client.id %}" class="text-decoration-none">
+            {{ task.client.name }}
+          </a>
+          {% if task.client.company %} ({{ task.client.company }}){% endif %}
+        </p>
+        {% endif %}
+        {% if task.deal %}
+        <p class="text-muted mb-1">
+          Related Deal: <a href="{% url 'crm:deal_detail' task.deal.id %}" class="text-decoration-none">
+            {{ task.deal.title }}
+          </a>
+        </p>
+        {% endif %}
+        <div class="d-flex align-items-center gap-3">
+          <span class="badge bg-{% if task.status == 'completed' %}success{% elif task.status == 'in_progress' %}primary{% elif task.status == 'cancelled' %}danger{% else %}secondary{% endif %} fs-6">
+            {{ task.get_status_display }}
+          </span>
+          <span class="badge bg-{% if task.priority == 'urgent' %}danger{% elif task.priority == 'high' %}warning{% elif task.priority == 'medium' %}info{% else %}secondary{% endif %}">
+            {{ task.get_priority_display }}
+          </span>
+          {% if task.due_date %}
+          <span class="text-muted">
+            <i class="bi bi-calendar me-1"></i>
+            Due: {{ task.due_date|date:"M d, Y H:i" }}
+          </span>
+          {% endif %}
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="col-md-4 text-md-end">
+    <div class="text-muted small">
+      <div>Created: {{ task.created_at|date:"M d, Y H:i" }}</div>
+      {% if task.created_by %}
+      <div>By: {{ task.created_by.get_full_name|default:task.created_by.username }}</div>
+      {% endif %}
+      {% if task.completed_at %}
+      <div class="mt-2 text-success">
+        <strong>Completed: {{ task.completed_at|date:"M d, Y H:i" }}</strong>
+      </div>
+      {% elif task.is_overdue %}
+      <div class="mt-2 text-danger">
+        <strong><i class="bi bi-exclamation-triangle me-1"></i>Overdue by {{ task.due_date|timesince }}</strong>
+      </div>
+      {% elif task.due_date %}
+      <div class="mt-2">
+        <strong>Due in {{ task.due_date|timeuntil }}</strong>
+      </div>
+      {% endif %}
+    </div>
+  </div>
+</div>
+
+<!-- Task Progress Indicator -->
+{% if task.due_date and task.status != 'completed' %}
+<div class="row mb-4">
+  <div class="col-12">
+    <div class="card">
+      <div class="card-body">
+        <div class="d-flex justify-content-between align-items-center mb-2">
+          <span class="small text-muted">Task Progress</span>
+          <span class="small">{{ task.get_status_display }}</span>
+        </div>
+        <div class="progress" style="height: 8px;">
+          {% if task.status == 'pending' %}
+          <div class="progress-bar bg-secondary" style="width: 25%"></div>
+          {% elif task.status == 'in_progress' %}
+          <div class="progress-bar bg-primary" style="width: 75%"></div>
+          {% elif task.status == 'completed' %}
+          <div class="progress-bar bg-success" style="width: 100%"></div>
+          {% elif task.status == 'cancelled' %}
+          <div class="progress-bar bg-danger" style="width: 100%"></div>
+          {% endif %}
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+{% endif %}
+
+<!-- Task Metrics Row -->
+<div class="row mb-4">
+  <div class="col-md-3 mb-3">
+    <div class="card text-center h-100">
+      <div class="card-body">
+        <i class="bi bi-calendar-event text-info fs-1 mb-2"></i>
+        <h5 class="card-title">{{ task_age }}</h5>
+        <p class="card-text text-muted small">Days Since Created</p>
+      </div>
+    </div>
+  </div>
+  
+  <div class="col-md-3 mb-3">
+    <div class="card text-center h-100">
+      <div class="card-body">
+        <i class="bi bi-{% if task.is_overdue %}exclamation-triangle text-danger{% elif time_until_due %}clock text-warning{% else %}check-circle text-success{% endif %} fs-1 mb-2"></i>
+        <h5 class="card-title">
+          {% if task.completed_at %}
+          Completed
+          {% elif task.is_overdue %}
+          Overdue
+          {% elif time_until_due is not None %}
+          {{ time_until_due|default:"0" }} days
+          {% else %}
+          No deadline
+          {% endif %}
+        </h5>
+        <p class="card-text text-muted small">
+          {% if task.completed_at %}
+          Task finished
+          {% elif task.is_overdue %}
+          Past due date
+          {% elif time_until_due is not None %}
+          Until due
+          {% else %}
+          No due date set
+          {% endif %}
+        </p>
+      </div>
+    </div>
+  </div>
+  
+  <div class="col-md-3 mb-3">
+    <div class="card text-center h-100">
+      <div class="card-body">
+        <i class="bi bi-person text-primary fs-1 mb-2"></i>
+        <h5 class="card-title">{{ task.assigned_to.get_full_name|default:task.assigned_to.username }}</h5>
+        <p class="card-text text-muted small">Assigned To</p>
+      </div>
+    </div>
+  </div>
+  
+  <div class="col-md-3 mb-3">
+    <div class="card text-center h-100">
+      <div class="card-body">
+        <i class="bi bi-list-ul text-secondary fs-1 mb-2"></i>
+        <h5 class="card-title">{{ related_tasks|length }}</h5>
+        <p class="card-text text-muted small">Related Tasks</p>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Main Content Tabs -->
+<div class="card">
+  <div class="card-header">
+    <ul class="nav nav-tabs card-header-tabs" id="taskTabs" role="tablist">
+      <li class="nav-item" role="presentation">
+        <button class="nav-link active" id="details-tab" data-bs-toggle="tab" data-bs-target="#details" type="button" role="tab">
+          <i class="bi bi-info-circle me-1"></i> Task Details
+        </button>
+      </li>
+      <li class="nav-item" role="presentation">
+        <button class="nav-link" id="related-tab" data-bs-toggle="tab" data-bs-target="#related" type="button" role="tab">
+          <i class="bi bi-link me-1"></i> Related Information
+          {% if related_tasks|length or client_interactions|length %}
+          <span class="badge bg-secondary rounded-pill ms-1">{{ related_tasks|length|add:client_interactions|length }}</span>
+          {% endif %}
+        </button>
+      </li>
+      <li class="nav-item" role="presentation">
+        <button class="nav-link" id="activity-tab" data-bs-toggle="tab" data-bs-target="#activity" type="button" role="tab">
+          <i class="bi bi-clock-history me-1"></i> Activity History
+        </button>
+      </li>
+    </ul>
+  </div>
+  
+  <div class="card-body">
+    <div class="tab-content" id="taskTabsContent">
+      <!-- Task Details Tab -->
+      <div class="tab-pane fade show active" id="details" role="tabpanel">
+        <div class="row">
+          <!-- Task Information -->
+          <div class="col-lg-6 mb-4">
+            <h5 class="mb-3">Task Information</h5>
+            <table class="table table-borderless">
+              <tr>
+                <td class="text-muted" style="width: 30%;"><i class="bi bi-card-text me-2"></i>Title:</td>
+                <td><strong>{{ task.title }}</strong></td>
+              </tr>
+              <tr>
+                <td class="text-muted"><i class="bi bi-diagram-3 me-2"></i>Status:</td>
+                <td>
+                  <span class="badge bg-{% if task.status == 'completed' %}success{% elif task.status == 'in_progress' %}primary{% elif task.status == 'cancelled' %}danger{% else %}secondary{% endif %}">
+                    {{ task.get_status_display }}
+                  </span>
+                </td>
+              </tr>
+              <tr>
+                <td class="text-muted"><i class="bi bi-exclamation-circle me-2"></i>Priority:</td>
+                <td>
+                  <span class="badge bg-{% if task.priority == 'urgent' %}danger{% elif task.priority == 'high' %}warning{% elif task.priority == 'medium' %}info{% else %}secondary{% endif %}">
+                    {{ task.get_priority_display }}
+                  </span>
+                </td>
+              </tr>
+              {% if task.due_date %}
+              <tr>
+                <td class="text-muted"><i class="bi bi-calendar-event me-2"></i>Due Date:</td>
+                <td class="{% if task.is_overdue %}text-danger fw-bold{% endif %}">
+                  {{ task.due_date|date:"M d, Y H:i" }}
+                  {% if task.is_overdue %}
+                  <br><small class="text-danger">
+                    <i class="bi bi-exclamation-triangle me-1"></i>Overdue by {{ task.due_date|timesince }}
+                  </small>
+                  {% endif %}
+                </td>
+              </tr>
+              {% endif %}
+              {% if task.completed_at %}
+              <tr>
+                <td class="text-muted"><i class="bi bi-check-circle me-2"></i>Completed:</td>
+                <td class="text-success"><strong>{{ task.completed_at|date:"M d, Y H:i" }}</strong></td>
+              </tr>
+              {% endif %}
+            </table>
+          </div>
+          
+          <!-- Assignment and Context -->
+          <div class="col-lg-6 mb-4">
+            <h5 class="mb-3">Assignment & Context</h5>
+            <table class="table table-borderless">
+              <tr>
+                <td class="text-muted" style="width: 30%;">Assigned To:</td>
+                <td>{{ task.assigned_to.get_full_name|default:task.assigned_to.username }}</td>
+              </tr>
+              <tr>
+                <td class="text-muted">Created By:</td>
+                <td>{{ task.created_by.get_full_name|default:task.created_by.username }}</td>
+              </tr>
+              {% if task.client %}
+              <tr>
+                <td class="text-muted">Client:</td>
+                <td>
+                  <a href="{% url 'crm:client_detail' task.client.id %}" class="text-decoration-none">
+                    {{ task.client.name }}
+                  </a>
+                  {% if task.client.company %}
+                  <br><small class="text-muted">{{ task.client.company }}</small>
+                  {% endif %}
+                </td>
+              </tr>
+              {% endif %}
+              {% if task.deal %}
+              <tr>
+                <td class="text-muted">Related Deal:</td>
+                <td>
+                  <a href="{% url 'crm:deal_detail' task.deal.id %}" class="text-decoration-none">
+                    {{ task.deal.title }}
+                  </a>
+                  <br><small class="text-muted">${{ task.deal.value|floatformat:0 }} - {{ task.deal.get_stage_display }}</small>
+                </td>
+              </tr>
+              {% endif %}
+              <tr>
+                <td class="text-muted">Created:</td>
+                <td>{{ task.created_at|date:"M d, Y H:i" }}</td>
+              </tr>
+              <tr>
+                <td class="text-muted">Last Updated:</td>
+                <td>{{ task.updated_at|date:"M d, Y H:i" }}</td>
+              </tr>
+            </table>
+          </div>
+        </div>
+        
+        <!-- Description -->
+        {% if task.description %}
+        <div class="row">
+          <div class="col-12 mb-4">
+            <h5 class="mb-3">Description</h5>
+            <div class="bg-light p-3 rounded">
+              {{ task.description|linebreaks }}
+            </div>
+          </div>
+        </div>
+        {% endif %}
+      </div>
+      
+      <!-- Related Information Tab -->
+      <div class="tab-pane fade" id="related" role="tabpanel">
+        <div class="row">
+          <!-- Related Tasks -->
+          <div class="col-lg-6 mb-4">
+            <div class="d-flex justify-content-between align-items-center mb-3">
+              <h5 class="mb-0">Related Tasks</h5>
+              {% if task.client %}
+              <a href="{% url 'crm:task_create' %}?client_id={{ task.client.id }}" class="btn btn-sm btn-primary">
+                <i class="bi bi-plus me-1"></i> Add Task
+              </a>
+              {% endif %}
+            </div>
+            
+            {% if related_tasks %}
+            <div class="list-group">
+              {% for related_task in related_tasks %}
+              <div class="list-group-item">
+                <div class="d-flex w-100 justify-content-between">
+                  <h6 class="mb-1">
+                    <a href="{% url 'crm:task_detail' related_task.id %}" class="text-decoration-none">
+                      {{ related_task.title }}
+                    </a>
+                  </h6>
+                  <small>{{ related_task.created_at|date:"M d" }}</small>
+                </div>
+                <p class="mb-1">{{ related_task.description|truncatewords:15 }}</p>
+                <div class="d-flex justify-content-between align-items-center">
+                  <div>
+                    <span class="badge bg-{% if related_task.status == 'completed' %}success{% elif related_task.status == 'in_progress' %}primary{% elif related_task.status == 'cancelled' %}danger{% else %}secondary{% endif %}">
+                      {{ related_task.get_status_display }}
+                    </span>
+                    <span class="badge bg-{% if related_task.priority == 'urgent' %}danger{% elif related_task.priority == 'high' %}warning{% else %}secondary{% endif %}">
+                      {{ related_task.get_priority_display }}
+                    </span>
+                  </div>
+                  {% if related_task.due_date %}
+                  <small class="text-muted">Due: {{ related_task.due_date|date:"M d" }}</small>
+                  {% endif %}
+                </div>
+              </div>
+              {% endfor %}
+            </div>
+            {% else %}
+            <div class="text-center py-4 text-muted">
+              <i class="bi bi-list-task fs-3 mb-3"></i>
+              <p>No other related tasks</p>
+            </div>
+            {% endif %}
+          </div>
+          
+          <!-- Recent Client Interactions -->
+          <div class="col-lg-6 mb-4">
+            <div class="d-flex justify-content-between align-items-center mb-3">
+              <h5 class="mb-0">Recent Client Activity</h5>
+              {% if task.client %}
+              <a href="{% url 'crm:add_interaction' task.client.id %}" class="btn btn-sm btn-success">
+                <i class="bi bi-plus me-1"></i> Log Interaction
+              </a>
+              {% endif %}
+            </div>
+            
+            {% if client_interactions %}
+            <div class="timeline">
+              {% for interaction in client_interactions %}
+              <div class="timeline-item mb-3">
+                <div class="d-flex">
+                  <div class="flex-shrink-0 me-3">
+                    <div class="timeline-marker bg-{% if interaction.outcome == 'positive' %}success{% elif interaction.outcome == 'negative' %}danger{% else %}secondary{% endif %}">
+                      <i class="bi bi-{% if interaction.interaction_type == 'call' %}telephone{% elif interaction.interaction_type == 'email' %}envelope{% elif interaction.interaction_type == 'meeting' %}people{% else %}chat-left-text{% endif %} text-white small"></i>
+                    </div>
+                  </div>
+                  <div class="flex-grow-1">
+                    <div class="card card-body">
+                      <div class="d-flex justify-content-between align-items-start mb-1">
+                        <h6 class="mb-0">{{ interaction.get_interaction_type_display }}</h6>
+                        <small class="text-muted">{{ interaction.created_at|date:"M d" }}</small>
+                      </div>
+                      <p class="mb-1">{{ interaction.notes|truncatewords:20 }}</p>
+                      <small class="text-muted">by {{ interaction.created_by.get_full_name|default:interaction.created_by.username }}</small>
+                    </div>
+                  </div>
+                </div>
+              </div>
+              {% endfor %}
+            </div>
+            {% else %}
+            <div class="text-center py-4 text-muted">
+              <i class="bi bi-chat-left-text fs-3 mb-3"></i>
+              <p>No recent client interactions</p>
+              {% if task.client %}
+              <a href="{% url 'crm:add_interaction' task.client.id %}" class="btn btn-sm btn-primary">
+                <i class="bi bi-plus me-1"></i> Log First Interaction
+              </a>
+              {% endif %}
+            </div>
+            {% endif %}
+          </div>
+        </div>
+      </div>
+      
+      <!-- Activity History Tab -->
+      <div class="tab-pane fade" id="activity" role="tabpanel">
+        <div class="timeline">
+          <div class="timeline-item mb-3">
+            <div class="d-flex">
+              <div class="flex-shrink-0 me-3">
+                <div class="timeline-marker bg-primary">
+                  <i class="bi bi-plus-circle text-white"></i>
+                </div>
+              </div>
+              <div class="flex-grow-1">
+                <div class="card card-body">
+                  <h6 class="mb-1">Task Created</h6>
+                  <p class="mb-1">Task was created by {{ task.created_by.get_full_name|default:task.created_by.username }}</p>
+                  <small class="text-muted">{{ task.created_at|date:"M d, Y H:i" }}</small>
+                </div>
+              </div>
+            </div>
+          </div>
+          
+          {% if task.completed_at %}
+          <div class="timeline-item mb-3">
+            <div class="d-flex">
+              <div class="flex-shrink-0 me-3">
+                <div class="timeline-marker bg-success">
+                  <i class="bi bi-check-circle text-white"></i>
+                </div>
+              </div>
+              <div class="flex-grow-1">
+                <div class="card card-body">
+                  <h6 class="mb-1">Task Completed</h6>
+                  <p class="mb-1">Task was marked as completed</p>
+                  <small class="text-muted">{{ task.completed_at|date:"M d, Y H:i" }}</small>
+                </div>
+              </div>
+            </div>
+          </div>
+          {% endif %}
+          
+          {% if task.updated_at != task.created_at %}
+          <div class="timeline-item mb-3">
+            <div class="d-flex">
+              <div class="flex-shrink-0 me-3">
+                <div class="timeline-marker bg-warning">
+                  <i class="bi bi-pencil text-white"></i>
+                </div>
+              </div>
+              <div class="flex-grow-1">
+                <div class="card card-body">
+                  <h6 class="mb-1">Task Updated</h6>
+                  <p class="mb-1">Task details were modified</p>
+                  <small class="text-muted">{{ task.updated_at|date:"M d, Y H:i" }}</small>
+                </div>
+              </div>
+            </div>
+          </div>
+          {% endif %}
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+// Complete task function
+function completeTask() {
+    if (confirm('Mark this task as complete?')) {
+        fetch(`/crm/tasks/{{ task.id }}/complete/`, {
+            method: 'POST',
+            headers: {
+                'X-Requested-With': 'XMLHttpRequest',
+                'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value
+            }
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                location.reload();
+            } else {
+                alert('Error completing task. Please try again.');
+            }
+        })
+        .catch(error => {
+            console.error('Error:', error);
+            alert('Error completing task. Please try again.');
+        });
+    }
+}
+
+// Duplicate task
+function duplicateTask() {
+    window.location.href = `/crm/tasks/create/?duplicate={{ task.id }}`;
+}
+
+// Create follow-up task
+function createFollowupTask() {
+    const url = new URL('/crm/tasks/create/', window.location.origin);
+    url.searchParams.set('title', `Follow-up: {{ task.title|escapejs }}`);
+    {% if task.client %}
+    url.searchParams.set('client_id', '{{ task.client.id }}');
+    {% endif %}
+    {% if task.deal %}
+    url.searchParams.set('deal_id', '{{ task.deal.id }}');
+    {% endif %}
+    window.location.href = url.toString();
+}
+
+// Auto-refresh task status every 5 minutes
+setInterval(function() {
+    if (document.visibilityState === 'visible' && '{{ task.status }}' !== 'completed') {
+        // Could implement partial refresh of task status
+        // location.reload();
+    }
+}, 300000);
+</script>
+
+<style>
+.timeline-marker {
+    width: 24px;
+    height: 24px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.timeline-item:not(:last-child)::before {
+    content: '';
+    position: absolute;
+    left: 11px;
+    top: 24px;
+    width: 2px;
+    height: calc(100% - 24px);
+    background-color: #dee2e6;
+    z-index: -1;
+}
+
+.timeline {
+    position: relative;
+}
+</style>
+{% endblock %}

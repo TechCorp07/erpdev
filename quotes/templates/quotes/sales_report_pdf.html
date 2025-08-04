@@ -1,0 +1,43 @@
+{% extends "pdf_base.html" %}
+
+{% block title %}Sales Report{% endblock %}
+
+{% block body %}
+<h2>Sales Report</h2>
+<p>Period: {{ request.GET.start_date|default:"N/A" }} – {{ request.GET.end_date|default:"N/A" }}</p>
+
+<table>
+  <tr><th>Total Quotes</th><td>{{ total_quotes }}</td></tr>
+  <tr><th>Total Sales</th><td>${{ total_sales|floatformat:2 }}</td></tr>
+  <tr><th>Average Deal Size</th><td>${{ avg_sale|floatformat:2 }}</td></tr>
+</table>
+
+<h3>Monthly Sales Trend</h3>
+<ul>
+  {% for label, value in monthly_pairs %}
+    <li>{{ label }} – ${{ value|floatformat:2 }}</li>
+  {% empty %}
+    <li>No data</li>
+  {% endfor %}
+</ul>
+
+<h3>Quote List</h3>
+<table>
+  <thead>
+    <tr><th>#</th><th>Client</th><th>Status</th><th>Total</th><th>Date</th></tr>
+  </thead>
+  <tbody>
+    {% for q in quotes %}
+      <tr>
+        <td>{{ q.quote_number }}</td>
+        <td>{{ q.client.name }}</td>
+        <td>{{ q.get_status_display }}</td>
+        <td>${{ q.total_amount|floatformat:2 }}</td>
+        <td>{{ q.created_at|date:"Y-m-d" }}</td>
+      </tr>
+    {% empty %}
+      <tr><td colspan="5" align="center">No quotes in this period.</td></tr>
+    {% endfor %}
+  </tbody>
+</table>
+{% endblock %}

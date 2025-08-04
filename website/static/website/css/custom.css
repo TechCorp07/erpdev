@@ -1,0 +1,620 @@
+/* 
+ * Custom styles for BlitzTech Electronics website
+ */
+
+/* Global styles */
+body {
+  font-family: 'Roboto', sans-serif;
+  background-color: #FFFFFF;
+  color: #000000;
+}
+
+.text-primary {
+  color: #0d6efd !important;
+}
+
+.bg-primary {
+  background-color: #0d6efd !important;
+}
+
+.btn-primary {
+  background-color: #0d6efd;
+  border-color: #0d6efd;
+}
+
+.btn-primary:hover {
+  background-color: #0b5ed7;
+  border-color: #0a58ca;
+}
+
+.btn-outline-primary {
+  color: #0d6efd;
+  border-color: #0d6efd;
+}
+
+.btn-outline-primary:hover {
+  background-color: #0d6efd;
+  border-color: #0d6efd;
+  color: white;
+}
+
+/* Navigation */
+.navbar {
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+}
+
+.navbar-brand {
+  font-weight: 700;
+  font-size: 1.5rem;
+}
+
+.navbar .nav-link {
+  font-weight: 500;
+}
+
+.navbar .nav-link.active {
+  color: #0d6efd !important;
+}
+
+/* Hero section */
+.hero-section {
+  padding-top: 5rem;
+  padding-bottom: 5rem;
+  background-color: #f8f9fa;
+}
+
+/* Cards */
+.card {
+  transition: all 0.3s ease;
+  border: none;
+  box-shadow: 0 5px 15px rgba(0, 0, 0, 0.05);
+}
+
+.card:hover {
+  transform: translateY(-5px);
+  box-shadow: 0 10px 20px rgba(0, 0, 0, 0.1);
+}
+
+.card-title {
+  font-weight: 600;
+}
+
+/* Footer */
+footer {
+  background-color: #f8f9fa;
+  padding-top: 3rem;
+  padding-bottom: 2rem;
+  margin-top: 5rem;
+}
+
+footer h5 {
+  font-weight: 600;
+  margin-bottom: 1.5rem;
+}
+
+footer a {
+  text-decoration: none;
+  color: #6c757d;
+  transition: color 0.3s ease;
+}
+
+footer a:hover {
+  color: #0d6efd;
+}
+
+/* Blog */
+.blog-post {
+  margin-bottom: 3rem;
+}
+
+.blog-meta {
+  font-size: 0.9rem;
+  color: #6c757d;
+  margin-bottom: 1rem;
+}
+
+/* Portfolio */
+.portfolio-item {
+  margin-bottom: 2rem;
+  overflow: hidden;
+  border-radius: 0.5rem;
+}
+
+.portfolio-item img {
+  transition: transform 0.5s ease;
+}
+
+.portfolio-item:hover img {
+  transform: scale(1.05);
+}
+
+.portfolio-overlay {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background-color: rgba(13, 110, 253, 0.7);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  opacity: 0;
+  transition: opacity 0.3s ease;
+}
+
+.portfolio-item:hover .portfolio-overlay {
+  opacity: 1;
+}
+
+/* Services */
+.service-icon {
+  font-size: 3rem;
+  margin-bottom: 1.5rem;
+  color: #0d6efd;
+}
+
+.service-card {
+  height: 100%;
+  padding: 2rem;
+  text-align: center;
+}
+
+/* Testimonials */
+.testimonial-card {
+  padding: 2rem;
+  background-color: #fff;
+  border-radius: 0.5rem;
+  box-shadow: 0 5px 15px rgba(0, 0, 0, 0.05);
+  margin-bottom: 2rem;
+}
+
+.testimonial-author {
+  display: flex;
+  align-items: center;
+  margin-top: 1.5rem;
+}
+
+.testimonial-author img {
+  width: 50px;
+  height: 50px;
+  border-radius: 50%;
+  object-fit: cover;
+  margin-right: 1rem;
+}
+
+.testimonial-rating {
+  color: #ffc107;
+  margin-bottom: 1rem;
+}
+
+/* Contact */
+.contact-info {
+  padding: 2rem;
+  background-color: #f8f9fa;
+  border-radius: 0.5rem;
+  margin-bottom: 2rem;
+}
+
+.contact-info i {
+  font-size: 1.5rem;
+  color: #0d6efd;
+  margin-right: 1rem;
+}
+
+.contact-form button {
+  width: 100%;
+  padding: 0.75rem;
+}
+
+/* FAQ */
+.accordion-button:not(.collapsed) {
+  background-color: rgba(13, 110, 253, 0.1);
+  color: #0d6efd;
+}
+
+.accordion-button:focus {
+  box-shadow: 0 0 0 0.25rem rgba(13, 110, 253, 0.25);
+}
+
+/* Animation classes */
+.fade-in {
+  animation: fadeIn 1s ease;
+}
+
+.slide-up {
+  animation: slideUp 0.5s ease;
+}
+
+.zoom-in {
+  animation: zoomIn 0.5s ease;
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes slideUp {
+  from { transform: translateY(50px); opacity: 0; }
+  to { transform: translateY(0); opacity: 1; }
+}
+
+@keyframes zoomIn {
+  from { transform: scale(0.9); opacity: 0; }
+  to { transform: scale(1); opacity: 1; }
+}
+
+/* Responsive adjustments */
+@media (max-width: 768px) {
+  .navbar-brand {
+    font-size: 1.3rem;
+  }
+  
+  .hero-section {
+    padding-top: 3rem;
+    padding-bottom: 3rem;
+  }
+  
+  .card {
+    margin-bottom: 1.5rem;
+  }
+  
+  .service-icon {
+    font-size: 2.5rem;
+  }
+}
+
+/* Utility classes */
+.shadow-sm {
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05) !important;
+}
+
+.shadow-md {
+  box-shadow: 0 5px 15px rgba(0, 0, 0, 0.07) !important;
+}
+
+.shadow-lg {
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.1) !important;
+}
+
+.rounded-xl {
+  border-radius: 1rem !important;
+}
+
+.bg-light-primary {
+  background-color: rgba(13, 110, 253, 0.1) !important;
+}
+
+.text-gradient {
+  background: linear-gradient(45deg, #0d6efd, #6610f2);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+/* Login/register forms */
+.auth-card {
+  max-width: 400px;
+  margin: 2rem auto;
+  padding: 2rem;
+  border-radius: 0.5rem;
+}
+
+.social-login {
+  margin-top: 1.5rem;
+  text-align: center;
+}
+
+.social-login-btn {
+  padding: 0.5rem 1rem;
+  border-radius: 50px;
+  width: 100%;
+  margin-bottom: 0.75rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.social-login-btn i {
+  margin-right: 0.5rem;
+}
+
+.facebook-btn {
+  background-color: #3b5998;
+  color: white;
+}
+
+.google-btn {
+  background-color: #db4437;
+  color: white;
+}
+
+.auth-divider {
+  display: flex;
+  align-items: center;
+  margin: 1.5rem 0;
+}
+
+.auth-divider::before,
+.auth-divider::after {
+  content: "";
+  flex: 1;
+  border-bottom: 1px solid #dee2e6;
+}
+
+.auth-divider span {
+  padding: 0 10px;
+  color: #6c757d;
+}
+
+/* BlitzTech specific styles */
+.blitz-gradient-bg {
+  background: linear-gradient(135deg, #0d6efd 0%, #6610f2 100%);
+  color: white;
+}
+
+.blitz-icon-box {
+  display: flex;
+  align-items: flex-start;
+  margin-bottom: 2rem;
+}
+
+.blitz-icon-box i {
+  font-size: 2rem;
+  color: #0d6efd;
+  margin-right: 1rem;
+  flex-shrink: 0;
+}
+
+.blitz-callout {
+  border-left: 4px solid #0d6efd;
+  padding-left: 1.5rem;
+  margin: 2rem 0;
+}
+
+.blitz-feature-box {
+  text-align: center;
+  padding: 2rem;
+  border-radius: 0.5rem;
+  background-color: white;
+  box-shadow: 0 5px 15px rgba(0, 0, 0, 0.05);
+  margin-bottom: 2rem;
+  transition: all 0.3s ease;
+}
+
+.blitz-feature-box:hover {
+  transform: translateY(-10px);
+  box-shadow: 0 15px 30px rgba(0, 0, 0, 0.1);
+}
+
+.blitz-feature-box i {
+  font-size: 3rem;
+  color: #0d6efd;
+  margin-bottom: 1.5rem;
+}
+
+/* Component-specific styles */
+.category-card {
+  transition: all 0.3s ease;
+  border-radius: 10px;
+  overflow: hidden;
+  margin-bottom: 30px;
+  text-align: center;
+  padding: 30px 20px;
+}
+
+.category-card:hover {
+  transform: translateY(-10px);
+  box-shadow: 0 15px 30px rgba(0,0,0,0.1);
+}
+
+.category-icon {
+  font-size: 3rem;
+  color: #0d6efd;
+  margin-bottom: 20px;
+}
+
+/* About page specific styles */
+.value-item {
+  transition: all 0.3s ease;
+  border-radius: 10px;
+  padding: 20px;
+  margin-bottom: 20px;
+}
+
+.value-item:hover {
+  transform: translateY(-5px);
+  box-shadow: 0 10px 20px rgba(0,0,0,0.1);
+}
+
+.value-icon {
+  font-size: 2.5rem;
+  margin-bottom: 15px;
+  color: #0d6efd;
+}
+
+.team-member {
+  transition: all 0.3s ease;
+}
+
+.team-member:hover {
+  transform: translateY(-5px);
+}
+
+.team-member img {
+  transition: all 0.3s ease;
+}
+
+.team-member:hover img {
+  box-shadow: 0 10px 20px rgba(0,0,0,0.1);
+}
+
+/* Portfolio page specific styles */
+.portfolio-image {
+  height: 250px;
+  object-fit: cover;
+  width: 100%;
+}
+
+.portfolio-filter {
+  margin-bottom: 2rem;
+}
+
+.portfolio-filter .btn {
+  margin-right: 0.5rem;
+  margin-bottom: 0.5rem;
+}
+
+/* FAQ page specific styles */
+.faq-header {
+  background-color: #f8f9fa;
+  padding: 60px 0;
+  margin-bottom: 50px;
+}
+
+/* Services page specific styles */
+.service-section {
+  padding: 80px 0;
+}
+
+.service-section:nth-child(even) {
+  background-color: #f8f9fa;
+}
+
+/* Home page specific styles */
+.counter-section {
+  background-color: #f8f9fa;
+  padding: 60px 0;
+}
+
+.counter-item {
+  text-align: center;
+}
+
+.counter-value {
+  font-size: 3rem;
+  font-weight: 700;
+  color: #0d6efd;
+  margin-bottom: 10px;
+}
+
+.counter-label {
+  font-size: 1.1rem;
+  color: #6c757d;
+}
+
+.testimonial-section {
+  background-color: #f8f9fa;
+  padding: 80px 0;
+}
+
+/* Blog page specific styles */
+.blog-content img {
+  max-width: 100%;
+  height: auto;
+  margin: 20px 0;
+}
+
+.blog-content h2, .blog-content h3 {
+  margin-top: 30px;
+  margin-bottom: 15px;
+}
+
+.blog-content p {
+  margin-bottom: 20px;
+}
+
+.blog-content blockquote {
+  border-left: 4px solid #dee2e6;
+  padding-left: 20px;
+  font-style: italic;
+  margin: 20px 0;
+}
+
+.social-share a {
+  display: inline-block;
+  margin-right: 10px;
+  width: 40px;
+  height: 40px;
+  line-height: 40px;
+  text-align: center;
+  border-radius: 50%;
+  color: white;
+}
+
+.facebook {
+  background-color: #3b5998;
+}
+
+.twitter {
+  background-color: #1da1f2;
+}
+
+.linkedin {
+  background-color: #0077b5;
+}
+
+/* Animation for scroll elements */
+.animate-on-scroll {
+  opacity: 0;
+  transform: translateY(30px);
+  transition: opacity 0.6s ease, transform 0.6s ease;
+}
+
+.animated {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+/* Back to top button */
+#backToTopBtn {
+  display: none;
+  position: fixed;
+  bottom: 20px;
+  right: 20px;
+  z-index: 99;
+  width: 40px;
+  height: 40px;
+  text-align: center;
+  line-height: 40px;
+  border-radius: 50%;
+  cursor: pointer;
+}
+
+/* Offcanvas styles */
+.offcanvas-body form {
+  margin-bottom: 1.5rem;
+}
+
+/* Search box styles */
+.search-box {
+  position: relative;
+}
+
+.search-results {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  right: 0;
+  z-index: 1000;
+  display: none;
+  max-height: 400px;
+  overflow-y: auto;
+  box-shadow: 0 5px 15px rgba(0,0,0,0.1);
+  border-radius: 0 0 0.5rem 0.5rem;
+  background-color: white;
+}
+
+.form-section::before {
+  background: linear-gradient(135deg, #5AC1E6, #2176A4);
+}
+
+.btn-primary {
+  background-color: #5AC1E6;
+  border-color: #2176A4;
+  color: #fff;
+}
+
+.heading {
+  color: #2176A4;
+}

@@ -1,0 +1,212 @@
+<!-- templates/website/categories/category_form.html -->
+{% extends "website_base.html" %}
+{% load crispy_forms_tags %}
+
+{% block title %}{{ title }} - BlitzTech Electronics{% endblock %}
+
+{% block extra_css %}
+<style>
+/* Custom styles for form */
+.form-help-text {
+    font-size: 0.875rem;
+    color: #6c757d;
+}
+.slug-preview {
+    background-color: #f8f9fa;
+    border: 1px solid #dee2e6;
+    border-radius: 0.375rem;
+    padding: 0.5rem;
+    font-family: 'Courier New', monospace;
+    font-size: 0.875rem;
+}
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container py-4">
+  <div class="row justify-content-center">
+    <div class="col-lg-8">
+      <!-- Form Header -->
+      <div class="d-flex align-items-center mb-4">
+        <a href="{% url 'website:manage_categories' %}" class="btn btn-outline-secondary me-3">
+          <i class="bi bi-arrow-left"></i>
+        </a>
+        <div>
+          <h2 class="mb-0">
+            <i class="bi bi-tags me-2 text-primary"></i>{{ title }}
+          </h2>
+          <p class="text-muted mb-0">Categories help organize your content for better navigation</p>
+        </div>
+      </div>
+
+      <!-- Main Form Card -->
+      <div class="card shadow-sm">
+        <div class="card-header bg-light">
+          <h5 class="mb-0">
+            <i class="bi bi-info-circle me-2"></i>Category Information
+          </h5>
+        </div>
+        <div class="card-body">
+          <form method="post" class="needs-validation" novalidate>
+            {% csrf_token %}
+            
+            <!-- Category Name Field -->
+            <div class="mb-4">
+              <label for="{{ form.name.id_for_label }}" class="form-label fw-bold">
+                Category Name <span class="text-danger">*</span>
+              </label>
+              {{ form.name }}
+              <div class="form-text">
+                Choose a clear, descriptive name for your category (e.g., "Electronics", "Software Development", "Case Studies")
+              </div>
+              {% if form.name.errors %}
+                <div class="invalid-feedback d-block">
+                  {% for error in form.name.errors %}
+                    {{ error }}
+                  {% endfor %}
+                </div>
+              {% endif %}
+            </div>
+
+            <!-- URL Slug Field -->
+            <div class="mb-4">
+              <label for="{{ form.slug.id_for_label }}" class="form-label fw-bold">
+                URL Slug
+              </label>
+              {{ form.slug }}
+              <div class="form-text">
+                {{ form.slug.help_text }}
+              </div>
+              
+              <!-- URL Preview -->
+              <div class="mt-2">
+                <small class="text-muted">URL Preview:</small>
+                <div class="slug-preview" id="url-preview">
+                  <span class="text-muted">https://yoursite.com/category/</span><span id="slug-display">your-category-slug</span><span class="text-muted">/</span>
+                </div>
+              </div>
+              
+              {% if form.slug.errors %}
+                <div class="invalid-feedback d-block">
+                  {% for error in form.slug.errors %}
+                    {{ error }}
+                  {% endfor %}
+                </div>
+              {% endif %}
+            </div>
+
+            <!-- Usage Information (if editing existing category) -->
+            {% if object %}
+              <div class="alert alert-info" role="alert">
+                <div class="d-flex">
+                  <div class="me-3">
+                    <i class="bi bi-info-circle-fill"></i>
+                  </div>
+                  <div>
+                    <h6 class="alert-heading">Current Usage</h6>
+                    <p class="mb-2">This category is currently being used by:</p>
+                    <ul class="mb-0">
+                      <li><strong>{{ object.blog_posts.count }}</strong> blog post{{ object.blog_posts.count|pluralize }}</li>
+                      <li><strong>{{ object.portfolio_items.count }}</strong> portfolio item{{ object.portfolio_items.count|pluralize }}</li>
+                    </ul>
+                    {% if object.blog_posts.count > 0 or object.portfolio_items.count > 0 %}
+                      <small class="text-muted mt-2 d-block">
+                        <i class="bi bi-exclamation-triangle me-1"></i>
+                        Changing the slug will affect URLs for content using this category.
+                      </small>
+                    {% endif %}
+                  </div>
+                </div>
+              </div>
+            {% endif %}
+
+            <!-- Form Actions -->
+            <div class="d-flex gap-2 pt-3 border-top">
+              <button class="btn btn-primary" type="submit">
+                <i class="bi bi-check-lg me-2"></i>
+                {% if object %}Update Category{% else %}Create Category{% endif %}
+              </button>
+              <a href="{% url 'website:manage_categories' %}" class="btn btn-outline-secondary">
+                <i class="bi bi-x-lg me-2"></i>Cancel
+              </a>
+            </div>
+          </form>
+        </div>
+      </div>
+
+      <!-- Help Card -->
+      <div class="card mt-4 border-info">
+        <div class="card-header bg-info text-white">
+          <h6 class="mb-0"><i class="bi bi-lightbulb me-2"></i>Category Best Practices</h6>
+        </div>
+        <div class="card-body">
+          <ul class="mb-0">
+            <li><strong>Keep names concise:</strong> Use 1-3 words when possible</li>
+            <li><strong>Be descriptive:</strong> Names should clearly indicate the content type</li>
+            <li><strong>Avoid duplication:</strong> Check existing categories before creating new ones</li>
+            <li><strong>Think hierarchically:</strong> Consider if you need subcategories in the future</li>
+            <li><strong>SEO-friendly slugs:</strong> Use lowercase letters, numbers, and hyphens only</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const nameField = document.getElementById('{{ form.name.id_for_label }}');
+    const slugField = document.getElementById('{{ form.slug.id_for_label }}');
+    const slugDisplay = document.getElementById('slug-display');
+    
+    // Auto-generate slug from name if slug is empty
+    if (nameField && slugField && slugDisplay) {
+        nameField.addEventListener('input', function() {
+            if (!slugField.value || slugField.dataset.autoGenerated !== 'false') {
+                const slug = generateSlug(this.value);
+                slugField.value = slug;
+                slugField.dataset.autoGenerated = 'true';
+                updateSlugDisplay(slug);
+            }
+        });
+        
+        // Update slug display when manually typing in slug field
+        slugField.addEventListener('input', function() {
+            this.dataset.autoGenerated = 'false';
+            updateSlugDisplay(this.value);
+        });
+        
+        // Set initial slug display
+        if (slugField.value) {
+            updateSlugDisplay(slugField.value);
+        }
+    }
+    
+    function generateSlug(text) {
+        return text
+            .toLowerCase()
+            .trim()
+            .replace(/[^a-z0-9\s-]/g, '') // Remove special characters
+            .replace(/\s+/g, '-') // Replace spaces with hyphens
+            .replace(/-+/g, '-') // Replace multiple hyphens with single hyphen
+            .replace(/^-|-$/g, ''); // Remove leading/trailing hyphens
+    }
+    
+    function updateSlugDisplay(slug) {
+        slugDisplay.textContent = slug || 'your-category-slug';
+    }
+    
+    // Form validation
+    const form = document.querySelector('.needs-validation');
+    if (form) {
+        form.addEventListener('submit', function(event) {
+            if (!form.checkValidity()) {
+                event.preventDefault();
+                event.stopPropagation();
+            }
+            form.classList.add('was-validated');
+        });
+    }
+});
+</script>
+{% endblock %}

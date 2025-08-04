@@ -1,0 +1,161 @@
+{% extends "dashboard_base.html" %}
+{% load static %}
+
+{% block page_title %}Delete Deal - {{ deal.title }}{% endblock %}
+
+{% block dashboard_content %}
+<div class="row justify-content-center">
+  <div class="col-md-8">
+    <!-- Warning Card -->
+    <div class="card border-danger">
+      <div class="card-header bg-danger text-white">
+        <h5 class="card-title mb-0">
+          <i class="bi bi-exclamation-triangle me-2"></i>Confirm Deal Deletion
+        </h5>
+      </div>
+      <div class="card-body">
+        <!-- Deal Information -->
+        <div class="alert alert-warning">
+          <h6 class="alert-heading">
+            <i class="bi bi-exclamation-triangle me-1"></i>
+            You are about to permanently delete this deal
+          </h6>
+          <p class="mb-0">This action cannot be undone. All data associated with this deal will be permanently removed.</p>
+        </div>
+        
+        <div class="row mb-4">
+          <div class="col-md-6">
+            <h6>Deal Details:</h6>
+            <ul class="list-unstyled">
+              <li><strong>Title:</strong> {{ deal.title }}</li>
+              <li><strong>Client:</strong> {{ deal.client.name }}</li>
+              <li><strong>Value:</strong> ${{ deal.value|floatformat:2 }} {{ deal.currency }}</li>
+              <li><strong>Stage:</strong> {{ deal.get_stage_display }}</li>
+              <li><strong>Created:</strong> {{ deal.created_at|date:"M d, Y" }}</li>
+            </ul>
+          </div>
+          <div class="col-md-6">
+            <h6>Impact Assessment:</h6>
+            <ul class="list-unstyled">
+              <li><i class="bi bi-check-circle text-success me-1"></i> Client record will remain intact</li>
+              <li><i class="bi bi-info-circle text-info me-1"></i> Related tasks will be unlinked (but preserved)</li>
+              <li><i class="bi bi-plus-circle text-primary me-1"></i> Audit trail will be maintained</li>
+              <li><i class="bi bi-x-circle text-danger me-1"></i> Deal data will be permanently deleted</li>
+            </ul>
+          </div>
+        </div>
+        
+        <!-- Related Data Warning -->
+        {% if deal.task_set.exists %}
+        <div class="alert alert-info">
+          <h6 class="alert-heading">
+            <i class="bi bi-list-task me-1"></i>Related Tasks
+          </h6>
+          <p class="mb-2">This deal has {{ deal.task_set.count }} related task{{ deal.task_set.count|pluralize }}:</p>
+          <ul class="mb-0">
+            {% for task in deal.task_set.all|slice:":5" %}
+            <li>{{ task.title }} ({{ task.get_status_display }})</li>
+            {% endfor %}
+            {% if deal.task_set.count > 5 %}
+            <li class="text-muted">... and {{ deal.task_set.count|add:"-5" }} more</li>
+            {% endif %}
+          </ul>
+          <small class="text-muted">These tasks will remain but will no longer be linked to this deal.</small>
+        </div>
+        {% endif %}
+        
+        <!-- Confirmation Form -->
+        <form method="post" id="deleteForm">
+          {% csrf_token %}
+          
+          <div class="form-check mb-3">
+            <input class="form-check-input" type="checkbox" id="confirmDelete" required>
+            <label class="form-check-label" for="confirmDelete">
+              I understand that this action is permanent and cannot be undone
+            </label>
+          </div>
+          
+          <div class="mb-3">
+            <label for="deleteReason" class="form-label">Reason for Deletion (Optional)</label>
+            <textarea class="form-control" id="deleteReason" name="delete_reason" rows="3" 
+                      placeholder="Why is this deal being deleted? (This will be recorded in the audit log)"></textarea>
+          </div>
+          
+          <div class="d-flex justify-content-between">
+            <a href="{% url 'crm:deal_detail' deal.id %}" class="btn btn-outline-secondary">
+              <i class="bi bi-arrow-left me-1"></i> Cancel - Keep Deal
+            </a>
+            
+            <button type="submit" class="btn btn-danger" id="confirmDeleteBtn" disabled>
+              <i class="bi bi-trash me-1"></i> Permanently Delete Deal
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+    
+    <!-- Additional Information -->
+    <div class="card mt-3">
+      <div class="card-body">
+        <h6 class="card-title">
+          <i class="bi bi-lightbulb me-1"></i> Alternative Actions
+        </h6>
+        <p class="card-text small text-muted">
+          Instead of deleting, consider marking the deal as "Closed Lost" to maintain historical data while removing it from active pipeline views.
+        </p>
+        <a href="{% url 'crm:deal_update' deal.id %}" class="btn btn-outline-primary btn-sm">
+          <i class="bi bi-pencil me-1"></i> Edit Deal Instead
+        </a>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const confirmCheckbox = document.getElementById('confirmDelete');
+    const deleteButton = document.getElementById('confirmDeleteBtn');
+    const deleteForm = document.getElementById('deleteForm');
+    
+    // Enable/disable delete button based on confirmation
+    confirmCheckbox.addEventListener('change', function() {
+        deleteButton.disabled = !this.checked;
+        
+        if (this.checked) {
+            deleteButton.classList.remove('btn-secondary');
+            deleteButton.classList.add('btn-danger');
+        } else {
+            deleteButton.classList.remove('btn-danger');
+            deleteButton.classList.add('btn-secondary');
+        }
+    });
+    
+    // Final confirmation on form submit
+    deleteForm.addEventListener('submit', function(e) {
+        const dealTitle = "{{ deal.title|escapejs }}";
+        const confirmed = confirm(
+            `Are you absolutely sure you want to delete the deal "${dealTitle}"?\n\n` +
+            `This action is PERMANENT and cannot be undone.`
+        );
+        
+        if (!confirmed) {
+            e.preventDefault();
+            return false;
+        }
+        
+        // Show loading state
+        deleteButton.disabled = true;
+        deleteButton.innerHTML = '<i class="bi bi-hourglass-split me-1"></i> Deleting...';
+    });
+    
+    // Escape key to cancel
+    document.addEventListener('keydown', function(e) {
+        if (e.key === 'Escape') {
+            window.location.href = "{% url 'crm:deal_detail' deal.id %}";
+        }
+    });
+});
+</script>
+{% endblock %}

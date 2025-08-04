@@ -1,0 +1,569 @@
+{% extends "inventory_base.html" %}
+{% load static %}
+
+{% block inventory_title %}
+  {% if form.instance.pk %}Edit Supplier: {{ form.instance.name }}{% else %}Add New Supplier{% endif %}
+{% endblock %}
+
+{% block inventory_breadcrumbs %}
+  {{ block.super }}
+  {% with inventory_breadcrumbs=breadcrumbs %}{% endwith %}
+{% endblock %}
+
+{% block inventory_actions %}
+  <div class="btn-group" role="group">
+    <a href="{% if form.instance.pk %}{% url 'inventory:supplier_detail' form.instance.pk %}{% else %}{% url 'inventory:supplier_list' %}{% endif %}" 
+       class="btn btn-outline-secondary btn-sm">
+      <i class="bi bi-arrow-left me-1"></i>
+      {% if form.instance.pk %}Back to Supplier{% else %}Back to List{% endif %}
+    </a>
+    {% if form.instance.pk and app_permissions.inventory == 'admin' %}
+      <button type="button" class="btn btn-outline-danger btn-sm" data-bs-toggle="modal" data-bs-target="#deleteSupplierModal">
+        <i class="bi bi-trash me-1"></i>Delete
+      </button>
+    {% endif %}
+  </div>
+{% endblock %}
+
+{% block inventory_content %}
+  <div class="row justify-content-center">
+    <div class="col-lg-8">
+      <!-- Form Card - This structure provides a clean, focused interface for data entry -->
+      <div class="card inventory-card">
+        <div class="card-header">
+          <h5 class="card-title mb-0">
+            <i class="bi bi-building me-2"></i>
+            {% if form.instance.pk %}Edit Supplier Information{% else %}New Supplier Details{% endif %}
+          </h5>
+          <small class="text-muted">
+            {% if form.instance.pk %}
+              Update supplier information and business terms
+            {% else %}
+              Enter supplier details to establish a new vendor relationship
+            {% endif %}
+          </small>
+        </div>
+        
+        <form method="post" novalidate class="needs-validation">
+          {% csrf_token %}
+          
+          <div class="card-body">
+            <!-- Display form errors if any exist - This provides immediate feedback -->
+            {% if form.non_field_errors %}
+              <div class="alert alert-danger">
+                <i class="bi bi-exclamation-triangle me-2"></i>
+                <strong>Please correct the following errors:</strong>
+                <ul class="mb-0 mt-2">
+                  {% for error in form.non_field_errors %}
+                    <li>{{ error }}</li>
+                  {% endfor %}
+                </ul>
+              </div>
+            {% endif %}
+            
+            <!-- Basic Information Section -->
+            <div class="row mb-4">
+              <div class="col-12">
+                <h6 class="border-bottom pb-2 mb-3">
+                  <i class="bi bi-info-circle me-2"></i>Basic Information
+                </h6>
+              </div>
+              
+              <!-- Supplier Name - The most critical field, gets prominent placement -->
+              <div class="col-md-8 mb-3">
+                <label for="{{ form.name.id_for_label }}" class="form-label">
+                  Supplier Name <span class="text-danger">*</span>
+                </label>
+                {{ form.name }}
+                {% if form.name.errors %}
+                  <div class="invalid-feedback d-block">
+                    {% for error in form.name.errors %}{{ error }}{% endfor %}
+                  </div>
+                {% endif %}
+                <div class="form-text">The official business name of the supplier</div>
+              </div>
+              
+              <!-- Supplier Code - Auto-generated but editable for flexibility -->
+              <div class="col-md-4 mb-3">
+                <label for="{{ form.supplier_code.id_for_label }}" class="form-label">
+                  Supplier Code <span class="text-danger">*</span>
+                </label>
+                {{ form.supplier_code }}
+                {% if form.supplier_code.errors %}
+                  <div class="invalid-feedback d-block">
+                    {% for error in form.supplier_code.errors %}{{ error }}{% endfor %}
+                  </div>
+                {% endif %}
+                <div class="form-text">Unique identifier (auto-generated if left blank)</div>
+              </div>
+              
+              <!-- Supplier Type - Helps categorize suppliers for better management -->
+              <div class="col-md-6 mb-3">
+                <label for="{{ form.supplier_type.id_for_label }}" class="form-label">
+                  Supplier Type <span class="text-danger">*</span>
+                </label>
+                {{ form.supplier_type }}
+                {% if form.supplier_type.errors %}
+                  <div class="invalid-feedback d-block">
+                    {% for error in form.supplier_type.errors %}{{ error }}{% endfor %}
+                  </div>
+                {% endif %}
+                <div class="form-text">Classification helps with vendor management</div>
+              </div>
+              
+              <!-- Contact Person - Essential for relationship management -->
+              <div class="col-md-6 mb-3">
+                <label for="{{ form.contact_person.id_for_label }}" class="form-label">
+                  Primary Contact
+                </label>
+                {{ form.contact_person }}
+                {% if form.contact_person.errors %}
+                  <div class="invalid-feedback d-block">
+                    {% for error in form.contact_person.errors %}{{ error }}{% endfor %}
+                  </div>
+                {% endif %}
+                <div class="form-text">Main point of contact for this supplier</div>
+              </div>
+            </div>
+            
+            <!-- Contact Information Section -->
+            <div class="row mb-4">
+              <div class="col-12">
+                <h6 class="border-bottom pb-2 mb-3">
+                  <i class="bi bi-telephone me-2"></i>Contact Information
+                </h6>
+              </div>
+              
+              <!-- Email - Critical for communication -->
+              <div class="col-md-6 mb-3">
+                <label for="{{ form.email.id_for_label }}" class="form-label">
+                  Email Address <span class="text-danger">*</span>
+                </label>
+                {{ form.email }}
+                {% if form.email.errors %}
+                  <div class="invalid-feedback d-block">
+                    {% for error in form.email.errors %}{{ error }}{% endfor %}
+                  </div>
+                {% endif %}
+                <div class="form-text">Primary email for business communication</div>
+              </div>
+              
+              <!-- Phone - Backup communication method -->
+              <div class="col-md-6 mb-3">
+                <label for="{{ form.phone.id_for_label }}" class="form-label">
+                  Phone Number
+                </label>
+                {{ form.phone }}
+                {% if form.phone.errors %}
+                  <div class="invalid-feedback d-block">
+                    {% for error in form.phone.errors %}{{ error }}{% endfor %}
+                  </div>
+                {% endif %}
+                <div class="form-text">Include country code for international suppliers</div>
+              </div>
+              
+              <!-- Website - Additional information source -->
+              <div class="col-12 mb-3">
+                <label for="{{ form.website.id_for_label }}" class="form-label">
+                  Website
+                </label>
+                {{ form.website }}
+                {% if form.website.errors %}
+                  <div class="invalid-feedback d-block">
+                    {% for error in form.website.errors %}{{ error }}{% endfor %}
+                  </div>
+                {% endif %}
+                <div class="form-text">Company website URL (include https://)</div>
+              </div>
+            </div>
+            
+            <!-- Address Information Section -->
+            <div class="row mb-4">
+              <div class="col-12">
+                <h6 class="border-bottom pb-2 mb-3">
+                  <i class="bi bi-geo-alt me-2"></i>Address Information
+                </h6>
+              </div>
+              
+              <!-- Address Lines - Full address for shipping and legal purposes -->
+              <div class="col-12 mb-3">
+                <label for="{{ form.address_line_1.id_for_label }}" class="form-label">
+                  Address Line 1 <span class="text-danger">*</span>
+                </label>
+                {{ form.address_line_1 }}
+                {% if form.address_line_1.errors %}
+                  <div class="invalid-feedback d-block">
+                    {% for error in form.address_line_1.errors %}{{ error }}{% endfor %}
+                  </div>
+                {% endif %}
+              </div>
+              
+              <div class="col-12 mb-3">
+                <label for="{{ form.address_line_2.id_for_label }}" class="form-label">
+                  Address Line 2
+                </label>
+                {{ form.address_line_2 }}
+                {% if form.address_line_2.errors %}
+                  <div class="invalid-feedback d-block">
+                    {% for error in form.address_line_2.errors %}{{ error }}{% endfor %}
+                  </div>
+                {% endif %}
+                <div class="form-text">Suite, apartment, or building information</div>
+              </div>
+              
+              <!-- City, State, Postal - Structured location data -->
+              <div class="col-md-4 mb-3">
+                <label for="{{ form.city.id_for_label }}" class="form-label">
+                  City <span class="text-danger">*</span>
+                </label>
+                {{ form.city }}
+                {% if form.city.errors %}
+                  <div class="invalid-feedback d-block">
+                    {% for error in form.city.errors %}{{ error }}{% endfor %}
+                  </div>
+                {% endif %}
+              </div>
+              
+              <div class="col-md-4 mb-3">
+                <label for="{{ form.state_province.id_for_label }}" class="form-label">
+                  State/Province
+                </label>
+                {{ form.state_province }}
+                {% if form.state_province.errors %}
+                  <div class="invalid-feedback d-block">
+                    {% for error in form.state_province.errors %}{{ error }}{% endfor %}
+                  </div>
+                {% endif %}
+              </div>
+              
+              <div class="col-md-4 mb-3">
+                <label for="{{ form.postal_code.id_for_label }}" class="form-label">
+                  Postal Code
+                </label>
+                {{ form.postal_code }}
+                {% if form.postal_code.errors %}
+                  <div class="invalid-feedback d-block">
+                    {% for error in form.postal_code.errors %}{{ error }}{% endfor %}
+                  </div>
+                {% endif %}
+              </div>
+              
+              <!-- Country - Important for international trade and currency -->
+              <div class="col-md-6 mb-3">
+                <label for="{{ form.country.id_for_label }}" class="form-label">
+                  Country <span class="text-danger">*</span>
+                </label>
+                {{ form.country }}
+                {% if form.country.errors %}
+                  <div class="invalid-feedback d-block">
+                    {% for error in form.country.errors %}{{ error }}{% endfor %}
+                  </div>
+                {% endif %}
+                <div class="form-text">Required for shipping and tax calculations</div>
+              </div>
+            </div>
+            
+            <!-- Business Terms Section - Critical for purchase operations -->
+            <div class="row mb-4">
+              <div class="col-12">
+                <h6 class="border-bottom pb-2 mb-3">
+                  <i class="bi bi-briefcase me-2"></i>Business Terms
+                </h6>
+              </div>
+              
+              <!-- Payment Terms - Affects cash flow management -->
+              <div class="col-md-6 mb-3">
+                <label for="{{ form.payment_terms.id_for_label }}" class="form-label">
+                  Payment Terms
+                </label>
+                {{ form.payment_terms }}
+                {% if form.payment_terms.errors %}
+                  <div class="invalid-feedback d-block">
+                    {% for error in form.payment_terms.errors %}{{ error }}{% endfor %}
+                  </div>
+                {% endif %}
+                <div class="form-text">e.g., "Net 30", "COD", "2/10 Net 30"</div>
+              </div>
+              
+              <!-- Currency - Essential for international suppliers -->
+              <div class="col-md-6 mb-3">
+                <label for="{{ form.currency.id_for_label }}" class="form-label">
+                  Currency <span class="text-danger">*</span>
+                </label>
+                {{ form.currency }}
+                {% if form.currency.errors %}
+                  <div class="invalid-feedback d-block">
+                    {% for error in form.currency.errors %}{{ error }}{% endfor %}
+                  </div>
+                {% endif %}
+                <div class="form-text">Primary currency for transactions</div>
+              </div>
+              
+              <!-- Minimum Order Amount - Important for order planning -->
+              <div class="col-md-6 mb-3">
+                <label for="{{ form.minimum_order_amount.id_for_label }}" class="form-label">
+                  Minimum Order Amount
+                </label>
+                {{ form.minimum_order_amount }}
+                {% if form.minimum_order_amount.errors %}
+                  <div class="invalid-feedback d-block">
+                    {% for error in form.minimum_order_amount.errors %}{{ error }}{% endfor %}
+                  </div>
+                {% endif %}
+                <div class="form-text">Minimum order value in supplier's currency</div>
+              </div>
+              
+              <!-- Tax Number - Required for legal compliance -->
+              <div class="col-md-6 mb-3">
+                <label for="{{ form.tax_number.id_for_label }}" class="form-label">
+                  Tax Number
+                </label>
+                {{ form.tax_number }}
+                {% if form.tax_number.errors %}
+                  <div class="invalid-feedback d-block">
+                    {% for error in form.tax_number.errors %}{{ error }}{% endfor %}
+                  </div>
+                {% endif %}
+                <div class="form-text">VAT number or tax identification</div>
+              </div>
+            </div>
+            
+            <!-- Performance Metrics Section -->
+            <div class="row mb-4">
+              <div class="col-12">
+                <h6 class="border-bottom pb-2 mb-3">
+                  <i class="bi bi-graph-up me-2"></i>Performance Metrics
+                </h6>
+              </div>
+              
+              <!-- Lead Time - Critical for inventory planning -->
+              <div class="col-md-6 mb-3">
+                <label for="{{ form.average_lead_time_days.id_for_label }}" class="form-label">
+                  Average Lead Time (Days)
+                </label>
+                {{ form.average_lead_time_days }}
+                {% if form.average_lead_time_days.errors %}
+                  <div class="invalid-feedback d-block">
+                    {% for error in form.average_lead_time_days.errors %}{{ error }}{% endfor %}
+                  </div>
+                {% endif %}
+                <div class="form-text">Typical delivery time from order placement</div>
+              </div>
+              
+              <!-- Reliability Rating - Helps with supplier selection -->
+              <div class="col-md-6 mb-3">
+                <label for="{{ form.reliability_rating.id_for_label }}" class="form-label">
+                  Reliability Rating (1-10)
+                </label>
+                {{ form.reliability_rating }}
+                {% if form.reliability_rating.errors %}
+                  <div class="invalid-feedback d-block">
+                    {% for error in form.reliability_rating.errors %}{{ error }}{% endfor %}
+                  </div>
+                {% endif %}
+                <div class="form-text">Rate delivery and quality performance</div>
+              </div>
+            </div>
+            
+            <!-- Status and Preferences Section -->
+            <div class="row mb-4">
+              <div class="col-12">
+                <h6 class="border-bottom pb-2 mb-3">
+                  <i class="bi bi-toggles me-2"></i>Status & Preferences
+                </h6>
+              </div>
+              
+              <!-- Status Checkboxes - Control supplier visibility and priority -->
+              <div class="col-md-4 mb-3">
+                <div class="form-check">
+                  {{ form.is_active }}
+                  <label class="form-check-label" for="{{ form.is_active.id_for_label }}">
+                    Active Supplier
+                  </label>
+                </div>
+                <div class="form-text">Include in supplier searches and reports</div>
+              </div>
+              
+              <div class="col-md-4 mb-3">
+                <div class="form-check">
+                  {{ form.is_preferred }}
+                  <label class="form-check-label" for="{{ form.is_preferred.id_for_label }}">
+                    Preferred Supplier
+                  </label>
+                </div>
+                <div class="form-text">Mark as preferred for priority sourcing</div>
+              </div>
+              
+              <div class="col-md-4 mb-3">
+                <div class="form-check">
+                  {{ form.requires_purchase_order }}
+                  <label class="form-check-label" for="{{ form.requires_purchase_order.id_for_label }}">
+                    Requires Purchase Order
+                  </label>
+                </div>
+                <div class="form-text">Formal PO required for all orders</div>
+              </div>
+            </div>
+            
+            <!-- Notes Section - Free-form additional information -->
+            <div class="row mb-4">
+              <div class="col-12">
+                <h6 class="border-bottom pb-2 mb-3">
+                  <i class="bi bi-sticky me-2"></i>Additional Notes
+                </h6>
+              </div>
+              
+              <div class="col-12 mb-3">
+                <label for="{{ form.notes.id_for_label }}" class="form-label">
+                  Internal Notes
+                </label>
+                {{ form.notes }}
+                {% if form.notes.errors %}
+                  <div class="invalid-feedback d-block">
+                    {% for error in form.notes.errors %}{{ error }}{% endfor %}
+                  </div>
+                {% endif %}
+                <div class="form-text">Internal notes about this supplier (not shared externally)</div>
+              </div>
+            </div>
+          </div>
+          
+          <!-- Form Actions - Clear save/cancel options -->
+          <div class="card-footer bg-light">
+            <div class="d-flex justify-content-between align-items-center">
+              <div class="text-muted small">
+                <i class="bi bi-info-circle me-1"></i>
+                Fields marked with <span class="text-danger">*</span> are required
+              </div>
+              
+              <div class="btn-group">
+                <a href="{% if form.instance.pk %}{% url 'inventory:supplier_detail' form.instance.pk %}{% else %}{% url 'inventory:supplier_list' %}{% endif %}" 
+                   class="btn btn-outline-secondary">
+                  <i class="bi bi-x-circle me-1"></i>Cancel
+                </a>
+                <button type="submit" class="btn btn-primary">
+                  <i class="bi bi-check-circle me-1"></i>
+                  {% if form.instance.pk %}Update Supplier{% else %}Save Supplier{% endif %}
+                </button>
+              </div>
+            </div>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+{% endblock %}
+
+<!-- Delete Confirmation Modal - Only shown for existing suppliers -->
+{% if form.instance.pk and app_permissions.inventory == 'admin' %}
+  <div class="modal fade" id="deleteSupplierModal" tabindex="-1">
+    <div class="modal-dialog">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h5 class="modal-title text-danger">
+            <i class="bi bi-exclamation-triangle me-2"></i>Delete Supplier
+          </h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+        </div>
+        <div class="modal-body">
+          <p>Are you sure you want to delete <strong>{{ form.instance.name }}</strong>?</p>
+          <div class="alert alert-warning">
+            <i class="bi bi-exclamation-triangle me-2"></i>
+            <strong>Warning:</strong> This action cannot be undone. Consider marking the supplier as inactive instead.
+          </div>
+          {% if form.instance.total_products > 0 %}
+            <div class="alert alert-danger">
+              <i class="bi bi-exclamation-circle me-2"></i>
+              <strong>Cannot Delete:</strong> This supplier has {{ form.instance.total_products }} associated products.
+            </div>
+          {% endif %}
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+          {% if form.instance.total_products == 0 %}
+            <a href="{% url 'inventory:supplier_delete' form.instance.pk %}" class="btn btn-danger">
+              <i class="bi bi-trash me-1"></i>Delete Supplier
+            </a>
+          {% endif %}
+        </div>
+      </div>
+    </div>
+  </div>
+{% endif %}
+
+{% block extra_js %}
+{{ block.super }}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+  // Form validation and enhancement
+  const form = document.querySelector('form');
+  const supplierCodeField = document.getElementById('{{ form.supplier_code.id_for_label }}');
+  const supplierNameField = document.getElementById('{{ form.name.id_for_label }}');
+  
+  // Auto-generate supplier code from name if not provided
+  // This pattern helps maintain consistent coding while allowing customization
+  supplierNameField.addEventListener('blur', function() {
+    if (!supplierCodeField.value.trim()) {
+      const name = this.value.trim();
+      if (name) {
+        // Generate code: First 3 letters + random number
+        const prefix = name.substring(0, 3).toUpperCase();
+        const randomNum = Math.floor(Math.random() * 1000).toString().padStart(3, '0');
+        supplierCodeField.value = `SUP-${prefix}-${randomNum}`;
+      }
+    }
+  });
+  
+  // Add URL protocol to website field if missing
+  // This small enhancement prevents common user errors
+  const websiteField = document.getElementById('{{ form.website.id_for_label }}');
+  websiteField.addEventListener('blur', function() {
+    const value = this.value.trim();
+    if (value && !value.startsWith('http://') && !value.startsWith('https://')) {
+      this.value = 'https://' + value;
+    }
+  });
+  
+  // Bootstrap form validation
+  // This provides immediate feedback to users about form errors
+  (function() {
+    'use strict';
+    window.addEventListener('load', function() {
+      const forms = document.getElementsByClassName('needs-validation');
+      const validation = Array.prototype.filter.call(forms, function(form) {
+        form.addEventListener('submit', function(event) {
+          if (form.checkValidity() === false) {
+            event.preventDefault();
+            event.stopPropagation();
+          }
+          form.classList.add('was-validated');
+        }, false);
+      });
+    }, false);
+  })();
+  
+  // Show unsaved changes warning
+  // This prevents accidental data loss
+  let formChanged = false;
+  const formInputs = form.querySelectorAll('input, select, textarea');
+  
+  formInputs.forEach(input => {
+    input.addEventListener('change', function() {
+      formChanged = true;
+    });
+  });
+  
+  window.addEventListener('beforeunload', function(e) {
+    if (formChanged) {
+      e.preventDefault();
+      e.returnValue = '';
+    }
+  });
+  
+  // Remove warning when form is submitted
+  form.addEventListener('submit', function() {
+    formChanged = false;
+  });
+});
+</script>
+{% endblock %}

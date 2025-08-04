@@ -1,0 +1,194 @@
+{% extends "inventory_base.html" %}
+{% load static %}
+
+{% block inventory_title %}
+    Inventory Valuation Report
+{% endblock %}
+
+{% block inventory_content %}
+<div class="container-fluid my-4">
+    <div class="row mb-3">
+        <div class="col-7">
+            <h1 class="fw-bold mb-1">Inventory Valuation Report</h1>
+            <div class="mb-2">
+                <strong>Date:</strong> {{ report_data.as_of_date }}<br>
+                <strong>Location:</strong> {{ report_data.location|default:"All Locations" }}<br>
+                <strong>Generated:</strong> {{ generated_on|date:"Y-m-d H:i" }}
+            </div>
+        </div>
+        <div class="col-5 text-end align-self-center">
+            <img src="https://dummyimage.com/140x48/21409a/fff.png&text=Your+Logo" alt="Company Logo" style="height:48px;">
+        </div>
+    </div>
+
+    <!-- KPI Summary Cards -->
+    <div class="row mb-4">
+        <div class="col-lg-3 col-md-6 mb-3">
+            <div class="inventory-metric-card success text-center">
+                <div class="kpi-title">Total Products</div>
+                <div class="kpi-value display-6">{{ report_data.total_products }}</div>
+            </div>
+        </div>
+        <div class="col-lg-3 col-md-6 mb-3">
+            <div class="inventory-metric-card info text-center">
+                <div class="kpi-title">Total Quantity</div>
+                <div class="kpi-value display-6">{{ report_data.total_quantity }}</div>
+            </div>
+        </div>
+        <div class="col-lg-3 col-md-6 mb-3">
+            <div class="inventory-metric-card warning text-center">
+                <div class="kpi-title">Total Value</div>
+                <div class="kpi-value display-6">${{ report_data.total_value|floatformat:2 }}</div>
+            </div>
+        </div>
+        <div class="col-lg-3 col-md-6 mb-3">
+            <div class="inventory-metric-card text-center" style="background: linear-gradient(135deg, #ffe259 0%, #ffa751 100%); color: #173469;">
+                <div class="kpi-title">Avg. Margin</div>
+                <div class="kpi-value display-6">{{ report_data.avg_margin|floatformat:1 }}%</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Category Breakdown Table -->
+    <div class="card inventory-card mb-4">
+        <div class="card-header">
+            <h4 class="card-title mb-0"><i class="bi bi-pie-chart me-2"></i>Category Breakdown</h4>
+        </div>
+        <div class="card-body p-0">
+            <table class="table table-bordered mb-0">
+                <thead class="table-light">
+                    <tr>
+                        <th>Category</th>
+                        <th class="text-end">Products</th>
+                        <th class="text-end">Quantity</th>
+                        <th class="text-end">Total Value</th>
+                        <th class="text-end">Percentage</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for cat in report_data.categories %}
+                    <tr>
+                        <td>{{ cat.name }}</td>
+                        <td class="text-end">{{ cat.product_count }}</td>
+                        <td class="text-end">{{ cat.total_quantity }}</td>
+                        <td class="text-end">${{ cat.total_value|floatformat:2 }}</td>
+                        <td class="text-end">{{ cat.percentage|floatformat:1 }}%</td>
+                    </tr>
+                    {% empty %}
+                    <tr><td colspan="5" class="text-center text-muted">No category data available.</td></tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <!-- Detailed Product Valuation Table -->
+    <div class="card inventory-card mb-4">
+        <div class="card-header">
+            <h4 class="card-title mb-0"><i class="bi bi-table me-2"></i>Detailed Product Valuation</h4>
+        </div>
+        <div class="card-body p-0">
+            <div class="inventory-table-container">
+                <table class="table table-hover table-bordered mb-0" id="valuationTable">
+                    <thead class="table-light">
+                        <tr>
+                            <th>SKU</th>
+                            <th>Product Name</th>
+                            <th>Category</th>
+                            <th>Supplier</th>
+                            <th class="text-end">Quantity</th>
+                            <th class="text-end">Cost Price</th>
+                            <th class="text-end">Selling Price</th>
+                            <th class="text-end">Total Value</th>
+                            <th class="text-end">Margin %</th>
+                            <th class="text-center">Status</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for p in report_data.products %}
+                        <tr>
+                            <td>{{ p.sku }}</td>
+                            <td>{{ p.name }}</td>
+                            <td>{{ p.category }}</td>
+                            <td>{{ p.supplier }}</td>
+                            <td class="text-end">{{ p.quantity }}</td>
+                            <td class="text-end">${{ p.cost_price|floatformat:2 }}</td>
+                            <td class="text-end">${{ p.selling_price|floatformat:2 }}</td>
+                            <td class="text-end">${{ p.total_value|floatformat:2 }}</td>
+                            <td class="text-end">
+                                {% if p.margin_percentage < 20 %}
+                                    <span class="badge bg-danger">{{ p.margin_percentage|floatformat:1 }}%</span>
+                                {% elif p.margin_percentage < 30 %}
+                                    <span class="badge bg-warning text-dark">{{ p.margin_percentage|floatformat:1 }}%</span>
+                                {% else %}
+                                    <span class="badge bg-success">{{ p.margin_percentage|floatformat:1 }}%</span>
+                                {% endif %}
+                            </td>
+                            <td class="text-center">
+                                <span class="stock-status-badge stock-{{ p.stock_status|lower|replace:' ','-' }}">
+                                    {{ p.stock_status|title }}
+                                </span>
+                            </td>
+                        </tr>
+                        {% empty %}
+                        <tr>
+                            <td colspan="10" class="text-center text-muted py-4">
+                                <i class="bi bi-inbox fs-1 d-block mb-2"></i>
+                                No products found.
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <!-- Footer Meta -->
+    <div class="text-end text-muted small mt-4">
+        <div>
+            Generated by {{ request.user.get_full_name|default:request.user.username }} on {{ generated_on|date:"Y-m-d H:i" }}
+        </div>
+        <div>
+            <span style="opacity:0.6;">Page <span class="pagenum"></span></span>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_dashboard_head %}
+{{ block.super }}
+<!-- PDF Watermark/Branding (for PDF output) -->
+<style>
+    @media print {
+        .pagenum:before { content: counter(page); }
+        .inventory-card, .inventory-metric-card { box-shadow: none !important; }
+        body { background: white !important; }
+    }
+    .watermark {
+        position: fixed;
+        top: 50%; left: 50%;
+        opacity: 0.08; font-size: 7em; color: #21409a;
+        z-index: 0; pointer-events: none;
+        transform: translate(-50%, -50%) rotate(-25deg);
+        font-family: 'Segoe UI', Arial, sans-serif;
+        white-space: nowrap;
+    }
+</style>
+{% endblock %}
+
+{% block extra_dashboard_js %}
+{{ block.super }}
+<script>
+    // Optional: For PDF page numbers if using WeasyPrint
+    document.addEventListener('DOMContentLoaded', function() {
+        if (typeof window.print === 'function') {
+            window.print();
+        }
+    });
+</script>
+{% endblock %}
+
+{% block watermark %}
+<div class="watermark">CONFIDENTIAL</div>
+{% endblock %}

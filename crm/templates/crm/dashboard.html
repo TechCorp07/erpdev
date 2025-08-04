@@ -1,0 +1,575 @@
+{% extends "dashboard_base.html" %}
+{% load static %}
+
+{% block page_title %}CRM Dashboard{% endblock %}
+
+{% block extra_dashboard_head %}
+<style>
+  .metric-card {
+    transition: transform 0.2s ease, box-shadow 0.2s ease;
+    border-radius: 15px;
+    color: white;
+    border: none;
+  }
+  .metric-card:hover {
+    transform: translateY(-5px);
+    box-shadow: 0 10px 25px rgba(0,0,0,0.15);
+  }
+  .metric-card-primary {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  }
+  .metric-card-success {
+    background: linear-gradient(135deg, #11998e 0%, #38ef7d 100%);
+  }
+  .metric-card-warning {
+    background: linear-gradient(135deg, #ffecd2 0%, #fcb69f 100%);
+    color: #333 !important;
+  }
+  .metric-card-info {
+    background: linear-gradient(135deg, #ff9a9e 0%, #fecfef 100%);
+    color: #333 !important;
+  }
+  .client-card {
+    transition: all 0.2s ease;
+    border-radius: 12px;
+    border: none;
+  }
+  .client-card:hover {
+    transform: translateY(-3px);
+    box-shadow: 0 8px 25px rgba(0,0,0,0.1);
+  }
+  .client-avatar {
+    width: 50px;
+    height: 50px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: bold;
+    color: white;
+    transition: transform 0.2s ease;
+  }
+  .client-avatar:hover {
+    transform: scale(1.1);
+  }
+  .interaction-item {
+    transition: all 0.2s ease;
+    border-radius: 8px;
+    padding: 15px;
+    margin-bottom: 10px;
+    border: 1px solid #e9ecef;
+  }
+  .interaction-item:hover {
+    background-color: #f8f9fa;
+    transform: translateX(5px);
+    box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+  }
+  .status-badge {
+    font-size: 0.8em;
+    padding: 4px 10px;
+    border-radius: 20px;
+    font-weight: 600;
+  }
+  .btn {
+    border-radius: 8px;
+    transition: all 0.2s ease;
+  }
+  .btn:hover {
+    transform: translateY(-1px);
+  }
+  .card {
+    border-radius: 12px;
+    border: none;
+    transition: transform 0.2s ease, box-shadow 0.2s ease;
+  }
+  .card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 6px 20px rgba(0,0,0,0.1);
+  }
+  .followup-item {
+    border-left: 4px solid #667eea;
+    background: linear-gradient(135deg, #f8f9ff 0%, #e8eaff 100%);
+    transition: all 0.2s ease;
+  }
+  .followup-item:hover {
+    background: linear-gradient(135deg, #e8eaff 0%, #d1d5ff 100%);
+    transform: translateX(5px);
+  }
+  .stats-grid {
+    background: linear-gradient(135deg, #ffecd2 0%, #fcb69f 100%);
+    border-radius: 12px;
+    color: #333;
+  }
+  .alert {
+    border-radius: 12px;
+    border: none;
+  }
+  .list-group-item {
+    border-radius: 8px !important;
+    border: none !important;
+    margin-bottom: 2px;
+  }
+</style>
+{% endblock %}
+
+{% block page_actions %}
+<div class="btn-group" role="group">
+  <a href="{% url 'crm:client_create' %}" class="btn btn-primary">
+    <i class="bi bi-person-plus me-1"></i> Add Client
+  </a>
+  <a href="{% url 'crm:analytics' %}" class="btn btn-outline-info">
+    <i class="bi bi-graph-up me-1"></i> Analytics
+  </a>
+  <a href="{% url 'crm:followup_list' %}" class="btn btn-outline-warning">
+    <i class="bi bi-calendar-check me-1"></i> Follow-ups
+    {% if overdue_followups %}
+    <span class="badge bg-danger rounded-pill ms-1">{{ overdue_followups|length }}</span>
+    {% endif %}
+  </a>
+</div>
+{% endblock %}
+
+{% block dashboard_content %}
+<!-- Key Metrics Row -->
+<div class="row mb-4">
+  <div class="col-md-3 mb-3">
+    <div class="card metric-card metric-card-primary h-100 shadow-sm">
+      <div class="card-body">
+        <div class="d-flex align-items-center">
+          <div class="flex-shrink-0 me-3">
+            <i class="bi bi-people fa-2x opacity-75"></i>
+          </div>
+          <div>
+            <h6 class="card-title text-white-50 mb-1">Total Clients</h6>
+            <h2 class="mb-0">{{ total_clients|default:0 }}</h2>
+            <small class="text-white-75">All registered clients</small>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+  
+  <div class="col-md-3 mb-3">
+    <div class="card metric-card metric-card-success h-100 shadow-sm">
+      <div class="card-body">
+        <div class="d-flex align-items-center">
+          <div class="flex-shrink-0 me-3">
+            <i class="bi bi-person-check fa-2x opacity-75"></i>
+          </div>
+          <div>
+            <h6 class="card-title text-white-50 mb-1">Active Clients</h6>
+            <h2 class="mb-0">{{ active_clients|default:0 }}</h2>
+            <small class="text-white-75">Currently engaged</small>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+  
+  <div class="col-md-3 mb-3">
+    <div class="card metric-card metric-card-warning h-100 shadow-sm">
+      <div class="card-body">
+        <div class="d-flex align-items-center">
+          <div class="flex-shrink-0 me-3">
+            <i class="bi bi-person-exclamation fa-2x opacity-75" style="color: #666;"></i>
+          </div>
+          <div>
+            <h6 class="card-title mb-1" style="color: #666;">New Leads</h6>
+            <h2 class="mb-0" style="color: #333;">{{ leads|default:0 }}</h2>
+            <small style="color: #666;">Potential prospects</small>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+  
+  <div class="col-md-3 mb-3">
+    <div class="card metric-card metric-card-info h-100 shadow-sm">
+      <div class="card-body">
+        <div class="d-flex align-items-center">
+          <div class="flex-shrink-0 me-3">
+            <i class="bi bi-calendar-event fa-2x opacity-75" style="color: #666;"></i>
+          </div>
+          <div>
+            <h6 class="card-title mb-1" style="color: #666;">Follow-ups Due</h6>
+            <h2 class="mb-0" style="color: #333;">{{ upcoming_followups|length|default:0 }}</h2>
+            <small style="color: #666;">Require attention</small>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Alerts Row -->
+{% if overdue_followups %}
+<div class="row mb-4">
+  <div class="col-12">
+    <div class="alert alert-danger d-flex align-items-center shadow-sm" role="alert">
+      <i class="bi bi-exclamation-triangle-fill me-3 fa-lg"></i>
+      <div>
+        <strong>Overdue Follow-ups!</strong> You have {{ overdue_followups|length }} overdue follow-up{{ overdue_followups|length|pluralize }}.
+        <a href="{% url 'crm:followup_list' %}" class="alert-link fw-bold">View overdue follow-ups</a>
+      </div>
+    </div>
+  </div>
+</div>
+{% endif %}
+
+<!-- Main Content Row -->
+<div class="row">
+  <!-- Recent Clients -->
+  <div class="col-lg-6 mb-4">
+    <div class="card client-card h-100 shadow-sm">
+      <div class="card-header d-flex justify-content-between align-items-center bg-white">
+        <h5 class="card-title mb-0">
+          <i class="bi bi-people me-2 text-primary"></i>Recent Clients
+        </h5>
+        <a href="{% url 'crm:client_list' %}" class="btn btn-sm btn-outline-primary">View All</a>
+      </div>
+      <div class="card-body">
+        {% if recent_clients %}
+        <div class="list-group list-group-flush">
+          {% for client in recent_clients %}
+          <div class="list-group-item px-0 d-flex justify-content-between align-items-center">
+            <div class="d-flex align-items-center">
+              <div class="client-avatar bg-primary me-3">
+                {{ client.name|first }}
+              </div>
+              <div>
+                <h6 class="mb-1">
+                  <a href="{% url 'crm:client_detail' client.id %}" class="text-decoration-none">
+                    {{ client.name }}
+                  </a>
+                </h6>
+                <p class="mb-1 text-muted small">
+                  <i class="bi bi-building me-1"></i>{{ client.company|default:"No company" }}
+                </p>
+                <small class="text-muted">
+                  <i class="bi bi-calendar me-1"></i>{{ client.created_at|date:"M d, Y" }}
+                </small>
+              </div>
+            </div>
+            <div>
+              <span class="badge status-badge
+                {% if client.status == 'active' %}bg-success
+                {% elif client.status == 'lead' %}bg-warning text-dark
+                {% elif client.status == 'inactive' %}bg-secondary
+                {% else %}bg-info{% endif %}">
+                {{ client.get_status_display }}
+              </span>
+            </div>
+          </div>
+          {% endfor %}
+        </div>
+        {% else %}
+        <div class="text-center text-muted py-4">
+          <i class="bi bi-person-plus fa-3x mb-3"></i>
+          <h6>No clients yet</h6>
+          <p>Start building your client base today!</p>
+          <a href="{% url 'crm:client_create' %}" class="btn btn-primary">
+            <i class="bi bi-person-plus me-1"></i>Add Your First Client
+          </a>
+        </div>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+  
+  <!-- Recent Interactions -->
+  <div class="col-lg-6 mb-4">
+    <div class="card client-card h-100 shadow-sm">
+      <div class="card-header d-flex justify-content-between align-items-center bg-white">
+        <h5 class="card-title mb-0">
+          <i class="bi bi-chat-left-text me-2 text-success"></i>Recent Interactions
+        </h5>
+        <a href="{% url 'crm:interaction_list' %}" class="btn btn-sm btn-outline-success">View All</a>
+      </div>
+      <div class="card-body">
+        {% if recent_interactions %}
+        <div class="list-group list-group-flush">
+          {% for interaction in recent_interactions %}
+          <div class="interaction-item">
+            <div class="d-flex justify-content-between align-items-start">
+              <div class="flex-grow-1">
+                <div class="d-flex align-items-center mb-2">
+                  <div class="client-avatar bg-success me-2" style="width: 32px; height: 32px; font-size: 0.8rem;">
+                    {{ interaction.client.name|first }}
+                  </div>
+                  <h6 class="mb-0">
+                    <a href="{% url 'crm:client_detail' interaction.client.id %}" class="text-decoration-none">
+                      {{ interaction.client.name }}
+                    </a>
+                  </h6>
+                </div>
+                <p class="mb-1 small">
+                  <i class="bi bi-tag me-1"></i>{{ interaction.get_interaction_type_display }}
+                </p>
+                <small class="text-muted">
+                  <i class="bi bi-clock me-1"></i>{{ interaction.created_at|date:"M d, Y H:i" }}
+                </small>
+              </div>
+              <div class="text-end">
+                {% if interaction.outcome %}
+                <span class="badge status-badge
+                  {% if interaction.outcome == 'positive' %}bg-success
+                  {% elif interaction.outcome == 'neutral' %}bg-secondary
+                  {% elif interaction.outcome == 'negative' %}bg-danger
+                  {% else %}bg-info{% endif %}">
+                  {{ interaction.get_outcome_display }}
+                </span>
+                {% endif %}
+              </div>
+            </div>
+          </div>
+          {% endfor %}
+        </div>
+        {% else %}
+        <div class="text-center text-muted py-4">
+          <i class="bi bi-chat-left-text fa-3x mb-3"></i>
+          <h6>No interactions recorded</h6>
+          <p>Start tracking your client communications.</p>
+        </div>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Follow-ups and Analytics Row -->
+<div class="row">
+  <!-- Upcoming Follow-ups -->
+  <div class="col-lg-6 mb-4">
+    <div class="card client-card h-100 shadow-sm">
+      <div class="card-header d-flex justify-content-between align-items-center bg-white">
+        <h5 class="card-title mb-0">
+          <i class="bi bi-calendar-check me-2 text-info"></i>Upcoming Follow-ups
+        </h5>
+        <a href="{% url 'crm:followup_list' %}" class="btn btn-sm btn-outline-info">View All</a>
+      </div>
+      <div class="card-body">
+        {% if upcoming_followups %}
+        <div class="list-group list-group-flush">
+          {% for interaction in upcoming_followups %}
+          <div class="followup-item p-3 mb-2">
+            <div class="d-flex justify-content-between align-items-center">
+              <div>
+                <div class="d-flex align-items-center mb-2">
+                  <div class="client-avatar bg-info me-2" style="width: 32px; height: 32px; font-size: 0.8rem;">
+                    {{ interaction.client.name|first }}
+                  </div>
+                  <h6 class="mb-0">
+                    <a href="{% url 'crm:client_detail' interaction.client.id %}" class="text-decoration-none">
+                      {{ interaction.client.name }}
+                    </a>
+                  </h6>
+                </div>
+                <p class="mb-1 small text-muted">{{ interaction.get_interaction_type_display }}</p>
+                <small class="text-info">
+                  <i class="bi bi-calendar me-1"></i>
+                  {{ interaction.next_followup|date:"M d, Y H:i" }}
+                </small>
+              </div>
+              <button class="btn btn-sm btn-success" onclick="markFollowupComplete('{{ interaction.id }}')" title="Mark as complete">
+                <i class="bi bi-check"></i>
+              </button>
+            </div>
+          </div>
+          {% endfor %}
+        </div>
+        {% else %}
+        <div class="text-center text-muted py-4">
+          <i class="bi bi-calendar-check fa-3x mb-3"></i>
+          <h6>No upcoming follow-ups</h6>
+          <p>Your schedule is clear for now.</p>
+        </div>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+  
+  <!-- Client Status Distribution -->
+  <div class="col-lg-6 mb-4">
+    <div class="card client-card h-100 shadow-sm">
+      <div class="card-header bg-white">
+        <h5 class="card-title mb-0">
+          <i class="bi bi-pie-chart me-2 text-warning"></i>Client Status Distribution
+        </h5>
+      </div>
+      <div class="card-body stats-grid">
+        {% if status_stats %}
+        <div class="row g-3">
+          {% for stat in status_stats %}
+          <div class="col-6">
+            <div class="text-center p-3 bg-white rounded shadow-sm">
+              <h4 class="mb-1 text-primary">{{ stat.count }}</h4>
+              <small class="text-muted fw-bold">{{ stat.status|capfirst }}</small>
+              <div class="progress mt-2" style="height: 4px;">
+                <div class="progress-bar
+                  {% if stat.status == 'active' %}bg-success
+                  {% elif stat.status == 'lead' %}bg-warning
+                  {% elif stat.status == 'inactive' %}bg-secondary
+                  {% else %}bg-info{% endif %}" 
+                  role="progressbar" 
+                  style="width: {{ stat.percentage|default:0 }}%">
+                </div>
+              </div>
+            </div>
+          </div>
+          {% endfor %}
+        </div>
+        {% else %}
+        <div class="text-center text-muted py-4">
+          <i class="bi bi-bar-chart fa-3x mb-3"></i>
+          <h6>No data available</h6>
+          <p>Add some clients to see distribution stats.</p>
+        </div>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Regional Distribution (if available) -->
+{% if region_stats %}
+<div class="row">
+  <div class="col-12">
+    <div class="card shadow-sm">
+      <div class="card-header bg-white">
+        <h5 class="card-title mb-0">
+          <i class="bi bi-globe me-2 text-primary"></i>Top Regions
+        </h5>
+      </div>
+      <div class="card-body">
+        <div class="row g-3">
+          {% for region in region_stats %}
+          <div class="col-md-2 col-sm-4 col-6">
+            <div class="text-center p-3 bg-light rounded shadow-sm">
+              <h5 class="mb-1 text-primary">{{ region.count }}</h5>
+              <small class="text-muted fw-bold">{{ region.country }}</small>
+            </div>
+          </div>
+          {% endfor %}
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+{% endif %}
+{% endblock %}
+
+{% block extra_dashboard_js %}
+<script>
+// Mark follow-up as complete with enhanced feedback
+function markFollowupComplete(interactionId) {
+    if (confirm('Mark this follow-up as complete?')) {
+        const button = document.querySelector(`button[onclick="markFollowupComplete('${interactionId}')"]`);
+        const originalContent = button.innerHTML;
+        
+        // Show loading state
+        button.innerHTML = '<i class="bi bi-hourglass-split"></i>';
+        button.disabled = true;
+        
+        fetch(`/crm/interactions/${interactionId}/complete-followup/`, {
+            method: 'POST',
+            headers: {
+                'X-Requested-With': 'XMLHttpRequest',
+                'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value
+            }
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                // Show success state briefly
+                button.innerHTML = '<i class="bi bi-check-circle text-success"></i>';
+                setTimeout(() => {
+                    location.reload();
+                }, 1000);
+            } else {
+                button.innerHTML = originalContent;
+                button.disabled = false;
+                alert('Error completing follow-up. Please try again.');
+            }
+        })
+        .catch(error => {
+            console.error('Error:', error);
+            button.innerHTML = originalContent;
+            button.disabled = false;
+            alert('Error completing follow-up. Please try again.');
+        });
+    }
+}
+
+// Auto-refresh dashboard data every 5 minutes
+setInterval(function() {
+    // Only refresh if user is still on the page and document is visible
+    if (document.visibilityState === 'visible') {
+        // Fetch updated counts and update them without full page reload
+        fetch('/crm/api/dashboard-stats/')
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    updateDashboardCounts(data);
+                }
+            })
+            .catch(error => console.log('Dashboard stats update failed:', error));
+    }
+}, 300000); // 5 minutes
+
+function updateDashboardCounts(data) {
+    // Update metric cards if data is available
+    if (data.total_clients !== undefined) {
+        const totalClientsElement = document.querySelector('.metric-card-primary h2');
+        if (totalClientsElement) {
+            totalClientsElement.textContent = data.total_clients;
+        }
+    }
+    
+    if (data.active_clients !== undefined) {
+        const activeClientsElement = document.querySelector('.metric-card-success h2');
+        if (activeClientsElement) {
+            activeClientsElement.textContent = data.active_clients;
+        }
+    }
+    
+    if (data.upcoming_followups !== undefined) {
+        const followupsElement = document.querySelector('.metric-card-info h2');
+        if (followupsElement) {
+            followupsElement.textContent = data.upcoming_followups;
+        }
+    }
+}
+
+// Add smooth scrolling to anchor links
+document.querySelectorAll('a[href^="#"]').forEach(anchor => {
+    anchor.addEventListener('click', function (e) {
+        e.preventDefault();
+        const target = document.querySelector(this.getAttribute('href'));
+        if (target) {
+            target.scrollIntoView({
+                behavior: 'smooth',
+                block: 'start'
+            });
+        }
+    });
+});
+
+// Initialize tooltips for better UX
+document.addEventListener('DOMContentLoaded', function() {
+    const tooltipTriggerList = [].slice.call(document.querySelectorAll('[data-bs-toggle="tooltip"]'));
+    const tooltipList = tooltipTriggerList.map(function (tooltipTriggerEl) {
+        return new bootstrap.Tooltip(tooltipTriggerEl);
+    });
+    
+    // Add hover effects to metric cards
+    document.querySelectorAll('.metric-card').forEach(card => {
+        card.addEventListener('mouseenter', function() {
+            this.style.transform = 'translateY(-5px)';
+        });
+        card.addEventListener('mouseleave', function() {
+            this.style.transform = 'translateY(0)';
+        });
+    });
+});
+</script>
+{% endblock %}

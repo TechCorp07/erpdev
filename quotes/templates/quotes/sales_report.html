@@ -1,0 +1,142 @@
+{% extends "dashboard_base.html" %}
+{% load query_string %}
+
+{% block page_title %}Sales Report{% endblock %}
+
+{% block dashboard_content %}
+<div class="mb-4">
+  <form method="get" class="row g-3">
+    <div class="col-md-3">
+      <input type="date" name="start_date" value="{{ request.GET.start_date }}" class="form-control" placeholder="Start date">
+    </div>
+    <div class="col-md-3">
+      <input type="date" name="end_date" value="{{ request.GET.end_date }}" class="form-control" placeholder="End date">
+    </div>
+    <div class="col-md-3">
+      <select name="client" class="form-select">
+        <option value="">All Clients</option>
+        {% for c in clients %}
+          <option value="{{ c.id }}" {% if request.GET.client == c.id|stringformat:"s" %}selected{% endif %}>{{ c.name }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div class="col-md-3 d-flex justify-content-end align-items-end gap-2">
+      <button type="submit" class="btn btn-primary">Filter</button>
+      <a href="{% url 'quotes:sales_report' %}" class="btn btn-secondary">Reset</a>
+    </div>
+  </form>
+</div>
+
+<div class="d-flex justify-content-between align-items-center mb-3">
+  <h5 class="mb-0">Performance Summary</h5>
+  <div>
+    <a href="?{% query_string request.GET %}&export=pdf" class="btn btn-outline-danger btn-sm me-2">
+      <i class="bi bi-file-earmark-pdf"></i> Export PDF
+    </a>
+    <a href="?{% query_string request.GET %}&export=excel" class="btn btn-outline-success btn-sm">
+      <i class="bi bi-file-earmark-excel"></i> Export Excel
+    </a>
+  </div>
+</div>
+
+<div class="row g-3 mb-4">
+  <div class="col-md-4">
+    <div class="card text-white bg-primary h-100">
+      <div class="card-body">
+        <div class="d-flex justify-content-between align-items-center">
+          <span>Total Quotes</span>
+          <strong class="fs-4">{{ total_quotes }}</strong>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="col-md-4">
+    <div class="card text-white bg-success h-100">
+      <div class="card-body">
+        <div class="d-flex justify-content-between align-items-center">
+          <span>Total Sales</span>
+          <strong class="fs-4">${{ total_sales|floatformat:2 }}</strong>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="col-md-4">
+    <div class="card text-white bg-info h-100">
+      <div class="card-body">
+        <div class="d-flex justify-content-between align-items-center">
+          <span>Avg. Deal Size</span>
+          <strong class="fs-4">${{ avg_sale|floatformat:2 }}</strong>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="card mb-4">
+  <div class="card-body">
+    <h5 class="card-title">Monthly Sales Trend</h5>
+    <canvas id="salesChart" height="100"></canvas>
+  </div>
+</div>
+
+<div class="card">
+  <div class="card-body">
+    <h5 class="card-title">Quote List</h5>
+    <div class="table-responsive">
+      <table class="table table-bordered table-striped align-middle">
+        <thead class="table-light">
+          <tr>
+            <th>Quote #</th>
+            <th>Client</th>
+            <th>Status</th>
+            <th>Total</th>
+            <th>Date</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for quote in quotes %}
+          <tr>
+            <td>{{ quote.quote_number }}</td>
+            <td>{{ quote.client.name }}</td>
+            <td>{{ quote.get_status_display }}</td>
+            <td>${{ quote.total_amount|floatformat:2 }}</td>
+            <td>{{ quote.created_at|date:"Y-m-d" }}</td>
+          </tr>
+          {% empty %}
+          <tr>
+            <td colspan="5" class="text-center">No quotes found for selected filters.</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script>
+document.addEventListener('DOMContentLoaded', function () {
+  const ctx = document.getElementById('salesChart').getContext('2d');
+  new Chart(ctx, {
+    type: 'line',
+    data: {
+      labels: {{ chart_labels|safe }},
+      datasets: [{
+        label: 'Monthly Sales',
+        data: {{ chart_data|safe }},
+        fill: true,
+        backgroundColor: 'rgba(54, 162, 235, 0.1)',
+        borderColor: 'rgb(54, 162, 235)',
+        tension: 0.3
+      }]
+    },
+    options: {
+      responsive: true,
+      scales: {
+        y: { beginAtZero: true }
+      }
+    }
+  });
+});
+</script>
+{% endblock %}

@@ -1,0 +1,717 @@
+{% extends "dashboard_base.html" %}
+{% load static %}
+
+{% block page_title %}Quote Management{% endblock %}
+
+{% block extra_css %}
+<style>
+/* Advanced table styling for better data visualization */
+.quote-row {
+    transition: all 0.2s ease;
+}
+
+.quote-row:hover {
+    background-color: #f8f9fa;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+}
+
+.status-indicator {
+    width: 4px;
+    height: 100%;
+    position: absolute;
+    left: 0;
+    top: 0;
+}
+
+.quote-card {
+    position: relative;
+    overflow: hidden;
+}
+
+.filter-sidebar {
+    background: #f8f9fa;
+    border-radius: 0.5rem;
+}
+
+.quote-value {
+    font-family: 'Monaco', 'Courier New', monospace;
+    font-weight: bold;
+}
+
+.days-indicator {
+    font-size: 0.8rem;
+    padding: 0.2rem 0.5rem;
+    border-radius: 1rem;
+}
+
+@media (max-width: 768px) {
+    .quote-table-responsive {
+        font-size: 0.9rem;
+    }
+    
+    .btn-group-sm .btn {
+        padding: 0.25rem 0.5rem;
+    }
+}
+</style>
+{% endblock %}
+
+{% block page_actions %}
+<div class="btn-group" role="group">
+  <a href="{% url 'quotes:quote_create' %}" class="btn btn-primary">
+    <i class="bi bi-plus-circle me-1"></i> New Quote
+  </a>
+  <a href="{% url 'quotes:dashboard' %}" class="btn btn-outline-secondary">
+    <i class="bi bi-speedometer2 me-1"></i> Dashboard
+  </a>
+  <div class="btn-group" role="group">
+    <button class="btn btn-outline-info dropdown-toggle" type="button" data-bs-toggle="dropdown">
+      <i class="bi bi-funnel me-1"></i> Quick Filters
+    </button>
+    <ul class="dropdown-menu">
+      <li><a class="dropdown-item" href="?status=draft">
+        <i class="bi bi-pencil me-1"></i> Draft Quotes ({{ draft_count|default:0 }})
+      </a></li>
+      <li><a class="dropdown-item" href="?status=sent">
+        <i class="bi bi-send me-1"></i> Sent Quotes ({{ sent_count|default:0 }})
+      </a></li>
+      <li><a class="dropdown-item" href="?expiring=true">
+        <i class="bi bi-clock me-1"></i> Expiring Soon
+      </a></li>
+      <li><a class="dropdown-item" href="?my_quotes=true">
+        <i class="bi bi-person me-1"></i> My Quotes
+      </a></li>
+    </ul>
+  </div>
+  <div class="btn-group" role="group">
+    <button class="btn btn-outline-secondary dropdown-toggle" type="button" data-bs-toggle="dropdown">
+      <i class="bi bi-download me-1"></i> Export
+    </button>
+    <ul class="dropdown-menu">
+      <li><a class="dropdown-item" href="#" onclick="exportSelected('excel')">
+        <i class="bi bi-file-earmark-excel me-1"></i> Export to Excel
+      </a></li>
+      <li><a class="dropdown-item" href="#" onclick="exportSelected('pdf')">
+        <i class="bi bi-file-pdf me-1"></i> Export to PDF
+      </a></li>
+      <li><a class="dropdown-item" href="#" onclick="emailSelected()">
+        <i class="bi bi-envelope me-1"></i> Email Selected
+      </a></li>
+    </ul>
+  </div>
+</div>
+{% endblock %}
+
+{% block dashboard_content %}
+<div class="row">
+  <!-- Advanced Search and Filter Panel -->
+  <div class="col-lg-3 mb-4">
+    <div class="filter-sidebar p-3">
+      <h6 class="mb-3">
+        <i class="bi bi-funnel me-2"></i>Search & Filter
+      </h6>
+      
+      <form method="get" id="quote-filter-form">
+        <!-- Text Search -->
+        <div class="mb-3">
+          <label for="search" class="form-label small">Search Quotes</label>
+          <input type="text" class="form-control form-control-sm" 
+                 name="search" id="search" value="{{ search_form.search.value|default:'' }}"
+                 placeholder="Quote #, client name, description...">
+        </div>
+        
+        <!-- Status Filter -->
+        <div class="mb-3">
+          <label for="status" class="form-label small">Status</label>
+          {{ search_form.status }}
+        </div>
+        
+        <!-- Client Filter -->
+        <div class="mb-3">
+          <label for="client" class="form-label small">Client</label>
+          {{ search_form.client }}
+        </div>
+        
+        <!-- Date Range -->
+        <div class="mb-3">
+          <label class="form-label small">Date Range</label>
+          <div class="row">
+            <div class="col-6">
+              {{ search_form.date_from }}
+            </div>
+            <div class="col-6">
+              {{ search_form.date_to }}
+            </div>
+          </div>
+        </div>
+        
+        <!-- Amount Range -->
+        <div class="mb-3">
+          <label class="form-label small">Amount Range</label>
+          <div class="row">
+            <div class="col-6">
+              {{ search_form.amount_min }}
+            </div>
+            <div class="col-6">
+              {{ search_form.amount_max }}
+            </div>
+          </div>
+        </div>
+        
+        <!-- Assigned To -->
+        <div class="mb-3">
+          <label for="assigned_to" class="form-label small">Assigned To</label>
+          {{ search_form.assigned_to }}
+        </div>
+        
+        <!-- Sort Options -->
+        <div class="mb-3">
+          <label for="sort_by" class="form-label small">Sort By</label>
+          {{ search_form.sort_by }}
+        </div>
+        
+        <!-- Filter Actions -->
+        <div class="d-grid gap-2">
+          <button type="submit" class="btn btn-primary btn-sm">
+            <i class="bi bi-search me-1"></i> Apply Filters
+          </button>
+          <a href="{% url 'quotes:quote_list' %}" class="btn btn-outline-secondary btn-sm">
+            <i class="bi bi-x me-1"></i> Clear All
+          </a>
+        </div>
+      </form>
+      
+      <!-- Saved Filters -->
+      <div class="mt-4">
+        <h6 class="small text-muted">Saved Filters</h6>
+        <div class="list-group list-group-flush">
+          <a href="?status=draft&assigned_to=me" class="list-group-item list-group-item-action py-2">
+            <i class="bi bi-pencil me-1"></i> My Drafts
+          </a>
+          <a href="?status=sent&days_since=7" class="list-group-item list-group-item-action py-2">
+            <i class="bi bi-clock me-1"></i> Needs Follow-up
+          </a>
+          <a href="?amount_min=5000" class="list-group-item list-group-item-action py-2">
+            <i class="bi bi-currency-dollar me-1"></i> High Value
+          </a>
+        </div>
+      </div>
+    </div>
+  </div>
+  
+  <!-- Main Quote List -->
+  <div class="col-lg-9">
+    <!-- Results Summary and Bulk Actions -->
+    <div class="d-flex justify-content-between align-items-center mb-3">
+      <div>
+        <h6 class="mb-0">
+          {% if page_obj.paginator.count %}
+            Showing {{ page_obj.start_index }}-{{ page_obj.end_index }} of {{ page_obj.paginator.count }} quote{{ page_obj.paginator.count|pluralize }}
+            {% if total_quotes != page_obj.paginator.count %}
+            (filtered from {{ total_quotes }} total)
+            {% endif %}
+          {% else %}
+            No quotes found
+          {% endif %}
+        </h6>
+      </div>
+      
+      <div class="btn-group btn-group-sm">
+        <input type="checkbox" class="btn-check" id="select-all-quotes">
+        <label class="btn btn-outline-secondary" for="select-all-quotes">
+          <i class="bi bi-check-all"></i>
+        </label>
+        
+        <button class="btn btn-outline-secondary dropdown-toggle" type="button" data-bs-toggle="dropdown">
+          Bulk Actions
+        </button>
+        <ul class="dropdown-menu">
+          <li><a class="dropdown-item" href="#" onclick="bulkUpdateStatus()">
+            <i class="bi bi-arrow-repeat me-1"></i> Update Status
+          </a></li>
+          <li><a class="dropdown-item" href="#" onclick="bulkAssign()">
+            <i class="bi bi-person me-1"></i> Assign To
+          </a></li>
+          <li><a class="dropdown-item" href="#" onclick="bulkExport()">
+            <i class="bi bi-download me-1"></i> Export Selected
+          </a></li>
+        </ul>
+      </div>
+    </div>
+    
+    <!-- Quote Table -->
+    {% if page_obj %}
+    <div class="card">
+      <div class="card-body p-0">
+        <div class="table-responsive quote-table-responsive">
+          <table class="table table-hover mb-0">
+            <thead class="table-dark">
+              <tr>
+                <th style="width: 40px;">
+                  <input type="checkbox" id="select-all" class="form-check-input">
+                </th>
+                <th>Quote Details</th>
+                <th>Client</th>
+                <th>Value</th>
+                <th>Status</th>
+                <th>Timeline</th>
+                <th>Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for quote in page_obj %}
+              <tr class="quote-row quote-card" data-quote-id="{{ quote.id }}">
+                <!-- Status Color Indicator -->
+                <div class="status-indicator bg-{% if quote.status == 'accepted' %}success{% elif quote.status == 'sent' %}primary{% elif quote.status == 'draft' %}warning{% elif quote.status == 'rejected' %}danger{% else %}secondary{% endif %}"></div>
+                
+                <td>
+                  <input type="checkbox" class="form-check-input quote-checkbox" value="{{ quote.id }}">
+                </td>
+                
+                <!-- Quote Details -->
+                <td>
+                  <div>
+                    <h6 class="mb-1">
+                      <a href="{% url 'quotes:quote_detail' quote.id %}" class="text-decoration-none">
+                        {{ quote.quote_number }}
+                      </a>
+                    </h6>
+                    <p class="text-muted small mb-1">{{ quote.title|truncatewords:8 }}</p>
+                    <div class="d-flex align-items-center gap-2">
+                      <span class="badge bg-light text-dark">{{ quote.items.count }} item{{ quote.items.count|pluralize }}</span>
+                      {% if quote.priority != 'medium' %}
+                      <span class="badge bg-{% if quote.priority == 'urgent' %}danger{% elif quote.priority == 'high' %}warning{% else %}info{% endif %}">
+                        {{ quote.get_priority_display }}
+                      </span>
+                      {% endif %}
+                    </div>
+                  </div>
+                </td>
+                
+                <!-- Client Information -->
+                <td>
+                  <div>
+                    <h6 class="mb-1">{{ quote.client.name }}</h6>
+                    {% if quote.client.company %}
+                    <p class="text-muted small mb-1">{{ quote.client.company }}</p>
+                    {% endif %}
+                    <div class="d-flex align-items-center gap-1">
+                      <a href="mailto:{{ quote.client.email }}" class="text-decoration-none small">
+                        <i class="bi bi-envelope"></i>
+                      </a>
+                      {% if quote.client.phone %}
+                      <a href="tel:{{ quote.client.phone }}" class="text-decoration-none small">
+                        <i class="bi bi-telephone"></i>
+                      </a>
+                      {% endif %}
+                      <a href="{% url 'crm:client_detail' quote.client.id %}" class="text-decoration-none small">
+                        <i class="bi bi-person"></i>
+                      </a>
+                    </div>
+                  </div>
+                </td>
+                
+                <!-- Quote Value -->
+                <td>
+                  <div class="quote-value">${{ quote.total_amount|floatformat:2 }}</div>
+                  <small class="text-muted">{{ quote.currency }}</small>
+                  {% if quote.discount_percentage > 0 %}
+                  <br><small class="text-warning">
+                    <i class="bi bi-percent"></i> {{ quote.discount_percentage }}% disc.
+                  </small>
+                  {% endif %}
+                </td>
+                
+                <!-- Status -->
+                <td>
+                  <span class="badge bg-{% if quote.status == 'accepted' %}success{% elif quote.status == 'sent' %}primary{% elif quote.status == 'draft' %}warning{% elif quote.status == 'rejected' %}danger{% else %}secondary{% endif %}">
+                    {{ quote.get_status_display }}
+                  </span>
+                  
+                  {% if quote.status == 'sent' and quote.viewed_date %}
+                  <br><small class="text-info">
+                    <i class="bi bi-eye"></i> Viewed
+                  </small>
+                  {% elif quote.status == 'sent' %}
+                  <br><small class="text-muted">
+                    <i class="bi bi-send"></i> Sent
+                  </small>
+                  {% endif %}
+                </td>
+                
+                <!-- Timeline Information -->
+                <td>
+                  <div class="small">
+                    <div class="mb-1">
+                      <strong>Created:</strong> {{ quote.created_at|date:"M d" }}
+                    </div>
+                    <div class="mb-1">
+                      <strong>Expires:</strong> 
+                      <span class="{% if quote.is_expired %}text-danger{% elif quote.days_until_expiry <= 7 %}text-warning{% else %}text-muted{% endif %}">
+                        {{ quote.validity_date|date:"M d" }}
+                        {% if quote.is_expired %}
+                        <span class="days-indicator bg-danger text-white">Expired</span>
+                        {% elif quote.days_until_expiry <= 7 %}
+                        <span class="days-indicator bg-warning text-dark">{{ quote.days_until_expiry }} days</span>
+                        {% endif %}
+                      </span>
+                    </div>
+                    {% if quote.assigned_to %}
+                    <div class="text-muted">
+                      <i class="bi bi-person small"></i> {{ quote.assigned_to.get_full_name|default:quote.assigned_to.username|truncatechars:15 }}
+                    </div>
+                    {% endif %}
+                  </div>
+                </td>
+                
+                <!-- Actions -->
+                <td>
+                  <div class="btn-group btn-group-sm">
+                    <a href="{% url 'quotes:quote_detail' quote.id %}" 
+                       class="btn btn-outline-primary" title="View Details">
+                      <i class="bi bi-eye"></i>
+                    </a>
+                    
+                    {% if quote.status == 'draft' %}
+                    <a href="{% url 'quotes:quote_builder' quote.id %}" 
+                       class="btn btn-outline-warning" title="Edit Quote">
+                      <i class="bi bi-pencil"></i>
+                    </a>
+                    {% endif %}
+                    
+                    <div class="btn-group btn-group-sm">
+                      <button class="btn btn-outline-secondary dropdown-toggle" 
+                              type="button" data-bs-toggle="dropdown" title="More Actions">
+                        <i class="bi bi-three-dots"></i>
+                      </button>
+                      <ul class="dropdown-menu">
+                        {% if quote.status == 'draft' %}
+                        <li><a class="dropdown-item" href="#" onclick="sendQuote('{{ quote.id }}')">
+                          <i class="bi bi-send me-1"></i> Send to Client
+                        </a></li>
+                        {% endif %}
+                        
+                        <li><a class="dropdown-item" href="#" onclick="duplicateQuote('{{ quote.id }}')">
+                          <i class="bi bi-files me-1"></i> Duplicate
+                        </a></li>
+                        
+                        <li><a class="dropdown-item" href="#" onclick="exportQuotePDF('{{ quote.id }}')">
+                          <i class="bi bi-file-pdf me-1"></i> Export PDF
+                        </a></li>
+                        
+                        <li><hr class="dropdown-divider"></li>
+                        
+                        {% if quote.status in 'sent,viewed,under_review' %}
+                        <li><a class="dropdown-item" href="#" onclick="markAccepted('{{ quote.id }}')">
+                          <i class="bi bi-check-circle me-1"></i> Mark Accepted
+                        </a></li>
+                        <li><a class="dropdown-item" href="#" onclick="markRejected('{{ quote.id }}')">
+                          <i class="bi bi-x-circle me-1"></i> Mark Rejected
+                        </a></li>
+                        {% endif %}
+                      </ul>
+                    </div>
+                  </div>
+                </td>
+              </tr>
+              {% empty %}
+              <tr>
+                <td colspan="7" class="text-center py-5">
+                  <div class="text-muted">
+                    <i class="bi bi-search fs-1 mb-3"></i>
+                    <h6>No quotes found</h6>
+                    <p>
+                      {% if search_form.search.value or search_form.status.value %}
+                        Try adjusting your search criteria or <a href="{% url 'quotes:quote_list' %}">clear filters</a>.
+                      {% else %}
+                        <a href="{% url 'quotes:quote_create' %}">Create your first quote</a> to get started.
+                      {% endif %}
+                    </p>
+                  </div>
+                </td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+        
+        <!-- Pagination -->
+        {% if page_obj.has_other_pages %}
+        <div class="card-footer">
+          <nav aria-label="Quote pagination">
+            <ul class="pagination justify-content-center mb-0">
+              {% if page_obj.has_previous %}
+              <li class="page-item">
+                <a class="page-link" href="?page=1{{ search_form.as_url_params }}">First</a>
+              </li>
+              <li class="page-item">
+                <a class="page-link" href="?page={{ page_obj.previous_page_number }}{{ search_form.as_url_params }}">Previous</a>
+              </li>
+              {% endif %}
+              
+              {% for num in page_obj.paginator.page_range %}
+              {% if page_obj.number == num %}
+              <li class="page-item active">
+                <span class="page-link">{{ num }}</span>
+              </li>
+              {% elif num > page_obj.number|add:'-3' and num < page_obj.number|add:'3' %}
+              <li class="page-item">
+                <a class="page-link" href="?page={{ num }}{{ search_form.as_url_params }}">{{ num }}</a>
+              </li>
+              {% endif %}
+              {% endfor %}
+              
+              {% if page_obj.has_next %}
+              <li class="page-item">
+                <a class="page-link" href="?page={{ page_obj.next_page_number }}{{ search_form.as_url_params }}">Next</a>
+              </li>
+              <li class="page-item">
+                <a class="page-link" href="?page={{ page_obj.paginator.num_pages }}{{ search_form.as_url_params }}">Last</a>
+              </li>
+              {% endif %}
+            </ul>
+          </nav>
+        </div>
+        {% endif %}
+      </div>
+    </div>
+    {% else %}
+    <!-- Empty State -->
+    <div class="card">
+      <div class="card-body text-center py-5">
+        <i class="bi bi-file-earmark-text fs-1 text-muted mb-4"></i>
+        <h4>No Quotes Yet</h4>
+        <p class="text-muted mb-4">Start managing your sales pipeline by creating your first quote.</p>
+        <a href="{% url 'quotes:quote_create' %}" class="btn btn-primary">
+          <i class="bi bi-plus-circle me-1"></i> Create First Quote
+        </a>
+      </div>
+    </div>
+    {% endif %}
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // Auto-submit form when filters change
+    const form = document.getElementById('quote-filter-form');
+    const autoSubmitElements = form.querySelectorAll('select, input[type="date"]');
+    
+    autoSubmitElements.forEach(element => {
+        element.addEventListener('change', function() {
+            form.submit();
+        });
+    });
+    
+    // Debounced search
+    const searchInput = document.getElementById('search');
+    let searchTimeout;
+    
+    searchInput.addEventListener('input', function() {
+        clearTimeout(searchTimeout);
+        searchTimeout = setTimeout(() => {
+            form.submit();
+        }, 1000); // Submit after 1 second of no typing
+    });
+    
+    // Select all functionality
+    const selectAllCheckbox = document.getElementById('select-all');
+    const quoteCheckboxes = document.querySelectorAll('.quote-checkbox');
+    
+    selectAllCheckbox?.addEventListener('change', function() {
+        quoteCheckboxes.forEach(checkbox => {
+            checkbox.checked = this.checked;
+        });
+        updateBulkActionVisibility();
+    });
+    
+    quoteCheckboxes.forEach(checkbox => {
+        checkbox.addEventListener('change', updateBulkActionVisibility);
+    });
+    
+    function updateBulkActionVisibility() {
+        const checkedBoxes = document.querySelectorAll('.quote-checkbox:checked');
+        const bulkActions = document.querySelector('.bulk-actions');
+        
+        if (checkedBoxes.length > 0) {
+            // Show bulk action buttons
+            console.log(`${checkedBoxes.length} quotes selected`);
+        }
+    }
+});
+
+// Action functions
+function sendQuote(quoteId) {
+    if (confirm('Send this quote to the client?')) {
+        fetch(`/quotes/${quoteId}/send/`, {
+            method: 'POST',
+            headers: {
+                'X-CSRFToken': getCsrfToken(),
+                'X-Requested-With': 'XMLHttpRequest',
+            }
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                showAlert('Quote sent successfully!', 'success');
+                location.reload();
+            } else {
+                showAlert('Failed to send quote: ' + data.error, 'danger');
+            }
+        })
+        .catch(error => {
+            showAlert('Failed to send quote. Please try again.', 'danger');
+        });
+    }
+}
+
+function duplicateQuote(quoteId) {
+    if (confirm('Create a copy of this quote?')) {
+        fetch(`/quotes/${quoteId}/duplicate/`, {
+            method: 'POST',
+            headers: {
+                'X-CSRFToken': getCsrfToken(),
+                'X-Requested-With': 'XMLHttpRequest',
+            }
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                showAlert('Quote duplicated successfully!', 'success');
+                window.location.href = `/quotes/${data.new_quote_id}/builder/`;
+            } else {
+                showAlert('Failed to duplicate quote: ' + data.error, 'danger');
+            }
+        })
+        .catch(error => {
+            showAlert('Failed to duplicate quote. Please try again.', 'danger');
+        });
+    }
+}
+
+function exportQuotePDF(quoteId) {
+    window.open(`/quotes/${quoteId}/pdf/`, '_blank');
+}
+
+function markAccepted(quoteId) {
+    updateQuoteStatus(quoteId, 'accepted');
+}
+
+function markRejected(quoteId) {
+    updateQuoteStatus(quoteId, 'rejected');
+}
+
+function updateQuoteStatus(quoteId, status) {
+    const statusLabels = {
+        'accepted': 'accepted',
+        'rejected': 'rejected'
+    };
+    
+    if (confirm(`Mark this quote as ${statusLabels[status]}?`)) {
+        fetch(`/quotes/${quoteId}/update-status/`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': getCsrfToken(),
+                'X-Requested-With': 'XMLHttpRequest',
+            },
+            body: JSON.stringify({status: status})
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                showAlert('Quote status updated successfully!', 'success');
+                location.reload();
+            } else {
+                showAlert('Failed to update status: ' + data.error, 'danger');
+            }
+        })
+        .catch(error => {
+            showAlert('Failed to update status. Please try again.', 'danger');
+        });
+    }
+}
+
+// Bulk action functions
+function bulkUpdateStatus() {
+    const selectedQuotes = getSelectedQuotes();
+    if (selectedQuotes.length === 0) {
+        alert('Please select quotes to update.');
+        return;
+    }
+    
+    const newStatus = prompt('Enter new status (draft, sent, accepted, rejected):');
+    if (newStatus) {
+        // Implement bulk status update
+        alert(`Bulk status update for ${selectedQuotes.length} quotes will be implemented.`);
+    }
+}
+
+function bulkAssign() {
+    const selectedQuotes = getSelectedQuotes();
+    if (selectedQuotes.length === 0) {
+        alert('Please select quotes to assign.');
+        return;
+    }
+    
+    alert(`Bulk assignment for ${selectedQuotes.length} quotes will be implemented.`);
+}
+
+function bulkExport() {
+    const selectedQuotes = getSelectedQuotes();
+    if (selectedQuotes.length === 0) {
+        alert('Please select quotes to export.');
+        return;
+    }
+    
+    alert(`Bulk export for ${selectedQuotes.length} quotes will be implemented.`);
+}
+
+function getSelectedQuotes() {
+    const checkboxes = document.querySelectorAll('.quote-checkbox:checked');
+    return Array.from(checkboxes).map(cb => cb.value);
+}
+
+// Utility functions
+function getCsrfToken() {
+    const token = document.querySelector('[name=csrfmiddlewaretoken]');
+    return token ? token.value : '';
+}
+
+function showAlert(message, type) {
+    // Create Bootstrap alert
+    const alertDiv = document.createElement('div');
+    alertDiv.className = `alert alert-${type} alert-dismissible fade show`;
+    alertDiv.innerHTML = `
+        ${message}
+        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+    `;
+    
+    // Insert at top of content
+    const content = document.querySelector('.col-lg-9');
+    content.insertBefore(alertDiv, content.firstChild);
+    
+    // Auto-remove after 5 seconds
+    setTimeout(() => {
+        alertDiv.remove();
+    }, 5000);
+}
+
+// Keyboard shortcuts
+document.addEventListener('keydown', function(e) {
+    // Ctrl/Cmd + N for new quote
+    if ((e.ctrlKey || e.metaKey) && e.key === 'n') {
+        e.preventDefault();
+        window.location.href = "{% url 'quotes:quote_create' %}";
+    }
+    
+    // Ctrl/Cmd + F to focus search
+    if ((e.ctrlKey || e.metaKey) && e.key === 'f') {
+        e.preventDefault();
+        document.getElementById('search').focus();
+    }
+});
+</script>
+{% endblock %}

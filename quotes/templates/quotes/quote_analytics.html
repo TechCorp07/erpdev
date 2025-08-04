@@ -1,0 +1,182 @@
+{% extends "dashboard_base.html" %}
+{% load static %}
+{% load query_string %}
+
+{% block page_title %}Quote Analytics{% endblock %}
+
+{% block dashboard_content %}
+<!-- FILTER BAR -->
+<form method="get" class="row g-2 align-items-end mb-4">
+  <div class="col-md-2">
+    <label class="form-label small">Date from</label>
+    <input type="date" name="start_date" value="{{ request.GET.start_date }}" class="form-control">
+  </div>
+  <div class="col-md-2">
+    <label class="form-label small">Date to</label>
+    <input type="date" name="end_date" value="{{ request.GET.end_date }}" class="form-control">
+  </div>
+  <div class="col-md-2">
+    <label class="form-label small">Status</label>
+    <select name="status" class="form-select">
+      <option value="">All</option>
+      {% for code,label in Quote.STATUS_CHOICES %}
+        <option value="{{ code }}" {% if request.GET.status == code %}selected{% endif %}>{{ label }}</option>
+      {% endfor %}
+    </select>
+  </div>
+  <div class="col-md-3">
+    <label class="form-label small">Client</label>
+    <select name="client" class="form-select">
+      <option value="">All Clients</option>
+      {% for c in clients %}
+        <option value="{{ c.id }}" {% if request.GET.client == c.id|stringformat:"s" %}selected{% endif %}>{{ c.name }}</option>
+      {% endfor %}
+    </select>
+  </div>
+  <div class="col-md-3 text-end">
+    <button class="btn btn-primary me-1"><i class="bi bi-filter"></i> Filter</button>
+    <a href="{% url 'quotes:quote_analytics' %}" class="btn btn-outline-secondary">Reset</a>
+  </div>
+</form>
+
+<!-- KPI CARDS -->
+<div class="row g-3 mb-4">
+  <div class="col-lg-3 col-md-6">
+    <div class="card shadow-sm border-0 bg-primary text-white h-100">
+      <div class="card-body d-flex justify-content-between">
+        <span>Total Quotes</span> <strong class="fs-4">{{ total_quotes }}</strong>
+      </div>
+    </div>
+  </div>
+  <div class="col-lg-3 col-md-6">
+    <div class="card shadow-sm border-0 bg-success text-white h-100">
+      <div class="card-body d-flex justify-content-between">
+        <span>Total Value</span> <strong class="fs-4">${{ total_value|floatformat:2 }}</strong>
+      </div>
+    </div>
+  </div>
+  <div class="col-lg-3 col-md-6">
+    <div class="card shadow-sm border-0 bg-info text-white h-100">
+      <div class="card-body d-flex justify-content-between">
+        <span>Average Deal</span> <strong class="fs-4">${{ avg_value|floatformat:2 }}</strong>
+      </div>
+    </div>
+  </div>
+  <div class="col-lg-3 col-md-6">
+    <div class="card shadow-sm border-0 bg-warning text-white h-100">
+      <div class="card-body d-flex justify-content-between">
+        <span>Conversion %</span> <strong class="fs-4">{{ conversion_pct|floatformat:1 }}%</strong>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- CHARTS -->
+<div class="row g-3 mb-4">
+  <div class="col-lg-6">
+    <div class="card">
+      <div class="card-body">
+        <h6 class="card-title">Status Distribution</h6>
+        <canvas id="statusChart" height="220"></canvas>
+      </div>
+    </div>
+  </div>
+  <div class="col-lg-6">
+    <div class="card">
+      <div class="card-body">
+        <h6 class="card-title">Monthly Sales Trend</h6>
+        <canvas id="trendChart" height="220"></canvas>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- TOP CLIENTS -->
+<div class="card mb-4">
+  <div class="card-body">
+    <h6 class="card-title mb-3">Top Clients (by value)</h6>
+    <ol class="list-group list-group-numbered">
+      {% for row in top_clients %}
+        <li class="list-group-item d-flex justify-content-between align-items-center">
+          {{ row.client__name }}
+          <span class="badge bg-primary rounded-pill">${{ row.total|floatformat:2 }}</span>
+        </li>
+      {% empty %}
+        <li class="list-group-item">No data</li>
+      {% endfor %}
+    </ol>
+  </div>
+</div>
+
+<!-- EXPORT BUTTONS -->
+<div class="mb-3 text-end">
+  <a href="?{% query_string request.GET %}&export=pdf"   class="btn btn-outline-danger btn-sm me-2">
+    <i class="bi bi-file-earmark-pdf"></i> PDF
+  </a>
+  <a href="?{% query_string request.GET %}&export=excel" class="btn btn-outline-success btn-sm">
+    <i class="bi bi-file-earmark-excel"></i> Excel
+  </a>
+</div>
+
+<!-- DETAIL TABLE -->
+<div class="card">
+  <div class="card-body">
+    <h6 class="card-title">Quote List</h6>
+    <div class="table-responsive">
+      <table class="table table-sm table-striped table-bordered align-middle">
+        <thead class="table-light">
+          <tr>
+            <th>#</th><th>Client</th><th>Status</th><th>Owner</th><th>Amount</th><th>Date</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for q in quotes %}
+            <tr>
+              <td>{{ q.quote_number }}</td>
+              <td>{{ q.client.name }}</td>
+              <td>{{ q.get_status_display }}</td>
+              <td>{{ q.assigned_to.get_full_name|default:q.assigned_to.username }}</td>
+              <td>${{ q.total_amount|floatformat:2 }}</td>
+              <td>{{ q.created_at|date:"Y-m-d" }}</td>
+            </tr>
+          {% empty %}
+            <tr><td colspan="6" class="text-center">No quotes found.</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<!-- CHART.JS -->
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script>
+document.addEventListener('DOMContentLoaded', () => {
+  // Status pie
+  new Chart(document.getElementById('statusChart'), {
+    type: 'doughnut',
+    data: {labels: {{ status_labels|safe }}, datasets:[{data: {{ status_data|safe }}, backgroundColor: [
+      '#0d6efd','#20c997','#ffc107','#dc3545','#0dcaf0','#6c757d','#fd7e14','#6610f2'
+    ]}]},
+    options:{plugins:{legend:{position:'bottom'}}}
+  });
+
+  // Trend line
+  new Chart(document.getElementById('trendChart'), {
+    type:'line',
+    data:{
+      labels: {{ mon_labels|safe }},
+      datasets:[{
+        label:'Sales',
+        data: {{ mon_data|safe }},
+        fill:true,
+        borderColor:'rgb(13,110,253)',
+        backgroundColor:'rgba(13,110,253,0.1)',
+        tension:0.3
+      }]
+    },
+    options:{responsive:true, scales:{y:{beginAtZero:true}}}
+  });
+});
+</script>
+{% endblock %}

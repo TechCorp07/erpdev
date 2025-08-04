@@ -1,0 +1,385 @@
+<!-- templates/website/partners/manage_partners.html -->
+{% extends "website_base.html" %}
+{% load static %}
+
+{% block title %}Manage Partners - BlitzTech Electronics{% endblock %}
+
+{% block extra_css %}
+<style>
+/* Custom styles for partners management */
+.partner-card {
+    transition: all 0.3s ease;
+    border: 1px solid #e9ecef;
+    border-radius: 12px;
+    overflow: hidden;
+    background: white;
+    height: 100%;
+}
+.partner-card:hover {
+    transform: translateY(-4px);
+    box-shadow: 0 8px 25px rgba(0,0,0,0.1);
+    border-color: #007bff;
+}
+.partner-logo-container {
+    height: 150px;
+    background: #f8f9fa;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 1rem;
+    border-bottom: 1px solid #e9ecef;
+}
+.partner-logo {
+    max-width: 100%;
+    max-height: 100%;
+    object-fit: contain;
+    filter: grayscale(0);
+    transition: all 0.3s ease;
+}
+.partner-card:hover .partner-logo {
+    filter: grayscale(0);
+    transform: scale(1.05);
+}
+.partner-info {
+    padding: 1.5rem;
+    text-align: center;
+}
+.partner-stats {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: white;
+    border-radius: 12px;
+    padding: 2rem;
+}
+.logo-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+    gap: 1.5rem;
+}
+.order-badge {
+    position: absolute;
+    top: 0.5rem;
+    left: 0.5rem;
+    z-index: 2;
+    background: rgba(0,0,0,0.7);
+    color: white;
+    border-radius: 12px;
+    padding: 0.25rem 0.5rem;
+    font-size: 0.75rem;
+}
+.website-link {
+    color: #007bff;
+    text-decoration: none;
+    font-size: 0.875rem;
+}
+.website-link:hover {
+    text-decoration: underline;
+}
+.sort-options {
+    background: #f8f9fa;
+    border-radius: 8px;
+    padding: 0.5rem;
+    margin-bottom: 1.5rem;
+}
+.sort-btn {
+    border: none;
+    background: none;
+    padding: 0.5rem 1rem;
+    border-radius: 6px;
+    transition: all 0.3s ease;
+    color: #6c757d;
+    margin-right: 0.5rem;
+}
+.sort-btn.active {
+    background: #007bff;
+    color: white;
+}
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container py-4">
+  <!-- Header Section -->
+  <div class="d-flex justify-content-between align-items-center mb-4">
+    <div>
+      <h2><i class="bi bi-building me-2 text-primary"></i>Manage Partners</h2>
+      <p class="text-muted mb-0">Showcase business relationships and build credibility</p>
+    </div>
+    <div>
+      <a href="{% url 'website:manage_dashboard' %}" class="btn btn-outline-secondary me-2">
+        <i class="bi bi-arrow-left"></i> Back to Dashboard
+      </a>
+      <a href="{% url 'website:add_partner' %}" class="btn btn-primary">
+        <i class="bi bi-plus-lg"></i> New Partner
+      </a>
+    </div>
+  </div>
+
+  {% if partners %}
+    <!-- Statistics Section -->
+    <div class="row mb-4">
+      <div class="col-12">
+        <div class="partner-stats">
+          <div class="row text-center">
+            <div class="col-md-3">
+              <h3 class="mb-1">{{ partners.count }}</h3>
+              <p class="mb-0 opacity-75">Total Partners</p>
+            </div>
+            <div class="col-md-3">
+              <h3 class="mb-1">
+                {% with 0 as no_url_count %}
+                {% for p in partners %}
+                  {% if not p.url %}
+                    {% widthratio no_url_count|add:1 1 1 as no_url_count %}
+                  {% endif %}
+                {% endfor %}
+                {{ no_url_count }}
+              {% endwith %}              
+              </h3>
+              <p class="mb-0 opacity-75">With Websites</p>
+            </div>
+            <div class="col-md-3">
+              <h3 class="mb-1">
+                {% with partners|dictsort:"order"|first as first_partner %}
+                {{ first_partner.order|default:"—" }}
+                {% endwith %}
+              </h3>
+              <p class="mb-0 opacity-75">Lowest Order</p>
+            </div>
+            <div class="col-md-3">
+              <h3 class="mb-1">
+                {% with partners|dictsort:"order"|last as last_partner %}
+                {{ last_partner.order|default:"—" }}
+                {% endwith %}
+              </h3>
+              <p class="mb-0 opacity-75">Highest Order</p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Sort Options -->
+    <div class="sort-options">
+      <div class="d-flex align-items-center">
+        <span class="me-3 text-muted">Sort by:</span>
+        <button class="sort-btn active" data-sort="order">
+          <i class="bi bi-sort-numeric-up me-1"></i>Display Order
+        </button>
+        <button class="sort-btn" data-sort="name">
+          <i class="bi bi-sort-alpha-down me-1"></i>Name (A-Z)
+        </button>
+        <button class="sort-btn" data-sort="recent">
+          <i class="bi bi-clock me-1"></i>Recently Added
+        </button>
+      </div>
+    </div>
+
+    <!-- Partners Grid -->
+    <div class="logo-grid" id="partners-grid">
+      {% for partner in partners %}
+        <div class="partner-item" 
+             data-name="{{ partner.name|lower }}" 
+             data-order="{{ partner.order }}"
+             data-date="{{ partner.pk }}">
+          <div class="card partner-card position-relative">
+            <!-- Order Badge -->
+            <div class="order-badge">
+              #{{ partner.order }}
+            </div>
+
+            <!-- Partner Logo -->
+            <div class="partner-logo-container">
+              {% if partner.logo %}
+                <img src="{{ partner.logo.url }}" 
+                     alt="{{ partner.name }}" 
+                     class="partner-logo">
+              {% else %}
+                <div class="text-center text-muted">
+                  <i class="bi bi-building display-4"></i>
+                  <p class="mt-2 mb-0">No logo</p>
+                </div>
+              {% endif %}
+            </div>
+
+            <!-- Partner Information -->
+            <div class="partner-info">
+              <h5 class="mb-2 fw-bold">{{ partner.name }}</h5>
+              
+              {% if partner.url %}
+                <p class="mb-3">
+                  <a href="{{ partner.url }}" 
+                     target="_blank" 
+                     class="website-link">
+                    <i class="bi bi-globe me-1"></i>
+                    {{ partner.url|truncatechars:30 }}
+                    <i class="bi bi-box-arrow-up-right ms-1"></i>
+                  </a>
+                </p>
+              {% else %}
+                <p class="mb-3 text-muted small">No website provided</p>
+              {% endif %}
+
+              <!-- Logo Details -->
+              {% if partner.logo %}
+                <div class="mb-3">
+                  <small class="text-muted">
+                    <i class="bi bi-info-circle me-1"></i>
+                    Logo uploaded and ready for display
+                  </small>
+                </div>
+              {% endif %}
+
+              <!-- Action Buttons -->
+              <div class="d-grid gap-2">
+                <div class="btn-group" role="group">
+                  <a href="{% url 'website:edit_partner' partner.pk %}" 
+                     class="btn btn-outline-primary btn-sm">
+                    <i class="bi bi-pencil me-1"></i>Edit
+                  </a>
+                  {% if partner.url %}
+                    <a href="{{ partner.url }}" 
+                       target="_blank" 
+                       class="btn btn-outline-info btn-sm">
+                      <i class="bi bi-globe me-1"></i>Visit
+                    </a>
+                  {% endif %}
+                  <a href="{% url 'website:delete_partner' partner.pk %}" 
+                     class="btn btn-outline-danger btn-sm"
+                     onclick="return confirm('Are you sure you want to delete this partner?')">
+                    <i class="bi bi-trash me-1"></i>Delete
+                  </a>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      {% endfor %}
+    </div>
+
+    <!-- Partners Display Preview -->
+    <div class="mt-5">
+      <div class="card">
+        <div class="card-header bg-light">
+          <h5 class="mb-0">
+            <i class="bi bi-eye me-2"></i>Website Display Preview
+          </h5>
+          <small class="text-muted">How your partners will appear on your website</small>
+        </div>
+        <div class="card-body">
+          <div class="row align-items-center justify-content-center" style="min-height: 120px;">
+            {% for partner in partners|slice:":6" %}
+              <div class="col-md-2 col-4 text-center mb-3">
+                {% if partner.logo %}
+                  <img src="{{ partner.logo.url }}" 
+                       alt="{{ partner.name }}" 
+                       class="img-fluid"
+                       style="max-height: 60px; max-width: 100%; object-fit: contain; filter: grayscale(100%); opacity: 0.7;">
+                {% else %}
+                  <div class="bg-light p-2 rounded">
+                    <i class="bi bi-building text-muted"></i>
+                  </div>
+                {% endif %}
+              </div>
+            {% endfor %}
+            {% if partners.count > 6 %}
+              <div class="col-md-2 col-4 text-center mb-3">
+                <div class="bg-light p-2 rounded d-flex align-items-center justify-content-center" style="height: 60px;">
+                  <small class="text-muted">+{{ partners.count|add:"-6" }} more</small>
+                </div>
+              </div>
+            {% endif %}
+          </div>
+          <div class="text-center">
+            <small class="text-muted">
+              <i class="bi bi-info-circle me-1"></i>
+              Partners are typically displayed in grayscale and become colored on hover
+            </small>
+          </div>
+        </div>
+      </div>
+    </div>
+
+  {% else %}
+    <!-- Empty State -->
+    <div class="text-center py-5">
+      <div class="mb-4">
+        <i class="bi bi-building display-1 text-muted"></i>
+      </div>
+      <h4 class="text-muted mb-3">No Partners Yet</h4>
+      <p class="text-muted mb-4">
+        Partner logos are powerful trust signals that show visitors you work with established organizations.
+        <br>
+        Start by adding logos from your key clients, technology partners, or industry affiliations.
+      </p>
+      <a href="{% url 'website:add_partner' %}" class="btn btn-primary btn-lg">
+        <i class="bi bi-plus-lg me-2"></i>Add Your First Partner
+      </a>
+      
+      <!-- Partner Types Examples -->
+      <div class="mt-4">
+        <h6 class="text-muted">Types of partners you might showcase:</h6>
+        <div class="d-flex justify-content-center flex-wrap gap-2 mt-2">
+          <span class="badge bg-light text-dark">Key Clients</span>
+          <span class="badge bg-light text-dark">Technology Partners</span>
+          <span class="badge bg-light text-dark">Distributors</span>
+          <span class="badge bg-light text-dark">Industry Associations</span>
+          <span class="badge bg-light text-dark">Certification Bodies</span>
+          <span class="badge bg-light text-dark">Suppliers</span>
+        </div>
+      </div>
+    </div>
+  {% endif %}
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // Sort functionality
+    const sortButtons = document.querySelectorAll('.sort-btn');
+    const partnersGrid = document.getElementById('partners-grid');
+    const partnerItems = document.querySelectorAll('.partner-item');
+    
+    sortButtons.forEach(button => {
+        button.addEventListener('click', function() {
+            const sortType = this.dataset.sort;
+            
+            // Update active button
+            sortButtons.forEach(btn => btn.classList.remove('active'));
+            this.classList.add('active');
+            
+            // Sort items
+            const itemsArray = Array.from(partnerItems);
+            
+            itemsArray.sort((a, b) => {
+                switch(sortType) {
+                    case 'order':
+                        return parseInt(a.dataset.order) - parseInt(b.dataset.order);
+                    case 'name':
+                        return a.dataset.name.localeCompare(b.dataset.name);
+                    case 'recent':
+                        return parseInt(b.dataset.date) - parseInt(a.dataset.date);
+                    default:
+                        return 0;
+                }
+            });
+            
+            // Re-append sorted items
+            itemsArray.forEach(item => {
+                partnersGrid.appendChild(item);
+            });
+        });
+    });
+    
+    // Logo preview on hover
+    const partnerLogos = document.querySelectorAll('.partner-logo');
+    partnerLogos.forEach(logo => {
+        logo.addEventListener('mouseenter', function() {
+            this.style.filter = 'grayscale(0)';
+        });
+        
+        logo.addEventListener('mouseleave', function() {
+            this.style.filter = 'grayscale(0)';
+        });
+    });
+});
+</script>
+{% endblock %}

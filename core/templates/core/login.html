@@ -1,0 +1,193 @@
+{% extends "auth_base.html" %}
+{% load crispy_forms_tags %}
+{% load static %}
+
+{% block title %}
+  {% if login_type == 'employee' %}
+    Employee Login - BlitzTech Electronics
+  {% elif login_type == 'blogger' %}
+    Blogger Login - BlitzTech Electronics
+  {% else %}
+    Login - BlitzTech Electronics
+  {% endif %}
+{% endblock %}
+
+{% block auth_content %}
+<div class="auth-card">
+  <div class="auth-header">
+    <img src="{% static 'website/img/blitztech-logo.png' %}" alt="BlitzTech Electronics" class="mb-3" style="max-height: 60px;">
+
+    {% if login_type == 'employee' %}
+      <span class="auth-type-badge employee-badge">
+        <i class="bi bi-briefcase me-1"></i> Employee Portal
+      </span>
+    {% elif login_type == 'blogger' %}
+      <span class="auth-type-badge blogger-badge">
+        <i class="bi bi-pen me-1"></i> Blogger Portal
+      </span>
+    {% else %}
+      <span class="auth-type-badge customer-badge">
+        <i class="bi bi-person me-1"></i> Customer Portal
+      </span>
+    {% endif %}
+
+    <h4 class="text-dark mb-0">Welcome Back</h4>
+    <p class="text-muted mb-0">Sign in to your account</p>
+  </div>
+
+  <div class="card-body p-4">
+    {% if messages %}
+      {% for message in messages %}
+        <div class="alert alert-{{ message.tags }} alert-dismissible fade show" role="alert">
+          {{ message }}
+          <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+        </div>
+      {% endfor %}
+    {% endif %}
+
+    <form method="post">
+      {% csrf_token %}
+
+      {% if form.non_field_errors %}
+        <div class="alert alert-danger">
+          {% for error in form.non_field_errors %}
+            {{ error }}
+          {% endfor %}
+        </div>
+      {% endif %}
+
+      <div class="mb-3">
+        <label for="id_username" class="form-label">Username</label>
+        {{ form.username }}
+        {% if form.username.errors %}
+          <div class="text-danger small">
+            {% for error in form.username.errors %}
+              {{ error }}
+            {% endfor %}
+          </div>
+        {% endif %}
+      </div>
+
+      <div class="mb-3">
+        <label for="id_password" class="form-label">Password</label>
+        {{ form.password }}
+        {% if form.password.errors %}
+          <div class="text-danger small">
+            {% for error in form.password.errors %}
+              {{ error }}
+            {% endfor %}
+          </div>
+        {% endif %}
+      </div>
+
+      <div class="mb-3 form-check">
+        {{ form.remember_me }}
+        <label class="form-check-label" for="id_remember_me">
+          Remember me
+        </label>
+      </div>
+
+      <div class="d-grid">
+        <button type="submit" class="btn btn-primary btn-lg">
+          <i class="bi bi-box-arrow-in-right me-1"></i> Sign In
+        </button>
+      </div>
+    </form>
+
+    {% if login_type != 'employee' %}
+    <hr class="my-4">
+
+    <div class="text-center">
+      <p class="text-muted mb-3">Don't have an account?</p>
+      {% if login_type == 'blogger' %}
+        <a href="{% url 'core:register' %}?for=blog" class="btn btn-outline-success">
+          <i class="bi bi-pen me-1"></i> Create Blogger Account
+        </a>
+      {% else %}
+        <a href="{% url 'core:register' %}" class="btn btn-outline-primary">
+          <i class="bi bi-person-plus me-1"></i> Create Account
+        </a>
+      {% endif %}
+    </div>
+    {% endif %}
+
+    {% if login_type == 'employee' %}
+    <hr class="my-4">
+
+    <div class="text-center">
+      <small class="text-muted">
+        <i class="bi bi-info-circle me-1"></i>
+        Employee accounts are created by administrators.<br>
+        Contact IT support if you need assistance.
+      </small>
+    </div>
+    {% endif %}
+  </div>
+
+  <div class="auth-footer">
+    <div class="row text-center">
+      <div class="col">
+        <a href="{% url 'core:login' %}?type=customer" class="btn btn-sm btn-outline-primary me-1">
+          Customer
+        </a>
+        <a href="{% url 'core:login' %}?type=blogger" class="btn btn-sm btn-outline-success me-1">
+          Blogger
+        </a>
+        <a href="{% url 'core:login' %}?type=employee" class="btn btn-sm btn-outline-danger">
+          Employee
+        </a>
+      </div>
+    </div>
+    <small class="text-muted mt-2 d-block">Choose your account type above</small>
+
+    <div class="mt-3">
+      <a href="{% url 'website:home' %}" class="text-muted text-decoration-none">
+        <i class="bi bi-arrow-left me-1"></i> Back to Website
+      </a>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_auth_js %}
+<script>
+// Additional login page functionality
+document.addEventListener('DOMContentLoaded', function() {
+  // Handle login type switching with smooth transitions
+  const loginTypeButtons = document.querySelectorAll('a[href*="?type="]');
+  loginTypeButtons.forEach(button => {
+    button.addEventListener('click', function(e) {
+      const card = document.querySelector('.auth-card');
+      card.style.opacity = '0.7';
+      card.style.transform = 'scale(0.98)';
+      
+      setTimeout(() => {
+        window.location.href = this.href;
+      }, 150);
+    });
+  });
+
+  // Password visibility toggle (if needed)
+  const passwordField = document.getElementById('id_password');
+  if (passwordField) {
+    const toggleButton = document.createElement('button');
+    toggleButton.type = 'button';
+    toggleButton.className = 'btn btn-outline-secondary position-absolute end-0 top-50 translate-middle-y me-2';
+    toggleButton.style.zIndex = '10';
+    toggleButton.innerHTML = '<i class="bi bi-eye"></i>';
+    
+    const wrapper = document.createElement('div');
+    wrapper.className = 'position-relative';
+    passwordField.parentNode.insertBefore(wrapper, passwordField);
+    wrapper.appendChild(passwordField);
+    wrapper.appendChild(toggleButton);
+    
+    toggleButton.addEventListener('click', function() {
+      const type = passwordField.getAttribute('type') === 'password' ? 'text' : 'password';
+      passwordField.setAttribute('type', type);
+      this.innerHTML = type === 'password' ? '<i class="bi bi-eye"></i>' : '<i class="bi bi-eye-slash"></i>';
+    });
+  }
+});
+</script>
+{% endblock %}

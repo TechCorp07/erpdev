@@ -1,0 +1,607 @@
+{% extends "dashboard_base.html" %}
+{% load static %}
+
+{% block page_title %}{{ deal.title }}{% endblock %}
+
+{% block page_actions %}
+<div class="btn-group" role="group">
+  <a href="{% url 'crm:deal_update' deal.id %}" class="btn btn-warning">
+    <i class="bi bi-pencil me-1"></i> Edit Deal
+  </a>
+  <a href="{% url 'crm:task_create' %}?deal_id={{ deal.id }}" class="btn btn-success">
+    <i class="bi bi-plus-circle me-1"></i> Add Task
+  </a>
+  <div class="btn-group" role="group">
+    <button class="btn btn-outline-primary dropdown-toggle" type="button" data-bs-toggle="dropdown">
+      <i class="bi bi-three-dots me-1"></i> More Actions
+    </button>
+    <ul class="dropdown-menu">
+      <li><a class="dropdown-item" href="#" onclick="generateQuote()"><i class="bi bi-file-earmark-text me-1"></i> Generate Quote</a></li>
+      <li><a class="dropdown-item" href="{% url 'crm:add_interaction' deal.client.id %}"><i class="bi bi-chat-left-text me-1"></i> Log Interaction</a></li>
+      <li><hr class="dropdown-divider"></li>
+      <li><a class="dropdown-item" href="#" onclick="duplicateDeal()"><i class="bi bi-files me-1"></i> Duplicate Deal</a></li>
+      <li><a class="dropdown-item" href="#" onclick="createFollowupTask()"><i class="bi bi-calendar-plus me-1"></i> Schedule Follow-up</a></li>
+      <li><hr class="dropdown-divider"></li>
+      {% if is_admin %}
+      <li><a class="dropdown-item text-danger" href="{% url 'crm:deal_delete' deal.id %}"><i class="bi bi-trash me-1"></i> Delete Deal</a></li>
+      {% endif %}
+    </ul>
+  </div>
+  <a href="{% url 'crm:deal_list' %}" class="btn btn-outline-secondary">
+    <i class="bi bi-arrow-left me-1"></i> Back to Pipeline
+  </a>
+</div>
+{% endblock %}
+
+{% block dashboard_content %}
+<!-- Deal Header -->
+<div class="row mb-4">
+  <div class="col-md-8">
+    <div class="d-flex align-items-center">
+      <div class="flex-shrink-0 me-3">
+        {% if deal.priority == 'critical' %}
+        <div class="bg-danger rounded-circle d-flex align-items-center justify-content-center" style="width: 60px; height: 60px;">
+          <i class="bi bi-exclamation-triangle-fill text-white fs-3"></i>
+        </div>
+        {% elif deal.priority == 'high' %}
+        <div class="bg-warning rounded-circle d-flex align-items-center justify-content-center" style="width: 60px; height: 60px;">
+          <i class="bi bi-exclamation-circle-fill text-white fs-3"></i>
+        </div>
+        {% else %}
+        <div class="bg-primary rounded-circle d-flex align-items-center justify-content-center" style="width: 60px; height: 60px;">
+          <i class="bi bi-briefcase text-white fs-3"></i>
+        </div>
+        {% endif %}
+      </div>
+      <div>
+        <h2 class="mb-1">{{ deal.title }}</h2>
+        <p class="text-muted mb-1 fs-5">
+          <a href="{% url 'crm:client_detail' deal.client.id %}" class="text-decoration-none">
+            {{ deal.client.name }}
+          </a>
+          {% if deal.client.company %} - {{ deal.client.company }}{% endif %}
+        </p>
+        <div class="d-flex align-items-center gap-3">
+          <span class="badge bg-{% if deal.stage == 'prospecting' %}secondary{% elif deal.stage == 'qualification' %}info{% elif deal.stage == 'proposal' %}warning{% elif deal.stage == 'negotiation' %}primary{% elif deal.stage == 'closed_won' %}success{% else %}danger{% endif %} fs-6">
+            {{ deal.get_stage_display }}
+          </span>
+          {% if deal.priority != 'medium' %}
+          <span class="badge bg-{% if deal.priority == 'critical' %}danger{% elif deal.priority == 'high' %}warning{% else %}info{% endif %}">
+            {{ deal.get_priority_display }}
+          </span>
+          {% endif %}
+          <span class="text-muted">${{ deal.value|floatformat:0 }} {{ deal.currency }}</span>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="col-md-4 text-md-end">
+    <div class="text-muted small">
+      <div>Deal ID: {{ deal.deal_id }}</div>
+      <div>Created: {{ deal.created_at|date:"M d, Y" }}</div>
+      {% if deal.created_by %}
+      <div>By: {{ deal.created_by.get_full_name|default:deal.created_by.username }}</div>
+      {% endif %}
+      {% if deal.expected_close_date %}
+      <div class="mt-2">
+        <strong class="{% if deal.is_overdue %}text-danger{% endif %}">
+          Expected Close: {{ deal.expected_close_date|date:"M d, Y" }}
+        </strong>
+        {% if deal.is_overdue %}
+        <br><small class="text-danger">
+          <i class="bi bi-exclamation-triangle me-1"></i>Overdue by {{ deal.expected_close_date|timesince }}
+        </small>
+        {% endif %}
+      </div>
+      {% endif %}
+    </div>
+  </div>
+</div>
+
+<!-- Deal Progress -->
+<div class="row mb-4">
+  <div class="col-12">
+    <div class="card">
+      <div class="card-header">
+        <h5 class="card-title mb-0">Deal Progress</h5>
+      </div>
+      <div class="card-body">
+        <div class="row">
+          <div class="col-12 mb-3">
+            <div class="d-flex justify-content-between align-items-center mb-2">
+              <span class="small text-muted">Sales Stage Progress</span>
+              <span class="small">{{ deal.get_stage_display }}</span>
+            </div>
+            <div class="progress" style="height: 8px;">
+              {% if deal.stage == 'prospecting' %}
+              <div class="progress-bar bg-secondary" style="width: 20%"></div>
+              {% elif deal.stage == 'qualification' %}
+              <div class="progress-bar bg-info" style="width: 40%"></div>
+              {% elif deal.stage == 'proposal' %}
+              <div class="progress-bar bg-warning" style="width: 60%"></div>
+              {% elif deal.stage == 'negotiation' %}
+              <div class="progress-bar bg-primary" style="width: 80%"></div>
+              {% elif deal.stage == 'closed_won' %}
+              <div class="progress-bar bg-success" style="width: 100%"></div>
+              {% else %}
+              <div class="progress-bar bg-danger" style="width: 100%"></div>
+              {% endif %}
+            </div>
+          </div>
+          
+          <!-- Stage Timeline -->
+          <div class="col-12">
+            <div class="d-flex justify-content-between">
+              {% for stage in stage_progression %}
+              <div class="text-center flex-fill">
+                <div class="stage-marker {% if stage.completed %}completed{% endif %} {% if stage.current %}current{% endif %} mb-2">
+                  <i class="bi bi-{% if stage.completed %}check-circle-fill{% elif stage.current %}circle-half{% else %}circle{% endif %}"></i>
+                </div>
+                <small class="text-muted">{{ stage.label }}</small>
+              </div>
+              {% endfor %}
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Key Metrics Row -->
+<div class="row mb-4">
+  <div class="col-md-3 mb-3">
+    <div class="card text-center h-100">
+      <div class="card-body">
+        <i class="bi bi-currency-dollar text-success fs-1 mb-2"></i>
+        <h5 class="card-title">${{ deal.value|floatformat:0 }}</h5>
+        <p class="card-text text-muted small">Deal Value</p>
+        <small class="text-muted">{{ deal.currency }}</small>
+      </div>
+    </div>
+  </div>
+  
+  <div class="col-md-3 mb-3">
+    <div class="card text-center h-100">
+      <div class="card-body">
+        <i class="bi bi-percent text-warning fs-1 mb-2"></i>
+        <h5 class="card-title">{{ deal.probability }}%</h5>
+        <p class="card-text text-muted small">Win Probability</p>
+        <small class="text-success">${{ deal.weighted_value|floatformat:0 }} weighted</small>
+      </div>
+    </div>
+  </div>
+  
+  <div class="col-md-3 mb-3">
+    <div class="card text-center h-100">
+      <div class="card-body">
+        <i class="bi bi-calendar-event text-info fs-1 mb-2"></i>
+        <h5 class="card-title">
+          {% if days_to_close %}
+          {{ days_to_close }}
+          {% else %}
+          --
+          {% endif %}
+        </h5>
+        <p class="card-text text-muted small">Days to Close</p>
+        <small class="text-muted">
+          {% if deal.expected_close_date %}{{ deal.expected_close_date|date:"M d" }}{% else %}Not set{% endif %}
+        </small>
+      </div>
+    </div>
+  </div>
+  
+  <div class="col-md-3 mb-3">
+    <div class="card text-center h-100">
+      <div class="card-body">
+        <i class="bi bi-clock text-secondary fs-1 mb-2"></i>
+        <h5 class="card-title">{{ deal_age }}</h5>
+        <p class="card-text text-muted small">Days in Pipeline</p>
+        <small class="text-muted">Since {{ deal.created_at|date:"M d" }}</small>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Main Content Tabs -->
+<div class="card">
+  <div class="card-header">
+    <ul class="nav nav-tabs card-header-tabs" id="dealTabs" role="tablist">
+      <li class="nav-item" role="presentation">
+        <button class="nav-link active" id="overview-tab" data-bs-toggle="tab" data-bs-target="#overview" type="button" role="tab">
+          <i class="bi bi-info-circle me-1"></i> Overview
+        </button>
+      </li>
+      <li class="nav-item" role="presentation">
+        <button class="nav-link" id="tasks-tab" data-bs-toggle="tab" data-bs-target="#tasks" type="button" role="tab">
+          <i class="bi bi-list-check me-1"></i> Tasks
+          {% if deal_tasks|length %}
+          <span class="badge bg-secondary rounded-pill ms-1">{{ deal_tasks|length }}</span>
+          {% endif %}
+        </button>
+      </li>
+      <li class="nav-item" role="presentation">
+        <button class="nav-link" id="interactions-tab" data-bs-toggle="tab" data-bs-target="#interactions" type="button" role="tab">
+          <i class="bi bi-chat-left-text me-1"></i> Client Interactions
+          {% if client_interactions|length %}
+          <span class="badge bg-info rounded-pill ms-1">{{ client_interactions|length }}</span>
+          {% endif %}
+        </button>
+      </li>
+      <li class="nav-item" role="presentation">
+        <button class="nav-link" id="quotes-tab" data-bs-toggle="tab" data-bs-target="#quotes" type="button" role="tab">
+          <i class="bi bi-file-earmark-text me-1"></i> Quotes
+          <span class="badge bg-warning rounded-pill ms-1">0</span>
+        </button>
+      </li>
+    </ul>
+  </div>
+  
+  <div class="card-body">
+    <div class="tab-content" id="dealTabsContent">
+      <!-- Overview Tab -->
+      <div class="tab-pane fade show active" id="overview" role="tabpanel">
+        <div class="row">
+          <!-- Deal Details -->
+          <div class="col-lg-6 mb-4">
+            <h5 class="mb-3">Deal Information</h5>
+            <table class="table table-borderless">
+              <tr>
+                <td class="text-muted" style="width: 30%;"><i class="bi bi-briefcase me-2"></i>Title:</td>
+                <td><strong>{{ deal.title }}</strong></td>
+              </tr>
+              <tr>
+                <td class="text-muted"><i class="bi bi-person me-2"></i>Client:</td>
+                <td>
+                  <a href="{% url 'crm:client_detail' deal.client.id %}" class="text-decoration-none">
+                    {{ deal.client.name }}
+                  </a>
+                </td>
+              </tr>
+              <tr>
+                <td class="text-muted"><i class="bi bi-currency-dollar me-2"></i>Value:</td>
+                <td><strong>${{ deal.value|floatformat:2 }} {{ deal.currency }}</strong></td>
+              </tr>
+              <tr>
+                <td class="text-muted"><i class="bi bi-diagram-2 me-2"></i>Stage:</td>
+                <td>
+                  <span class="badge bg-{% if deal.stage == 'closed_won' %}success{% elif deal.stage == 'closed_lost' %}danger{% else %}primary{% endif %}">
+                    {{ deal.get_stage_display }}
+                  </span>
+                </td>
+              </tr>
+              <tr>
+                <td class="text-muted"><i class="bi bi-percent me-2"></i>Probability:</td>
+                <td>
+                  <div class="d-flex align-items-center">
+                    <div class="progress me-2" style="width: 100px; height: 6px;">
+                      <div class="progress-bar bg-success" style="width: {{ deal.probability }}%"></div>
+                    </div>
+                    <span>{{ deal.probability }}%</span>
+                  </div>
+                </td>
+              </tr>
+              {% if deal.expected_close_date %}
+              <tr>
+                <td class="text-muted"><i class="bi bi-calendar-event me-2"></i>Expected Close:</td>
+                <td class="{% if deal.is_overdue %}text-danger fw-bold{% endif %}">
+                  {{ deal.expected_close_date|date:"M d, Y" }}
+                  {% if deal.is_overdue %}
+                  <br><small class="text-danger">
+                    <i class="bi bi-exclamation-triangle me-1"></i>Overdue
+                  </small>
+                  {% endif %}
+                </td>
+              </tr>
+              {% endif %}
+              {% if deal.actual_close_date %}
+              <tr>
+                <td class="text-muted"><i class="bi bi-calendar-check me-2"></i>Actual Close:</td>
+                <td><strong>{{ deal.actual_close_date|date:"M d, Y" }}</strong></td>
+              </tr>
+              {% endif %}
+            </table>
+          </div>
+          
+          <!-- Assignment and Source -->
+          <div class="col-lg-6 mb-4">
+            <h5 class="mb-3">Assignment & Details</h5>
+            <table class="table table-borderless">
+              <tr>
+                <td class="text-muted" style="width: 30%;">Assigned To:</td>
+                <td>
+                  {% if deal.assigned_to %}
+                  {{ deal.assigned_to.get_full_name|default:deal.assigned_to.username }}
+                  {% else %}
+                  <span class="text-muted">Not assigned</span>
+                  {% endif %}
+                </td>
+              </tr>
+              <tr>
+                <td class="text-muted">Priority:</td>
+                <td>
+                  <span class="badge bg-{% if deal.priority == 'critical' %}danger{% elif deal.priority == 'high' %}warning{% else %}secondary{% endif %}">
+                    {{ deal.get_priority_display }}
+                  </span>
+                </td>
+              </tr>
+              {% if deal.source %}
+              <tr>
+                <td class="text-muted">Source:</td>
+                <td>{{ deal.source }}</td>
+              </tr>
+              {% endif %}
+              {% if deal.competitor %}
+              <tr>
+                <td class="text-muted">Competitor:</td>
+                <td>{{ deal.competitor }}</td>
+              </tr>
+              {% endif %}
+              <tr>
+                <td class="text-muted">Created:</td>
+                <td>{{ deal.created_at|date:"M d, Y H:i" }}</td>
+              </tr>
+              <tr>
+                <td class="text-muted">Last Updated:</td>
+                <td>{{ deal.updated_at|date:"M d, Y H:i" }}</td>
+              </tr>
+            </table>
+          </div>
+        </div>
+        
+        <!-- Description -->
+        {% if deal.description %}
+        <div class="row">
+          <div class="col-12 mb-4">
+            <h5 class="mb-3">Description</h5>
+            <div class="bg-light p-3 rounded">
+              {{ deal.description|linebreaks }}
+            </div>
+          </div>
+        </div>
+        {% endif %}
+        
+        <!-- Loss Reason (if applicable) -->
+        {% if deal.stage == 'closed_lost' and deal.loss_reason %}
+        <div class="row">
+          <div class="col-12">
+            <div class="alert alert-danger">
+              <h6 class="alert-heading">Loss Reason</h6>
+              {{ deal.loss_reason|linebreaks }}
+            </div>
+          </div>
+        </div>
+        {% endif %}
+      </div>
+      
+      <!-- Tasks Tab -->
+      <div class="tab-pane fade" id="tasks" role="tabpanel">
+        <div class="d-flex justify-content-between align-items-center mb-3">
+          <h5 class="mb-0">Related Tasks</h5>
+          <a href="{% url 'crm:task_create' %}?deal_id={{ deal.id }}" class="btn btn-sm btn-success">
+            <i class="bi bi-plus me-1"></i> Add Task
+          </a>
+        </div>
+        
+        {% if deal_tasks %}
+        <div class="list-group">
+          {% for task in deal_tasks %}
+          <div class="list-group-item">
+            <div class="d-flex w-100 justify-content-between">
+              <h6 class="mb-1">
+                <a href="{% url 'crm:task_detail' task.id %}" class="text-decoration-none">
+                  {{ task.title }}
+                </a>
+              </h6>
+              <small>{{ task.created_at|date:"M d, Y" }}</small>
+            </div>
+            <p class="mb-1">{{ task.description|truncatewords:20 }}</p>
+            <div class="d-flex justify-content-between align-items-center">
+              <div>
+                <span class="badge bg-{% if task.status == 'completed' %}success{% elif task.status == 'in_progress' %}primary{% elif task.status == 'cancelled' %}secondary{% else %}warning{% endif %}">
+                  {{ task.get_status_display }}
+                </span>
+                <span class="badge bg-{% if task.priority == 'urgent' %}danger{% elif task.priority == 'high' %}warning{% else %}secondary{% endif %}">
+                  {{ task.get_priority_display }}
+                </span>
+              </div>
+              <div class="btn-group btn-group-sm">
+                {% if task.status != 'completed' %}
+                <button class="btn btn-outline-success" onclick="completeTask({{ task.id }})" title="Mark Complete">
+                  <i class="bi bi-check"></i>
+                </button>
+                {% endif %}
+                <a href="{% url 'crm:task_detail' task.id %}" class="btn btn-outline-primary" title="View Details">
+                  <i class="bi bi-eye"></i>
+                </a>
+              </div>
+            </div>
+            {% if task.due_date %}
+            <small class="text-muted">
+              Due: {{ task.due_date|date:"M d, Y H:i" }}
+              {% if task.is_overdue %}
+              <span class="text-danger">
+                <i class="bi bi-exclamation-triangle me-1"></i>Overdue
+              </span>
+              {% endif %}
+            </small>
+            {% endif %}
+          </div>
+          {% endfor %}
+        </div>
+        {% else %}
+        <div class="text-center py-5 text-muted">
+          <i class="bi bi-list-check fs-1 mb-3"></i>
+          <h5>No tasks yet</h5>
+          <p>Add tasks to track activities for this deal.</p>
+          <a href="{% url 'crm:task_create' %}?deal_id={{ deal.id }}" class="btn btn-success">
+            <i class="bi bi-plus me-1"></i> Add First Task
+          </a>
+        </div>
+        {% endif %}
+      </div>
+      
+      <!-- Client Interactions Tab -->
+      <div class="tab-pane fade" id="interactions" role="tabpanel">
+        <div class="d-flex justify-content-between align-items-center mb-3">
+          <h5 class="mb-0">Recent Client Interactions</h5>
+          <a href="{% url 'crm:add_interaction' deal.client.id %}" class="btn btn-sm btn-primary">
+            <i class="bi bi-plus me-1"></i> Log Interaction
+          </a>
+        </div>
+        
+        {% if client_interactions %}
+        <div class="timeline">
+          {% for interaction in client_interactions %}
+          <div class="timeline-item mb-3">
+            <div class="d-flex">
+              <div class="flex-shrink-0 me-3">
+                <div class="timeline-marker bg-{% if interaction.outcome == 'positive' %}success{% elif interaction.outcome == 'negative' %}danger{% else %}secondary{% endif %}">
+                  <i class="bi bi-{% if interaction.interaction_type == 'call' %}telephone{% elif interaction.interaction_type == 'email' %}envelope{% elif interaction.interaction_type == 'meeting' %}people{% else %}chat-left-text{% endif %} text-white small"></i>
+                </div>
+              </div>
+              <div class="flex-grow-1">
+                <div class="card card-body">
+                  <div class="d-flex justify-content-between align-items-start mb-1">
+                    <h6 class="mb-0">{{ interaction.get_interaction_type_display }}</h6>
+                    <small class="text-muted">{{ interaction.created_at|date:"M d, Y H:i" }}</small>
+                  </div>
+                  <p class="mb-1">{{ interaction.notes|truncatewords:30 }}</p>
+                  <small class="text-muted">by {{ interaction.created_by.get_full_name|default:interaction.created_by.username }}</small>
+                </div>
+              </div>
+            </div>
+          </div>
+          {% endfor %}
+        </div>
+        {% else %}
+        <div class="text-center py-5 text-muted">
+          <i class="bi bi-chat-left-text fs-1 mb-3"></i>
+          <h5>No interactions recorded</h5>
+          <p>Log client interactions to track communication history for this deal.</p>
+          <a href="{% url 'crm:add_interaction' deal.client.id %}" class="btn btn-primary">
+            <i class="bi bi-plus me-1"></i> Log First Interaction
+          </a>
+        </div>
+        {% endif %}
+      </div>
+      
+      <!-- Quotes Tab -->
+      <div class="tab-pane fade" id="quotes" role="tabpanel">
+        <div class="d-flex justify-content-between align-items-center mb-3">
+          <h5 class="mb-0">Related Quotes</h5>
+          <button class="btn btn-sm btn-warning" onclick="generateQuote()">
+            <i class="bi bi-file-earmark-text me-1"></i> Generate Quote
+          </button>
+        </div>
+        
+        <div class="text-center py-5 text-muted">
+          <i class="bi bi-file-earmark-text fs-1 mb-3"></i>
+          <h5>Quote integration coming soon</h5>
+          <p>Quote management will be integrated in Phase 2 of the enhancement.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+// Complete task function
+function completeTask(taskId) {
+    if (confirm('Mark this task as complete?')) {
+        fetch(`/crm/tasks/${taskId}/complete/`, {
+            method: 'POST',
+            headers: {
+                'X-Requested-With': 'XMLHttpRequest',
+                'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value
+            }
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                location.reload();
+            } else {
+                alert('Error completing task. Please try again.');
+            }
+        })
+        .catch(error => {
+            console.error('Error:', error);
+            alert('Error completing task. Please try again.');
+        });
+    }
+}
+
+// Generate Quote (placeholder)
+function generateQuote() {
+    alert('Quote generation for deals will be available in Phase 2 of the enhancement.');
+}
+
+// Duplicate Deal
+function duplicateDeal() {
+    if (confirm('Create a copy of this deal?')) {
+        window.location.href = `{% url 'crm:deal_create' %}?duplicate={{ deal.id }}`;
+    }
+}
+
+// Create Follow-up Task
+function createFollowupTask() {
+    window.location.href = `{% url 'crm:task_create' %}?deal_id={{ deal.id }}&title=Follow-up on {{ deal.title|urlencode }}`;
+}
+
+// Auto-refresh deal details every 5 minutes
+setInterval(function() {
+    if (document.visibilityState === 'visible') {
+        // Could implement partial refresh of specific sections
+        // location.reload();
+    }
+}, 300000);
+</script>
+
+<style>
+.stage-marker {
+    width: 30px;
+    height: 30px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin: 0 auto;
+    color: #6c757d;
+}
+
+.stage-marker.completed {
+    color: #198754;
+}
+
+.stage-marker.current {
+    color: #0d6efd;
+    background-color: rgba(13, 110, 253, 0.1);
+}
+
+.timeline-marker {
+    width: 24px;
+    height: 24px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.timeline-item:not(:last-child)::before {
+    content: '';
+    position: absolute;
+    left: 11px;
+    top: 24px;
+    width: 2px;
+    height: calc(100% - 24px);
+    background-color: #dee2e6;
+    z-index: -1;
+}
+
+.timeline {
+    position: relative;
+}
+</style>
+{% endblock %}

@@ -1,0 +1,726 @@
+<!-- quotes/templates/quotes/quote_form.html -->
+{% extends "dashboard_base.html" %}
+{% load static %}
+
+{% block page_title %}
+    {% if quote %}Edit Quote {{ quote.quote_number }}{% else %}Create New Quote{% endif %}
+{% endblock %}
+
+{% block extra_css %}
+<link href="{% static 'quotes/css/quotes.css' %}" rel="stylesheet">
+<style>
+/* Form-specific styling */
+.quote-form-container {
+    background: #f8f9fa;
+    min-height: 100vh;
+    padding: 2rem 0;
+}
+
+.form-section {
+    background: white;
+    border-radius: 0.5rem;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    margin-bottom: 2rem;
+    overflow: hidden;
+}
+
+.form-section-header {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: white;
+    padding: 1rem 1.5rem;
+    margin: 0;
+}
+
+.form-section-body {
+    padding: 2rem;
+}
+
+.form-group {
+    margin-bottom: 1.5rem;
+}
+
+.form-label {
+    font-weight: 600;
+    color: #495057;
+    margin-bottom: 0.5rem;
+    display: block;
+}
+
+.form-control {
+    border: 2px solid #e9ecef;
+    border-radius: 0.375rem;
+    padding: 0.75rem 1rem;
+    transition: all 0.2s ease;
+}
+
+.form-control:focus {
+    border-color: #667eea;
+    box-shadow: 0 0 0 0.2rem rgba(102, 126, 234, 0.25);
+    outline: none;
+}
+
+.form-text {
+    font-size: 0.875rem;
+    color: #6c757d;
+    margin-top: 0.25rem;
+}
+
+.client-preview {
+    background: #f8f9fa;
+    border: 1px solid #dee2e6;
+    border-radius: 0.375rem;
+    padding: 1rem;
+    margin-top: 1rem;
+}
+
+.validity-calculator {
+    background: #e3f2fd;
+    border: 1px solid #bbdefb;
+    border-radius: 0.375rem;
+    padding: 1rem;
+    margin-top: 0.5rem;
+}
+
+.pricing-preview {
+    background: #f1f8e9;
+    border: 1px solid #c8e6c9;
+    border-radius: 0.375rem;
+    padding: 1rem;
+    margin-top: 1rem;
+}
+
+.form-actions {
+    background: #f8f9fa;
+    border-top: 1px solid #dee2e6;
+    padding: 1.5rem 2rem;
+    text-align: right;
+}
+
+.btn-group .btn {
+    margin-left: 0.5rem;
+}
+
+.required-field {
+    color: #dc3545;
+}
+
+@media (max-width: 768px) {
+    .quote-form-container {
+        padding: 1rem 0;
+    }
+    
+    .form-section-body {
+        padding: 1rem;
+    }
+    
+    .form-actions {
+        padding: 1rem;
+        text-align: center;
+    }
+    
+    .btn-group .btn {
+        display: block;
+        width: 100%;
+        margin: 0.5rem 0;
+    }
+}
+</style>
+{% endblock %}
+
+{% block page_actions %}
+<div class="btn-group" role="group">
+    <a href="{% url 'quotes:quote_list' %}" class="btn btn-outline-secondary">
+        <i class="bi bi-arrow-left me-1"></i> Back to Quotes
+    </a>
+    {% if quote %}
+    <a href="{% url 'quotes:quote_detail' quote.id %}" class="btn btn-outline-info">
+        <i class="bi bi-eye me-1"></i> View Quote
+    </a>
+    {% endif %}
+</div>
+{% endblock %}
+
+{% block dashboard_content %}
+<div class="quote-form-container">
+    <div class="container">
+        <div class="row justify-content-center">
+            <div class="col-lg-10">
+                
+                <form method="post" id="quote-form" novalidate>
+                    {% csrf_token %}
+                    
+                    <!-- Quote Basic Information -->
+                    <div class="form-section">
+                        <h4 class="form-section-header">
+                            <i class="bi bi-file-earmark-text me-2"></i>
+                            Quote Information
+                        </h4>
+                        <div class="form-section-body">
+                            <div class="row">
+                                <div class="col-md-6">
+                                    <div class="form-group">
+                                        <label for="{{ form.client.id_for_label }}" class="form-label">
+                                            Client <span class="required-field">*</span>
+                                        </label>
+                                        {{ form.client }}
+                                        {% if form.client.errors %}
+                                        <div class="text-danger small">{{ form.client.errors.0 }}</div>
+                                        {% endif %}
+                                        <div class="form-text">Select the client for this quote</div>
+                                        
+                                        <!-- Client Preview (populated via JavaScript) -->
+                                        <div id="client-preview" class="client-preview" style="display: none;">
+                                            <h6><i class="bi bi-person me-1"></i> Client Details</h6>
+                                            <div id="client-details"></div>
+                                        </div>
+                                    </div>
+                                </div>
+                                
+                                <div class="col-md-6">
+                                    <div class="form-group">
+                                        <label for="{{ form.title.id_for_label }}" class="form-label">
+                                            Quote Title <span class="required-field">*</span>
+                                        </label>
+                                        {{ form.title }}
+                                        {% if form.title.errors %}
+                                        <div class="text-danger small">{{ form.title.errors.0 }}</div>
+                                        {% endif %}
+                                        <div class="form-text">Brief description of what this quote covers</div>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <div class="form-group">
+                                <label for="{{ form.description.id_for_label }}" class="form-label">
+                                    Description
+                                </label>
+                                {{ form.description }}
+                                {% if form.description.errors %}
+                                <div class="text-danger small">{{ form.description.errors.0 }}</div>
+                                {% endif %}
+                                <div class="form-text">Detailed description or special notes for this quote</div>
+                            </div>
+                            
+                            <div class="row">
+                                <div class="col-md-6">
+                                    <div class="form-group">
+                                        <label for="{{ form.priority.id_for_label }}" class="form-label">
+                                            Priority
+                                        </label>
+                                        {{ form.priority }}
+                                        {% if form.priority.errors %}
+                                        <div class="text-danger small">{{ form.priority.errors.0 }}</div>
+                                        {% endif %}
+                                        <div class="form-text">Set priority level for internal tracking</div>
+                                    </div>
+                                </div>
+                                
+                                <div class="col-md-6">
+                                    <div class="form-group">
+                                        <label for="{{ form.currency.id_for_label }}" class="form-label">
+                                            Currency
+                                        </label>
+                                        {{ form.currency }}
+                                        {% if form.currency.errors %}
+                                        <div class="text-danger small">{{ form.currency.errors.0 }}</div>
+                                        {% endif %}
+                                        <div class="form-text">Quote currency (USD recommended)</div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Terms and Conditions -->
+                    <div class="form-section">
+                        <h4 class="form-section-header">
+                            <i class="bi bi-calendar-check me-2"></i>
+                            Terms & Conditions
+                        </h4>
+                        <div class="form-section-body">
+                            <div class="row">
+                                <div class="col-md-4">
+                                    <div class="form-group">
+                                        <label for="{{ form.validity_date.id_for_label }}" class="form-label">
+                                            Valid Until <span class="required-field">*</span>
+                                        </label>
+                                        {{ form.validity_date }}
+                                        {% if form.validity_date.errors %}
+                                        <div class="text-danger small">{{ form.validity_date.errors.0 }}</div>
+                                        {% endif %}
+                                        <div class="form-text">Quote expiration date</div>
+                                        
+                                        <!-- Validity Calculator -->
+                                        <div class="validity-calculator">
+                                            <h6><i class="bi bi-calculator me-1"></i> Quick Set</h6>
+                                            <div class="btn-group btn-group-sm" role="group">
+                                                <button type="button" class="btn btn-outline-primary" onclick="setValidityDays(7)">
+                                                    7 days
+                                                </button>
+                                                <button type="button" class="btn btn-outline-primary" onclick="setValidityDays(14)">
+                                                    14 days
+                                                </button>
+                                                <button type="button" class="btn btn-outline-primary" onclick="setValidityDays(30)">
+                                                    30 days
+                                                </button>
+                                                <button type="button" class="btn btn-outline-primary" onclick="setValidityDays(60)">
+                                                    60 days
+                                                </button>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                                
+                                <div class="col-md-4">
+                                    <div class="form-group">
+                                        <label for="{{ form.payment_terms.id_for_label }}" class="form-label">
+                                            Payment Terms (Days)
+                                        </label>
+                                        {{ form.payment_terms }}
+                                        {% if form.payment_terms.errors %}
+                                        <div class="text-danger small">{{ form.payment_terms.errors.0 }}</div>
+                                        {% endif %}
+                                        <div class="form-text">Payment due in days after invoice</div>
+                                    </div>
+                                </div>
+                                
+                                <div class="col-md-4">
+                                    <div class="form-group">
+                                        <label for="{{ form.delivery_terms.id_for_label }}" class="form-label">
+                                            Delivery Terms
+                                        </label>
+                                        {{ form.delivery_terms }}
+                                        {% if form.delivery_terms.errors %}
+                                        <div class="text-danger small">{{ form.delivery_terms.errors.0 }}</div>
+                                        {% endif %}
+                                        <div class="form-text">e.g., "Delivered to client premises, FOB Harare"</div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Pricing and Discounts -->
+                    <div class="form-section">
+                        <h4 class="form-section-header">
+                            <i class="bi bi-calculator me-2"></i>
+                            Pricing & Tax Settings
+                        </h4>
+                        <div class="form-section-body">
+                            <div class="row">
+                                <div class="col-md-4">
+                                    <div class="form-group">
+                                        <label for="{{ form.discount_percentage.id_for_label }}" class="form-label">
+                                            Discount Percentage
+                                        </label>
+                                        {{ form.discount_percentage }}
+                                        {% if form.discount_percentage.errors %}
+                                        <div class="text-danger small">{{ form.discount_percentage.errors.0 }}</div>
+                                        {% endif %}
+                                        <div class="form-text">Overall discount (0-100%)</div>
+                                    </div>
+                                </div>
+                                
+                                <div class="col-md-4">
+                                    <div class="form-group">
+                                        <label for="{{ form.tax_rate.id_for_label }}" class="form-label">
+                                            Tax Rate (%)
+                                        </label>
+                                        {{ form.tax_rate }}
+                                        {% if form.tax_rate.errors %}
+                                        <div class="text-danger small">{{ form.tax_rate.errors.0 }}</div>
+                                        {% endif %}
+                                        <div class="form-text">VAT rate (15% for Zimbabwe)</div>
+                                    </div>
+                                </div>
+                                
+                                <div class="col-md-4">
+                                    <!-- Pricing Preview -->
+                                    <div class="pricing-preview">
+                                        <h6><i class="bi bi-graph-up me-1"></i> Pricing Preview</h6>
+                                        <div class="small">
+                                            <div class="d-flex justify-content-between">
+                                                <span>Subtotal:</span>
+                                                <span id="preview-subtotal">$0.00</span>
+                                            </div>
+                                            <div class="d-flex justify-content-between">
+                                                <span>Discount:</span>
+                                                <span id="preview-discount">$0.00</span>
+                                            </div>
+                                            <div class="d-flex justify-content-between">
+                                                <span>Tax:</span>
+                                                <span id="preview-tax">$0.00</span>
+                                            </div>
+                                            <hr class="my-1">
+                                            <div class="d-flex justify-content-between fw-bold">
+                                                <span>Total:</span>
+                                                <span id="preview-total">$0.00</span>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Form Actions -->
+                    <div class="form-section">
+                        <div class="form-actions">
+                            <div class="btn-group" role="group">
+                                <button type="button" class="btn btn-outline-secondary" onclick="history.back()">
+                                    <i class="bi bi-x me-1"></i> Cancel
+                                </button>
+                                
+                                <button type="submit" name="action" value="save_draft" class="btn btn-warning">
+                                    <i class="bi bi-save me-1"></i> Save as Draft
+                                </button>
+                                
+                                <button type="submit" name="action" value="save_and_continue" class="btn btn-primary">
+                                    <i class="bi bi-arrow-right me-1"></i> Save & Add Items
+                                </button>
+                            </div>
+                            
+                            <div class="mt-2 text-muted small">
+                                <i class="bi bi-info-circle me-1"></i>
+                                After saving, you'll be able to add products and services to your quote.
+                            </div>
+                        </div>
+                    </div>
+                    
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // Initialize form validation and interactions
+    initializeQuoteForm();
+});
+
+function initializeQuoteForm() {
+    // Client selection change handler
+    const clientSelect = document.getElementById('{{ form.client.id_for_label }}');
+    if (clientSelect) {
+        clientSelect.addEventListener('change', function() {
+            loadClientPreview(this.value);
+            updatePaymentTermsFromClient(this.value);
+        });
+        
+        // Load initial client if pre-selected
+        if (clientSelect.value) {
+            loadClientPreview(clientSelect.value);
+        }
+    }
+    
+    // Real-time form validation
+    setupFormValidation();
+    
+    // Pricing preview updates
+    setupPricingPreview();
+    
+    // Auto-save functionality
+    setupAutoSave();
+}
+
+function loadClientPreview(clientId) {
+    if (!clientId) {
+        document.getElementById('client-preview').style.display = 'none';
+        return;
+    }
+    
+    // In a real implementation, this would fetch client data via AJAX
+    // For now, we'll show a placeholder
+    const previewDiv = document.getElementById('client-preview');
+    const detailsDiv = document.getElementById('client-details');
+    
+    // Show loading state
+    detailsDiv.innerHTML = '<div class="text-muted"><i class="bi bi-hourglass-split me-1"></i> Loading client details...</div>';
+    previewDiv.style.display = 'block';
+    
+    // Simulate API call (replace with actual AJAX call)
+    setTimeout(() => {
+        detailsDiv.innerHTML = `
+            <div class="row">
+                <div class="col-md-6">
+                    <strong>Email:</strong> client@example.com<br>
+                    <strong>Phone:</strong> +263 123 456 789
+                </div>
+                <div class="col-md-6">
+                    <strong>Payment Terms:</strong> 30 days<br>
+                    <strong>Currency Preference:</strong> USD
+                </div>
+            </div>
+        `;
+    }, 500);
+}
+
+function updatePaymentTermsFromClient(clientId) {
+    // Update payment terms based on client's default terms
+    // This would typically fetch from the backend
+    if (clientId) {
+        const paymentTermsField = document.getElementById('{{ form.payment_terms.id_for_label }}');
+        if (paymentTermsField && !paymentTermsField.value) {
+            paymentTermsField.value = '30'; // Default client terms
+        }
+    }
+}
+
+function setValidityDays(days) {
+    const validityField = document.getElementById('{{ form.validity_date.id_for_label }}');
+    if (validityField) {
+        const futureDate = new Date();
+        futureDate.setDate(futureDate.getDate() + days);
+        validityField.value = futureDate.toISOString().split('T')[0];
+        
+        // Show feedback
+        showTemporaryMessage(`Validity set to ${days} days from today`, 'success');
+    }
+}
+
+function setupFormValidation() {
+    const form = document.getElementById('quote-form');
+    const requiredFields = form.querySelectorAll('[required]');
+    
+    // Real-time validation
+    requiredFields.forEach(field => {
+        field.addEventListener('blur', function() {
+            validateField(this);
+        });
+        
+        field.addEventListener('input', function() {
+            clearFieldError(this);
+        });
+    });
+    
+    // Form submission validation
+    form.addEventListener('submit', function(e) {
+        let isValid = true;
+        
+        requiredFields.forEach(field => {
+            if (!validateField(field)) {
+                isValid = false;
+            }
+        });
+        
+        if (!isValid) {
+            e.preventDefault();
+            showTemporaryMessage('Please fix the errors before submitting', 'danger');
+            
+            // Scroll to first error
+            const firstError = form.querySelector('.is-invalid');
+            if (firstError) {
+                firstError.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                firstError.focus();
+            }
+        }
+    });
+}
+
+function validateField(field) {
+    const value = field.value.trim();
+    let isValid = true;
+    
+    // Required field validation
+    if (field.hasAttribute('required') && !value) {
+        showFieldError(field, 'This field is required');
+        isValid = false;
+    }
+    
+    // Specific field validations
+    if (field.type === 'email' && value) {
+        const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+        if (!emailRegex.test(value)) {
+            showFieldError(field, 'Please enter a valid email address');
+            isValid = false;
+        }
+    }
+    
+    if (field.type === 'number' && value) {
+        const numValue = parseFloat(value);
+        const min = parseFloat(field.getAttribute('min'));
+        const max = parseFloat(field.getAttribute('max'));
+        
+        if (min !== null && numValue < min) {
+            showFieldError(field, `Value must be at least ${min}`);
+            isValid = false;
+        }
+        
+        if (max !== null && numValue > max) {
+            showFieldError(field, `Value must not exceed ${max}`);
+            isValid = false;
+        }
+    }
+    
+    if (field.type === 'date' && value) {
+        const selectedDate = new Date(value);
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+        
+        if (selectedDate <= today) {
+            showFieldError(field, 'Date must be in the future');
+            isValid = false;
+        }
+    }
+    
+    if (isValid) {
+        clearFieldError(field);
+    }
+    
+    return isValid;
+}
+
+function showFieldError(field, message) {
+    clearFieldError(field);
+    
+    field.classList.add('is-invalid');
+    
+    const errorDiv = document.createElement('div');
+    errorDiv.className = 'invalid-feedback';
+    errorDiv.textContent = message;
+    
+    field.parentNode.insertBefore(errorDiv, field.nextSibling);
+}
+
+function clearFieldError(field) {
+    field.classList.remove('is-invalid');
+    
+    const errorDiv = field.parentNode.querySelector('.invalid-feedback');
+    if (errorDiv) {
+        errorDiv.remove();
+    }
+}
+
+function setupPricingPreview() {
+    const discountField = document.getElementById('{{ form.discount_percentage.id_for_label }}');
+    const taxField = document.getElementById('{{ form.tax_rate.id_for_label }}');
+    
+    if (discountField) {
+        discountField.addEventListener('input', updatePricingPreview);
+    }
+    
+    if (taxField) {
+        taxField.addEventListener('input', updatePricingPreview);
+    }
+    
+    // Initial update
+    updatePricingPreview();
+}
+
+function updatePricingPreview() {
+    // For now, show placeholder values
+    // In real implementation, this would calculate based on quote items
+    const subtotal = 1000; // Placeholder
+    const discountPercent = parseFloat(document.getElementById('{{ form.discount_percentage.id_for_label }}')?.value) || 0;
+    const taxPercent = parseFloat(document.getElementById('{{ form.tax_rate.id_for_label }}')?.value) || 15;
+    
+    const discountAmount = subtotal * (discountPercent / 100);
+    const taxableAmount = subtotal - discountAmount;
+    const taxAmount = taxableAmount * (taxPercent / 100);
+    const total = taxableAmount + taxAmount;
+    
+    document.getElementById('preview-subtotal').textContent = `$${subtotal.toFixed(2)}`;
+    document.getElementById('preview-discount').textContent = `-$${discountAmount.toFixed(2)}`;
+    document.getElementById('preview-tax').textContent = `$${taxAmount.toFixed(2)}`;
+    document.getElementById('preview-total').textContent = `$${total.toFixed(2)}`;
+}
+
+function setupAutoSave() {
+    // Auto-save form data to localStorage
+    const form = document.getElementById('quote-form');
+    const formData = new FormData(form);
+    
+    // Save form data periodically
+    setInterval(() => {
+        saveFormData();
+    }, 30000); // Save every 30 seconds
+    
+    // Save on input changes
+    form.addEventListener('input', debounce(saveFormData, 2000));
+}
+
+function saveFormData() {
+    const form = document.getElementById('quote-form');
+    const formData = new FormData(form);
+    const data = {};
+    
+    for (let [key, value] of formData.entries()) {
+        data[key] = value;
+    }
+    
+    localStorage.setItem('quote_form_draft', JSON.stringify(data));
+    console.log('Form auto-saved');
+}
+
+function loadSavedFormData() {
+    const savedData = localStorage.getItem('quote_form_draft');
+    if (savedData) {
+        const data = JSON.parse(savedData);
+        const form = document.getElementById('quote-form');
+        
+        Object.entries(data).forEach(([key, value]) => {
+            const field = form.querySelector(`[name="${key}"]`);
+            if (field) {
+                field.value = value;
+            }
+        });
+        
+        showTemporaryMessage('Restored saved form data', 'info');
+    }
+}
+
+function clearSavedFormData() {
+    localStorage.removeItem('quote_form_draft');
+}
+
+function showTemporaryMessage(message, type = 'info') {
+    // Create and show a temporary alert message
+    const alertDiv = document.createElement('div');
+    alertDiv.className = `alert alert-${type} alert-dismissible fade show position-fixed`;
+    alertDiv.style.cssText = 'top: 20px; right: 20px; z-index: 9999; min-width: 300px;';
+    alertDiv.innerHTML = `
+        ${message}
+        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+    `;
+    
+    document.body.appendChild(alertDiv);
+    
+    // Auto-remove after 5 seconds
+    setTimeout(() => {
+        if (alertDiv.parentNode) {
+            alertDiv.parentNode.removeChild(alertDiv);
+        }
+    }, 5000);
+}
+
+function debounce(func, wait) {
+    let timeout;
+    return function executedFunction(...args) {
+        const later = () => {
+            clearTimeout(timeout);
+            func(...args);
+        };
+        clearTimeout(timeout);
+        timeout = setTimeout(later, wait);
+    };
+}
+
+// Check for saved form data on page load
+document.addEventListener('DOMContentLoaded', function() {
+    // Only load saved data for new quotes
+    {% if not quote %}
+    if (confirm('You have unsaved form data. Would you like to restore it?')) {
+        loadSavedFormData();
+    }
+    {% endif %}
+});
+
+// Clear saved data on successful form submission
+document.getElementById('quote-form').addEventListener('submit', function() {
+    clearSavedFormData();
+});
+</script>
+{% endblock %}

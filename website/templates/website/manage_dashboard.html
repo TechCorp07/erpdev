@@ -1,0 +1,149 @@
+{% extends "website_base.html" %}
+{% load static %}
+
+{% block content %}
+<div class="container py-5">
+  <h1 class="mb-4">Website Management Dashboard</h1>
+  <div class="row g-4">
+
+    <!-- Blog Posts -->
+    <div class="col-lg-6">
+      <div class="card h-100">
+        <div class="card-header bg-primary text-white d-flex justify-content-between align-items-center">
+          <span><i class="bi bi-journal-richtext me-2"></i>Blog Posts</span>
+          <a href="{% url 'website:manage_blog' %}" class="btn btn-light btn-sm">Manage</a>
+        </div>
+        <div class="card-body">
+          <p>Publish, edit or delete blog posts.</p>
+          <a href="{% url 'website:add_blog' %}" class="btn btn-outline-primary btn-sm"><i class="bi bi-plus-lg"></i> New Blog Post</a>
+        </div>
+      </div>
+    </div>
+
+    <!-- Categories -->
+    <div class="col-lg-6">
+      <div class="card h-100">
+        <div class="card-header bg-secondary text-white d-flex justify-content-between align-items-center">
+          <span><i class="bi bi-tags me-2"></i>Categories</span>
+          <a href="{% url 'website:manage_categories' %}" class="btn btn-light btn-sm">Manage</a>
+        </div>
+        <div class="card-body">
+          <p>Manage blog and portfolio categories.</p>
+          <a href="{% url 'website:add_category' %}" class="btn btn-outline-secondary btn-sm"><i class="bi bi-plus-lg"></i> New Category</a>
+        </div>
+      </div>
+    </div>
+
+    <!-- Services -->
+    <div class="col-lg-6">
+      <div class="card h-100">
+        <div class="card-header bg-info text-white d-flex justify-content-between align-items-center">
+          <span><i class="bi bi-cpu me-2"></i>Services</span>
+          <a href="{% url 'website:manage_services' %}" class="btn btn-light btn-sm">Manage</a>
+        </div>
+        <div class="card-body">
+          <p>View, add, or edit offered services.</p>
+          <a href="{% url 'website:add_service' %}" class="btn btn-outline-info btn-sm"><i class="bi bi-plus-lg"></i> New Service</a>
+        </div>
+      </div>
+    </div>
+
+    <!-- Portfolio Items -->
+    <div class="col-lg-6">
+      <div class="card h-100">
+        <div class="card-header bg-warning text-dark d-flex justify-content-between align-items-center">
+          <span><i class="bi bi-briefcase-fill me-2"></i>Portfolio</span>
+          <a href="{% url 'website:manage_portfolio' %}" class="btn btn-light btn-sm">Manage</a>
+        </div>
+        <div class="card-body">
+          <p>Showcase, add, or edit portfolio projects.</p>
+          <a href="{% url 'website:add_portfolio' %}" class="btn btn-outline-warning btn-sm"><i class="bi bi-plus-lg"></i> New Portfolio Item</a>
+        </div>
+      </div>
+    </div>
+
+    <!-- FAQs -->
+    <div class="col-lg-6">
+      <div class="card h-100">
+        <div class="card-header bg-success text-white d-flex justify-content-between align-items-center">
+          <span><i class="bi bi-question-circle me-2"></i>FAQs</span>
+          <a href="{% url 'website:manage_faqs' %}" class="btn btn-light btn-sm">Manage</a>
+        </div>
+        <div class="card-body">
+          <p>Edit or add frequently asked questions.</p>
+          <a href="{% url 'website:add_faq' %}" class="btn btn-outline-success btn-sm"><i class="bi bi-plus-lg"></i> New FAQ</a>
+        </div>
+      </div>
+    </div>
+
+    <!-- Testimonials -->
+    <div class="col-lg-6">
+      <div class="card h-100">
+        <div class="card-header bg-dark text-white d-flex justify-content-between align-items-center">
+          <span><i class="bi bi-star-fill me-2"></i>Testimonials</span>
+          <a href="{% url 'website:manage_testimonials' %}" class="btn btn-light btn-sm">Manage</a>
+        </div>
+        <div class="card-body">
+          <p>Manage what clients say about you.</p>
+          <a href="{% url 'website:add_testimonial' %}" class="btn btn-outline-dark btn-sm"><i class="bi bi-plus-lg"></i> New Testimonial</a>
+        </div>
+      </div>
+    </div>
+
+    <!-- Team Members -->
+    <div class="col-lg-6">
+      <div class="card h-100">
+        <div class="card-header bg-primary text-white d-flex justify-content-between align-items-center">
+          <span><i class="bi bi-people-fill me-2"></i>Team Members</span>
+          <a href="{% url 'website:manage_team' %}" class="btn btn-light btn-sm">Manage</a>
+        </div>
+        <div class="card-body">
+          <p>Manage team members and bios.</p>
+          <a href="{% url 'website:add_team_member' %}" class="btn btn-outline-primary btn-sm"><i class="bi bi-plus-lg"></i> New Team Member</a>
+        </div>
+      </div>
+    </div>
+
+    <!-- Partners -->
+    <div class="col-lg-6">
+      <div class="card h-100">
+        <div class="card-header bg-secondary text-white d-flex justify-content-between align-items-center">
+          <span><i class="bi bi-people me-2"></i>Partners</span>
+          <a href="{% url 'website:manage_partners' %}" class="btn btn-light btn-sm">Manage</a>
+        </div>
+        <div class="card-body">
+          <p>Manage partner logos and links.</p>
+          <a href="{% url 'website:add_partner' %}" class="btn btn-outline-secondary btn-sm"><i class="bi bi-plus-lg"></i> New Partner</a>
+        </div>
+      </div>
+    </div>
+
+    <!-- Company Info -->
+    <div class="col-lg-6">
+      <div class="card h-100">
+        <div class="card-header bg-info text-white d-flex justify-content-between align-items-center">
+          <span><i class="bi bi-building me-2"></i>Company Info</span>
+          <a href="{% url 'website:edit_company_info' %}" class="btn btn-light btn-sm">Edit</a>
+        </div>
+        <div class="card-body">
+          <p>Update company name, address, contact info, mission, vision, and social links.</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- Contacts/Submissions -->
+    <div class="col-lg-6">
+      <div class="card h-100">
+        <div class="card-header bg-warning text-dark d-flex justify-content-between align-items-center">
+          <span><i class="bi bi-envelope-open me-2"></i>Contact Submissions</span>
+          <a href="{% url 'website:manage_contacts' %}" class="btn btn-light btn-sm">View</a>
+        </div>
+        <div class="card-body">
+          <p>Read messages submitted via the contact form.</p>
+        </div>
+      </div>
+    </div>
+
+  </div>
+</div>
+{% endblock %}

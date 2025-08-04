@@ -1,0 +1,1088 @@
+{% extends "inventory_base.html" %}
+{% load static %}
+
+{% block inventory_title %}{{ product.name }}{% endblock %}
+
+{% block extra_head %}
+{{ block.super }}
+<!-- Chart.js for product analytics -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/3.9.1/chart.min.js"></script>
+<style>
+  .product-hero {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    border-radius: 1rem;
+    color: white;
+    padding: 2rem;
+    margin-bottom: 2rem;
+  }
+  
+  .product-image-container {
+    width: 200px;
+    height: 200px;
+    background: rgba(255, 255, 255, 0.1);
+    border-radius: 1rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border: 2px solid rgba(255, 255, 255, 0.2);
+  }
+  
+  .product-image {
+    max-width: 100%;
+    max-height: 100%;
+    border-radius: 0.75rem;
+  }
+  
+  .metric-card {
+    background: white;
+    border: 1px solid #e3e6f0;
+    border-radius: 1rem;
+    padding: 1.5rem;
+    text-align: center;
+    transition: all 0.3s ease;
+    height: 100%;
+  }
+  
+  .metric-card:hover {
+    transform: translateY(-3px);
+    box-shadow: 0 0.5rem 1rem rgba(0, 0, 0, 0.1);
+  }
+  
+  .metric-value {
+    font-size: 2rem;
+    font-weight: bold;
+    margin-bottom: 0.5rem;
+  }
+  
+  .metric-label {
+    color: #6c757d;
+    font-size: 0.875rem;
+    text-transform: uppercase;
+    font-weight: 500;
+    letter-spacing: 0.5px;
+  }
+  
+  .stock-status-card {
+    border: 2px solid;
+    border-radius: 1rem;
+    padding: 1.5rem;
+    margin-bottom: 1rem;
+  }
+  
+  .stock-in-stock { border-color: #28a745; background: rgba(40, 167, 69, 0.05); }
+  .stock-low-stock { border-color: #ffc107; background: rgba(255, 193, 7, 0.05); }
+  .stock-out-of-stock { border-color: #dc3545; background: rgba(220, 53, 69, 0.05); }
+  .stock-discontinued { border-color: #6c757d; background: rgba(108, 117, 125, 0.05); }
+  
+  .info-card {
+    background: white;
+    border: 1px solid #e3e6f0;
+    border-radius: 1rem;
+    padding: 1.5rem;
+    margin-bottom: 1.5rem;
+  }
+  
+  .info-card h6 {
+    color: #5a5c69;
+    margin-bottom: 1rem;
+    padding-bottom: 0.5rem;
+    border-bottom: 2px solid #e3e6f0;
+  }
+  
+  .activity-timeline {
+    position: relative;
+    padding-left: 2rem;
+  }
+  
+  .activity-timeline::before {
+    content: '';
+    position: absolute;
+    left: 0.75rem;
+    top: 0;
+    bottom: 0;
+    width: 2px;
+    background: #e3e6f0;
+  }
+  
+  .activity-item {
+    position: relative;
+    margin-bottom: 1.5rem;
+    background: white;
+    padding: 1rem;
+    border-radius: 0.5rem;
+    border: 1px solid #e3e6f0;
+  }
+  
+  .activity-item::before {
+    content: '';
+    position: absolute;
+    left: -1.875rem;
+    top: 1rem;
+    width: 12px;
+    height: 12px;
+    border-radius: 50%;
+    background: #5a5c69;
+    border: 3px solid white;
+    box-shadow: 0 0 0 1px #e3e6f0;
+  }
+  
+  .activity-item.stock-in::before { background: #28a745; }
+  .activity-item.stock-out::before { background: #dc3545; }
+  .activity-item.adjustment::before { background: #ffc107; }
+  .activity-item.transfer::before { background: #17a2b8; }
+  
+  .location-badge {
+    display: inline-block;
+    padding: 0.25rem 0.75rem;
+    background: #f8f9fc;
+    border: 1px solid #e3e6f0;
+    border-radius: 2rem;
+    font-size: 0.75rem;
+    margin: 0.25rem;
+  }
+  
+  .alert-card {
+    border-left: 4px solid;
+    border-radius: 0.5rem;
+    padding: 1rem;
+    margin-bottom: 1rem;
+  }
+  
+  .alert-critical { border-left-color: #dc3545; background: rgba(220, 53, 69, 0.05); }
+  .alert-warning { border-left-color: #ffc107; background: rgba(255, 193, 7, 0.05); }
+  .alert-info { border-left-color: #17a2b8; background: rgba(23, 162, 184, 0.05); }
+  
+  .barcode-display {
+    font-family: 'Courier New', monospace;
+    font-size: 1.2rem;
+    background: #f8f9fc;
+    padding: 0.75rem;
+    border-radius: 0.5rem;
+    border: 1px dashed #5a5c69;
+    text-align: center;
+    margin: 1rem 0;
+  }
+  
+  .cost-info {
+    background: rgba(40, 167, 69, 0.05);
+    border: 1px solid rgba(40, 167, 69, 0.2);
+    border-radius: 0.5rem;
+    padding: 1rem;
+  }
+  
+  @media (max-width: 768px) {
+    .product-hero {
+      padding: 1.5rem;
+    }
+    
+    .product-image-container {
+      width: 150px;
+      height: 150px;
+      margin: 0 auto 1rem;
+    }
+    
+    .metric-card {
+      margin-bottom: 1rem;
+    }
+  }
+</style>
+{% endblock %}
+
+{% block inventory_breadcrumbs %}
+  {% with inventory_breadcrumbs=breadcrumbs %}
+    {{ block.super }}
+  {% endwith %}
+{% endblock %}
+
+{% block inventory_actions %}
+<div class="btn-group me-2" role="group">
+  {% if app_permissions.inventory == 'edit' or app_permissions.inventory == 'admin' %}
+    <a href="{% url 'inventory:product_edit' product.pk %}" class="btn btn-primary btn-sm">
+      <i class="bi bi-pencil me-1"></i>Edit Product
+    </a>
+    <button type="button" class="btn btn-warning btn-sm" onclick="openStockAdjustment()">
+      <i class="bi bi-arrows-move me-1"></i>Adjust Stock
+    </button>
+    <a href="{% url 'inventory:product_duplicate' product.pk %}" class="btn btn-info btn-sm">
+      <i class="bi bi-files me-1"></i>Duplicate
+    </a>
+  {% endif %}
+</div>
+
+<div class="btn-group" role="group">
+  <button type="button" class="btn btn-outline-secondary btn-sm dropdown-toggle" data-bs-toggle="dropdown">
+    <i class="bi bi-three-dots me-1"></i>More Actions
+  </button>
+  <ul class="dropdown-menu">
+    <li><a class="dropdown-item" href="{% url 'inventory:product_stock_history' product.pk %}">
+      <i class="bi bi-clock-history me-2"></i>Stock History
+    </a></li>
+    <li><a class="dropdown-item" href="{% url 'inventory:product_analytics' product.pk %}">
+      <i class="bi bi-graph-up me-2"></i>Analytics
+    </a></li>
+    <li><hr class="dropdown-divider"></li>
+    <li><a class="dropdown-item" href="#" onclick="printProductLabel()">
+      <i class="bi bi-printer me-2"></i>Print Label
+    </a></li>
+    <li><a class="dropdown-item" href="#" onclick="generateBarcode()">
+      <i class="bi bi-upc-scan me-2"></i>Generate Barcode
+    </a></li>
+    {% if app_permissions.inventory == 'admin' %}
+      <li><hr class="dropdown-divider"></li>
+      <li><a class="dropdown-item text-danger" href="{% url 'inventory:product_delete' product.pk %}">
+        <i class="bi bi-trash me-2"></i>Delete Product
+      </a></li>
+    {% endif %}
+  </ul>
+</div>
+{% endblock %}
+
+{% block inventory_content %}
+<!-- Product Hero Section -->
+<div class="product-hero">
+  <div class="row align-items-center">
+    <div class="col-md-3 text-center">
+      <div class="product-image-container mx-auto">
+        {% if product.image %}
+          <img src="{{ product.image.url }}" alt="{{ product.name }}" class="product-image">
+        {% else %}
+          <i class="bi bi-box-seam" style="font-size: 4rem; opacity: 0.5;"></i>
+        {% endif %}
+      </div>
+    </div>
+    <div class="col-md-9">
+      <div class="d-flex justify-content-between align-items-start mb-3">
+        <div>
+          <h1 class="h2 mb-2">{{ product.name }}</h1>
+          <p class="mb-0 opacity-75">{{ product.short_description|default:product.description|truncatechars:100 }}</p>
+        </div>
+        <div class="text-end">
+          {% if not product.is_active %}
+            <span class="badge bg-light text-dark fs-6 mb-2">Inactive</span><br>
+          {% endif %}
+          <span class="badge bg-light text-dark fs-6">{{ product.category.name }}</span>
+        </div>
+      </div>
+      
+      <div class="row">
+        <div class="col-md-6">
+          <h6 class="opacity-75 mb-1">SKU</h6>
+          <p class="h5 mb-3">{{ product.sku }}</p>
+        </div>
+        <div class="col-md-6">
+          <h6 class="opacity-75 mb-1">Supplier</h6>
+          <p class="h6 mb-3">
+            <a href="{% url 'inventory:supplier_detail' product.supplier.pk %}" 
+               class="text-white text-decoration-none opacity-75">
+              {{ product.supplier.name }}
+            </a>
+          </p>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Key Metrics Row -->
+<div class="row mb-4">
+  <div class="col-lg-3 col-md-6 mb-3">
+    <div class="metric-card">
+      <div class="metric-value text-{% if product.current_stock > product.reorder_level %}success{% elif product.current_stock > 0 %}warning{% else %}danger{% endif %}">
+        {{ product.current_stock }}
+      </div>
+      <div class="metric-label">Current Stock</div>
+      <small class="text-muted">Available: {{ product.available_stock }}</small>
+    </div>
+  </div>
+  
+  <div class="col-lg-3 col-md-6 mb-3">
+    <div class="metric-card">
+      <div class="metric-value text-primary">${{ product.selling_price }}</div>
+      <div class="metric-label">Selling Price</div>
+      {% if can_view_costs %}
+        <small class="text-muted">Cost: ${{ product.cost_price }}</small>
+      {% endif %}
+    </div>
+  </div>
+  
+  <div class="col-lg-3 col-md-6 mb-3">
+    <div class="metric-card">
+      <div class="metric-value text-info">${{ product.stock_value|floatformat:0 }}</div>
+      <div class="metric-label">Stock Value</div>
+      <small class="text-muted">{{ product.current_stock }} × ${{ product.cost_price }}</small>
+    </div>
+  </div>
+  
+  <div class="col-lg-3 col-md-6 mb-3">
+    <div class="metric-card">
+      <div class="metric-value text-{% if product.profit_margin_percentage > 25 %}success{% elif product.profit_margin_percentage > 10 %}warning{% else %}danger{% endif %}">
+        {% if can_view_costs %}
+          {{ product.profit_margin_percentage|floatformat:1 }}%
+        {% else %}
+          <i class="bi bi-lock"></i>
+        {% endif %}
+      </div>
+      <div class="metric-label">Profit Margin</div>
+      {% if can_view_costs %}
+        <small class="text-muted">${{ product.profit_amount|floatformat:2 }} per unit</small>
+      {% else %}
+        <small class="text-muted">Restricted</small>
+      {% endif %}
+    </div>
+  </div>
+</div>
+
+<!-- Stock Status and Alerts -->
+<div class="row mb-4">
+  <div class="col-12">
+    <div class="stock-status-card stock-{{ product.stock_status }}">
+      <div class="row align-items-center">
+        <div class="col-md-8">
+          <h5 class="mb-2">
+            {% if product.stock_status == 'in_stock' %}
+              <i class="bi bi-check-circle text-success me-2"></i>In Stock
+            {% elif product.stock_status == 'low_stock' %}
+              <i class="bi bi-exclamation-triangle text-warning me-2"></i>Low Stock Warning
+            {% elif product.stock_status == 'out_of_stock' %}
+              <i class="bi bi-x-circle text-danger me-2"></i>Out of Stock
+            {% else %}
+              <i class="bi bi-pause-circle text-secondary me-2"></i>{{ product.get_stock_status_display }}
+            {% endif %}
+          </h5>
+          <p class="mb-0">
+            {% if product.stock_status == 'low_stock' %}
+              Current stock ({{ product.current_stock }}) is below reorder level ({{ product.reorder_level }}).
+              Consider reordering {{ product.reorder_quantity }} units.
+            {% elif product.stock_status == 'out_of_stock' %}
+              This product is currently out of stock. Immediate restocking recommended.
+            {% elif product.stock_status == 'in_stock' %}
+              Stock levels are healthy. Reorder when stock reaches {{ product.reorder_level }} units.
+            {% endif %}
+          </p>
+        </div>
+        <div class="col-md-4 text-end">
+          {% if product.needs_reorder and app_permissions.inventory != 'view' %}
+            <a href="{% url 'inventory:create_po_from_product' product.pk %}" 
+               class="btn btn-warning">
+              <i class="bi bi-plus-square me-1"></i>Create Purchase Order
+            </a>
+          {% endif %}
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Active Alerts -->
+{% if active_alerts %}
+  <div class="row mb-4">
+    <div class="col-12">
+      <h6 class="mb-3">
+        <i class="bi bi-bell text-warning me-2"></i>Active Alerts
+      </h6>
+      {% for alert in active_alerts %}
+        <div class="alert-card alert-{{ alert.priority }}">
+          <div class="d-flex justify-content-between align-items-start">
+            <div>
+              <h6 class="mb-1">
+                {% if alert.priority == 'critical' %}
+                  <i class="bi bi-exclamation-triangle-fill text-danger me-1"></i>Critical Reorder Alert
+                {% elif alert.priority == 'high' %}
+                  <i class="bi bi-exclamation-triangle text-warning me-1"></i>High Priority Alert
+                {% else %}
+                  <i class="bi bi-info-circle text-info me-1"></i>Reorder Recommendation
+                {% endif %}
+              </h6>
+              <p class="mb-1">
+                Suggested order: <strong>{{ alert.suggested_order_quantity }} units</strong>
+                {% if alert.estimated_cost %}
+                  (Est. cost: <strong>${{ alert.estimated_cost|floatformat:2 }}</strong>)
+                {% endif %}
+              </p>
+              <small class="text-muted">
+                Created {{ alert.created_at|timesince }} ago
+                {% if alert.estimated_stockout_date %}
+                  • Estimated stockout: {{ alert.estimated_stockout_date }}
+                {% endif %}
+              </small>
+            </div>
+            {% if app_permissions.inventory != 'view' %}
+              <div>
+                <a href="{% url 'inventory:create_po_from_alert' alert.pk %}" 
+                   class="btn btn-sm btn-success me-2">
+                  <i class="bi bi-plus-square"></i> Create PO
+                </a>
+                <button type="button" 
+                        class="btn btn-sm btn-outline-secondary"
+                        onclick="acknowledgeAlert({{ alert.pk }})">
+                  <i class="bi bi-check"></i> Acknowledge
+                </button>
+              </div>
+            {% endif %}
+          </div>
+        </div>
+      {% endfor %}
+    </div>
+  </div>
+{% endif %}
+
+<!-- Main Content Row -->
+<div class="row">
+  <!-- Product Information Column -->
+  <div class="col-lg-8">
+    <!-- Product Details -->
+    <div class="info-card">
+      <h6><i class="bi bi-info-circle me-2"></i>Product Information</h6>
+      
+      <div class="row">
+        <div class="col-md-6">
+          <table class="table table-borderless table-sm">
+            <tr>
+              <td class="text-muted" width="120">SKU:</td>
+              <td><strong>{{ product.sku }}</strong></td>
+            </tr>
+            <tr>
+              <td class="text-muted">Category:</td>
+              <td>
+                <a href="{% url 'inventory:category_detail' product.category.pk %}">
+                  {{ product.category.name }}
+                </a>
+              </td>
+            </tr>
+            <tr>
+              <td class="text-muted">Supplier:</td>
+              <td>
+                <a href="{% url 'inventory:supplier_detail' product.supplier.pk %}">
+                  {{ product.supplier.name }}
+                </a>
+              </td>
+            </tr>
+            <tr>
+              <td class="text-muted">Brand:</td>
+              <td>{{ product.brand|default:"—" }}</td>
+            </tr>
+            <tr>
+              <td class="text-muted">Model:</td>
+              <td>{{ product.model_number|default:"—" }}</td>
+            </tr>
+            {% if product.barcode %}
+              <tr>
+                <td class="text-muted">Barcode:</td>
+                <td>
+                  <div class="barcode-display">{{ product.barcode }}</div>
+                </td>
+              </tr>
+            {% endif %}
+          </table>
+        </div>
+        
+        <div class="col-md-6">
+          <table class="table table-borderless table-sm">
+            <tr>
+              <td class="text-muted" width="140">Product Type:</td>
+              <td>{{ product.get_product_type_display }}</td>
+            </tr>
+            {% if product.weight %}
+              <tr>
+                <td class="text-muted">Weight:</td>
+                <td>{{ product.weight }} kg</td>
+              </tr>
+            {% endif %}
+            {% if product.dimensions %}
+              <tr>
+                <td class="text-muted">Dimensions:</td>
+                <td>{{ product.dimensions }} cm</td>
+              </tr>
+            {% endif %}
+            <tr>
+              <td class="text-muted">Created:</td>
+              <td>{{ product.created_at|date:"M d, Y" }}</td>
+            </tr>
+            <tr>
+              <td class="text-muted">Last Updated:</td>
+              <td>{{ product.updated_at|date:"M d, Y" }}</td>
+            </tr>
+            <tr>
+              <td class="text-muted">Status:</td>
+              <td>
+                {% if product.is_active %}
+                  <span class="badge bg-success">Active</span>
+                {% else %}
+                  <span class="badge bg-secondary">Inactive</span>
+                {% endif %}
+                {% if product.is_serialized %}
+                  <span class="badge bg-info">Serialized</span>
+                {% endif %}
+                {% if product.is_perishable %}
+                  <span class="badge bg-warning">Perishable</span>
+                {% endif %}
+              </td>
+            </tr>
+          </table>
+        </div>
+      </div>
+      
+      {% if product.description %}
+        <div class="mt-3">
+          <h6 class="text-muted mb-2">Description</h6>
+          <p>{{ product.description }}</p>
+        </div>
+      {% endif %}
+    </div>
+    
+    <!-- Stock Levels by Location -->
+    {% if stock_levels %}
+      <div class="info-card">
+        <h6><i class="bi bi-geo-alt me-2"></i>Stock by Location</h6>
+        
+        <div class="table-responsive">
+          <table class="table table-hover">
+            <thead>
+              <tr>
+                <th>Location</th>
+                <th>Type</th>
+                <th>Current Stock</th>
+                <th>Reserved</th>
+                <th>Available</th>
+                <th>Last Counted</th>
+                {% if app_permissions.inventory != 'view' %}
+                  <th>Actions</th>
+                {% endif %}
+              </tr>
+            </thead>
+            <tbody>
+              {% for stock_level in stock_levels %}
+                <tr>
+                  <td>
+                    <a href="{% url 'inventory:location_detail' stock_level.location.pk %}">
+                      {{ stock_level.location.name }}
+                    </a>
+                  </td>
+                  <td>
+                    <span class="location-badge">
+                      {{ stock_level.location.get_location_type_display }}
+                    </span>
+                  </td>
+                  <td><strong>{{ stock_level.quantity }}</strong></td>
+                  <td class="text-muted">{{ stock_level.reserved_quantity }}</td>
+                  <td>
+                    <span class="{% if stock_level.available_quantity <= 0 %}text-danger{% elif stock_level.available_quantity <= product.reorder_level %}text-warning{% else %}text-success{% endif %}">
+                      {{ stock_level.available_quantity }}
+                    </span>
+                  </td>
+                  <td class="text-muted">
+                    {% if stock_level.last_counted %}
+                      {{ stock_level.last_counted|date:"M d, Y" }}
+                    {% else %}
+                      Never
+                    {% endif %}
+                  </td>
+                  {% if app_permissions.inventory != 'view' %}
+                    <td>
+                      <button type="button" 
+                              class="btn btn-sm btn-outline-primary"
+                              onclick="transferStock({{ stock_level.location.pk }})"
+                              data-bs-toggle="tooltip" 
+                              title="Transfer Stock">
+                        <i class="bi bi-arrow-left-right"></i>
+                      </button>
+                    </td>
+                  {% endif %}
+                </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    {% endif %}
+    
+    <!-- Recent Stock Movements -->
+    <div class="info-card">
+      <div class="d-flex justify-content-between align-items-center mb-3">
+        <h6 class="mb-0"><i class="bi bi-clock-history me-2"></i>Recent Stock Movements</h6>
+        <a href="{% url 'inventory:product_stock_history' product.pk %}" 
+           class="btn btn-sm btn-outline-primary">View All</a>
+      </div>
+      
+      {% if recent_movements %}
+        <div class="activity-timeline">
+          {% for movement in recent_movements %}
+            <div class="activity-item {{ movement.movement_type }}">
+              <div class="d-flex justify-content-between align-items-start">
+                <div>
+                  <h6 class="mb-1">
+                    {% if movement.movement_type == 'sale' %}
+                      <i class="bi bi-arrow-down-circle text-danger me-1"></i>Sale
+                    {% elif movement.movement_type == 'purchase' %}
+                      <i class="bi bi-arrow-up-circle text-success me-1"></i>Purchase
+                    {% elif movement.movement_type == 'adjustment' %}
+                      <i class="bi bi-gear text-warning me-1"></i>Adjustment
+                    {% elif movement.movement_type == 'transfer' %}
+                      <i class="bi bi-arrow-left-right text-info me-1"></i>Transfer
+                    {% else %}
+                      <i class="bi bi-circle text-secondary me-1"></i>{{ movement.get_movement_type_display }}
+                    {% endif %}
+                    {{ movement.get_movement_type_display }}
+                  </h6>
+                  <p class="mb-1">
+                    Quantity: <strong>{{ movement.quantity|floatformat:0 }}</strong>
+                    {% if movement.reference %}| Reference: {{ movement.reference }}{% endif %}
+                    {% if movement.from_location or movement.to_location %}
+                      <br>
+                      {% if movement.from_location %}From: {{ movement.from_location.name }}{% endif %}
+                      {% if movement.to_location %}To: {{ movement.to_location.name }}{% endif %}
+                    {% endif %}
+                  </p>
+                  <small class="text-muted">
+                    <i class="bi bi-person me-1"></i>{{ movement.created_by.get_full_name|default:movement.created_by.username }}
+                    <span class="mx-2">•</span>
+                    <i class="bi bi-clock me-1"></i>{{ movement.created_at|timesince }} ago
+                  </small>
+                </div>
+                <div class="text-end">
+                  <span class="badge bg-{% if movement.quantity > 0 %}success{% else %}danger{% endif %}">
+                    {{ movement.quantity|floatformat:0 }}
+                  </span>
+                  {% if movement.total_cost %}
+                    <br><small class="text-muted">${{ movement.total_cost|floatformat:2 }}</small>
+                  {% endif %}
+                </div>
+              </div>
+            </div>
+          {% endfor %}
+        </div>
+      {% else %}
+        <div class="text-center text-muted py-4">
+          <i class="bi bi-inbox fs-1 mb-3"></i>
+          <p>No stock movements recorded yet</p>
+        </div>
+      {% endif %}
+    </div>
+  </div>
+  
+  <!-- Sidebar Column -->
+  <div class="col-lg-4">
+    <!-- Stock Management -->
+    <div class="info-card">
+      <h6><i class="bi bi-gear me-2"></i>Stock Management</h6>
+      
+      <table class="table table-borderless table-sm">
+        <tr>
+          <td class="text-muted">Reorder Level:</td>
+          <td><strong>{{ product.reorder_level }}</strong></td>
+        </tr>
+        <tr>
+          <td class="text-muted">Reorder Quantity:</td>
+          <td><strong>{{ product.reorder_quantity }}</strong></td>
+        </tr>
+        <tr>
+          <td class="text-muted">Max Stock Level:</td>
+          <td><strong>{{ product.max_stock_level }}</strong></td>
+        </tr>
+        <tr>
+          <td class="text-muted">Lead Time:</td>
+          <td>{{ product.supplier_lead_time_days }} days</td>
+        </tr>
+        <tr>
+          <td class="text-muted">Min Order Qty:</td>
+          <td>{{ product.minimum_order_quantity }}</td>
+        </tr>
+      </table>
+      
+      {% if app_permissions.inventory != 'view' %}
+        <div class="d-grid gap-2 mt-3">
+          <button type="button" class="btn btn-warning btn-sm" onclick="openStockAdjustment()">
+            <i class="bi bi-arrows-move me-1"></i>Adjust Stock
+          </button>
+          <button type="button" class="btn btn-info btn-sm" onclick="openStockTransfer()">
+            <i class="bi bi-arrow-left-right me-1"></i>Transfer Stock
+          </button>
+          {% if product.needs_reorder %}
+            <a href="{% url 'inventory:create_po_from_product' product.pk %}" 
+               class="btn btn-success btn-sm">
+              <i class="bi bi-plus-square me-1"></i>Create Purchase Order
+            </a>
+          {% endif %}
+        </div>
+      {% endif %}
+    </div>
+    
+    <!-- Financial Information -->
+    {% if can_view_costs %}
+      <div class="info-card">
+        <h6><i class="bi bi-currency-dollar me-2"></i>Financial Information</h6>
+        
+        <div class="cost-info mb-3">
+          <div class="row">
+            <div class="col-6">
+              <small class="text-muted">Cost Price</small>
+              <h6 class="mb-0">${{ product.cost_price }}</h6>
+            </div>
+            <div class="col-6">
+              <small class="text-muted">Selling Price</small>
+              <h6 class="mb-0">${{ product.selling_price }}</h6>
+            </div>
+          </div>
+        </div>
+        
+        <table class="table table-borderless table-sm">
+          <tr>
+            <td class="text-muted">Profit per Unit:</td>
+            <td><strong class="text-success">${{ product.profit_amount|floatformat:2 }}</strong></td>
+          </tr>
+          <tr>
+            <td class="text-muted">Profit Margin:</td>
+            <td>
+              <strong class="{% if product.profit_margin_percentage > 25 %}text-success{% elif product.profit_margin_percentage > 10 %}text-warning{% else %}text-danger{% endif %}">
+                {{ product.profit_margin_percentage|floatformat:1 }}%
+              </strong>
+            </td>
+          </tr>
+          <tr>
+            <td class="text-muted">Total Stock Value:</td>
+            <td><strong>${{ product.stock_value|floatformat:2 }}</strong></td>
+          </tr>
+          <tr>
+            <td class="text-muted">Currency:</td>
+            <td>{{ product.currency }}</td>
+          </tr>
+        </table>
+      </div>
+    {% endif %}
+    
+    <!-- Performance Metrics -->
+    {% if performance %}
+      <div class="info-card">
+        <h6><i class="bi bi-graph-up me-2"></i>Performance Metrics</h6>
+        
+        <div class="mb-3">
+          <canvas id="turnoverChart" height="200"></canvas>
+        </div>
+        
+        <table class="table table-borderless table-sm">
+          <tr>
+            <td class="text-muted">Turnover Ratio:</td>
+            <td><strong>{{ performance.turnover_ratio|floatformat:1 }}</strong></td>
+          </tr>
+          <tr>
+            <td class="text-muted">Days in Inventory:</td>
+            <td>{{ performance.days_in_inventory|floatformat:0 }} days</td>
+          </tr>
+          <tr>
+            <td class="text-muted">Performance:</td>
+            <td>
+              <span class="badge bg-{% if performance.performance == 'Excellent' %}success{% elif performance.performance == 'Good' %}primary{% elif performance.performance == 'Average' %}warning{% else %}danger{% endif %}">
+                {{ performance.performance }}
+              </span>
+            </td>
+          </tr>
+          {% if product.total_sold %}
+            <tr>
+              <td class="text-muted">Total Sold:</td>
+              <td>{{ product.total_sold }} units</td>
+            </tr>
+          {% endif %}
+          {% if product.last_sold_date %}
+            <tr>
+              <td class="text-muted">Last Sale:</td>
+              <td>{{ product.last_sold_date|date:"M d, Y" }}</td>
+            </tr>
+          {% endif %}
+        </table>
+      </div>
+    {% endif %}
+    
+    <!-- Supplier Information -->
+    <div class="info-card">
+      <h6><i class="bi bi-building me-2"></i>Supplier Details</h6>
+      
+      <div class="text-center mb-3">
+        <h6 class="mb-1">
+          <a href="{% url 'inventory:supplier_detail' product.supplier.pk %}">
+            {{ product.supplier.name }}
+          </a>
+        </h6>
+        <small class="text-muted">{{ product.supplier.supplier_code }}</small>
+      </div>
+      
+      <table class="table table-borderless table-sm">
+        <tr>
+          <td class="text-muted">Supplier SKU:</td>
+          <td>{{ product.supplier_sku|default:"—" }}</td>
+        </tr>
+        <tr>
+          <td class="text-muted">Lead Time:</td>
+          <td>{{ product.supplier_lead_time_days }} days</td>
+        </tr>
+        <tr>
+          <td class="text-muted">Min Order Qty:</td>
+          <td>{{ product.minimum_order_quantity }}</td>
+        </tr>
+        <tr>
+          <td class="text-muted">Country:</td>
+          <td>{{ product.supplier.country }}</td>
+        </tr>
+        <tr>
+          <td class="text-muted">Currency:</td>
+          <td>{{ product.supplier.currency }}</td>
+        </tr>
+        <tr>
+          <td class="text-muted">Reliability:</td>
+          <td>
+            <span class="badge bg-{% if product.supplier.reliability_rating >= 8 %}success{% elif product.supplier.reliability_rating >= 6 %}warning{% else %}danger{% endif %}">
+              {{ product.supplier.reliability_rating }}/10
+            </span>
+          </td>
+        </tr>
+      </table>
+      
+      <div class="d-grid">
+        <a href="{% url 'inventory:supplier_detail' product.supplier.pk %}" 
+           class="btn btn-outline-primary btn-sm">
+          <i class="bi bi-building me-1"></i>View Supplier Details
+        </a>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Stock Adjustment Modal -->
+<div class="modal fade" id="stockAdjustmentModal" tabindex="-1">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title">
+          <i class="bi bi-arrows-move me-2"></i>Stock Adjustment - {{ product.name }}
+        </h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <form id="stockAdjustmentForm">
+          {% csrf_token %}
+          <input type="hidden" name="product_id" value="{{ product.pk }}">
+          
+          <div class="alert alert-info">
+            <strong>Current Stock:</strong> {{ product.current_stock }} units
+            <br><strong>Available:</strong> {{ product.available_stock }} units
+          </div>
+          
+          <div class="mb-3">
+            <label for="adjustmentType" class="form-label">Adjustment Type</label>
+            <select class="form-select" id="adjustmentType" name="adjustment_type" required>
+              <option value="add">Add to current stock</option>
+              <option value="subtract">Subtract from current stock</option>
+              <option value="set">Set to specific amount</option>
+            </select>
+          </div>
+          
+          <div class="mb-3">
+            <label for="quantity" class="form-label">Quantity</label>
+            <input type="number" class="form-control" id="quantity" name="quantity" min="0" required>
+          </div>
+          
+          <div class="mb-3">
+            <label for="location" class="form-label">Location (Optional)</label>
+            <select class="form-select" id="location" name="location">
+              <option value="">All Locations</option>
+              {% for location in locations %}
+                <option value="{{ location.pk }}">{{ location.name }}</option>
+              {% endfor %}
+            </select>
+          </div>
+          
+          <div class="mb-3">
+            <label for="reason" class="form-label">Reason</label>
+            <input type="text" class="form-control" id="reason" name="reason" 
+                   placeholder="e.g., Stock count correction" required>
+          </div>
+          
+          <div class="mb-3">
+            <label for="notes" class="form-label">Notes (Optional)</label>
+            <textarea class="form-control" id="notes" name="notes" rows="2"></textarea>
+          </div>
+        </form>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+        <button type="button" class="btn btn-primary" onclick="submitStockAdjustment()">
+          <i class="bi bi-check me-1"></i>Adjust Stock
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+{{ block.super }}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+  // Initialize performance chart if data available
+  {% if performance %}
+    initTurnoverChart();
+  {% endif %}
+  
+  // Auto-refresh stock status every 2 minutes
+  setInterval(refreshStockStatus, 120000);
+});
+
+function initTurnoverChart() {
+  const ctx = document.getElementById('turnoverChart').getContext('2d');
+  
+  new Chart(ctx, {
+    type: 'doughnut',
+    data: {
+      labels: ['Days in Inventory', 'Optimal Days'],
+      datasets: [{
+        data: [{{ performance.days_in_inventory|floatformat:0 }}, Math.max(0, 365 - {{ performance.days_in_inventory|floatformat:0 }})],
+        backgroundColor: [
+          '{% if performance.performance == "Excellent" %}#28a745{% elif performance.performance == "Good" %}#007bff{% elif performance.performance == "Average" %}#ffc107{% else %}#dc3545{% endif %}',
+          '#e9ecef'
+        ],
+        borderWidth: 0
+      }]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: {
+        legend: {
+          position: 'bottom',
+          labels: {
+            boxWidth: 12,
+            padding: 10
+          }
+        }
+      }
+    }
+  });
+}
+
+function openStockAdjustment() {
+  const modal = new bootstrap.Modal(document.getElementById('stockAdjustmentModal'));
+  modal.show();
+}
+
+function submitStockAdjustment() {
+  const form = document.getElementById('stockAdjustmentForm');
+  const formData = new FormData(form);
+  
+  fetch('{% url "inventory:stock_adjust_api" %}', {
+    method: 'POST',
+    body: formData,
+    headers: {
+      'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value
+    }
+  })
+  .then(response => response.json())
+  .then(data => {
+    if (data.success) {
+      const modal = bootstrap.Modal.getInstance(document.getElementById('stockAdjustmentModal'));
+      modal.hide();
+      
+      showStockStatusUpdate(
+        `Stock adjusted: ${data.previous_stock} → ${data.new_stock}`,
+        'success'
+      );
+      
+      // Refresh the page to show updated data
+      setTimeout(() => window.location.reload(), 1500);
+    } else {
+      alert(data.error || 'Stock adjustment failed');
+    }
+  })
+  .catch(error => {
+    console.error('Stock adjustment error:', error);
+    alert('Stock adjustment failed');
+  });
+}
+
+function acknowledgeAlert(alertId) {
+  fetch(`{% url 'inventory:acknowledge_reorder_alert' 0 %}`.replace('0', alertId), {
+    method: 'POST',
+    headers: {
+      'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value
+    }
+  })
+  .then(response => response.json())
+  .then(data => {
+    if (data.success) {
+      showStockStatusUpdate('Alert acknowledged', 'info');
+      // Remove the alert from display
+      const alertElement = event.target.closest('.alert-card');
+      if (alertElement) {
+        alertElement.style.transition = 'all 0.3s ease';
+        alertElement.style.opacity = '0';
+        setTimeout(() => alertElement.remove(), 300);
+      }
+    } else {
+      alert('Failed to acknowledge alert');
+    }
+  })
+  .catch(error => {
+    console.error('Error acknowledging alert:', error);
+    alert('Failed to acknowledge alert');
+  });
+}
+
+function refreshStockStatus() {
+  fetch(`{% url 'inventory:product_details_api' product.pk %}`)
+    .then(response => response.json())
+    .then(data => {
+      if (data.success && data.product) {
+        // Update stock display if it has changed
+        const currentStockElements = document.querySelectorAll('[data-stock-display]');
+        currentStockElements.forEach(element => {
+          if (element.textContent !== data.product.current_stock.toString()) {
+            element.textContent = data.product.current_stock;
+            element.style.transition = 'background-color 0.3s ease';
+            element.style.backgroundColor = '#d4edda';
+            setTimeout(() => {
+              element.style.backgroundColor = '';
+            }, 2000);
+          }
+        });
+      }
+    })
+    .catch(error => console.log('Stock refresh error:', error));
+}
+
+function openStockTransfer() {
+  window.location.href = `{% url 'inventory:stock_transfer' %}?product={{ product.pk }}`;
+}
+
+function transferStock(locationId) {
+  window.location.href = `{% url 'inventory:stock_transfer' %}?product={{ product.pk }}&from_location=${locationId}`;
+}
+
+function printProductLabel() {
+  // This would integrate with a label printing system
+  alert('Label printing feature coming soon');
+}
+
+function generateBarcode() {
+  // This would generate a barcode for the product
+  alert('Barcode generation feature coming soon');
+}
+
+// Add keyboard shortcuts
+document.addEventListener('keydown', function(e) {
+  if (e.altKey) {
+    switch(e.key) {
+      case 'e':
+        e.preventDefault();
+        window.location.href = '{% url "inventory:product_edit" product.pk %}';
+        break;
+      case 's':
+        e.preventDefault();
+        openStockAdjustment();
+        break;
+      case 't':
+        e.preventDefault();
+        openStockTransfer();
+        break;
+    }
+  }
+});
+</script>
+{% endblock %}

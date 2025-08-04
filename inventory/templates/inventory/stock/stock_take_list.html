@@ -1,0 +1,131 @@
+{% extends "inventory_base.html" %}
+
+{% block inventory_title %}Stock Takes{% endblock %}
+
+{% block inventory_breadcrumbs %}
+  <li class="breadcrumb-item"><a href="{% url 'inventory:product_list' %}">Inventory</a></li>
+  <li class="breadcrumb-item active">Stock Takes</li>
+{% endblock %}
+
+{% block inventory_actions %}
+  <a href="{% url 'inventory:stock_take_create' %}" class="btn btn-primary btn-sm">
+    <i class="bi bi-plus-circle me-1"></i> New Stock Take
+  </a>
+{% endblock %}
+
+{% block inventory_content %}
+<div class="card shadow-sm">
+  <div class="card-header bg-light d-flex justify-content-between align-items-center">
+    <strong>All Stock Takes</strong>
+    <form method="get" class="d-flex">
+      <input type="text" name="q" class="form-control form-control-sm me-2" placeholder="Search by reference..." value="{{ request.GET.q }}">
+      <button type="submit" class="btn btn-outline-secondary btn-sm">Search</button>
+    </form>
+  </div>
+  <div class="table-responsive">
+    <table class="table table-hover table-striped table-sm mb-0 align-middle">
+      <thead class="table-light">
+        <tr>
+          <th>#</th>
+          <th>Reference</th>
+          <th>Location</th>
+          <th>Status</th>
+          <th>Scheduled</th>
+          <th>Counted</th>
+          <th>Variance</th>
+          <th>Adjustment</th>
+          <th>Actions</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for take in stock_takes %}
+        <tr>
+          <td>{{ forloop.counter }}</td>
+          <td>{{ take.reference }}</td>
+          <td>
+            {% if take.location %}
+              {{ take.location.name }}
+            {% else %}
+              All Locations
+            {% endif %}
+          </td>          
+          <td>
+            <span class="badge bg-{{ take.status|yesno:'warning,primary,success,secondary' }}">
+              {{ take.get_status_display }}
+            </span>
+          </td>
+          <td>{{ take.scheduled_date|date:"Y-m-d H:i" }}</td>
+          <td>{{ take.items_counted }}</td>
+          <td>{{ take.variances_found }}</td>
+          <td>${{ take.total_adjustment_value }}</td>
+          <td>
+            <div class="btn-group btn-group-sm" role="group">
+              <a href="{% url 'inventory:stock_take_detail' take.id %}" class="btn btn-outline-info" title="View">
+                <i class="bi bi-eye"></i>
+              </a>
+              <a href="{% url 'inventory:stock_take_export_excel' take.id %}" class="btn btn-outline-success" title="Export Excel">
+                <i class="bi bi-file-earmark-excel"></i>
+              </a>
+              <a href="{% url 'inventory:stock_take_export_pdf' take.id %}" class="btn btn-outline-danger" title="Export PDF">
+                <i class="bi bi-file-earmark-pdf"></i>
+              </a>
+              <button type="button" class="btn btn-outline-secondary" onclick="syncStock('{{ take.id }}')" title="Sync Live Stock">
+                <i class="bi bi-arrow-clockwise"></i>
+              </button>
+            </div>
+          </td>
+        </tr>
+        {% empty %}
+        <tr>
+          <td colspan="9" class="text-center text-muted">No stock takes found.</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  <div class="card-footer">
+    {% include "partials/pagination.html" with page_obj=stock_takes %}
+  </div>
+</div>
+
+<!-- Modal for Sync Result -->
+<div class="modal fade" id="syncModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title">Live Stock Sync</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <div class="modal-body" id="syncResultBody">
+        <!-- AJAX result will be shown here -->
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+function syncStock(stockTakeId) {
+  fetch(`/inventory/api/sync-stock-take/${stockTakeId}/`)
+    .then(response => response.json())
+    .then(data => {
+      const modalBody = document.getElementById('syncResultBody');
+      if (data.success) {
+        modalBody.innerHTML = `<div class="alert alert-success"><strong>Sync Complete!</strong><br>Updated ${data.updated} items.</div>`;
+      } else {
+        modalBody.innerHTML = `<div class="alert alert-danger">Error syncing: ${data.error || 'Unknown error'}</div>`;
+      }
+      new bootstrap.Modal(document.getElementById('syncModal')).show();
+    })
+    .catch(error => {
+      document.getElementById('syncResultBody').innerHTML =
+        `<div class="alert alert-danger">Sync failed: ${error}</div>`;
+      new bootstrap.Modal(document.getElementById('syncModal')).show();
+    });
+}
+</script>
+{% endblock %}

@@ -1,0 +1,43 @@
+{% extends "website_base.html" %}
+{% load crispy_forms_tags %}
+{% load static %}
+
+{% block title %}Server Error - BlitzTech{% endblock %}
+
+{% block content %}
+<div class="text-center py-5">
+  <h1 class="display-1">500</h1>
+  <i class="bi bi-exclamation-triangle text-warning fs-1 mb-4"></i>
+  <h2 class="mb-4">Server Error</h2>
+  <p class="lead mb-4">Sorry, something went wrong on our server. We're working to fix the issue as soon as possible.</p>
+  
+  <div class="mb-4">
+    <a href="{% url 'website:home' %}" class="btn btn-primary me-2">
+      <i class="bi bi-house me-1"></i> Go Home
+    </a>
+    <a href="{% url 'website:contact' %}" class="btn btn-outline-primary">
+      <i class="bi bi-envelope me-1"></i> Report This Issue
+    </a>
+  </div>
+  
+  <div class="card mt-5">
+    <div class="card-body">
+      <h3 class="card-title">While we fix this issue, you can:</h3>
+      <ul class="list-group list-group-flush text-start">
+        <li class="list-group-item">
+          <i class="bi bi-arrow-clockwise me-2 text-primary"></i> Refresh the page and try again
+        </li>
+        <li class="list-group-item">
+          <i class="bi bi-clock-history me-2 text-primary"></i> Try again later
+        </li>
+        <li class="list-group-item">
+          <i class="bi bi-envelope me-2 text-primary"></i> Contact our support team for assistance
+        </li>
+        <li class="list-group-item">
+          <i class="bi bi-house me-2 text-primary"></i> Return to our homepage
+        </li>
+      </ul>
+    </div>
+  </div>
+</div>
+{% endblock %}

@@ -1,0 +1,606 @@
+{% extends "dashboard_base.html" %}
+{% load static %}
+
+{% block page_title %}
+  {% if form.instance.pk %}Edit {{ form.instance.name }}{% else %}Add New Client{% endif %}
+{% endblock %}
+
+{% block page_actions %}
+<div class="btn-group" role="group">
+  {% if form.instance.pk %}
+  <a href="{% url 'crm:client_detail' form.instance.id %}" class="btn btn-outline-secondary">
+    <i class="bi bi-arrow-left me-1"></i> Back to Client
+  </a>
+  {% else %}
+  <a href="{% url 'crm:client_list' %}" class="btn btn-outline-secondary">
+    <i class="bi bi-arrow-left me-1"></i> Back to List
+  </a>
+  {% endif %}
+</div>
+{% endblock %}
+
+{% block dashboard_content %}
+<form method="post" enctype="multipart/form-data" id="clientForm">
+  {% csrf_token %}
+  
+  <!-- Basic Information Card -->
+  <div class="card mb-4">
+    <div class="card-header">
+      <h5 class="card-title mb-0">
+        <i class="bi bi-person me-2"></i>Basic Information
+      </h5>
+    </div>
+    <div class="card-body">
+      <div class="row">
+        <div class="col-md-6 mb-3">
+          <label for="id_name" class="form-label">Full Name <span class="text-danger">*</span></label>
+          {{ form.name }}
+          {% if form.name.errors %}
+            <div class="text-danger small">
+              {% for error in form.name.errors %}{{ error }}{% endfor %}
+            </div>
+          {% endif %}
+        </div>
+        
+        <div class="col-md-6 mb-3">
+          <label for="id_email" class="form-label">Email Address <span class="text-danger">*</span></label>
+          {{ form.email }}
+          {% if form.email.errors %}
+            <div class="text-danger small">
+              {% for error in form.email.errors %}{{ error }}{% endfor %}
+            </div>
+          {% endif %}
+        </div>
+        
+        <div class="col-md-6 mb-3">
+          <label for="id_phone" class="form-label">Phone Number</label>
+          {{ form.phone }}
+          {% if form.phone.errors %}
+            <div class="text-danger small">
+              {% for error in form.phone.errors %}{{ error }}{% endfor %}
+            </div>
+          {% endif %}
+        </div>
+        
+        <div class="col-md-6 mb-3">
+          <label for="id_company" class="form-label">Company</label>
+          {{ form.company }}
+          {% if form.company.errors %}
+            <div class="text-danger small">
+              {% for error in form.company.errors %}{{ error }}{% endfor %}
+            </div>
+          {% endif %}
+        </div>
+        
+        <div class="col-md-6 mb-3">
+          <label for="id_website" class="form-label">Website</label>
+          {{ form.website }}
+          {% if form.website.errors %}
+            <div class="text-danger small">
+              {% for error in form.website.errors %}{{ error }}{% endfor %}
+            </div>
+          {% endif %}
+        </div>
+        
+        <div class="col-md-6 mb-3">
+          <label for="id_industry" class="form-label">Industry</label>
+          {{ form.industry }}
+          {% if form.industry.errors %}
+            <div class="text-danger small">
+              {% for error in form.industry.errors %}{{ error }}{% endfor %}
+            </div>
+          {% endif %}
+        </div>
+      </div>
+    </div>
+  </div>
+  
+  <!-- Business Classification Card -->
+  <div class="card mb-4">
+    <div class="card-header">
+      <h5 class="card-title mb-0">
+        <i class="bi bi-building me-2"></i>Business Classification
+      </h5>
+    </div>
+    <div class="card-body">
+      <div class="row">
+        <div class="col-md-3 mb-3">
+          <label for="id_status" class="form-label">Status</label>
+          {{ form.status }}
+          {% if form.status.errors %}
+            <div class="text-danger small">
+              {% for error in form.status.errors %}{{ error }}{% endfor %}
+            </div>
+          {% endif %}
+        </div>
+        
+        <div class="col-md-3 mb-3">
+          <label for="id_customer_type" class="form-label">Customer Type</label>
+          {{ form.customer_type }}
+          {% if form.customer_type.errors %}
+            <div class="text-danger small">
+              {% for error in form.customer_type.errors %}{{ error }}{% endfor %}
+            </div>
+          {% endif %}
+        </div>
+        
+        <div class="col-md-3 mb-3">
+          <label for="id_priority" class="form-label">Priority</label>
+          {{ form.priority }}
+          {% if form.priority.errors %}
+            <div class="text-danger small">
+              {% for error in form.priority.errors %}{{ error }}{% endfor %}
+            </div>
+          {% endif %}
+        </div>
+        
+        <div class="col-md-3 mb-3">
+          <label for="id_company_size" class="form-label">Company Size</label>
+          {{ form.company_size }}
+          {% if form.company_size.errors %}
+            <div class="text-danger small">
+              {% for error in form.company_size.errors %}{{ error }}{% endfor %}
+            </div>
+          {% endif %}
+        </div>
+      </div>
+    </div>
+  </div>
+  
+  <!-- Address Information Card -->
+  <div class="card mb-4">
+    <div class="card-header">
+      <h5 class="card-title mb-0">
+        <i class="bi bi-geo-alt me-2"></i>Address Information
+      </h5>
+    </div>
+    <div class="card-body">
+      <div class="row">
+        <div class="col-md-6 mb-3">
+          <label for="id_address_line1" class="form-label">Address Line 1</label>
+          {{ form.address_line1 }}
+          {% if form.address_line1.errors %}
+            <div class="text-danger small">
+              {% for error in form.address_line1.errors %}{{ error }}{% endfor %}
+            </div>
+          {% endif %}
+        </div>
+        
+        <div class="col-md-6 mb-3">
+          <label for="id_address_line2" class="form-label">Address Line 2</label>
+          {{ form.address_line2 }}
+          {% if form.address_line2.errors %}
+            <div class="text-danger small">
+              {% for error in form.address_line2.errors %}{{ error }}{% endfor %}
+            </div>
+          {% endif %}
+        </div>
+        
+        <div class="col-md-3 mb-3">
+          <label for="id_city" class="form-label">City</label>
+          {{ form.city }}
+          {% if form.city.errors %}
+            <div class="text-danger small">
+              {% for error in form.city.errors %}{{ error }}{% endfor %}
+            </div>
+          {% endif %}
+        </div>
+        
+        <div class="col-md-3 mb-3">
+          <label for="id_province" class="form-label">Province/State</label>
+          {{ form.province }}
+          {% if form.province.errors %}
+            <div class="text-danger small">
+              {% for error in form.province.errors %}{{ error }}{% endfor %}
+            </div>
+          {% endif %}
+        </div>
+        
+        <div class="col-md-3 mb-3">
+          <label for="id_postal_code" class="form-label">Postal Code</label>
+          {{ form.postal_code }}
+          {% if form.postal_code.errors %}
+            <div class="text-danger small">
+              {% for error in form.postal_code.errors %}{{ error }}{% endfor %}
+            </div>
+          {% endif %}
+        </div>
+        
+        <div class="col-md-3 mb-3">
+          <label for="id_country" class="form-label">Country</label>
+          {{ form.country }}
+          {% if form.country.errors %}
+            <div class="text-danger small">
+              {% for error in form.country.errors %}{{ error }}{% endfor %}
+            </div>
+          {% endif %}
+        </div>
+      </div>
+    </div>
+  </div>
+  
+  <!-- Financial Information Card -->
+  <div class="card mb-4">
+    <div class="card-header">
+      <h5 class="card-title mb-0">
+        <i class="bi bi-currency-dollar me-2"></i>Financial Information
+      </h5>
+    </div>
+    <div class="card-body">
+      <div class="row">
+        <div class="col-md-3 mb-3">
+          <label for="id_credit_limit" class="form-label">Credit Limit</label>
+          <div class="input-group">
+            <span class="input-group-text">$</span>
+            {{ form.credit_limit }}
+          </div>
+          {% if form.credit_limit.errors %}
+            <div class="text-danger small">
+              {% for error in form.credit_limit.errors %}{{ error }}{% endfor %}
+            </div>
+          {% endif %}
+        </div>
+        
+        <div class="col-md-3 mb-3">
+          <label for="id_payment_terms" class="form-label">Payment Terms</label>
+          <div class="input-group">
+            {{ form.payment_terms }}
+            <span class="input-group-text">days</span>
+          </div>
+          {% if form.payment_terms.errors %}
+            <div class="text-danger small">
+              {% for error in form.payment_terms.errors %}{{ error }}{% endfor %}
+            </div>
+          {% endif %}
+        </div>
+        
+        <div class="col-md-3 mb-3">
+          <label for="id_currency_preference" class="form-label">Currency</label>
+          {{ form.currency_preference }}
+          {% if form.currency_preference.errors %}
+            <div class="text-danger small">
+              {% for error in form.currency_preference.errors %}{{ error }}{% endfor %}
+            </div>
+          {% endif %}
+        </div>
+        
+        <div class="col-md-3 mb-3">
+          <label for="id_tax_number" class="form-label">Tax/VAT Number</label>
+          {{ form.tax_number }}
+          {% if form.tax_number.errors %}
+            <div class="text-danger small">
+              {% for error in form.tax_number.errors %}{{ error }}{% endfor %}
+            </div>
+          {% endif %}
+        </div>
+        
+        <div class="col-md-3 mb-3">
+          <label for="id_profit_margin" class="form-label">Expected Profit Margin</label>
+          <div class="input-group">
+            {{ form.profit_margin }}
+            <span class="input-group-text">%</span>
+          </div>
+          {% if form.profit_margin.errors %}
+            <div class="text-danger small">
+              {% for error in form.profit_margin.errors %}{{ error }}{% endfor %}
+            </div>
+          {% endif %}
+        </div>
+      </div>
+    </div>
+  </div>
+  
+  <!-- Team Assignment Card -->
+  <div class="card mb-4">
+    <div class="card-header">
+      <h5 class="card-title mb-0">
+        <i class="bi bi-people me-2"></i>Team Assignment
+      </h5>
+    </div>
+    <div class="card-body">
+      <div class="row">
+        <div class="col-md-6 mb-3">
+          <label for="id_assigned_to" class="form-label">Assigned To</label>
+          {{ form.assigned_to }}
+          <div class="form-text">Primary contact person for this client</div>
+          {% if form.assigned_to.errors %}
+            <div class="text-danger small">
+              {% for error in form.assigned_to.errors %}{{ error }}{% endfor %}
+            </div>
+          {% endif %}
+        </div>
+        
+        <div class="col-md-6 mb-3">
+          <label for="id_account_manager" class="form-label">Account Manager</label>
+          {{ form.account_manager }}
+          <div class="form-text">Senior person responsible for account</div>
+          {% if form.account_manager.errors %}
+            <div class="text-danger small">
+              {% for error in form.account_manager.errors %}{{ error }}{% endfor %}
+            </div>
+          {% endif %}
+        </div>
+      </div>
+    </div>
+  </div>
+  
+  <!-- Source & Attribution Card -->
+  <div class="card mb-4">
+    <div class="card-header">
+      <h5 class="card-title mb-0">
+        <i class="bi bi-graph-up me-2"></i>Source & Attribution
+      </h5>
+    </div>
+    <div class="card-body">
+      <div class="row">
+        <div class="col-md-4 mb-3">
+          <label for="id_source" class="form-label">Lead Source</label>
+          {{ form.source }}
+          {% if form.source.errors %}
+            <div class="text-danger small">
+              {% for error in form.source.errors %}{{ error }}{% endfor %}
+            </div>
+          {% endif %}
+        </div>
+        
+        <div class="col-md-4 mb-3">
+          <label for="id_referral_source" class="form-label">Referral Source</label>
+          {{ form.referral_source }}
+          {% if form.referral_source.errors %}
+            <div class="text-danger small">
+              {% for error in form.referral_source.errors %}{{ error }}{% endfor %}
+            </div>
+          {% endif %}
+        </div>
+        
+        <div class="col-md-4 mb-3">
+          <label for="id_marketing_campaign" class="form-label">Marketing Campaign</label>
+          {{ form.marketing_campaign }}
+          {% if form.marketing_campaign.errors %}
+            <div class="text-danger small">
+              {% for error in form.marketing_campaign.errors %}{{ error }}{% endfor %}
+            </div>
+          {% endif %}
+        </div>
+      </div>
+    </div>
+  </div>
+  
+  <!-- Notes & Additional Information Card -->
+  <div class="card mb-4">
+    <div class="card-header">
+      <h5 class="card-title mb-0">
+        <i class="bi bi-journal-text me-2"></i>Notes & Additional Information
+      </h5>
+    </div>
+    <div class="card-body">
+      <div class="row">
+        <div class="col-md-6 mb-3">
+          <label for="id_notes" class="form-label">Public Notes</label>
+          {{ form.notes }}
+          <div class="form-text">Visible to client in quotes and documents</div>
+          {% if form.notes.errors %}
+            <div class="text-danger small">
+              {% for error in form.notes.errors %}{{ error }}{% endfor %}
+            </div>
+          {% endif %}
+        </div>
+        
+        <div class="col-md-6 mb-3">
+          <label for="id_internal_notes" class="form-label">Internal Notes</label>
+          {{ form.internal_notes }}
+          <div class="form-text">For internal use only - not visible to client</div>
+          {% if form.internal_notes.errors %}
+            <div class="text-danger small">
+              {% for error in form.internal_notes.errors %}{{ error }}{% endfor %}
+            </div>
+          {% endif %}
+        </div>
+        
+        <div class="col-md-6 mb-3">
+          <label for="id_tags" class="form-label">Tags</label>
+          {{ form.tags }}
+          <div class="form-text">{{ form.tags.help_text }}</div>
+          {% if form.tags.errors %}
+            <div class="text-danger small">
+              {% for error in form.tags.errors %}{{ error }}{% endfor %}
+            </div>
+          {% endif %}
+        </div>
+        
+        <div class="col-md-6 mb-3">
+          <label for="id_followup_date" class="form-label">Follow-up Date</label>
+          {{ form.followup_date }}
+          <div class="form-text">Schedule next contact</div>
+          {% if form.followup_date.errors %}
+            <div class="text-danger small">
+              {% for error in form.followup_date.errors %}{{ error }}{% endfor %}
+            </div>
+          {% endif %}
+        </div>
+      </div>
+    </div>
+  </div>
+  
+  <!-- Form Errors -->
+  {% if form.non_field_errors %}
+  <div class="alert alert-danger">
+    <h6 class="alert-heading">Please fix the following errors:</h6>
+    {% for error in form.non_field_errors %}
+      <div>{{ error }}</div>
+    {% endfor %}
+  </div>
+  {% endif %}
+  
+  <!-- Action Buttons -->
+  <div class="card">
+    <div class="card-body">
+      <div class="d-flex justify-content-between">
+        <div>
+          {% if form.instance.pk %}
+          <a href="{% url 'crm:client_detail' form.instance.id %}" class="btn btn-outline-secondary">
+            <i class="bi bi-x me-1"></i> Cancel
+          </a>
+          {% else %}
+          <a href="{% url 'crm:client_list' %}" class="btn btn-outline-secondary">
+            <i class="bi bi-x me-1"></i> Cancel
+          </a>
+          {% endif %}
+        </div>
+        
+        <div class="btn-group">
+          {% if form.instance.pk %}
+          <button type="submit" name="action" value="save" class="btn btn-warning">
+            <i class="bi bi-save me-1"></i> Update Client
+          </button>
+          <button type="submit" name="action" value="save_and_continue" class="btn btn-success">
+            <i class="bi bi-save me-1"></i> Update & Add Interaction
+          </button>
+          {% else %}
+          <button type="submit" name="action" value="save" class="btn btn-primary">
+            <i class="bi bi-save me-1"></i> Create Client
+          </button>
+          <button type="submit" name="action" value="save_and_continue" class="btn btn-success">
+            <i class="bi bi-save me-1"></i> Create & Add Interaction
+          </button>
+          {% endif %}
+        </div>
+      </div>
+    </div>
+  </div>
+</form>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // Auto-suggest for common fields
+    const industryField = document.getElementById('id_industry');
+    const commonIndustries = [
+        'Technology', 'Manufacturing', 'Healthcare', 'Education', 'Finance', 
+        'Retail', 'Construction', 'Agriculture', 'Mining', 'Government', 
+        'Non-profit', 'Hospitality', 'Transportation'
+    ];
+    
+    if (industryField) {
+        // Add datalist for industry suggestions
+        const datalist = document.createElement('datalist');
+        datalist.id = 'industry-suggestions';
+        commonIndustries.forEach(industry => {
+            const option = document.createElement('option');
+            option.value = industry;
+            datalist.appendChild(option);
+        });
+        document.body.appendChild(datalist);
+        industryField.setAttribute('list', 'industry-suggestions');
+    }
+    
+    // Form validation
+    const form = document.getElementById('clientForm');
+    form.addEventListener('submit', function(e) {
+        const email = document.getElementById('id_email').value;
+        const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+        
+        if (!emailRegex.test(email)) {
+            e.preventDefault();
+            alert('Please enter a valid email address.');
+            document.getElementById('id_email').focus();
+            return false;
+        }
+        
+        // Show loading state
+        const submitBtns = form.querySelectorAll('button[type="submit"]');
+        submitBtns.forEach(btn => {
+            btn.disabled = true;
+            btn.innerHTML = '<i class="bi bi-hourglass-split me-1"></i> Saving...';
+        });
+    });
+    
+    // Auto-format phone number (basic)
+    const phoneField = document.getElementById('id_phone');
+    if (phoneField) {
+        phoneField.addEventListener('input', function() {
+            let value = this.value.replace(/\D/g, '');
+            if (value.startsWith('263')) {
+                // Zimbabwe format
+                value = value.replace(/(\d{3})(\d{1})(\d{3})(\d{4})/, '+$1 $2 $3 $4');
+            } else if (value.length >= 10) {
+                // Generic format
+                value = value.replace(/(\d{3})(\d{3})(\d{4})/, '$1-$2-$3');
+            }
+            this.value = value;
+        });
+    }
+    
+    // Real-time email validation
+    const emailField = document.getElementById('id_email');
+    if (emailField) {
+        emailField.addEventListener('blur', function() {
+            const email = this.value;
+            if (email) {
+                // Basic email validation feedback
+                const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+                const feedback = this.parentNode.querySelector('.email-feedback');
+                
+                if (feedback) feedback.remove();
+                
+                const feedbackDiv = document.createElement('div');
+                feedbackDiv.className = 'email-feedback small mt-1';
+                
+                if (emailRegex.test(email)) {
+                    feedbackDiv.className += ' text-success';
+                    feedbackDiv.innerHTML = '<i class="bi bi-check-circle me-1"></i>Valid email format';
+                } else {
+                    feedbackDiv.className += ' text-danger';
+                    feedbackDiv.innerHTML = '<i class="bi bi-x-circle me-1"></i>Please enter a valid email';
+                }
+                
+                this.parentNode.appendChild(feedbackDiv);
+            }
+        });
+    }
+    
+    // Auto-suggest tags
+    const tagsField = document.getElementById('id_tags');
+    if (tagsField) {
+        const commonTags = [
+            'vip', 'price-sensitive', 'tech-savvy', 'decision-maker', 'influencer',
+            'budget-conscious', 'quality-focused', 'fast-buyer', 'research-heavy',
+            'referral-source', 'repeat-customer', 'bulk-buyer'
+        ];
+        
+        tagsField.addEventListener('input', function() {
+            // Simple tag suggestion (could be enhanced with a proper autocomplete)
+            const value = this.value.toLowerCase();
+            const lastTag = value.split(',').pop().trim();
+            
+            if (lastTag.length > 1) {
+                const suggestions = commonTags.filter(tag => 
+                    tag.toLowerCase().includes(lastTag) && !value.includes(tag)
+                );
+                
+                // Show suggestions (basic implementation)
+                if (suggestions.length > 0) {
+                    this.title = 'Suggestions: ' + suggestions.slice(0, 3).join(', ');
+                }
+            }
+        });
+    }
+});
+
+// Keyboard shortcuts
+document.addEventListener('keydown', function(e) {
+    // Ctrl/Cmd + S to save
+    if ((e.ctrlKey || e.metaKey) && e.key === 's') {
+        e.preventDefault();
+        document.querySelector('button[name="action"][value="save"]').click();
+    }
+    
+    // Ctrl/Cmd + Enter to save and continue
+    if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
+        e.preventDefault();
+        document.querySelector('button[name="action"][value="save_and_continue"]').click();
+    }
+});
+</script>
+{% endblock %}

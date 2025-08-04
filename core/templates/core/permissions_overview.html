@@ -1,0 +1,37 @@
+{% extends "dashboard_base.html" %}
+{% block page_title %}Permissions Overview{% endblock %}
+{% load dict_extras %}
+
+{% block dashboard_content %}
+<h2>Permissions Overview</h2>
+<table class="table table-bordered table-striped">
+  <thead>
+    <tr>
+      <th>User</th>
+      <th>Email</th>
+      <th>Role</th>
+      <th>Permissions</th>
+    </tr>
+  </thead>
+  <tbody>
+    {% for user in users %}
+      <tr>
+        <td>{{ user.get_full_name|default:user.username }}</td>
+        <td>{{ user.email }}</td>
+        <td>
+          {% if user.profile %}{{ user.profile.get_user_type_display }}{% else %}<em>n/a</em>{% endif %}
+        </td>
+        <td>
+          {% if permissions_map|get_item:user.id %}
+            {% for perm in permissions_map|get_item:user.id %}
+              <span class="badge bg-primary">{{ perm.get_app_display }}: {{ perm.get_permission_level_display }}</span>
+            {% endfor %}
+          {% else %}
+            <span class="text-muted">No specific permissions</span>
+          {% endif %}
+        </td>
+      </tr>
+    {% endfor %}
+  </tbody>
+</table>
+{% endblock %}

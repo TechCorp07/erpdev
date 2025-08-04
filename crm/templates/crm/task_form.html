@@ -1,0 +1,492 @@
+{% extends "dashboard_base.html" %}
+{% load static %}
+
+{% block page_title %}
+  {% if form.instance.pk %}Edit {{ form.instance.title }}{% else %}Create New Task{% endif %}
+{% endblock %}
+
+{% block page_actions %}
+<div class="btn-group" role="group">
+  {% if form.instance.pk %}
+  <a href="{% url 'crm:task_detail' form.instance.id %}" class="btn btn-outline-secondary">
+    <i class="bi bi-arrow-left me-1"></i> Back to Task
+  </a>
+  {% else %}
+  <a href="{% url 'crm:task_list' %}" class="btn btn-outline-secondary">
+    <i class="bi bi-arrow-left me-1"></i> Back to Tasks
+  </a>
+  {% endif %}
+</div>
+{% endblock %}
+
+{% block dashboard_content %}
+<form method="post" id="taskForm">
+  {% csrf_token %}
+  
+  <!-- Task Information -->
+  <div class="card mb-4">
+    <div class="card-header">
+      <h5 class="card-title mb-0">
+        <i class="bi bi-list-task me-2"></i>Task Information
+      </h5>
+    </div>
+    <div class="card-body">
+      <div class="row">
+        <div class="col-12 mb-3">
+          <label for="id_title" class="form-label">Task Title <span class="text-danger">*</span></label>
+          {{ form.title }}
+          <div class="form-text">Clear, actionable description of what needs to be done</div>
+          {% if form.title.errors %}
+            <div class="text-danger small">
+              {% for error in form.title.errors %}{{ error }}{% endfor %}
+            </div>
+          {% endif %}
+        </div>
+        
+        <div class="col-12 mb-3">
+          <label for="id_description" class="form-label">Description</label>
+          {{ form.description }}
+          <div class="form-text">Detailed information about the task, including context and requirements</div>
+          {% if form.description.errors %}
+            <div class="text-danger small">
+              {% for error in form.description.errors %}{{ error }}{% endfor %}
+            </div>
+          {% endif %}
+        </div>
+      </div>
+    </div>
+  </div>
+  
+  <!-- Task Classification -->
+  <div class="card mb-4">
+    <div class="card-header">
+      <h5 class="card-title mb-0">
+        <i class="bi bi-diagram-3 me-2"></i>Task Classification
+      </h5>
+    </div>
+    <div class="card-body">
+      <div class="row">
+        <div class="col-md-6 mb-3">
+          <label for="id_priority" class="form-label">Priority</label>
+          {{ form.priority }}
+          <div class="form-text">How urgent is this task?</div>
+          {% if form.priority.errors %}
+            <div class="text-danger small">
+              {% for error in form.priority.errors %}{{ error }}{% endfor %}
+            </div>
+          {% endif %}
+        </div>
+        
+        <div class="col-md-6 mb-3">
+          <label for="id_status" class="form-label">Status</label>
+          {{ form.status }}
+          <div class="form-text">Current state of the task</div>
+          {% if form.status.errors %}
+            <div class="text-danger small">
+              {% for error in form.status.errors %}{{ error }}{% endfor %}
+            </div>
+          {% endif %}
+        </div>
+      </div>
+      
+      <!-- Priority Helper -->
+      <div class="alert alert-info">
+        <h6 class="alert-heading">Priority Guidelines:</h6>
+        <div class="row small">
+          <div class="col-md-3">
+            <strong class="text-danger">Urgent:</strong> Critical tasks that must be done today
+          </div>
+          <div class="col-md-3">
+            <strong class="text-warning">High:</strong> Important tasks due within 2-3 days
+          </div>
+          <div class="col-md-3">
+            <strong class="text-info">Medium:</strong> Regular tasks due within a week
+          </div>
+          <div class="col-md-3">
+            <strong class="text-secondary">Low:</strong> Tasks that can wait or are nice-to-have
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+  
+  <!-- Relationships and Context -->
+  <div class="card mb-4">
+    <div class="card-header">
+      <h5 class="card-title mb-0">
+        <i class="bi bi-link me-2"></i>Relationships & Context
+      </h5>
+    </div>
+    <div class="card-body">
+      <div class="row">
+        <div class="col-md-6 mb-3">
+          <label for="id_client" class="form-label">Related Client</label>
+          {{ form.client }}
+          <div class="form-text">Which client is this task for? (Optional)</div>
+          {% if form.client.errors %}
+            <div class="text-danger small">
+              {% for error in form.client.errors %}{{ error }}{% endfor %}
+            </div>
+          {% endif %}
+        </div>
+        
+        <div class="col-md-6 mb-3">
+          <label for="id_deal" class="form-label">Related Deal</label>
+          {{ form.deal }}
+          <div class="form-text">Which deal is this task supporting? (Optional)</div>
+          {% if form.deal.errors %}
+            <div class="text-danger small">
+              {% for error in form.deal.errors %}{{ error }}{% endfor %}
+            </div>
+          {% endif %}
+        </div>
+      </div>
+      
+      <div class="alert alert-light">
+        <small class="text-muted">
+          <i class="bi bi-lightbulb me-1"></i>
+          <strong>Tip:</strong> Linking tasks to clients and deals helps track progress and provides better context for your work.
+          It also ensures nothing falls through the cracks when managing complex relationships.
+        </small>
+      </div>
+    </div>
+  </div>
+  
+  <!-- Timeline and Assignment -->
+  <div class="card mb-4">
+    <div class="card-header">
+      <h5 class="card-title mb-0">
+        <i class="bi bi-calendar-event me-2"></i>Timeline & Assignment
+      </h5>
+    </div>
+    <div class="card-body">
+      <div class="row">
+        <div class="col-md-6 mb-3">
+          <label for="id_due_date" class="form-label">Due Date & Time</label>
+          {{ form.due_date }}
+          <div class="form-text">When should this task be completed?</div>
+          {% if form.due_date.errors %}
+            <div class="text-danger small">
+              {% for error in form.due_date.errors %}{{ error }}{% endfor %}
+            </div>
+          {% endif %}
+          
+          <!-- Quick Date Helpers -->
+          <div class="mt-2">
+            <small class="text-muted">Quick dates:</small>
+            <div class="btn-group btn-group-sm mt-1" role="group">
+              <button type="button" class="btn btn-outline-secondary" onclick="setDueDate(1)">Tomorrow</button>
+              <button type="button" class="btn btn-outline-secondary" onclick="setDueDate(3)">3 Days</button>
+              <button type="button" class="btn btn-outline-secondary" onclick="setDueDate(7)">1 Week</button>
+              <button type="button" class="btn btn-outline-secondary" onclick="setDueDate(14)">2 Weeks</button>
+            </div>
+          </div>
+        </div>
+        
+        <div class="col-md-6 mb-3">
+          <label for="id_assigned_to" class="form-label">Assigned To <span class="text-danger">*</span></label>
+          {{ form.assigned_to }}
+          <div class="form-text">Who is responsible for completing this task?</div>
+          {% if form.assigned_to.errors %}
+            <div class="text-danger small">
+              {% for error in form.assigned_to.errors %}{{ error }}{% endfor %}
+            </div>
+          {% endif %}
+        </div>
+      </div>
+    </div>
+  </div>
+  
+  <!-- Task Templates (for new tasks) -->
+  {% if not form.instance.pk %}
+  <div class="card mb-4">
+    <div class="card-header">
+      <h5 class="card-title mb-0">
+        <i class="bi bi-template me-2"></i>Quick Templates
+      </h5>
+    </div>
+    <div class="card-body">
+      <div class="row">
+        <div class="col-md-3 mb-2">
+          <button type="button" class="btn btn-outline-primary btn-sm w-100" onclick="applyTemplate('followup')">
+            📞 Client Follow-up
+          </button>
+        </div>
+        <div class="col-md-3 mb-2">
+          <button type="button" class="btn btn-outline-success btn-sm w-100" onclick="applyTemplate('proposal')">
+            📄 Send Proposal
+          </button>
+        </div>
+        <div class="col-md-3 mb-2">
+          <button type="button" class="btn btn-outline-warning btn-sm w-100" onclick="applyTemplate('meeting')">
+            👥 Schedule Meeting
+          </button>
+        </div>
+        <div class="col-md-3 mb-2">
+          <button type="button" class="btn btn-outline-info btn-sm w-100" onclick="applyTemplate('research')">
+            🔍 Research Task
+          </button>
+        </div>
+      </div>
+      <small class="text-muted">Click a template to auto-fill common task types</small>
+    </div>
+  </div>
+  {% endif %}
+  
+  <!-- Form Errors -->
+  {% if form.non_field_errors %}
+  <div class="alert alert-danger">
+    <h6 class="alert-heading">Please fix the following errors:</h6>
+    {% for error in form.non_field_errors %}
+      <div>{{ error }}</div>
+    {% endfor %}
+  </div>
+  {% endif %}
+  
+  <!-- Action Buttons -->
+  <div class="card">
+    <div class="card-body">
+      <div class="d-flex justify-content-between">
+        <div>
+          {% if form.instance.pk %}
+          <a href="{% url 'crm:task_detail' form.instance.id %}" class="btn btn-outline-secondary">
+            <i class="bi bi-x me-1"></i> Cancel
+          </a>
+          {% else %}
+          <a href="{% url 'crm:task_list' %}" class="btn btn-outline-secondary">
+            <i class="bi bi-x me-1"></i> Cancel
+          </a>
+          {% endif %}
+        </div>
+        
+        <div class="btn-group">
+          {% if form.instance.pk %}
+          <button type="submit" name="action" value="save" class="btn btn-warning">
+            <i class="bi bi-save me-1"></i> Update Task
+          </button>
+          <button type="submit" name="action" value="save_and_new" class="btn btn-success">
+            <i class="bi bi-save me-1"></i> Update & Add Another
+          </button>
+          {% else %}
+          <button type="submit" name="action" value="save" class="btn btn-primary">
+            <i class="bi bi-save me-1"></i> Create Task
+          </button>
+          <button type="submit" name="action" value="save_and_new" class="btn btn-success">
+            <i class="bi bi-save me-1"></i> Create & Add Another
+          </button>
+          {% endif %}
+        </div>
+      </div>
+    </div>
+  </div>
+</form>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // Auto-suggest due dates based on priority
+    const priorityField = document.getElementById('id_priority');
+    const dueDateField = document.getElementById('id_due_date');
+    
+    priorityField?.addEventListener('change', function() {
+        if (!dueDateField.value) { // Only suggest if no due date is set
+            const priorityDefaults = {
+                'urgent': 1,    // Due tomorrow
+                'high': 3,      // Due in 3 days
+                'medium': 7,    // Due in 1 week
+                'low': 14       // Due in 2 weeks
+            };
+            
+            const days = priorityDefaults[this.value];
+            if (days) {
+                setDueDate(days);
+            }
+        }
+    });
+    
+    // Client and deal relationship logic
+    const clientField = document.getElementById('id_client');
+    const dealField = document.getElementById('id_deal');
+    
+    // When a deal is selected, auto-select its client
+    dealField?.addEventListener('change', function() {
+        if (this.value) {
+            // In a real implementation, you'd fetch the deal's client via AJAX
+            // For now, we'll just provide visual feedback
+            const selectedDeal = this.options[this.selectedIndex];
+            if (selectedDeal.text.includes('(')) {
+                const notification = document.createElement('div');
+                notification.className = 'alert alert-info alert-dismissible fade show mt-2';
+                notification.innerHTML = `
+                    <small>
+                        <i class="bi bi-info-circle me-1"></i>
+                        This deal is related to a specific client. The client field will be automatically set.
+                    </small>
+                    <button type="button" class="btn-close btn-close-sm" data-bs-dismiss="alert"></button>
+                `;
+                this.parentNode.appendChild(notification);
+                
+                // Auto-dismiss after 3 seconds
+                setTimeout(() => {
+                    if (notification.parentNode) {
+                        notification.remove();
+                    }
+                }, 3000);
+            }
+        }
+    });
+    
+    // Form validation
+    const form = document.getElementById('taskForm');
+    form.addEventListener('submit', function(e) {
+        const title = document.getElementById('id_title').value.trim();
+        const assignedTo = document.getElementById('id_assigned_to').value;
+        
+        if (!title) {
+            e.preventDefault();
+            alert('Please enter a task title.');
+            document.getElementById('id_title').focus();
+            return false;
+        }
+        
+        if (!assignedTo) {
+            e.preventDefault();
+            alert('Please select who this task is assigned to.');
+            document.getElementById('id_assigned_to').focus();
+            return false;
+        }
+        
+        // Show loading state
+        const submitBtns = form.querySelectorAll('button[type="submit"]');
+        submitBtns.forEach(btn => {
+            btn.disabled = true;
+            const icon = btn.querySelector('i');
+            icon.className = 'bi bi-hourglass-split me-1';
+            btn.innerHTML = btn.innerHTML.replace(/Create|Update/, 'Saving');
+        });
+    });
+    
+    // Auto-expand description textarea
+    const descriptionField = document.getElementById('id_description');
+    descriptionField?.addEventListener('input', function() {
+        this.style.height = 'auto';
+        this.style.height = (this.scrollHeight + 2) + 'px';
+    });
+});
+
+// Set due date helper function
+function setDueDate(days) {
+    const date = new Date();
+    date.setDate(date.getDate() + days);
+    
+    // Set to 9 AM
+    date.setHours(9, 0, 0, 0);
+    
+    // Format for datetime-local input
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const day = String(date.getDate()).padStart(2, '0');
+    const hours = String(date.getHours()).padStart(2, '0');
+    const minutes = String(date.getMinutes()).padStart(2, '0');
+    
+    const datetimeLocal = `${year}-${month}-${day}T${hours}:${minutes}`;
+    document.getElementById('id_due_date').value = datetimeLocal;
+}
+
+// Task templates
+function applyTemplate(templateType) {
+    const titleField = document.getElementById('id_title');
+    const descriptionField = document.getElementById('id_description');
+    const priorityField = document.getElementById('id_priority');
+    
+    const templates = {
+        'followup': {
+            title: 'Follow up with client',
+            description: `Reach out to client to:
+- Check on their current needs
+- Update them on project progress
+- Schedule next meeting
+- Address any concerns
+
+Remember to:
+- Be prepared with updates
+- Have calendar ready for scheduling
+- Follow up with summary email`,
+            priority: 'medium'
+        },
+        'proposal': {
+            title: 'Prepare and send proposal',
+            description: `Create and send detailed proposal including:
+- Project scope and deliverables
+- Timeline and milestones
+- Pricing and payment terms
+- Terms and conditions
+
+Next steps:
+- Follow up in 3-5 business days
+- Schedule presentation if needed`,
+            priority: 'high'
+        },
+        'meeting': {
+            title: 'Schedule client meeting',
+            description: `Coordinate meeting with client to discuss:
+- Project requirements
+- Timeline expectations
+- Budget parameters
+- Next steps
+
+Preparation needed:
+- Send calendar invite
+- Prepare agenda
+- Gather relevant documents`,
+            priority: 'medium'
+        },
+        'research': {
+            title: 'Research and analysis task',
+            description: `Research the following:
+- Market analysis
+- Competitor evaluation
+- Technical requirements
+- Industry best practices
+
+Deliverables:
+- Summary report
+- Recommendations
+- Next action items`,
+            priority: 'low'
+        }
+    };
+    
+    const template = templates[templateType];
+    if (template) {
+        titleField.value = template.title;
+        descriptionField.value = template.description;
+        priorityField.value = template.priority;
+        
+        // Auto-resize description field
+        descriptionField.style.height = 'auto';
+        descriptionField.style.height = (descriptionField.scrollHeight + 2) + 'px';
+        
+        // Focus on title for customization
+        titleField.focus();
+        titleField.setSelectionRange(0, titleField.value.length);
+    }
+}
+
+// Keyboard shortcuts
+document.addEventListener('keydown', function(e) {
+    // Ctrl/Cmd + S to save
+    if ((e.ctrlKey || e.metaKey) && e.key === 's') {
+        e.preventDefault();
+        document.querySelector('button[name="action"][value="save"]').click();
+    }
+    
+    // Ctrl/Cmd + Enter to save and add new
+    if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
+        e.preventDefault();
+        document.querySelector('button[name="action"][value="save_and_new"]').click();
+    }
+});
+</script>
+{% endblock %}

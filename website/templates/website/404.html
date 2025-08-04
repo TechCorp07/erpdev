@@ -1,0 +1,55 @@
+{% extends "website_base.html" %}
+{% load crispy_forms_tags %}
+{% load static %}
+
+{% block title %}Page Not Found - BlitzTech{% endblock %}
+
+{% block content %}
+<div class="text-center py-5">
+  <h1 class="display-1">404</h1>
+  <i class="bi bi-exclamation-circle text-danger fs-1 mb-4"></i>
+  <h2 class="mb-4">Page Not Found</h2>
+  <p class="lead mb-4">The page you are looking for might have been removed, had its name changed, or is temporarily unavailable.</p>
+  
+  <div class="mb-4">
+    <a href="{% url 'website:home' %}" class="btn btn-primary me-2">
+      <i class="bi bi-house me-1"></i> Go Home
+    </a>
+    <a href="{% url 'website:contact' %}" class="btn btn-outline-primary">
+      <i class="bi bi-envelope me-1"></i> Contact Us
+    </a>
+  </div>
+  
+  <div class="card mt-5">
+    <div class="card-body">
+      <h3 class="card-title mb-3">You might be interested in:</h3>
+      <div class="row row-cols-1 row-cols-md-3 g-4">
+        <div class="col">
+          <div class="text-center">
+            <i class="bi bi-code-slash fs-1 mb-2 text-primary"></i>
+            <h5>Our Services</h5>
+            <p>Explore our range of services</p>
+            <a href="{% url 'website:services' %}" class="btn btn-sm btn-outline-primary">Services</a>
+          </div>
+        </div>
+        <div class="col">
+          <div class="text-center">
+            <i class="bi bi-collection fs-1 mb-2 text-primary"></i>
+            <h5>Portfolio</h5>
+            <p>Check out our recent work</p>
+            <a href="{% url 'website:portfolio' %}" class="btn btn-sm btn-outline-primary">Portfolio</a>
+          </div>
+        </div>
+        <div class="col">
+          <div class="text-center">
+            <i class="bi bi-newspaper fs-1 mb-2 text-primary"></i>
+            <h5>Blog</h5>
+            <p>Read our latest articles</p>
+            <a href="{% url 'website:blog' %}" class="btn btn-sm btn-outline-primary">Blog</a>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

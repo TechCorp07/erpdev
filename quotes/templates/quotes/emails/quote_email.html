@@ -1,0 +1,372 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Quote {{ quote.quote_number }} from {{ company_info.name }}</title>
+    <!--[if mso]>
+    <noscript>
+        <xml>
+            <o:OfficeDocumentSettings>
+                <o:PixelsPerInch>96</o:PixelsPerInch>
+            </o:OfficeDocumentSettings>
+        </xml>
+    </noscript>
+    <![endif]-->
+    <style>
+        /* Email-safe CSS that works across all major email clients */
+        
+        /* Reset styles for consistent rendering */
+        body, table, td, p, a, li, blockquote {
+            -webkit-text-size-adjust: 100%;
+            -ms-text-size-adjust: 100%;
+        }
+        
+        table, td {
+            mso-table-lspace: 0pt;
+            mso-table-rspace: 0pt;
+        }
+        
+        img {
+            -ms-interpolation-mode: bicubic;
+            border: 0;
+            outline: none;
+            text-decoration: none;
+        }
+        
+        /* Main email styles */
+        body {
+            margin: 0 !important;
+            padding: 0 !important;
+            background-color: #f4f4f4;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            font-size: 16px;
+            line-height: 1.6;
+            color: #333333;
+        }
+        
+        .email-container {
+            max-width: 600px;
+            margin: 0 auto;
+            background-color: #ffffff;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+        }
+        
+        .email-header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: #ffffff;
+            padding: 30px;
+            text-align: center;
+        }
+        
+        .company-logo {
+            max-width: 200px;
+            height: auto;
+            margin-bottom: 20px;
+        }
+        
+        .email-body {
+            padding: 40px 30px;
+        }
+        
+        .quote-summary {
+            background-color: #f8f9fa;
+            border-left: 4px solid #667eea;
+            padding: 20px;
+            margin: 20px 0;
+            border-radius: 0 8px 8px 0;
+        }
+        
+        .quote-details {
+            background-color: #ffffff;
+            border: 1px solid #dee2e6;
+            border-radius: 8px;
+            overflow: hidden;
+            margin: 20px 0;
+        }
+        
+        .quote-details-header {
+            background-color: #495057;
+            color: #ffffff;
+            padding: 15px 20px;
+            font-weight: bold;
+        }
+        
+        .quote-details-body {
+            padding: 20px;
+        }
+        
+        .quote-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 10px 0;
+            border-bottom: 1px solid #e9ecef;
+        }
+        
+        .quote-item:last-child {
+            border-bottom: none;
+        }
+        
+        .quote-total {
+            background-color: #28a745;
+            color: #ffffff;
+            padding: 15px 20px;
+            font-size: 18px;
+            font-weight: bold;
+            text-align: center;
+        }
+        
+        .cta-button {
+            display: inline-block;
+            background: linear-gradient(135deg, #28a745 0%, #20c997 100%);
+            color: #ffffff !important;
+            text-decoration: none;
+            padding: 15px 30px;
+            border-radius: 6px;
+            font-weight: bold;
+            font-size: 16px;
+            text-align: center;
+            margin: 20px 0;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+            transition: all 0.3s ease;
+        }
+        
+        .cta-button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 8px rgba(0, 0, 0, 0.15);
+        }
+        
+        .email-footer {
+            background-color: #495057;
+            color: #ffffff;
+            padding: 30px;
+            text-align: center;
+            font-size: 14px;
+        }
+        
+        .contact-info {
+            margin: 15px 0;
+        }
+        
+        .contact-info a {
+            color: #ffffff;
+            text-decoration: none;
+        }
+        
+        .terms-text {
+            background-color: #f8f9fa;
+            padding: 20px;
+            border-radius: 6px;
+            font-size: 14px;
+            color: #6c757d;
+            margin: 20px 0;
+        }
+        
+        /* Responsive design for mobile devices */
+        @media only screen and (max-width: 600px) {
+            .email-container {
+                width: 100% !important;
+                max-width: 100% !important;
+            }
+            
+            .email-header,
+            .email-body,
+            .email-footer {
+                padding: 20px !important;
+            }
+            
+            .quote-summary,
+            .quote-details-body {
+                padding: 15px !important;
+            }
+            
+            .cta-button {
+                display: block !important;
+                width: 100% !important;
+                box-sizing: border-box;
+            }
+        }
+    </style>
+</head>
+<body>
+    <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%">
+        <tr>
+            <td>
+                <div class="email-container">
+                    <!-- Email Header -->
+                    <div class="email-header">
+                        {% if company_info.logo_path %}
+                        <img src="{{ company_info.logo_path }}" alt="{{ company_info.name }}" class="company-logo">
+                        {% endif %}
+                        <h1 style="margin: 0; font-size: 28px; font-weight: 300;">
+                            Quote {{ quote.quote_number }}
+                        </h1>
+                        <p style="margin: 10px 0 0 0; font-size: 18px; opacity: 0.9;">
+                            Professional Quote from {{ company_info.name }}
+                        </p>
+                    </div>
+                    
+                    <!-- Email Body -->
+                    <div class="email-body">
+                        <h2 style="color: #495057; margin-top: 0;">
+                            Dear {{ quote.client.name }},
+                        </h2>
+                        
+                        <p>
+                            Thank you for your interest in our products and services. We're pleased to provide you with the following quote for <strong>{{ quote.title }}</strong>.
+                        </p>
+                        
+                        <p>
+                            Our team has carefully prepared this proposal to meet your specific requirements. We believe this solution will provide excellent value for your investment.
+                        </p>
+                        
+                        <!-- Quote Summary -->
+                        <div class="quote-summary">
+                            <h3 style="margin-top: 0; color: #495057;">Quote Summary</h3>
+                            <table width="100%" cellspacing="0" cellpadding="0">
+                                <tr>
+                                    <td><strong>Quote Number:</strong></td>
+                                    <td style="text-align: right;">{{ quote.quote_number }}</td>
+                                </tr>
+                                <tr>
+                                    <td><strong>Date Created:</strong></td>
+                                    <td style="text-align: right;">{{ quote.created_at|date:"M d, Y" }}</td>
+                                </tr>
+                                <tr>
+                                    <td><strong>Valid Until:</strong></td>
+                                    <td style="text-align: right; {% if quote.is_expired %}color: #dc3545;{% endif %}">
+                                        {{ quote.validity_date|date:"M d, Y" }}
+                                    </td>
+                                </tr>
+                                <tr>
+                                    <td><strong>Total Amount:</strong></td>
+                                    <td style="text-align: right; font-size: 18px; color: #28a745; font-weight: bold;">
+                                        ${{ quote.total_amount|floatformat:2 }} {{ quote.currency }}
+                                    </td>
+                                </tr>
+                            </table>
+                        </div>
+                        
+                        <!-- Quote Details -->
+                        <div class="quote-details">
+                            <div class="quote-details-header">
+                                Quote Details
+                            </div>
+                            <div class="quote-details-body">
+                                {% for item in quote.items.all %}
+                                <div class="quote-item">
+                                    <div style="flex: 1;">
+                                        <strong>{{ item.description }}</strong>
+                                        {% if item.detailed_specs %}
+                                        <br><small style="color: #6c757d;">{{ item.detailed_specs|truncatewords:15 }}</small>
+                                        {% endif %}
+                                        <br><small style="color: #495057;">Quantity: {{ item.quantity }}</small>
+                                    </div>
+                                    <div style="text-align: right; font-weight: bold; color: #495057;">
+                                        ${{ item.total_price|floatformat:2 }}
+                                    </div>
+                                </div>
+                                {% endfor %}
+                                
+                                <!-- Quote Totals -->
+                                <table width="100%" style="margin-top: 20px; border-top: 2px solid #dee2e6; padding-top: 15px;">
+                                    <tr>
+                                        <td><strong>Subtotal:</strong></td>
+                                        <td style="text-align: right;">${{ quote.subtotal|floatformat:2 }}</td>
+                                    </tr>
+                                    {% if quote.discount_percentage > 0 %}
+                                    <tr style="color: #ffc107;">
+                                        <td><strong>Discount ({{ quote.discount_percentage }}%):</strong></td>
+                                        <td style="text-align: right;">-${{ quote.discount_amount|floatformat:2 }}</td>
+                                    </tr>
+                                    {% endif %}
+                                    <tr>
+                                        <td><strong>Tax ({{ quote.tax_rate }}%):</strong></td>
+                                        <td style="text-align: right;">${{ quote.tax_amount|floatformat:2 }}</td>
+                                    </tr>
+                                </table>
+                            </div>
+                            <div class="quote-total">
+                                Total: ${{ quote.total_amount|floatformat:2 }} {{ quote.currency }}
+                            </div>
+                        </div>
+                        
+                        <!-- Call to Action -->
+                        <div style="text-align: center; margin: 30px 0;">
+                            <a href="{{ access_url }}" class="cta-button">
+                                View Full Quote Online
+                            </a>
+                        </div>
+                        
+                        <p>
+                            <strong>Next Steps:</strong><br>
+                            If you would like to proceed with this quote, please reply to this email or contact us directly. We're happy to answer any questions you may have about the proposed solution.
+                        </p>
+                        
+                        {% if quote.payment_terms %}
+                        <p>
+                            <strong>Payment Terms:</strong> {{ quote.payment_terms }} days from acceptance
+                        </p>
+                        {% endif %}
+                        
+                        <!-- Terms and Conditions -->
+                        <div class="terms-text">
+                            <h4 style="margin-top: 0; color: #495057;">Terms & Conditions</h4>
+                            <ul style="margin: 0; padding-left: 20px;">
+                                <li>This quote is valid until {{ quote.validity_date|date:"M d, Y" }}</li>
+                                <li>Prices are subject to change without notice after the validity period</li>
+                                <li>Delivery times are estimates and may vary based on product availability</li>
+                                <li>Payment terms: {{ quote.payment_terms|default:"30" }} days from invoice date</li>
+                                <li>All prices are in {{ quote.currency }} and exclude delivery charges unless specified</li>
+                            </ul>
+                        </div>
+                        
+                        <p>
+                            Thank you for considering {{ company_info.name }} for your technology needs. We look forward to the opportunity to serve you.
+                        </p>
+                        
+                        <p>
+                            Best regards,<br>
+                            <strong>{{ sent_by.get_full_name|default:sent_by.username }}</strong><br>
+                            {% if sent_by.email %}{{ sent_by.email }}<br>{% endif %}
+                            {{ company_info.name }}
+                        </p>
+                    </div>
+                    
+                    <!-- Email Footer -->
+                    <div class="email-footer">
+                        <h3 style="margin-top: 0;">{{ company_info.name }}</h3>
+                        
+                        <div class="contact-info">
+                            {% if company_info.address %}
+                            <div>📍 {{ company_info.address }}</div>
+                            {% endif %}
+                            {% if company_info.phone %}
+                            <div>📞 <a href="tel:{{ company_info.phone }}">{{ company_info.phone }}</a></div>
+                            {% endif %}
+                            {% if company_info.email %}
+                            <div>✉️ <a href="mailto:{{ company_info.email }}">{{ company_info.email }}</a></div>
+                            {% endif %}
+                            {% if company_info.website %}
+                            <div>🌐 <a href="{{ company_info.website }}">{{ company_info.website }}</a></div>
+                            {% endif %}
+                        </div>
+                        
+                        <div style="margin-top: 20px; padding-top: 20px; border-top: 1px solid #6c757d; font-size: 12px; opacity: 0.8;">
+                            <p style="margin: 0;">
+                                This email was sent from our Quote Management System. If you have any questions about this quote, please contact us directly.
+                            </p>
+                            {% if company_info.tax_number %}
+                            <p style="margin: 5px 0 0 0;">
+                                Tax Registration: {{ company_info.tax_number }}
+                            </p>
+                            {% endif %}
+                        </div>
+                    </div>
+                </div>
+            </td>
+        </tr>
+    </table>
+</body>
+</html>

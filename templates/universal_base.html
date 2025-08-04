@@ -1,0 +1,186 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{% block title %}BlitzTech Electronics{% endblock %}</title>
+  
+  <!-- Bootstrap CSS (Bootstrap 5) -->
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet" integrity="sha384-QWTKZyjpPEjISv5WaRU9OFeRpok6YctnYmDr5pNlyT2bRjXh0JMhjY6hW+ALEwIH" crossorigin="anonymous">
+  
+  <!-- Bootstrap Icons -->
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.1/font/bootstrap-icons.css">
+  
+  <!-- Google Fonts -->
+  <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;500;700&display=swap" rel="stylesheet">
+  
+  <!-- Extra head content for specific templates -->
+  {% block extra_head %}{% endblock %}
+  
+  <!-- Universal CSS -->
+  {% block universal_css %}
+  <style>
+    body {
+      font-family: 'Roboto', sans-serif;
+      background-color: #f8f9fc;
+    }
+    
+    /* Universal utility classes */
+    .user-avatar {
+      width: 32px;
+      height: 32px;
+      object-fit: cover;
+    }
+    
+    .notification-badge {
+      position: relative;
+      top: -2px;
+    }
+    
+    /* Smooth transitions for all interactive elements */
+    .btn, .nav-link, .card {
+      transition: all 0.3s ease;
+    }
+    
+    /* Custom scrollbar styling */
+    ::-webkit-scrollbar {
+      width: 6px;
+    }
+    
+    ::-webkit-scrollbar-track {
+      background: #f1f1f1;
+      border-radius: 3px;
+    }
+    
+    ::-webkit-scrollbar-thumb {
+      background: #c1c1c1;
+      border-radius: 3px;
+    }
+    
+    ::-webkit-scrollbar-thumb:hover {
+      background: #a8a8a8;
+    }
+    
+    /* Focus states for accessibility */
+    .btn:focus, .form-control:focus, .nav-link:focus {
+      box-shadow: 0 0 0 0.2rem rgba(90, 92, 105, 0.25);
+    }
+  </style>
+  {% endblock %}
+  
+  <!-- Template-specific CSS -->
+  {% block extra_css %}{% endblock %}
+</head>
+<body class="{% block body_class %}{% endblock %}">
+  <!-- Template-specific navigation will be defined in child templates -->
+  {% block navigation %}{% endblock %}
+
+  <!-- Global messages display -->
+  {% block messages %}
+  {% if messages %}
+    <div class="{% block messages_container_class %}container mt-3{% endblock %}">
+      {% for message in messages %}
+        <div class="alert alert-{{ message.tags }} alert-dismissible fade show" role="alert">
+          {% block message_icon %}
+          {% if message.tags == 'success' %}
+            <i class="bi bi-check-circle me-2"></i>
+          {% elif message.tags == 'warning' %}
+            <i class="bi bi-exclamation-triangle me-2"></i>
+          {% elif message.tags == 'error' or message.tags == 'danger' %}
+            <i class="bi bi-x-circle me-2"></i>
+          {% elif message.tags == 'info' %}
+            <i class="bi bi-info-circle me-2"></i>
+          {% endif %}
+          {% endblock %}
+          {{ message }}
+          <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+        </div>
+      {% endfor %}
+    </div>
+  {% endif %}
+  {% endblock %}
+
+  <!-- Main content area - structure varies by template type -->
+  {% block content_wrapper %}
+  <main class="{% block main_class %}container mt-4{% endblock %}">
+    {% block content %}{% endblock %}
+  </main>
+  {% endblock %}
+
+  <!-- Template-specific footer -->
+  {% block footer %}{% endblock %}
+
+  <!-- Universal JavaScript -->
+  {% block universal_js %}
+  <!-- Bootstrap JS and Popper.js -->
+  <script src="https://cdn.jsdelivr.net/npm/@popperjs/core@2.11.8/dist/umd/popper.min.js" integrity="sha384-I7E8VVD/ismYTF4hNIPjVp/Zjvgyol6VFvRkX/vR+Vc4jQkC+hVqc2pM8ODewa9r" crossorigin="anonymous"></script>
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.min.js" integrity="sha384-0pUGZvbkm6XF6gxjEnlmuGrJXVbNuzT9qBBavbLwCsOGabYfZo0T0to5eqruptLy" crossorigin="anonymous"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+  <script>
+    // Universal JavaScript functionality
+    document.addEventListener('DOMContentLoaded', function() {
+      // Auto-hide alerts after 5 seconds (except permanent ones)
+      const alerts = document.querySelectorAll('.alert:not(.alert-permanent)');
+      alerts.forEach(function(alert) {
+        setTimeout(function() {
+          const bsAlert = new bootstrap.Alert(alert);
+          bsAlert.close();
+        }, 5000);
+      });
+      
+      // Initialize tooltips globally
+      var tooltipTriggerList = [].slice.call(document.querySelectorAll('[data-bs-toggle="tooltip"]'));
+      var tooltipList = tooltipTriggerList.map(function (tooltipTriggerEl) {
+        return new bootstrap.Tooltip(tooltipTriggerEl);
+      });
+      
+      // Initialize popovers globally
+      var popoverTriggerList = [].slice.call(document.querySelectorAll('[data-bs-toggle="popover"]'));
+      var popoverList = popoverTriggerList.map(function (popoverTriggerEl) {
+        return new bootstrap.Popover(popoverTriggerEl);
+      });
+    });
+    
+    // Global utility functions
+    window.BlitzTechUtils = {
+      // Show notification
+      showNotification: function(message, type = 'info', duration = 5000) {
+        const alertContainer = document.createElement('div');
+        alertContainer.className = `alert alert-${type} alert-dismissible fade show position-fixed`;
+        alertContainer.style.cssText = 'top: 20px; right: 20px; z-index: 1060; min-width: 300px;';
+        alertContainer.innerHTML = `
+          ${message}
+          <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+        `;
+        
+        document.body.appendChild(alertContainer);
+        
+        // Auto-remove after duration
+        setTimeout(() => {
+          if (alertContainer.parentNode) {
+            alertContainer.remove();
+          }
+        }, duration);
+      },
+      
+      // Format currency
+      formatCurrency: function(amount, currency = 'USD') {
+        return new Intl.NumberFormat('en-US', {
+          style: 'currency',
+          currency: currency
+        }).format(amount);
+      },
+      
+      // Format date
+      formatDate: function(date, options = {}) {
+        return new Intl.DateTimeFormat('en-US', options).format(new Date(date));
+      }
+    };
+  </script>
+  {% endblock %}
+  
+  <!-- Template-specific JavaScript -->
+  {% block extra_js %}{% endblock %}
+</body>
+</html>

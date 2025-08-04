@@ -1,0 +1,460 @@
+<!-- website/templates/website/faq.html -->
+{% extends "website_base.html" %}
+{% load crispy_forms_tags %}
+{% load static %}
+
+{% block title %}FAQ - BlitzTech Electronics{% endblock %}
+
+{% block extra_css %}
+<style>
+  .faq-header {
+    background-color: #f8f9fa;
+    padding: 60px 0;
+    margin-bottom: 50px;
+  }
+  
+  .accordion-button:not(.collapsed) {
+    background-color: rgba(13, 110, 253, 0.1);
+    color: #0d6efd;
+  }
+  
+  .accordion-button:focus {
+    box-shadow: 0 0 0 0.25rem rgba(13, 110, 253, 0.25);
+  }
+  
+  .category-card {
+    transition: all 0.3s ease;
+    border-radius: 10px;
+    overflow: hidden;
+    margin-bottom: 30px;
+    text-align: center;
+    padding: 30px 20px;
+  }
+  
+  .category-card:hover {
+    transform: translateY(-10px);
+    box-shadow: 0 15px 30px rgba(0,0,0,0.1);
+  }
+  
+  .category-icon {
+    font-size: 3rem;
+    color: #0d6efd;
+    margin-bottom: 20px;
+  }
+</style>
+{% endblock %}
+
+{% block content %}
+  <!-- FAQ Header -->
+  <section class="faq-header">
+    <div class="container">
+      <div class="row">
+        <div class="col-lg-8 mx-auto text-center">
+          <h1 class="fw-bold mb-4">Frequently Asked Questions</h1>
+          <p class="lead">Find answers to common questions about our products, services, and processes. If you can't find what you're looking for, feel free to contact us.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- FAQ Categories -->
+  <section class="py-5">
+    <div class="container">
+      <div class="row">
+        <div class="col-md-4">
+          <div class="category-card bg-light">
+            <div class="category-icon">
+              <i class="bi bi-cpu"></i>
+            </div>
+            <h4>Components & Supply</h4>
+            <p>Questions about our electronic components, availability, and ordering process.</p>
+            <a href="#components" class="btn btn-outline-primary">View FAQs</a>
+          </div>
+        </div>
+        
+        <div class="col-md-4">
+          <div class="category-card bg-light">
+            <div class="category-icon">
+              <i class="bi bi-shield-lock"></i>
+            </div>
+            <h4>Security Systems</h4>
+            <p>Questions about security system installation, maintenance, and features.</p>
+            <a href="#security" class="btn btn-outline-primary">View FAQs</a>
+          </div>
+        </div>
+        
+        <div class="col-md-4">
+          <div class="category-card bg-light">
+            <div class="category-icon">
+              <i class="bi bi-hdd-network"></i>
+            </div>
+            <h4>IoT & Smart Solutions</h4>
+            <p>Questions about our IoT systems, smart devices, and connectivity options.</p>
+            <a href="#iot" class="btn btn-outline-primary">View FAQs</a>
+          </div>
+        </div>
+        
+        <div class="col-md-4">
+          <div class="category-card bg-light">
+            <div class="category-icon">
+              <i class="bi bi-motherboard"></i>
+            </div>
+            <h4>PCB Fabrication</h4>
+            <p>Questions about our PCB design, fabrication process, and specifications.</p>
+            <a href="#pcb" class="btn btn-outline-primary">View FAQs</a>
+          </div>
+        </div>
+        
+        <div class="col-md-4">
+          <div class="category-card bg-light">
+            <div class="category-icon">
+              <i class="bi bi-sun"></i>
+            </div>
+            <h4>Power Systems</h4>
+            <p>Questions about solar installations, electrical systems, and energy solutions.</p>
+            <a href="#power" class="btn btn-outline-primary">View FAQs</a>
+          </div>
+        </div>
+        
+        <div class="col-md-4">
+          <div class="category-card bg-light">
+            <div class="category-icon">
+              <i class="bi bi-credit-card"></i>
+            </div>
+            <h4>Orders & Payment</h4>
+            <p>Questions about ordering process, payment options, and delivery.</p>
+            <a href="#payment" class="btn btn-outline-primary">View FAQs</a>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- FAQ Accordions -->
+  <section class="py-5 bg-light">
+    <div class="container">
+      <h2 id="components" class="mb-4">Components & Supply</h2>
+      <div class="accordion mb-5" id="accordionComponents">
+        <div class="accordion-item">
+          <h2 class="accordion-header" id="headingOne">
+            <button class="accordion-button" type="button" data-bs-toggle="collapse" data-bs-target="#collapseOne" aria-expanded="true" aria-controls="collapseOne">
+              What types of electronic components do you supply?
+            </button>
+          </h2>
+          <div id="collapseOne" class="accordion-collapse collapse show" aria-labelledby="headingOne" data-bs-parent="#accordionComponents">
+            <div class="accordion-body">
+              We supply a wide range of electronic components including Arduino boards, Raspberry Pi, resistors, capacitors, transistors, diodes, logic boards, micro-controllers, and various other electronic components. Our inventory is constantly updated to include the latest components for various applications in electronics and technology.
+            </div>
+          </div>
+        </div>
+        
+        <div class="accordion-item">
+          <h2 class="accordion-header" id="headingTwo">
+            <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#collapseTwo" aria-expanded="false" aria-controls="collapseTwo">
+              How can I place an order for components?
+            </button>
+          </h2>
+          <div id="collapseTwo" class="accordion-collapse collapse" aria-labelledby="headingTwo" data-bs-parent="#accordionComponents">
+            <div class="accordion-body">
+              You can place an order through our website's online shopping platform, by visiting our physical location at 904 Premium Close, Mount Pleasant Business Park in Harare, or by contacting us via phone at +263 774 613 020 or email at sales@blitztechelectronics.co.zw. For bulk orders or special requirements, we recommend contacting us directly to discuss your needs.
+            </div>
+          </div>
+        </div>
+        
+        <div class="accordion-item">
+          <h2 class="accordion-header" id="headingThree">
+            <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#collapseThree" aria-expanded="false" aria-controls="collapseThree">
+              Do you offer consultations for component selection?
+            </button>
+          </h2>
+          <div id="collapseThree" class="accordion-collapse collapse" aria-labelledby="headingThree" data-bs-parent="#accordionComponents">
+            <div class="accordion-body">
+              Yes, we offer free consultations to help you select the right components for your specific project needs. Our team of experts can guide you through the selection process based on your requirements, budget, and project goals. This service is particularly valuable for students, hobbyists, and professionals working on specific electronic projects.
+            </div>
+          </div>
+        </div>
+      </div>
+      
+      <h2 id="security" class="mb-4">Security Systems</h2>
+      <div class="accordion mb-5" id="accordionSecurity">
+        <div class="accordion-item">
+          <h2 class="accordion-header" id="headingFour">
+            <button class="accordion-button" type="button" data-bs-toggle="collapse" data-bs-target="#collapseFour" aria-expanded="true" aria-controls="collapseFour">
+              What types of security systems do you offer?
+            </button>
+          </h2>
+          <div id="collapseFour" class="accordion-collapse collapse show" aria-labelledby="headingFour" data-bs-parent="#accordionSecurity">
+            <div class="accordion-body">
+              We offer a comprehensive range of security systems including biometric access control, surveillance cameras, web cameras, motion detection systems, real-time monitoring solutions, and cyber security services. Our systems can be customized to meet the specific security needs of residential homes, office premises, and large industrial complexes.
+            </div>
+          </div>
+        </div>
+        
+        <div class="accordion-item">
+          <h2 class="accordion-header" id="headingFive">
+            <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#collapseFive" aria-expanded="false" aria-controls="collapseFive">
+              Do you provide installation and maintenance services?
+            </button>
+          </h2>
+          <div id="collapseFive" class="accordion-collapse collapse" aria-labelledby="headingFive" data-bs-parent="#accordionSecurity">
+            <div class="accordion-body">
+              Yes, we provide complete installation services for all our security systems. Our team of trained technicians handles the entire process from initial site assessment to final setup and testing. We also offer maintenance services to ensure your security systems continue to function optimally. Regular maintenance packages are available to keep your systems up-to-date and in good working condition.
+            </div>
+          </div>
+        </div>
+        
+        <div class="accordion-item">
+          <h2 class="accordion-header" id="headingSix">
+            <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#collapseSix" aria-expanded="false" aria-controls="collapseSix">
+              Can your security systems be integrated with existing infrastructure?
+            </button>
+          </h2>
+          <div id="collapseSix" class="accordion-collapse collapse" aria-labelledby="headingSix" data-bs-parent="#accordionSecurity">
+            <div class="accordion-body">
+              Yes, our security systems are designed to be flexible and can be integrated with your existing security infrastructure. Whether you're looking to upgrade certain components or add new features to your current system, our solutions can be tailored to work seamlessly with what you already have. This approach allows for cost-effective security enhancements without the need for a complete system overhaul.
+            </div>
+          </div>
+        </div>
+      </div>
+      
+      <h2 id="iot" class="mb-4">IoT & Smart Solutions</h2>
+      <div class="accordion mb-5" id="accordionIoT">
+        <div class="accordion-item">
+          <h2 class="accordion-header" id="headingSeven">
+            <button class="accordion-button" type="button" data-bs-toggle="collapse" data-bs-target="#collapseSeven" aria-expanded="true" aria-controls="collapseSeven">
+              What IoT devices and systems do you offer?
+            </button>
+          </h2>
+          <div id="collapseSeven" class="accordion-collapse collapse show" aria-labelledby="headingSeven" data-bs-parent="#accordionIoT">
+            <div class="accordion-body">
+              We offer a wide range of IoT devices and systems including smart thermostats, smart meters, smart locks, connected appliances, and robotic equipment. Our IoT solutions are designed to enhance automation, improve efficiency, and provide seamless connectivity for homes and businesses.
+            </div>
+          </div>
+        </div>
+        
+        <div class="accordion-item">
+          <h2 class="accordion-header" id="headingEightIoT">
+            <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#collapseEightIoT" aria-expanded="false" aria-controls="collapseEightIoT">
+              How do your IoT solutions benefit businesses?
+            </button>
+          </h2>
+          <div id="collapseEightIoT" class="accordion-collapse collapse" aria-labelledby="headingEightIoT" data-bs-parent="#accordionIoT">
+            <div class="accordion-body">
+              Our IoT solutions provide businesses with improved operational efficiency, real-time monitoring capabilities, data-driven insights, enhanced security, and cost savings. By automating routine tasks and providing actionable data, businesses can make more informed decisions, optimize resource allocation, and improve overall productivity.
+            </div>
+          </div>
+        </div>
+        
+        <div class="accordion-item">
+          <h2 class="accordion-header" id="headingNineIoT">
+            <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#collapseNineIoT" aria-expanded="false" aria-controls="collapseNineIoT">
+              Are your IoT systems secure?
+            </button>
+          </h2>
+          <div id="collapseNineIoT" class="accordion-collapse collapse" aria-labelledby="headingNineIoT" data-bs-parent="#accordionIoT">
+            <div class="accordion-body">
+              Yes, security is a top priority in all our IoT implementations. We employ industry-standard encryption protocols, secure authentication methods, regular firmware updates, and continuous monitoring to protect against potential vulnerabilities. Our team also provides guidance on best practices for maintaining the security of your IoT ecosystem.
+            </div>
+          </div>
+        </div>
+      </div>
+      
+      <h2 id="pcb" class="mb-4">PCB Fabrication</h2>
+      <div class="accordion mb-5" id="accordionPCB">
+        <div class="accordion-item">
+          <h2 class="accordion-header" id="headingEight">
+            <button class="accordion-button" type="button" data-bs-toggle="collapse" data-bs-target="#collapseEight" aria-expanded="true" aria-controls="collapseEight">
+              What PCB fabrication services do you provide?
+            </button>
+          </h2>
+          <div id="collapseEight" class="accordion-collapse collapse show" aria-labelledby="headingEight" data-bs-parent="#accordionPCB">
+            <div class="accordion-body">
+              We provide comprehensive PCB fabrication services including design, prototype development, component sourcing, production setup, quality testing, and repair & maintenance. Our PCB fabrication services cater to various industries and applications, from security systems to custom electronic devices.
+            </div>
+          </div>
+        </div>
+        
+        <div class="accordion-item">
+          <h2 class="accordion-header" id="headingPCB2">
+            <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#collapsePCB2" aria-expanded="false" aria-controls="collapsePCB2">
+              What are the advantages of local PCB fabrication?
+            </button>
+          </h2>
+          <div id="collapsePCB2" class="accordion-collapse collapse" aria-labelledby="headingPCB2" data-bs-parent="#accordionPCB">
+            <div class="accordion-body">
+              Local PCB fabrication offers several advantages including faster turnaround times, reduced shipping costs, better communication, easier quality control, customization flexibility, and support for the local economy. By choosing our local PCB fabrication services, you're contributing to job creation and skill development within Zimbabwe while receiving high-quality products tailored to your specific needs.
+            </div>
+          </div>
+        </div>
+        
+        <div class="accordion-item">
+          <h2 class="accordion-header" id="headingPCB3">
+            <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#collapsePCB3" aria-expanded="false" aria-controls="collapsePCB3">
+              What is your PCB production capacity?
+            </button>
+          </h2>
+          <div id="collapsePCB3" class="accordion-collapse collapse" aria-labelledby="headingPCB3" data-bs-parent="#accordionPCB">
+            <div class="accordion-body">
+              Our PCB production capacity can accommodate both small-batch prototyping and larger production runs. We have the capability to handle various PCB specifications including single-layer, double-layer, and multi-layer boards with different thicknesses and materials. For specific capacity requirements or large-scale production inquiries, please contact us directly to discuss your project needs.
+            </div>
+          </div>
+        </div>
+      </div>
+      
+      <h2 id="power" class="mb-4">Power Systems</h2>
+      <div class="accordion mb-5" id="accordionPower">
+        <div class="accordion-item">
+          <h2 class="accordion-header" id="headingNine">
+            <button class="accordion-button" type="button" data-bs-toggle="collapse" data-bs-target="#collapseNine" aria-expanded="true" aria-controls="collapseNine">
+              What power system solutions do you offer?
+            </button>
+          </h2>
+          <div id="collapseNine" class="accordion-collapse collapse show" aria-labelledby="headingNine" data-bs-parent="#accordionPower">
+            <div class="accordion-body">
+              We offer a range of power system solutions including electrical wiring for office and residential spaces, solar water pumps, solar lighting kits, wind water pumps, low noise generators, and renewable energy R&D services. Our power systems are designed to provide reliable and efficient energy solutions for various applications.
+            </div>
+          </div>
+        </div>
+        
+        <div class="accordion-item">
+          <h2 class="accordion-header" id="headingPower2">
+            <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#collapsePower2" aria-expanded="false" aria-controls="collapsePower2">
+              Are your solar power systems cost-effective?
+            </button>
+          </h2>
+          <div id="collapsePower2" class="accordion-collapse collapse" aria-labelledby="headingPower2" data-bs-parent="#accordionPower">
+            <div class="accordion-body">
+              Yes, our solar power systems are designed to be cost-effective in the long run. While there is an initial investment, solar systems typically pay for themselves over time through reduced electricity bills. We offer various financing options to make the initial investment more manageable, and our systems are designed for durability and efficiency to maximize your return on investment.
+            </div>
+          </div>
+        </div>
+        
+        <div class="accordion-item">
+          <h2 class="accordion-header" id="headingPower3">
+            <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#collapsePower3" aria-expanded="false" aria-controls="collapsePower3">
+              What maintenance do your power systems require?
+            </button>
+          </h2>
+          <div id="collapsePower3" class="accordion-collapse collapse" aria-labelledby="headingPower3" data-bs-parent="#accordionPower">
+            <div class="accordion-body">
+              Most of our power systems require minimal maintenance. Solar panels generally need occasional cleaning to ensure optimal performance, and batteries may need replacement after several years of use. We provide maintenance guidelines with all our installations and offer maintenance service packages to ensure your systems continue to operate efficiently throughout their lifespan.
+            </div>
+          </div>
+        </div>
+      </div>
+      
+      <h2 id="payment" class="mb-4">Orders & Payment</h2>
+      <div class="accordion mb-5" id="accordionPayment">
+        <div class="accordion-item">
+          <h2 class="accordion-header" id="headingTen">
+            <button class="accordion-button" type="button" data-bs-toggle="collapse" data-bs-target="#collapseTen" aria-expanded="true" aria-controls="collapseTen">
+              What payment methods do you accept?
+            </button>
+          </h2>
+          <div id="collapseTen" class="accordion-collapse collapse show" aria-labelledby="headingTen" data-bs-parent="#accordionPayment">
+            <div class="accordion-body">
+              We accept various payment methods including cash, bank transfers, mobile money services (EcoCash, OneMoney), and major credit/debit cards. For online purchases, we also support secure online payment options. For large orders or project-based services, we can discuss flexible payment arrangements.
+            </div>
+          </div>
+        </div>
+        
+        <div class="accordion-item">
+          <h2 class="accordion-header" id="headingEleven">
+            <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#collapseEleven" aria-expanded="false" aria-controls="collapseEleven">
+              How long does delivery take?
+            </button>
+          </h2>
+          <div id="collapseEleven" class="accordion-collapse collapse" aria-labelledby="headingEleven" data-bs-parent="#accordionPayment">
+            <div class="accordion-body">
+              Delivery times vary depending on your location and the items ordered. For in-stock items within Harare, we typically deliver within 1-2 business days. For other locations in Zimbabwe, delivery usually takes 2-5 business days. For custom or large orders, delivery times will be communicated during the ordering process. We work with reliable courier services to ensure prompt and secure delivery.
+            </div>
+          </div>
+        </div>
+        
+        <div class="accordion-item">
+          <h2 class="accordion-header" id="headingTwelve">
+            <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#collapseTwelve" aria-expanded="false" aria-controls="collapseTwelve">
+              Do you offer warranties on your products and services?
+            </button>
+          </h2>
+          <div id="collapseTwelve" class="accordion-collapse collapse" aria-labelledby="headingTwelve" data-bs-parent="#accordionPayment">
+            <div class="accordion-body">
+              Yes, we offer warranties on our products and services. The warranty period varies depending on the specific product or service, with most electronic components covered by a standard 90-day warranty and larger systems like solar installations typically covered for 1-2 years. Extended warranty options are available for most products. All warranty details are provided at the time of purchase.
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Still Have Questions Section -->
+  <section class="py-5">
+    <div class="container">
+      <div class="row">
+        <div class="col-lg-8 mx-auto text-center">
+          <div class="bg-light p-5 rounded">
+            <h2 class="mb-4">Still Have Questions?</h2>
+            <p class="lead mb-4">Can't find the answer you're looking for? Feel free to contact our customer support team.</p>
+            <div class="row justify-content-center">
+              <div class="col-md-4 mb-3 mb-md-0">
+                <div class="card h-100">
+                  <div class="card-body text-center">
+                    <i class="bi bi-telephone-fill text-primary fs-1 mb-3"></i>
+                    <h5>Call Us</h5>
+                    <p>+263 774 613 020</p>
+                  </div>
+                </div>
+              </div>
+              <div class="col-md-4 mb-3 mb-md-0">
+                <div class="card h-100">
+                  <div class="card-body text-center">
+                    <i class="bi bi-envelope-fill text-primary fs-1 mb-3"></i>
+                    <h5>Email Us</h5>
+                    <p>sales@blitztechelectronics.co.zw</p>
+                  </div>
+                </div>
+              </div>
+              <div class="col-md-4">
+                <div class="card h-100">
+                  <div class="card-body text-center">
+                    <i class="bi bi-chat-fill text-primary fs-1 mb-3"></i>
+                    <h5>Live Chat</h5>
+                    <p>Chat with our support team</p>
+                  </div>
+                </div>
+              </div>
+            </div>
+            <a href="{% url 'website:contact' %}" class="btn btn-primary btn-lg mt-4">Contact Us</a>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+  // Smooth scrolling for anchor links
+  document.addEventListener('DOMContentLoaded', function() {
+    const anchorLinks = document.querySelectorAll('a[href^="#"]');
+    
+    anchorLinks.forEach(link => {
+      link.addEventListener('click', function(e) {
+        e.preventDefault();
+        
+        const targetId = this.getAttribute('href').substring(1);
+        const targetElement = document.getElementById(targetId);
+        
+        if (targetElement) {
+          const offsetTop = targetElement.getBoundingClientRect().top + window.pageYOffset - 100;
+          
+          window.scrollTo({
+            top: offsetTop,
+            behavior: 'smooth'
+          });
+        }
+      });
+    });
+  });
+</script>
+{% endblock %}

@@ -1,0 +1,259 @@
+<!-- quotes/templates/quotes/client_portal/quote_preview.html -->
+{% extends "quotes/client_portal/base.html" %}
+
+{% block header_actions %}
+<span class="status-badge status-{{ quote.status }}">
+    {{ quote.get_status_display }}
+</span>
+{% endblock %}
+
+{% block content %}
+<div class="quote-card">
+    <!-- Quote Header -->
+    <div class="quote-header">
+        <div class="row align-items-center">
+            <div class="col-md-8">
+                <div class="quote-number">{{ quote.quote_number }}</div>
+                <div class="quote-title">{{ quote.title }}</div>
+            </div>
+            <div class="col-md-4 text-md-end">
+                <small class="opacity-75">For: {{ quote.client.name }}</small>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Quote Meta Information -->
+    <div class="quote-meta">
+        <div class="meta-item">
+            <div class="meta-label">Date Created</div>
+            <div class="meta-value">{{ quote.created_at|date:"M d, Y" }}</div>
+        </div>
+        <div class="meta-item">
+            <div class="meta-label">Valid Until</div>
+            <div class="meta-value {% if is_expired %}text-danger{% elif days_until_expiry <= 7 %}text-warning{% endif %}">
+                {{ quote.validity_date|date:"M d, Y" }}
+                {% if is_expired %}
+                <br><small class="text-danger">(Expired)</small>
+                {% elif days_until_expiry <= 7 %}
+                <br><small class="text-warning">({{ days_until_expiry }} days left)</small>
+                {% endif %}
+            </div>
+        </div>
+        <div class="meta-item">
+            <div class="meta-label">Payment Terms</div>
+            <div class="meta-value">{{ quote.payment_terms }} days</div>
+        </div>
+        <div class="meta-item">
+            <div class="meta-label">Items</div>
+            <div class="meta-value">{{ total_items }} item{{ total_items|pluralize }}</div>
+        </div>
+    </div>
+    
+    <!-- Quote Items -->
+    {% if quote_items %}
+    <div class="table-responsive">
+        <table class="table items-table">
+            <thead>
+                <tr>
+                    <th>#</th>
+                    <th>Description</th>
+                    <th class="text-center">Qty</th>
+                    <th class="text-end">Unit Price</th>
+                    <th class="text-end">Total</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for item in quote_items %}
+                <tr>
+                    <td>{{ forloop.counter }}</td>
+                    <td>
+                        <strong>{{ item.description }}</strong>
+                        {% if item.detailed_specs %}
+                        <br><small class="text-muted">{{ item.detailed_specs|truncatewords:15 }}</small>
+                        {% endif %}
+                        {% if item.estimated_delivery %}
+                        <br><small class="text-info">
+                            <i class="bi bi-truck"></i> Delivery: {{ item.estimated_delivery|date:"M d, Y" }}
+                        </small>
+                        {% endif %}
+                    </td>
+                    <td class="text-center">{{ item.quantity }}</td>
+                    <td class="text-end">${{ item.unit_price|floatformat:2 }}</td>
+                    <td class="text-end"><strong>${{ item.total_price|floatformat:2 }}</strong></td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    {% endif %}
+    
+    <!-- Financial Summary -->
+    <div class="p-3 border-top">
+        <div class="row">
+            <div class="col-md-6">
+                {% if estimated_delivery %}
+                <p class="mb-1">
+                    <i class="bi bi-truck text-primary"></i>
+                    <strong>Estimated Delivery:</strong> {{ estimated_delivery|date:"F d, Y" }}
+                </p>
+                {% endif %}
+                {% if quote.delivery_terms %}
+                <p class="mb-0">
+                    <i class="bi bi-info-circle text-info"></i>
+                    <strong>Delivery Terms:</strong> {{ quote.delivery_terms }}
+                </p>
+                {% endif %}
+            </div>
+            <div class="col-md-6">
+                <div class="text-md-end">
+                    <div class="row mb-1">
+                        <div class="col-6 text-md-end">Subtotal:</div>
+                        <div class="col-6 text-end">${{ quote.subtotal|floatformat:2 }}</div>
+                    </div>
+                    {% if quote.discount_percentage > 0 %}
+                    <div class="row mb-1 text-warning">
+                        <div class="col-6 text-md-end">Discount ({{ quote.discount_percentage }}%):</div>
+                        <div class="col-6 text-end">-${{ quote.discount_amount|floatformat:2 }}</div>
+                    </div>
+                    {% endif %}
+                    <div class="row mb-1">
+                        <div class="col-6 text-md-end">Tax ({{ quote.tax_rate }}%):</div>
+                        <div class="col-6 text-end">${{ quote.tax_amount|floatformat:2 }}</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Total Amount -->
+    <div class="total-section">
+        <div class="total-amount">${{ quote.total_amount|floatformat:2 }}</div>
+        <div class="total-currency">{{ quote.currency }} - All prices inclusive</div>
+    </div>
+</div>
+
+<!-- Action Buttons -->
+<div class="action-buttons">
+    {% if can_accept and not is_expired %}
+    <a href="{% url 'quotes:quote_accept_public' quote.id access_token %}" class="btn btn-success btn-primary-custom">
+        <i class="bi bi-check-circle me-1"></i> Accept This Quote
+    </a>
+    {% endif %}
+    
+    <a href="{% url 'quotes:quote_download_public' quote.id access_token %}" class="btn btn-outline-primary btn-primary-custom">
+        <i class="bi bi-download me-1"></i> Download PDF
+    </a>
+    
+    <a href="{% url 'quotes:quote_contact_public' quote.id access_token %}" class="btn btn-outline-secondary btn-primary-custom">
+        <i class="bi bi-chat-left-text me-1"></i> Ask Questions
+    </a>
+</div>
+
+<!-- Status Messages -->
+{% if is_expired %}
+<div class="alert alert-warning alert-custom">
+    <i class="bi bi-exclamation-triangle me-2"></i>
+    <strong>Quote Expired:</strong> This quote expired on {{ quote.validity_date|date:"F d, Y" }}. 
+    Please contact us for an updated quote.
+</div>
+{% elif not can_accept %}
+<div class="alert alert-info alert-custom">
+    <i class="bi bi-info-circle me-2"></i>
+    This quote is no longer available for online acceptance. Please contact us directly.
+</div>
+{% elif days_until_expiry <= 7 %}
+<div class="alert alert-warning alert-custom">
+    <i class="bi bi-clock me-2"></i>
+    <strong>Expiring Soon:</strong> This quote expires in {{ days_until_expiry }} day{{ days_until_expiry|pluralize }}. 
+    Please accept or contact us soon to avoid expiration.
+</div>
+{% endif %}
+
+<!-- Quick Feedback Form -->
+<div class="feedback-form">
+    <h5><i class="bi bi-chat-left-text me-2"></i>Quick Feedback</h5>
+    <p class="text-muted">Have questions or need modifications? Let us know!</p>
+    
+    <form id="feedbackForm">
+        <div class="row">
+            <div class="col-md-4 mb-3">
+                <select class="form-select" id="feedbackType" required>
+                    <option value="">Select type...</option>
+                    <option value="question">I have a question</option>
+                    <option value="concern">I have a concern</option>
+                    <option value="modification_request">I need modifications</option>
+                </select>
+            </div>
+            <div class="col-md-8 mb-3">
+                <textarea class="form-control" id="feedbackMessage" rows="2" 
+                          placeholder="Your message..." required></textarea>
+            </div>
+        </div>
+        <button type="submit" class="btn btn-primary">
+            <i class="bi bi-send me-1"></i> Send Feedback
+        </button>
+    </form>
+    <div id="feedbackResult" class="mt-2"></div>
+</div>
+
+<!-- Contact Information -->
+<div class="contact-info">
+    <h5><i class="bi bi-headset me-2"></i>Need Immediate Assistance?</h5>
+    <div class="row">
+        <div class="col-md-6">
+            <p class="mb-1"><strong>Email:</strong> 
+                <a href="mailto:{{ company_info.email }}">{{ company_info.email }}</a>
+            </p>
+            <p class="mb-0"><strong>Phone:</strong> {{ company_info.phone }}</p>
+        </div>
+        <div class="col-md-6">
+            <p class="mb-1"><strong>Business Hours:</strong> Monday - Friday, 8:00 AM - 5:00 PM</p>
+            <p class="mb-0"><strong>Response Time:</strong> Within 4 hours</p>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+document.getElementById('feedbackForm').addEventListener('submit', function(e) {
+    e.preventDefault();
+    
+    const type = document.getElementById('feedbackType').value;
+    const message = document.getElementById('feedbackMessage').value;
+    const resultDiv = document.getElementById('feedbackResult');
+    
+    if (!type || !message.trim()) {
+        resultDiv.innerHTML = '<div class="alert alert-danger mt-2">Please fill in all fields.</div>';
+        return;
+    }
+    
+    // Show loading state
+    resultDiv.innerHTML = '<div class="alert alert-info mt-2">Sending feedback...</div>';
+    
+    // Send feedback via AJAX
+    fetch('{% url "quotes:quote_feedback_public" quote.id access_token %}', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+            type: type,
+            message: message
+        })
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            resultDiv.innerHTML = '<div class="alert alert-success mt-2">' + data.message + '</div>';
+            document.getElementById('feedbackForm').reset();
+        } else {
+            resultDiv.innerHTML = '<div class="alert alert-danger mt-2">' + data.error + '</div>';
+        }
+    })
+    .catch(error => {
+        resultDiv.innerHTML = '<div class="alert alert-danger mt-2">An error occurred. Please try again.</div>';
+    });
+});
+</script>
+{% endblock %}

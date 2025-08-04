@@ -1,0 +1,411 @@
+{% extends "dashboard_base.html" %}
+{% load static %}
+
+{% block page_title %}
+  {% if form.instance.pk %}Edit {{ form.instance.title }}{% else %}Create New Deal{% endif %}
+{% endblock %}
+
+{% block page_actions %}
+<div class="btn-group" role="group">
+  {% if form.instance.pk %}
+  <a href="{% url 'crm:deal_detail' form.instance.id %}" class="btn btn-outline-secondary">
+    <i class="bi bi-arrow-left me-1"></i> Back to Deal
+  </a>
+  {% else %}
+  <a href="{% url 'crm:deal_list' %}" class="btn btn-outline-secondary">
+    <i class="bi bi-arrow-left me-1"></i> Back to Pipeline
+  </a>
+  {% endif %}
+</div>
+{% endblock %}
+
+{% block dashboard_content %}
+<form method="post" id="dealForm">
+  {% csrf_token %}
+  
+  <!-- Basic Deal Information -->
+  <div class="card mb-4">
+    <div class="card-header">
+      <h5 class="card-title mb-0">
+        <i class="bi bi-briefcase me-2"></i>Deal Information
+      </h5>
+    </div>
+    <div class="card-body">
+      <div class="row">
+        <div class="col-md-8 mb-3">
+          <label for="id_title" class="form-label">Deal Title <span class="text-danger">*</span></label>
+          {{ form.title }}
+          {% if form.title.errors %}
+            <div class="text-danger small">
+              {% for error in form.title.errors %}{{ error }}{% endfor %}
+            </div>
+          {% endif %}
+        </div>
+        
+        <div class="col-md-4 mb-3">
+          <label for="id_client" class="form-label">Client <span class="text-danger">*</span></label>
+          {{ form.client }}
+          {% if form.client.errors %}
+            <div class="text-danger small">
+              {% for error in form.client.errors %}{{ error }}{% endfor %}
+            </div>
+          {% endif %}
+        </div>
+        
+        <div class="col-12 mb-3">
+          <label for="id_description" class="form-label">Description</label>
+          {{ form.description }}
+          <div class="form-text">Detailed description of this opportunity</div>
+          {% if form.description.errors %}
+            <div class="text-danger small">
+              {% for error in form.description.errors %}{{ error }}{% endfor %}
+            </div>
+          {% endif %}
+        </div>
+      </div>
+    </div>
+  </div>
+  
+  <!-- Financial Information -->
+  <div class="card mb-4">
+    <div class="card-header">
+      <h5 class="card-title mb-0">
+        <i class="bi bi-currency-dollar me-2"></i>Financial Details
+      </h5>
+    </div>
+    <div class="card-body">
+      <div class="row">
+        <div class="col-md-6 mb-3">
+          <label for="id_value" class="form-label">Deal Value <span class="text-danger">*</span></label>
+          <div class="input-group">
+            <span class="input-group-text">$</span>
+            {{ form.value }}
+          </div>
+          <div class="form-text">Expected total value of this deal</div>
+          {% if form.value.errors %}
+            <div class="text-danger small">
+              {% for error in form.value.errors %}{{ error }}{% endfor %}
+            </div>
+          {% endif %}
+        </div>
+        
+        <div class="col-md-6 mb-3">
+          <label for="id_currency" class="form-label">Currency</label>
+          {{ form.currency }}
+          {% if form.currency.errors %}
+            <div class="text-danger small">
+              {% for error in form.currency.errors %}{{ error }}{% endfor %}
+            </div>
+          {% endif %}
+        </div>
+      </div>
+    </div>
+  </div>
+  
+  <!-- Sales Process -->
+  <div class="card mb-4">
+    <div class="card-header">
+      <h5 class="card-title mb-0">
+        <i class="bi bi-diagram-2 me-2"></i>Sales Process
+      </h5>
+    </div>
+    <div class="card-body">
+      <div class="row">
+        <div class="col-md-4 mb-3">
+          <label for="id_stage" class="form-label">Stage</label>
+          {{ form.stage }}
+          {% if form.stage.errors %}
+            <div class="text-danger small">
+              {% for error in form.stage.errors %}{{ error }}{% endfor %}
+            </div>
+          {% endif %}
+        </div>
+        
+        <div class="col-md-4 mb-3">
+          <label for="id_probability" class="form-label">Win Probability</label>
+          <div class="input-group">
+            {{ form.probability }}
+            <span class="input-group-text">%</span>
+          </div>
+          <div class="form-text">Likelihood of winning this deal (0-100%)</div>
+          {% if form.probability.errors %}
+            <div class="text-danger small">
+              {% for error in form.probability.errors %}{{ error }}{% endfor %}
+            </div>
+          {% endif %}
+        </div>
+        
+        <div class="col-md-4 mb-3">
+          <label for="id_priority" class="form-label">Priority</label>
+          {{ form.priority }}
+          {% if form.priority.errors %}
+            <div class="text-danger small">
+              {% for error in form.priority.errors %}{{ error }}{% endfor %}
+            </div>
+          {% endif %}
+        </div>
+        
+        {% if form.instance.pk %}
+        <div class="col-12 mb-3">
+          <div class="alert alert-info">
+            <strong>Weighted Value:</strong> ${{ form.instance.weighted_value|floatformat:2 }}
+            <small class="text-muted">({{ form.instance.value }} × {{ form.instance.probability }}%)</small>
+          </div>
+        </div>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+  
+  <!-- Timeline and Assignment -->
+  <div class="card mb-4">
+    <div class="card-header">
+      <h5 class="card-title mb-0">
+        <i class="bi bi-calendar-event me-2"></i>Timeline & Assignment
+      </h5>
+    </div>
+    <div class="card-body">
+      <div class="row">
+        <div class="col-md-6 mb-3">
+          <label for="id_expected_close_date" class="form-label">Expected Close Date</label>
+          {{ form.expected_close_date }}
+          <div class="form-text">When do you expect to close this deal?</div>
+          {% if form.expected_close_date.errors %}
+            <div class="text-danger small">
+              {% for error in form.expected_close_date.errors %}{{ error }}{% endfor %}
+            </div>
+          {% endif %}
+        </div>
+        
+        <div class="col-md-6 mb-3">
+          <label for="id_assigned_to" class="form-label">Assigned To</label>
+          {{ form.assigned_to }}
+          <div class="form-text">Who is responsible for this deal?</div>
+          {% if form.assigned_to.errors %}
+            <div class="text-danger small">
+              {% for error in form.assigned_to.errors %}{{ error }}{% endfor %}
+            </div>
+          {% endif %}
+        </div>
+      </div>
+    </div>
+  </div>
+  
+  <!-- Additional Information -->
+  <div class="card mb-4">
+    <div class="card-header">
+      <h5 class="card-title mb-0">
+        <i class="bi bi-info-circle me-2"></i>Additional Information
+      </h5>
+    </div>
+    <div class="card-body">
+      <div class="row">
+        <div class="col-md-6 mb-3">
+          <label for="id_source" class="form-label">Lead Source</label>
+          {{ form.source }}
+          <div class="form-text">Where did this opportunity come from?</div>
+          {% if form.source.errors %}
+            <div class="text-danger small">
+              {% for error in form.source.errors %}{{ error }}{% endfor %}
+            </div>
+          {% endif %}
+        </div>
+        
+        <div class="col-md-6 mb-3">
+          <label for="id_competitor" class="form-label">Competition</label>
+          {{ form.competitor }}
+          <div class="form-text">Who are we competing against?</div>
+          {% if form.competitor.errors %}
+            <div class="text-danger small">
+              {% for error in form.competitor.errors %}{{ error }}{% endfor %}
+            </div>
+          {% endif %}
+        </div>
+        
+        {% if form.instance.stage == 'closed_lost' %}
+        <div class="col-12 mb-3">
+          <label for="id_loss_reason" class="form-label">Loss Reason</label>
+          {{ form.loss_reason }}
+          <div class="form-text">Why was this deal lost?</div>
+          {% if form.loss_reason.errors %}
+            <div class="text-danger small">
+              {% for error in form.loss_reason.errors %}{{ error }}{% endfor %}
+            </div>
+          {% endif %}
+        </div>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+  
+  <!-- Form Errors -->
+  {% if form.non_field_errors %}
+  <div class="alert alert-danger">
+    <h6 class="alert-heading">Please fix the following errors:</h6>
+    {% for error in form.non_field_errors %}
+      <div>{{ error }}</div>
+    {% endfor %}
+  </div>
+  {% endif %}
+  
+  <!-- Action Buttons -->
+  <div class="card">
+    <div class="card-body">
+      <div class="d-flex justify-content-between">
+        <div>
+          {% if form.instance.pk %}
+          <a href="{% url 'crm:deal_detail' form.instance.id %}" class="btn btn-outline-secondary">
+            <i class="bi bi-x me-1"></i> Cancel
+          </a>
+          {% else %}
+          <a href="{% url 'crm:deal_list' %}" class="btn btn-outline-secondary">
+            <i class="bi bi-x me-1"></i> Cancel
+          </a>
+          {% endif %}
+        </div>
+        
+        <div class="btn-group">
+          {% if form.instance.pk %}
+          <button type="submit" name="action" value="save" class="btn btn-warning">
+            <i class="bi bi-save me-1"></i> Update Deal
+          </button>
+          <button type="submit" name="action" value="save_and_task" class="btn btn-success">
+            <i class="bi bi-save me-1"></i> Update & Add Task
+          </button>
+          {% else %}
+          <button type="submit" name="action" value="save" class="btn btn-primary">
+            <i class="bi bi-save me-1"></i> Create Deal
+          </button>
+          <button type="submit" name="action" value="save_and_task" class="btn btn-success">
+            <i class="bi bi-save me-1"></i> Create & Add Task
+          </button>
+          {% endif %}
+        </div>
+      </div>
+    </div>
+  </div>
+</form>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // Auto-calculate weighted value
+    const valueField = document.getElementById('id_value');
+    const probabilityField = document.getElementById('id_probability');
+    
+    function updateWeightedValue() {
+        const value = parseFloat(valueField.value) || 0;
+        const probability = parseFloat(probabilityField.value) || 0;
+        const weighted = (value * probability / 100);
+        
+        // Update display if we're editing
+        const weightedDisplay = document.querySelector('.weighted-value-display');
+        if (weightedDisplay) {
+            weightedDisplay.textContent = `$${weighted.toLocaleString('en-US', {minimumFractionDigits: 2})}`;
+        }
+    }
+    
+    valueField?.addEventListener('input', updateWeightedValue);
+    probabilityField?.addEventListener('input', updateWeightedValue);
+    
+    // Stage-based probability suggestions
+    const stageField = document.getElementById('id_stage');
+    stageField?.addEventListener('change', function() {
+        const stageProbabilities = {
+            'prospecting': 10,
+            'qualification': 25,
+            'proposal': 50,
+            'negotiation': 75,
+            'closed_won': 100,
+            'closed_lost': 0
+        };
+        
+        const suggestedProbability = stageProbabilities[this.value];
+        if (suggestedProbability !== undefined && probabilityField) {
+            probabilityField.value = suggestedProbability;
+            updateWeightedValue();
+        }
+    });
+    
+    // Form validation
+    const form = document.getElementById('dealForm');
+    form.addEventListener('submit', function(e) {
+        const title = document.getElementById('id_title').value.trim();
+        const value = parseFloat(document.getElementById('id_value').value);
+        const client = document.getElementById('id_client').value;
+        
+        if (!title) {
+            e.preventDefault();
+            alert('Please enter a deal title.');
+            document.getElementById('id_title').focus();
+            return false;
+        }
+        
+        if (!client) {
+            e.preventDefault();
+            alert('Please select a client.');
+            document.getElementById('id_client').focus();
+            return false;
+        }
+        
+        if (!value || value <= 0) {
+            e.preventDefault();
+            alert('Please enter a valid deal value.');
+            document.getElementById('id_value').focus();
+            return false;
+        }
+        
+        // Show loading state
+        const submitBtns = form.querySelectorAll('button[type="submit"]');
+        submitBtns.forEach(btn => {
+            btn.disabled = true;
+            const icon = btn.querySelector('i');
+            icon.className = 'bi bi-hourglass-split me-1';
+            btn.innerHTML = btn.innerHTML.replace(/Create|Update/, 'Saving');
+        });
+    });
+    
+    // Quick date helpers
+    const dateField = document.getElementById('id_expected_close_date');
+    if (dateField) {
+        const today = new Date();
+        
+        // Add quick date buttons
+        const dateContainer = dateField.parentNode;
+        const quickDates = document.createElement('div');
+        quickDates.className = 'mt-2';
+        quickDates.innerHTML = `
+            <small class="text-muted">Quick dates:</small>
+            <div class="btn-group btn-group-sm mt-1" role="group">
+                <button type="button" class="btn btn-outline-secondary" onclick="setDate(30)">30 days</button>
+                <button type="button" class="btn btn-outline-secondary" onclick="setDate(60)">60 days</button>
+                <button type="button" class="btn btn-outline-secondary" onclick="setDate(90)">90 days</button>
+            </div>
+        `;
+        dateContainer.appendChild(quickDates);
+    }
+});
+
+function setDate(days) {
+    const date = new Date();
+    date.setDate(date.getDate() + days);
+    document.getElementById('id_expected_close_date').value = date.toISOString().split('T')[0];
+}
+
+// Keyboard shortcuts
+document.addEventListener('keydown', function(e) {
+    // Ctrl/Cmd + S to save
+    if ((e.ctrlKey || e.metaKey) && e.key === 's') {
+        e.preventDefault();
+        document.querySelector('button[name="action"][value="save"]').click();
+    }
+    
+    // Ctrl/Cmd + Enter to save and add task
+    if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
+        e.preventDefault();
+        document.querySelector('button[name="action"][value="save_and_task"]').click();
+    }
+});
+</script>
+{% endblock %}

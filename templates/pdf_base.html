@@ -1,0 +1,17 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>{% block title %}PDF Report{% endblock %}</title>
+  <style>
+    body     { font-family: Helvetica, Arial, sans-serif; font-size: 11pt; }
+    h2, h3   { color:#333; margin-top:18pt; }
+    table    { width:100%; border-collapse:collapse; margin-top:12pt; font-size:9.5pt; }
+    th, td   { padding:6pt 4pt; border:1pt solid #ccc; }
+    th       { background:#eee; text-align:left; }
+  </style>
+</head>
+<body>
+  {% block body %}{% endblock %}
+</body>
+</html>

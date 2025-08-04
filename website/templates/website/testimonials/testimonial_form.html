@@ -1,0 +1,533 @@
+<!-- templates/website/testimonials/testimonial_form.html -->
+{% extends "website_base.html" %}
+{% load crispy_forms_tags %}
+
+{% block title %}{{ title }} - BlitzTech Electronics{% endblock %}
+
+{% block extra_css %}
+<style>
+/* Custom styles for testimonial form */
+.form-section {
+    background-color: #fff;
+    border-radius: 12px;
+    padding: 1.5rem;
+    margin-bottom: 1.5rem;
+    border: 1px solid #e9ecef;
+    position: relative;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+}
+.form-section::before {
+    content: '';
+    position: absolute;
+    left: 0;
+    top: 0;
+    bottom: 0;
+    width: 4px;
+    background: linear-gradient(135deg, #ffc107 0%, #fd7e14 100%);
+    border-radius: 4px 0 0 4px;
+}
+.rating-selector {
+    display: flex;
+    gap: 0.5rem;
+    justify-content: center;
+    align-items: center;
+    padding: 1rem;
+    background: #f8f9fa;
+    border-radius: 8px;
+    margin: 1rem 0;
+}
+.rating-star {
+    font-size: 2rem;
+    color: #dee2e6;
+    cursor: pointer;
+    transition: all 0.3s ease;
+}
+.rating-star:hover,
+.rating-star.active {
+    color: #ffc107;
+    transform: scale(1.1);
+}
+.testimonial-preview {
+    background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
+    border-radius: 12px;
+    padding: 2rem;
+    border: 1px solid #dee2e6;
+    text-align: center;
+}
+.avatar-preview {
+    width: 80px;
+    height: 80px;
+    border-radius: 50%;
+    object-fit: cover;
+    margin: 0 auto 1rem;
+    border: 3px solid #fff;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+}
+.tips-section {
+    background: linear-gradient(135deg, #e3f2fd 0%, #f3e5f5 100%);
+    border: 1px solid #bbdefb;
+    border-radius: 8px;
+    padding: 1rem;
+}
+.character-counter {
+    font-size: 0.875rem;
+    text-align: right;
+    color: #6c757d;
+    margin-top: 0.5rem;
+}
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container py-4">
+  <div class="row justify-content-center">
+    <div class="col-lg-8">
+      <!-- Form Header -->
+      <div class="d-flex align-items-center mb-4">
+        <a href="{% url 'website:manage_testimonials' %}" class="btn btn-outline-secondary me-3">
+          <i class="bi bi-arrow-left"></i>
+        </a>
+        <div>
+          <h2 class="mb-0">
+            <i class="bi bi-star-fill me-2 text-warning"></i>{{ title }}
+          </h2>
+          <p class="text-muted mb-0">Showcase positive feedback from satisfied clients</p>
+        </div>
+      </div>
+
+      <form method="post" enctype="multipart/form-data" class="needs-validation" novalidate>
+        {% csrf_token %}
+        
+        <!-- Client Information Section -->
+        <div class="form-section">
+          <h5 class="mb-3">
+            <i class="bi bi-person me-2 text-primary"></i>Client Information
+          </h5>
+          
+          <div class="row">
+            <div class="col-md-6">
+              <div class="mb-3">
+                <label for="{{ form.name.id_for_label }}" class="form-label fw-bold">
+                  Client Name <span class="text-danger">*</span>
+                </label>
+                {{ form.name }}
+                <div class="form-text">
+                  Full name of the person providing the testimonial
+                </div>
+                {% if form.name.errors %}
+                  <div class="invalid-feedback d-block">
+                    {% for error in form.name.errors %}{{ error }}{% endfor %}
+                  </div>
+                {% endif %}
+              </div>
+            </div>
+            <div class="col-md-6">
+              <div class="mb-3">
+                <label for="{{ form.company.id_for_label }}" class="form-label fw-bold">
+                  Company <span class="text-danger">*</span>
+                </label>
+                {{ form.company }}
+                <div class="form-text">
+                  Company or organization name
+                </div>
+                {% if form.company.errors %}
+                  <div class="invalid-feedback d-block">
+                    {% for error in form.company.errors %}{{ error }}{% endfor %}
+                  </div>
+                {% endif %}
+              </div>
+            </div>
+          </div>
+
+          <div class="row">
+            <div class="col-md-6">
+              <div class="mb-3">
+                <label for="{{ form.position.id_for_label }}" class="form-label fw-bold">
+                  Position/Title <span class="text-danger">*</span>
+                </label>
+                {{ form.position }}
+                <div class="form-text">
+                  Job title or role (e.g., "CEO", "Operations Manager", "IT Director")
+                </div>
+                {% if form.position.errors %}
+                  <div class="invalid-feedback d-block">
+                    {% for error in form.position.errors %}{{ error }}{% endfor %}
+                  </div>
+                {% endif %}
+              </div>
+            </div>
+            <div class="col-md-6">
+              <div class="mb-3">
+                <label for="{{ form.image.id_for_label }}" class="form-label fw-bold">
+                  Client Photo
+                </label>
+                {{ form.image }}
+                <div class="form-text">
+                  Professional headshot or company photo (optional but recommended)
+                </div>
+                {% if form.image.errors %}
+                  <div class="invalid-feedback d-block">
+                    {% for error in form.image.errors %}{{ error }}{% endfor %}
+                  </div>
+                {% endif %}
+              </div>
+            </div>
+          </div>
+
+          {% if object and object.image %}
+            <div class="text-center">
+              <img src="{{ object.image.url }}" 
+                   alt="{{ object.name }}" 
+                   class="avatar-preview">
+              <p class="text-muted small">Current client photo</p>
+            </div>
+          {% endif %}
+        </div>
+
+        <!-- Testimonial Content Section -->
+        <div class="form-section">
+          <h5 class="mb-3">
+            <i class="bi bi-chat-quote me-2 text-primary"></i>Testimonial Content
+          </h5>
+          
+          <div class="mb-3">
+            <label for="{{ form.content.id_for_label }}" class="form-label fw-bold">
+              Testimonial <span class="text-danger">*</span>
+            </label>
+            {{ form.content }}
+            <div class="form-text">
+              The client's feedback in their own words. Include specific benefits, results, or positive experiences.
+            </div>
+            <div class="character-counter" id="content-counter"></div>
+            {% if form.content.errors %}
+              <div class="invalid-feedback d-block">
+                {% for error in form.content.errors %}{{ error }}{% endfor %}
+              </div>
+            {% endif %}
+          </div>
+
+          <!-- Rating Section -->
+          <div class="mb-3">
+            <label class="form-label fw-bold">
+              Rating <span class="text-danger">*</span>
+            </label>
+            <div class="rating-selector">
+              <span class="me-3">Click to rate:</span>
+              {% for i in "12345" %}
+                <i class="bi bi-star rating-star" data-rating="{{ forloop.counter }}"></i>
+              {% endfor %}
+              <span class="ms-3" id="rating-text">No rating selected</span>
+            </div>
+            {{ form.rating }}
+            <div class="form-text text-center">
+              Rate the overall satisfaction with your service (5 stars = excellent)
+            </div>
+            {% if form.rating.errors %}
+              <div class="invalid-feedback d-block">
+                {% for error in form.rating.errors %}{{ error }}{% endfor %}
+              </div>
+            {% endif %}
+          </div>
+
+          <!-- Writing Tips -->
+          <div class="tips-section">
+            <h6 class="mb-2"><i class="bi bi-lightbulb me-1"></i>Effective Testimonial Tips</h6>
+            <div class="row small">
+              <div class="col-md-6">
+                <p class="mb-1"><strong>Include specific details:</strong></p>
+                <ul class="mb-2">
+                  <li>What problem was solved?</li>
+                  <li>What results were achieved?</li>
+                  <li>How did you exceed expectations?</li>
+                </ul>
+              </div>
+              <div class="col-md-6">
+                <p class="mb-1"><strong>Make it authentic:</strong></p>
+                <ul class="mb-0">
+                  <li>Use the client's natural language</li>
+                  <li>Include specific project details</li>
+                  <li>Mention measurable outcomes</li>
+                </ul>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Display Settings Section -->
+        <div class="form-section">
+          <h5 class="mb-3">
+            <i class="bi bi-gear me-2 text-primary"></i>Display Settings
+          </h5>
+          
+          <div class="row">
+            <div class="col-md-6">
+              <div class="mb-3">
+                <label for="{{ form.order.id_for_label }}" class="form-label fw-bold">
+                  Display Order
+                </label>
+                {{ form.order }}
+                <div class="form-text">
+                  {{ form.order.help_text }}
+                </div>
+                {% if form.order.errors %}
+                  <div class="invalid-feedback d-block">
+                    {% for error in form.order.errors %}{{ error }}{% endfor %}
+                  </div>
+                {% endif %}
+              </div>
+            </div>
+            <div class="col-md-6">
+              <div class="mb-3">
+                <div class="form-check">
+                  {{ form.is_active }}
+                  <label class="form-check-label fw-bold" for="{{ form.is_active.id_for_label }}">
+                    Active (Show on website)
+                  </label>
+                </div>
+                <div class="form-text">
+                  Only active testimonials appear on your website. Use this to control which testimonials are publicly visible.
+                </div>
+                {% if form.is_active.errors %}
+                  <div class="invalid-feedback d-block">
+                    {% for error in form.is_active.errors %}{{ error }}{% endfor %}
+                  </div>
+                {% endif %}
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Live Preview Section -->
+        <div class="form-section">
+          <h5 class="mb-3">
+            <i class="bi bi-eye me-2 text-primary"></i>Preview
+          </h5>
+          
+          <div class="testimonial-preview" id="testimonial-preview">
+            <div id="preview-avatar" class="mb-3">
+              <div class="avatar-preview bg-light d-flex align-items-center justify-content-center mx-auto">
+                <i class="bi bi-person fs-2 text-muted"></i>
+              </div>
+            </div>
+            
+            <div id="preview-rating" class="mb-3">
+              <div class="text-warning fs-4">
+                <i class="bi bi-star"></i>
+                <i class="bi bi-star"></i>
+                <i class="bi bi-star"></i>
+                <i class="bi bi-star"></i>
+                <i class="bi bi-star"></i>
+              </div>
+            </div>
+            
+            <blockquote class="blockquote">
+              <p id="preview-content" class="fst-italic">
+                "Your testimonial content will appear here as you type..."
+              </p>
+            </blockquote>
+            
+            <footer class="blockquote-footer">
+              <strong id="preview-name">Client Name</strong>, 
+              <span id="preview-position">Position</span>
+              <br>
+              <cite id="preview-company">Company Name</cite>
+            </footer>
+          </div>
+        </div>
+
+        <!-- Form Actions -->
+        <div class="d-flex gap-2 pt-3">
+          <button class="btn btn-primary btn-lg" type="submit">
+            <i class="bi bi-check-lg me-2"></i>
+            {% if object %}Update Testimonial{% else %}Save Testimonial{% endif %}
+          </button>
+          <a href="{% url 'website:manage_testimonials' %}" class="btn btn-outline-secondary btn-lg">
+            <i class="bi bi-x-lg me-2"></i>Cancel
+          </a>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // Form elements
+    const nameField = document.getElementById('{{ form.name.id_for_label }}');
+    const positionField = document.getElementById('{{ form.position.id_for_label }}');
+    const companyField = document.getElementById('{{ form.company.id_for_label }}');
+    const contentField = document.getElementById('{{ form.content.id_for_label }}');
+    const ratingField = document.getElementById('{{ form.rating.id_for_label }}');
+    const imageField = document.getElementById('{{ form.image.id_for_label }}');
+    
+    // Preview elements
+    const previewName = document.getElementById('preview-name');
+    const previewPosition = document.getElementById('preview-position');
+    const previewCompany = document.getElementById('preview-company');
+    const previewContent = document.getElementById('preview-content');
+    const previewRating = document.getElementById('preview-rating');
+    const previewAvatar = document.getElementById('preview-avatar');
+    
+    // Rating stars
+    const ratingStars = document.querySelectorAll('.rating-star');
+    const ratingText = document.getElementById('rating-text');
+    
+    // Character counter
+    const contentCounter = document.getElementById('content-counter');
+    
+    // Rating functionality
+    ratingStars.forEach((star, index) => {
+        star.addEventListener('click', function() {
+            const rating = parseInt(this.dataset.rating);
+            ratingField.value = rating;
+            
+            // Update visual stars
+            ratingStars.forEach((s, i) => {
+                if (i < rating) {
+                    s.classList.add('active');
+                } else {
+                    s.classList.remove('active');
+                }
+            });
+            
+            // Update rating text
+            const ratingTexts = ['', 'Poor', 'Fair', 'Good', 'Very Good', 'Excellent'];
+            ratingText.textContent = `${rating}/5 - ${ratingTexts[rating]}`;
+            
+            updatePreview();
+        });
+        
+        // Hover effects
+        star.addEventListener('mouseenter', function() {
+            const rating = parseInt(this.dataset.rating);
+            ratingStars.forEach((s, i) => {
+                if (i < rating) {
+                    s.style.color = '#ffc107';
+                } else {
+                    s.style.color = '#dee2e6';
+                }
+            });
+        });
+    });
+    
+    // Reset stars on mouse leave
+    document.querySelector('.rating-selector').addEventListener('mouseleave', function() {
+        const currentRating = parseInt(ratingField.value) || 0;
+        ratingStars.forEach((s, i) => {
+            if (i < currentRating) {
+                s.style.color = '#ffc107';
+            } else {
+                s.style.color = '#dee2e6';
+            }
+        });
+    });
+    
+    // Live preview updates
+    function updatePreview() {
+        if (nameField && previewName) {
+            previewName.textContent = nameField.value || 'Client Name';
+        }
+        
+        if (positionField && previewPosition) {
+            previewPosition.textContent = positionField.value || 'Position';
+        }
+        
+        if (companyField && previewCompany) {
+            previewCompany.textContent = companyField.value || 'Company Name';
+        }
+        
+        if (contentField && previewContent) {
+            const content = contentField.value || 'Your testimonial content will appear here as you type...';
+            previewContent.textContent = `"${content}"`;
+        }
+        
+        if (ratingField && previewRating) {
+            const rating = parseInt(ratingField.value) || 0;
+            let starsHtml = '';
+            for (let i = 1; i <= 5; i++) {
+                if (i <= rating) {
+                    starsHtml += '<i class="bi bi-star-fill"></i>';
+                } else {
+                    starsHtml += '<i class="bi bi-star"></i>';
+                }
+            }
+            previewRating.innerHTML = `<div class="text-warning fs-4">${starsHtml}</div>`;
+        }
+    }
+    
+    // Character counter
+    function updateCharacterCounter() {
+        if (contentField && contentCounter) {
+            const length = contentField.value.length;
+            const words = contentField.value.trim().split(/\s+/).filter(word => word.length > 0).length;
+            contentCounter.textContent = `${length} characters, ${words} words`;
+            
+            if (length > 500) {
+                contentCounter.className = 'character-counter text-warning';
+            } else if (length > 300) {
+                contentCounter.className = 'character-counter text-info';
+            } else {
+                contentCounter.className = 'character-counter text-muted';
+            }
+        }
+    }
+    
+    // Image preview
+    if (imageField) {
+        imageField.addEventListener('change', function(event) {
+            const file = event.target.files[0];
+            if (file) {
+                const reader = new FileReader();
+                reader.onload = function(e) {
+                    const avatar = previewAvatar.querySelector('.avatar-preview') || 
+                                 previewAvatar.querySelector('div');
+                    if (avatar) {
+                        avatar.innerHTML = `<img src="${e.target.result}" alt="Preview" class="avatar-preview">`;
+                    }
+                };
+                reader.readAsDataURL(file);
+            }
+        });
+    }
+    
+    // Add event listeners for live preview
+    [nameField, positionField, companyField, contentField].forEach(field => {
+        if (field) {
+            field.addEventListener('input', updatePreview);
+        }
+    });
+    
+    if (contentField) {
+        contentField.addEventListener('input', updateCharacterCounter);
+    }
+    
+    // Initialize
+    updatePreview();
+    updateCharacterCounter();
+    
+    // Set initial rating if editing
+    if (ratingField && ratingField.value) {
+        const rating = parseInt(ratingField.value);
+        ratingStars.forEach((s, i) => {
+            if (i < rating) {
+                s.classList.add('active');
+            }
+        });
+        const ratingTexts = ['', 'Poor', 'Fair', 'Good', 'Very Good', 'Excellent'];
+        ratingText.textContent = `${rating}/5 - ${ratingTexts[rating]}`;
+    }
+    
+    // Form validation
+    const form = document.querySelector('.needs-validation');
+    if (form) {
+        form.addEventListener('submit', function(event) {
+            if (!form.checkValidity()) {
+                event.preventDefault();
+                event.stopPropagation();
+            }
+            form.classList.add('was-validated');
+        });
+    }
+});
+</script>
+{% endblock %}

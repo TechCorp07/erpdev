@@ -1,0 +1,407 @@
+<!-- website/templates/website/portfolio.html -->
+{% extends "website_base.html" %}
+{% load crispy_forms_tags %}
+{% load static %}
+
+{% block title %}Portfolio - BlitzTech Electronics{% endblock %}
+
+{% block extra_css %}
+<style>
+  .portfolio-item {
+    transition: transform 0.3s ease-in-out;
+    margin-bottom: 30px;
+  }
+  .portfolio-item:hover {
+    transform: translateY(-5px);
+    box-shadow: 0 10px 20px rgba(0,0,0,0.1);
+  }
+  
+  .portfolio-filter {
+    margin-bottom: 2rem;
+  }
+  
+  .portfolio-filter .btn {
+    margin-right: 0.5rem;
+    margin-bottom: 0.5rem;
+  }
+  
+  .portfolio-image {
+    height: 250px;
+    object-fit: cover;
+    width: 100%;
+  }
+  
+  .testimonial-card {
+    background-color: #f8f9fa;
+    border-radius: 10px;
+    padding: 30px;
+    margin-bottom: 1.5rem;
+    transition: all 0.3s ease;
+  }
+  
+  .testimonial-card:hover {
+    transform: translateY(-5px);
+    box-shadow: 0 10px 20px rgba(0,0,0,0.1);
+    background-color: white;
+  }
+</style>
+{% endblock %}
+
+{% block content %}
+  <!-- Portfolio Header -->
+  <section class="py-5 bg-light">
+    <div class="container">
+      <div class="row align-items-center">
+        <div class="col-md-6">
+          <h1 class="fw-bold mb-4">Our Portfolio</h1>
+          <p class="lead mb-4">Explore our diverse range of successful projects and innovative solutions that showcase our expertise and commitment to excellence.</p>
+          <p>Each project represents our dedication to delivering high-quality electronic systems and components that meet the specific needs of our clients across various industries.</p>
+        </div>
+        <div class="col-md-6">
+          <img src="{% static 'website/img/portfolio-hero.jpg' %}" alt="Portfolio Hero" class="img-fluid rounded shadow">
+        </div>
+      </div>
+    </div>
+  </section>
+  
+  <!-- Portfolio Filters -->
+  <section class="py-5">
+    <div class="container">
+      <div class="portfolio-filter text-center">
+        <button type="button" class="btn btn-outline-primary active" data-filter="all">All Projects</button>
+        <button type="button" class="btn btn-outline-primary" data-filter="security">Security Systems</button>
+        <button type="button" class="btn btn-outline-primary" data-filter="drone">Drone Technology</button>
+        <button type="button" class="btn btn-outline-primary" data-filter="power">Power Systems</button>
+        <button type="button" class="btn btn-outline-primary" data-filter="iot">IoT Solutions</button>
+        <button type="button" class="btn btn-outline-primary" data-filter="pcb">PCB Design</button>
+      </div>
+      
+      <div class="row">
+        <!-- Security Systems Projects -->
+        <div class="col-md-4 portfolio-item" data-category="security">
+          <div class="card h-100">
+            <img src="{% static 'website/img/portfolio/security-1.jpg' %}" class="portfolio-image card-img-top" alt="Residential Security System">
+            <div class="card-body">
+              <h5 class="card-title">Residential Security System</h5>
+              <p class="card-text">Comprehensive security solution for high-end residential properties including biometric access control, surveillance cameras, and motion detection.</p>
+              <div class="d-flex align-items-center mt-3">
+                <span class="badge bg-primary me-2">Security</span>
+                <span class="badge bg-secondary me-2">Residential</span>
+                <span class="badge bg-info">2024</span>
+              </div>
+            </div>
+            <div class="card-footer bg-transparent">
+              <a href="#" class="btn btn-sm btn-outline-primary" data-bs-toggle="modal" data-bs-target="#projectModal1">View Details</a>
+            </div>
+          </div>
+        </div>
+        
+        <div class="col-md-4 portfolio-item" data-category="security">
+          <div class="card h-100">
+            <img src="{% static 'website/img/portfolio/security-2.jpg' %}" class="portfolio-image card-img-top" alt="Industrial Security System">
+            <div class="card-body">
+              <h5 class="card-title">Industrial Security System</h5>
+              <p class="card-text">Advanced security infrastructure for a manufacturing plant with 24/7 monitoring, access control, and integration with existing systems.</p>
+              <div class="d-flex align-items-center mt-3">
+                <span class="badge bg-primary me-2">Security</span>
+                <span class="badge bg-secondary me-2">Industrial</span>
+                <span class="badge bg-info">2023</span>
+              </div>
+            </div>
+            <div class="card-footer bg-transparent">
+              <a href="#" class="btn btn-sm btn-outline-primary" data-bs-toggle="modal" data-bs-target="#projectModal2">View Details</a>
+            </div>
+          </div>
+        </div>
+        
+        <!-- Drone Technology Projects -->
+        <div class="col-md-4 portfolio-item" data-category="drone">
+          <div class="card h-100">
+            <img src="{% static 'website/img/portfolio/drone-1.jpg' %}" class="portfolio-image card-img-top" alt="Surveying Drone">
+            <div class="card-body">
+              <h5 class="card-title">Surveying Drone</h5>
+              <p class="card-text">Custom-built drone for land surveying and mapping with high-resolution imaging capabilities and extended flight time.</p>
+              <div class="d-flex align-items-center mt-3">
+                <span class="badge bg-primary me-2">Drone</span>
+                <span class="badge bg-secondary me-2">Surveying</span>
+                <span class="badge bg-info">2023</span>
+              </div>
+            </div>
+            <div class="card-footer bg-transparent">
+              <a href="#" class="btn btn-sm btn-outline-primary" data-bs-toggle="modal" data-bs-target="#projectModal3">View Details</a>
+            </div>
+          </div>
+        </div>
+        
+        <div class="col-md-4 portfolio-item" data-category="drone">
+          <div class="card h-100">
+            <img src="{% static 'website/img/portfolio/drone-2.jpg' %}" class="portfolio-image card-img-top" alt="Cinematography Drone">
+            <div class="card-body">
+              <h5 class="card-title">Cinematography Drone</h5>
+              <p class="card-text">High-performance drone designed for professional filmmaking with stabilized 4K camera system and intelligent flight controls.</p>
+              <div class="d-flex align-items-center mt-3">
+                <span class="badge bg-primary me-2">Drone</span>
+                <span class="badge bg-secondary me-2">Media</span>
+                <span class="badge bg-info">2023</span>
+              </div>
+            </div>
+            <div class="card-footer bg-transparent">
+              <a href="#" class="btn btn-sm btn-outline-primary" data-bs-toggle="modal" data-bs-target="#projectModal4">View Details</a>
+            </div>
+          </div>
+        </div>
+        
+        <!-- Power Systems Projects -->
+        <div class="col-md-4 portfolio-item" data-category="power">
+          <div class="card h-100">
+            <img src="{% static 'website/img/portfolio/power-1.jpg' %}" class="portfolio-image card-img-top" alt="Solar Power Installation">
+            <div class="card-body">
+              <h5 class="card-title">Solar Power Installation</h5>
+              <p class="card-text">Complete solar power solution for a commercial property with battery storage, inverters, and smart monitoring system.</p>
+              <div class="d-flex align-items-center mt-3">
+                <span class="badge bg-primary me-2">Power</span>
+                <span class="badge bg-secondary me-2">Solar</span>
+                <span class="badge bg-info">2024</span>
+              </div>
+            </div>
+            <div class="card-footer bg-transparent">
+              <a href="#" class="btn btn-sm btn-outline-primary" data-bs-toggle="modal" data-bs-target="#projectModal5">View Details</a>
+            </div>
+          </div>
+        </div>
+        
+        <div class="col-md-4 portfolio-item" data-category="power">
+          <div class="card h-100">
+            <img src="{% static 'website/img/portfolio/power-2.jpg' %}" class="portfolio-image card-img-top" alt="Solar Water Pump System">
+            <div class="card-body">
+              <h5 class="card-title">Solar Water Pump System</h5>
+              <p class="card-text">Energy-efficient solar water pumping solution for agricultural irrigation with remote monitoring capabilities.</p>
+              <div class="d-flex align-items-center mt-3">
+                <span class="badge bg-primary me-2">Power</span>
+                <span class="badge bg-secondary me-2">Agricultural</span>
+                <span class="badge bg-info">2023</span>
+              </div>
+            </div>
+            <div class="card-footer bg-transparent">
+              <a href="#" class="btn btn-sm btn-outline-primary" data-bs-toggle="modal" data-bs-target="#projectModal6">View Details</a>
+            </div>
+          </div>
+        </div>
+        
+        <!-- IoT Solutions Projects -->
+        <div class="col-md-4 portfolio-item" data-category="iot">
+          <div class="card h-100">
+            <img src="{% static 'website/img/portfolio/iot-1.jpg' %}" class="portfolio-image card-img-top" alt="Smart Home System">
+            <div class="card-body">
+              <h5 class="card-title">Smart Home System</h5>
+              <p class="card-text">Integrated smart home system featuring automated lighting, climate control, security, and voice control capabilities.</p>
+              <div class="d-flex align-items-center mt-3">
+                <span class="badge bg-primary me-2">IoT</span>
+                <span class="badge bg-secondary me-2">Residential</span>
+                <span class="badge bg-info">2024</span>
+              </div>
+            </div>
+            <div class="card-footer bg-transparent">
+              <a href="#" class="btn btn-sm btn-outline-primary" data-bs-toggle="modal" data-bs-target="#projectModal7">View Details</a>
+            </div>
+          </div>
+        </div>
+        
+        <div class="col-md-4 portfolio-item" data-category="iot">
+          <div class="card h-100">
+            <img src="{% static 'website/img/portfolio/iot-2.jpg' %}" class="portfolio-image card-img-top" alt="Industrial IoT Monitoring">
+            <div class="card-body">
+              <h5 class="card-title">Industrial IoT Monitoring</h5>
+              <p class="card-text">IoT-based monitoring system for industrial equipment with predictive maintenance alerts and performance analytics.</p>
+              <div class="d-flex align-items-center mt-3">
+                <span class="badge bg-primary me-2">IoT</span>
+                <span class="badge bg-secondary me-2">Industrial</span>
+                <span class="badge bg-info">2023</span>
+              </div>
+            </div>
+            <div class="card-footer bg-transparent">
+              <a href="#" class="btn btn-sm btn-outline-primary" data-bs-toggle="modal" data-bs-target="#projectModal8">View Details</a>
+            </div>
+          </div>
+        </div>
+        
+        <!-- PCB Design Projects -->
+        <div class="col-md-4 portfolio-item" data-category="pcb">
+          <div class="card h-100">
+            <img src="{% static 'website/img/portfolio/pcb-1.jpg' %}" class="portfolio-image card-img-top" alt="Custom PCB for Security System">
+            <div class="card-body">
+              <h5 class="card-title">Custom PCB for Security System</h5>
+              <p class="card-text">Specialized PCB design and fabrication for an advanced security system with multiple sensor inputs and wireless connectivity.</p>
+              <div class="d-flex align-items-center mt-3">
+                <span class="badge bg-primary me-2">PCB</span>
+                <span class="badge bg-secondary me-2">Security</span>
+                <span class="badge bg-info">2024</span>
+              </div>
+            </div>
+            <div class="card-footer bg-transparent">
+              <a href="#" class="btn btn-sm btn-outline-primary" data-bs-toggle="modal" data-bs-target="#projectModal9">View Details</a>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+  
+  <!-- Client Testimonials -->
+  <section class="py-5 bg-light">
+    <div class="container">
+      <h2 class="text-center fw-bold mb-5">Client Testimonials</h2>
+      
+      <div class="row">
+        <div class="col-md-4">
+          <div class="testimonial-card">
+            <div class="mb-3 text-warning">
+              <i class="bi bi-star-fill"></i>
+              <i class="bi bi-star-fill"></i>
+              <i class="bi bi-star-fill"></i>
+              <i class="bi bi-star-fill"></i>
+              <i class="bi bi-star-fill"></i>
+            </div>
+            <p class="card-text">"BlitzTech Electronics completely transformed our security infrastructure. Their innovative approach and attention to detail exceeded our expectations. The team was professional, responsive, and delivered beyond what was promised."</p>
+            <div class="d-flex align-items-center mt-4">
+              <div class="flex-shrink-0">
+                <img src="{% static 'website/img/client1.jpg' %}" class="rounded-circle" alt="Client" style="width: 50px; height: 50px; object-fit: cover;">
+              </div>
+              <div class="flex-grow-1 ms-3">
+                <h6 class="mb-0">John Peterson</h6>
+                <p class="text-muted mb-0">CEO, TechCorp</p>
+              </div>
+            </div>
+          </div>
+        </div>
+        
+        <div class="col-md-4">
+          <div class="testimonial-card">
+            <div class="mb-3 text-warning">
+              <i class="bi bi-star-fill"></i>
+              <i class="bi bi-star-fill"></i>
+              <i class="bi bi-star-fill"></i>
+              <i class="bi bi-star-fill"></i>
+              <i class="bi bi-star-fill"></i>
+            </div>
+            <p class="card-text">"The drone technology developed by BlitzTech has significantly improved our surveying capabilities. They understood our vision perfectly and executed it flawlessly. The custom drone they built for us has been a game-changer in our operations."</p>
+            <div class="d-flex align-items-center mt-4">
+              <div class="flex-shrink-0">
+                <img src="{% static 'website/img/client2.jpg' %}" class="rounded-circle" alt="Client" style="width: 50px; height: 50px; object-fit: cover;">
+              </div>
+              <div class="flex-grow-1 ms-3">
+                <h6 class="mb-0">Sarah Williams</h6>
+                <p class="text-muted mb-0">Engineering Director, SurveyPro</p>
+              </div>
+            </div>
+          </div>
+        </div>
+        
+        <div class="col-md-4">
+          <div class="testimonial-card">
+            <div class="mb-3 text-warning">
+              <i class="bi bi-star-fill"></i>
+              <i class="bi bi-star-fill"></i>
+              <i class="bi bi-star-fill"></i>
+              <i class="bi bi-star-fill"></i>
+              <i class="bi bi-star-fill"></i>
+            </div>
+            <p class="card-text">"Working with BlitzTech was a game-changer for our institution. Their electronic components supply and training sessions have helped our students create innovative projects. Their commitment to fostering local talent is commendable."</p>
+            <div class="d-flex align-items-center mt-4">
+              <div class="flex-shrink-0">
+                <img src="{% static 'website/img/client3.jpg' %}" class="rounded-circle" alt="Client" style="width: 50px; height: 50px; object-fit: cover;">
+              </div>
+              <div class="flex-grow-1 ms-3">
+                <h6 class="mb-0">Michael Johnson</h6>
+                <p class="text-muted mb-0">Head of Department, Harare Institute of Technology</p>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+  
+  <!-- Project Modals -->
+  <!-- Project Modal 1 -->
+  <div class="modal fade" id="projectModal1" tabindex="-1" aria-labelledby="projectModal1Label" aria-hidden="true">
+    <div class="modal-dialog modal-lg">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h5 class="modal-title" id="projectModal1Label">Residential Security System</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+        </div>
+        <div class="modal-body">
+          <img src="{% static 'website/img/portfolio/security-1.jpg' %}" class="img-fluid mb-4 rounded" alt="Residential Security System">
+          <h5>Project Overview</h5>
+          <p>This comprehensive security solution was designed for high-end residential properties in Harare. The system integrates multiple security technologies to provide complete protection and peace of mind for homeowners.</p>
+          
+          <h5>Features</h5>
+          <ul>
+            <li>Biometric access control for main entrances</li>
+            <li>High-definition surveillance cameras with night vision</li>
+            <li>Motion detection systems with customizable sensitivity</li>
+            <li>Real-time mobile alerts and remote monitoring</li>
+            <li>Integration with home automation system</li>
+            <li>Backup power system for continuous operation</li>
+          </ul>
+          
+          <h5>Results</h5>
+          <p>The implemented security system has significantly enhanced the safety of the property and provided the client with advanced monitoring capabilities. The system's seamless integration with the existing home automation infrastructure has been particularly valued by the client.</p>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+        </div>
+      </div>
+    </div>
+  </div>
+  
+  <!-- Additional Project Modals would be added here -->
+  
+  <!-- Call to Action -->
+  <section class="py-5">
+    <div class="container">
+      <div class="row">
+        <div class="col-lg-8 mx-auto">
+          <div class="card bg-primary text-white text-center p-5">
+            <h2 class="fw-bold mb-3">Ready to start your project?</h2>
+            <p class="lead mb-4">Let us help you bring your vision to life with our expertise in electronics and technology solutions.</p>
+            <div>
+              <a href="{% url 'website:contact' %}" class="btn btn-light btn-lg">Contact Us Today</a>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+  document.addEventListener('DOMContentLoaded', function() {
+    // Portfolio filtering
+    const filterButtons = document.querySelectorAll('[data-filter]');
+    const portfolioItems = document.querySelectorAll('.portfolio-item');
+    
+    filterButtons.forEach(button => {
+      button.addEventListener('click', function() {
+        // Update active button
+        filterButtons.forEach(btn => btn.classList.remove('active'));
+        this.classList.add('active');
+        
+        // Get filter value
+        const filterValue = this.getAttribute('data-filter');
+        
+        // Show all items if filter is 'all', otherwise filter by category
+        portfolioItems.forEach(item => {
+          if (filterValue === 'all' || item.getAttribute('data-category') === filterValue) {
+            item.style.display = 'block';
+          } else {
+            item.style.display = 'none';
+          }
+        });
+      });
+    });
+  });
+</script>
+{% endblock %}

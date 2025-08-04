@@ -1,0 +1,532 @@
+{% extends "website_base.html" %}
+{% load crispy_forms_tags %}
+{% load static %}
+
+{% block title %}Home - BlitzTech Electronics{% endblock %}
+
+{% block extra_css %}
+<style>
+  .hero-section {
+    background: linear-gradient(rgba(0, 0, 0, 0.6), rgba(0, 0, 0, 0.6)), url('{% static "website/img/hero-bg.jpg" %}');
+    background-size: cover;
+    background-position: center;
+    color: white;
+    padding: 100px 0;
+  }
+  
+  .service-card {
+    transition: all 0.3s ease;
+    border-radius: 10px;
+    overflow: hidden;
+  }
+  
+  .service-card:hover {
+    transform: translateY(-10px);
+    box-shadow: 0 15px 30px rgba(0,0,0,0.1);
+  }
+  
+  .counter-section {
+    background-color: #f8f9fa;
+    padding: 60px 0;
+  }
+  
+  .counter-item {
+    text-align: center;
+  }
+  
+  .counter-value {
+    font-size: 3rem;
+    font-weight: 700;
+    color: #0d6efd;
+    margin-bottom: 10px;
+  }
+  
+  .counter-label {
+    font-size: 1.1rem;
+    color: #6c757d;
+  }
+  
+  .testimonial-section {
+    background-color: #f8f9fa;
+    padding: 80px 0;
+  }
+  
+  .testimonial-card {
+    background-color: white;
+    border-radius: 10px;
+    padding: 30px;
+    box-shadow: 0 5px 15px rgba(0,0,0,0.05);
+    margin: 20px 10px;
+  }
+  
+  .client-info {
+    display: flex;
+    align-items: center;
+    margin-top: 20px;
+  }
+  
+  .client-info img {
+    width: 60px;
+    height: 60px;
+    border-radius: 50%;
+    object-fit: cover;
+    margin-right: 15px;
+  }
+  
+  .animate-on-scroll {
+    opacity: 0;
+    transform: translateY(30px);
+    transition: opacity 0.6s ease, transform 0.6s ease;
+  }
+  
+  .animated {
+    opacity: 1;
+    transform: translateY(0);
+  }
+</style>
+{% endblock %}
+
+{% block content %}
+  <!-- Hero Section -->
+  <section class="hero-section">
+    <div class="container">
+      <div class="row align-items-center">
+        <div class="col-lg-7 animate-on-scroll">
+          <h1 class="display-4 fw-bold mb-4">Welcome to BlitzTech Electronics</h1>
+          <p class="lead mb-4">We're a global tech intermediary that facilitates seamless connections between the African business and consumer sectors and the international marketplace.</p>
+          <div class="d-grid gap-2 d-sm-flex justify-content-sm-start">
+            <a href="{% url 'website:services' %}" class="btn btn-primary btn-lg px-4 gap-3">Our Services</a>
+            <a href="{% url 'website:contact' %}" class="btn btn-outline-light btn-lg px-4">Contact Us</a>
+          </div>
+        </div>
+        <div class="col-lg-5 d-none d-lg-block animate-on-scroll">
+          <img src="{% static 'website/img/hero-illustration.svg' %}" alt="Hero Illustration" class="img-fluid">
+        </div>
+      </div>
+    </div>
+  </section>
+  
+  <!-- Mission Section -->
+  <section class="py-5 bg-light">
+    <div class="container">
+      <div class="row align-items-center">
+        <div class="col-lg-6 mb-4 mb-lg-0 animate-on-scroll">
+          <img src="{% static 'website/img/about-image.jpg' %}" alt="About Us" class="img-fluid rounded shadow">
+        </div>
+        <div class="col-lg-6 animate-on-scroll">
+          <h2 class="fw-bold mb-4">Our Mission</h2>
+          <p class="mb-4">Our mission is to enhance economic collaboration and value creation across borders through technology-enabled interactions. We're dedicated to becoming the leading innovative electronic systems developers in Zimbabwe by exceeding customers' quality expectations through delivery of transcendent, tailor-made services of unstinting high quality and value addition.</p>
+          <div class="d-flex mb-3">
+            <div class="me-3">
+              <i class="bi bi-check-circle-fill text-primary fs-4"></i>
+            </div>
+            <div>
+              <h5>Customer Commitment</h5>
+              <p class="text-muted">We foster lasting, professional relationships that make indelible improvements to our customers' lives and businesses.</p>
+            </div>
+          </div>
+          <div class="d-flex mb-3">
+            <div class="me-3">
+              <i class="bi bi-check-circle-fill text-primary fs-4"></i>
+            </div>
+            <div>
+              <h5>Innovation</h5>
+              <p class="text-muted">Listening to each client allows us to adopt new, unique perspectives through which to explore, create and adapt new technology.</p>
+            </div>
+          </div>
+          <div class="d-flex mb-4">
+            <div class="me-3">
+              <i class="bi bi-check-circle-fill text-primary fs-4"></i>
+            </div>
+            <div>
+              <h5>Integrity</h5>
+              <p class="text-muted">We uphold the highest standards of integrity in all our actions and projects.</p>
+            </div>
+          </div>
+          <a href="{% url 'website:about' %}" class="btn btn-primary">Learn More About Us</a>
+        </div>
+      </div>
+    </div>
+  </section>
+  
+  <!-- Featured Services -->
+  <section class="py-5">
+    <div class="container">
+      <div class="text-center mb-5 animate-on-scroll">
+        <h2 class="fw-bold">Our Services</h2>
+        <p class="lead text-muted">Comprehensive solutions to help your business grow</p>
+      </div>
+      
+      <div class="row row-cols-1 row-cols-md-3 g-4">
+        <div class="col animate-on-scroll">
+          <div class="card h-100 service-card">
+            <div class="card-body text-center p-4">
+              <div class="rounded-circle bg-primary bg-opacity-10 p-3 d-inline-block mb-3">
+                <i class="bi bi-cpu text-primary fs-1"></i>
+              </div>
+              <h5 class="card-title">Electronic Components</h5>
+              <p class="card-text">Reliable suppliers of high-quality electronic components for industrial applications and school laboratories.</p>
+              <a href="{% url 'website:services' %}" class="btn btn-outline-primary mt-3">Learn More</a>
+            </div>
+          </div>
+        </div>
+        
+        <div class="col animate-on-scroll">
+          <div class="card h-100 service-card">
+            <div class="card-body text-center p-4">
+              <div class="rounded-circle bg-primary bg-opacity-10 p-3 d-inline-block mb-3">
+                <i class="bi bi-code-slash text-primary fs-1"></i>
+              </div>
+              <h5 class="card-title">Software Development</h5>
+              <p class="card-text">Full stack software development for all platforms including desktop, mobile and cloud applications.</p>
+              <a href="{% url 'website:services' %}" class="btn btn-outline-primary mt-3">Learn More</a>
+            </div>
+          </div>
+        </div>
+        
+        <div class="col animate-on-scroll">
+          <div class="card h-100 service-card">
+            <div class="card-body text-center p-4">
+              <div class="rounded-circle bg-primary bg-opacity-10 p-3 d-inline-block mb-3">
+                <i class="bi bi-shield-lock text-primary fs-1"></i>
+              </div>
+              <h5 class="card-title">Security Systems</h5>
+              <p class="card-text">From supply and delivery to custom set-up and maintenance of electronic security systems for homes and businesses.</p>
+              <a href="{% url 'website:services' %}" class="btn btn-outline-primary mt-3">Learn More</a>
+            </div>
+          </div>
+        </div>
+      </div>
+      
+      <div class="text-center mt-5 animate-on-scroll">
+        <a href="{% url 'website:services' %}" class="btn btn-primary">View All Services</a>
+      </div>
+    </div>
+  </section>
+  
+  <!-- Drone Technology Section -->
+  <section class="py-5 bg-light">
+    <div class="container">
+      <div class="row align-items-center">
+        <div class="col-lg-6 animate-on-scroll">
+          <h2 class="fw-bold mb-4">Drone Technology</h2>
+          <p class="mb-4">We design, supply and build top of the range Unmanned Aerial Vehicles (UAVs) commonly known as 'drones'. Our expertise in both hardware and software facets allows us to custom build and configure drones for highly specialized purposes to serve every need.</p>
+          <p class="mb-4">The main application areas of this technology are in media for cinematography and filmmaking, real-time security, education, high-level engineering, and surveying.</p>
+          <a href="{% url 'website:services' %}" class="btn btn-primary">Explore Drone Solutions</a>
+        </div>
+        <div class="col-lg-6 mb-4 mb-lg-0 animate-on-scroll">
+          <img src="{% static 'website/img/drone-technology.jpg' %}" alt="Drone Technology" class="img-fluid rounded shadow">
+        </div>
+      </div>
+    </div>
+  </section>
+  
+  <!-- IoT Systems Section -->
+  <section class="py-5">
+    <div class="container">
+      <div class="row align-items-center">
+        <div class="col-lg-6 mb-4 mb-lg-0 animate-on-scroll">
+          <img src="{% static 'website/img/iot-systems.jpg' %}" alt="IoT Systems" class="img-fluid rounded shadow">
+        </div>
+        <div class="col-lg-6 animate-on-scroll">
+          <h2 class="fw-bold mb-4">IoT Devices & Systems</h2>
+          <p class="mb-4">Pushing forward the digital revolution by pioneering the adoption of IoT in Africa. We supply smart devices powered by Artificial Intelligence for the home and the office allowing seamless workflows and maximizing productivity.</p>
+          <ul class="list-unstyled">
+            <li class="mb-2"><i class="bi bi-check-circle-fill text-primary me-2"></i>Smart Thermostats</li>
+            <li class="mb-2"><i class="bi bi-check-circle-fill text-primary me-2"></i>Smart Meters</li>
+            <li class="mb-2"><i class="bi bi-check-circle-fill text-primary me-2"></i>Smart Locks</li>
+            <li class="mb-2"><i class="bi bi-check-circle-fill text-primary me-2"></i>Connected Appliances</li>
+            <li class="mb-2"><i class="bi bi-check-circle-fill text-primary me-2"></i>Robotic Equipment</li>
+          </ul>
+          <a href="{% url 'website:services' %}" class="btn btn-primary mt-3">Discover IoT Solutions</a>
+        </div>
+      </div>
+    </div>
+  </section>
+  
+  <!-- Counter Section -->
+  <section class="counter-section">
+    <div class="container">
+      <div class="row">
+        <div class="col-md-3 col-sm-6 animate-on-scroll">
+          <div class="counter-item">
+            <div class="counter-value">250+</div>
+            <div class="counter-label">Projects Completed</div>
+          </div>
+        </div>
+        <div class="col-md-3 col-sm-6 animate-on-scroll">
+          <div class="counter-item">
+            <div class="counter-value">100+</div>
+            <div class="counter-label">Happy Clients</div>
+          </div>
+        </div>
+        <div class="col-md-3 col-sm-6 animate-on-scroll">
+          <div class="counter-item">
+            <div class="counter-value">25+</div>
+            <div class="counter-label">Team Members</div>
+          </div>
+        </div>
+        <div class="col-md-3 col-sm-6 animate-on-scroll">
+          <div class="counter-item">
+            <div class="counter-value">5+</div>
+            <div class="counter-label">Years Experience</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+  
+  <!-- Recent Work Section -->
+  <section class="py-5">
+    <div class="container">
+      <div class="text-center mb-5 animate-on-scroll">
+        <h2 class="fw-bold">Recent Work</h2>
+        <p class="lead text-muted">Check out some of our latest projects</p>
+      </div>
+      
+      <div class="row g-4">
+        <div class="col-md-4 animate-on-scroll">
+          <div class="card portfolio-item">
+            <img src="{% static 'website/img/portfolio-1.jpg' %}" class="card-img-top" alt="Project 1">
+            <div class="card-body">
+              <h5 class="card-title">Custom PCB Design</h5>
+              <p class="card-text">PCB fabrication and design for electronic systems and automation solutions.</p>
+              <a href="{% url 'website:portfolio' %}" class="btn btn-sm btn-outline-primary">View Details</a>
+            </div>
+          </div>
+        </div>
+        <div class="col-md-4 animate-on-scroll">
+          <div class="card portfolio-item">
+            <img src="{% static 'website/img/portfolio-2.jpg' %}" class="card-img-top" alt="Project 2">
+            <div class="card-body">
+              <h5 class="card-title">Industrial Security System</h5>
+              <p class="card-text">Complete security solution for large industrial complexes with real-time monitoring.</p>
+              <a href="{% url 'website:portfolio' %}" class="btn btn-sm btn-outline-primary">View Details</a>
+            </div>
+          </div>
+        </div>
+        <div class="col-md-4 animate-on-scroll">
+          <div class="card portfolio-item">
+            <img src="{% static 'website/img/portfolio-3.jpg' %}" class="card-img-top" alt="Project 3">
+            <div class="card-body">
+              <h5 class="card-title">Solar Power Installation</h5>
+              <p class="card-text">Renewable energy solutions for residential and commercial applications.</p>
+              <a href="{% url 'website:portfolio' %}" class="btn btn-sm btn-outline-primary">View Details</a>
+            </div>
+          </div>
+        </div>
+      </div>
+      
+      <div class="text-center mt-4 animate-on-scroll">
+        <a href="{% url 'website:portfolio' %}" class="btn btn-primary">View All Projects</a>
+      </div>
+    </div>
+  </section>
+  
+  <!-- Testimonials Section -->
+  <section class="testimonial-section">
+    <div class="container">
+      <div class="text-center mb-5 animate-on-scroll">
+        <h2 class="fw-bold">What Our Clients Say</h2>
+        <p class="lead text-muted">Testimonials from our satisfied clients</p>
+      </div>
+      
+      <div class="row">
+        <div class="col-md-4 animate-on-scroll">
+          <div class="testimonial-card">
+            <div class="testimonial-rating text-warning">
+              <i class="bi bi-star-fill"></i>
+              <i class="bi bi-star-fill"></i>
+              <i class="bi bi-star-fill"></i>
+              <i class="bi bi-star-fill"></i>
+              <i class="bi bi-star-fill"></i>
+            </div>
+            <p>"BlitzTech Electronics completely transformed our security infrastructure. The team was professional, responsive, and delivered beyond our expectations."</p>
+            <div class="client-info">
+              <img src="{% static 'website/img/client-1.jpg' %}" alt="Client">
+              <div>
+                <h5 class="mb-0">John Peterson</h5>
+                <p class="text-muted mb-0">CEO, TechCorp</p>
+              </div>
+            </div>
+          </div>
+        </div>
+        
+        <div class="col-md-4 animate-on-scroll">
+          <div class="testimonial-card">
+            <div class="testimonial-rating text-warning">
+              <i class="bi bi-star-fill"></i>
+              <i class="bi bi-star-fill"></i>
+              <i class="bi bi-star-fill"></i>
+              <i class="bi bi-star-fill"></i>
+              <i class="bi bi-star-fill"></i>
+            </div>
+            <p>"The drone technology developed by BlitzTech has significantly improved our surveying capabilities. They understood our vision perfectly and executed it flawlessly."</p>
+            <div class="client-info">
+              <img src="{% static 'website/img/client-2.jpg' %}" alt="Client">
+              <div>
+                <h5 class="mb-0">Sarah Williams</h5>
+                <p class="text-muted mb-0">Engineering Director, SurveyPro</p>
+              </div>
+            </div>
+          </div>
+        </div>
+        
+        <div class="col-md-4 animate-on-scroll">
+          <div class="testimonial-card">
+            <div class="testimonial-rating text-warning">
+              <i class="bi bi-star-fill"></i>
+              <i class="bi bi-star-fill"></i>
+              <i class="bi bi-star-fill"></i>
+              <i class="bi bi-star-fill"></i>
+              <i class="bi bi-star-fill"></i>
+            </div>
+            <p>"Working with BlitzTech was a game-changer for our institution. Their electronic components supply and training sessions have helped our students create innovative projects."</p>
+            <div class="client-info">
+              <img src="{% static 'website/img/client-3.jpg' %}" alt="Client">
+              <div>
+                <h5 class="mb-0">Michael Johnson</h5>
+                <p class="text-muted mb-0">Head of Department, Harare Institute of Technology</p>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+  
+  <!-- Call to Action -->
+  <section class="py-5">
+    <div class="container">
+      <div class="row">
+        <div class="col-lg-8 mx-auto animate-on-scroll">
+          <div class="card bg-primary text-white text-center p-5 rounded-lg">
+            <h2 class="fw-bold mb-3">Ready to start your project?</h2>
+            <p class="lead mb-4">Contact us today for a free consultation and quote. Let's transcend to the future together!</p>
+            <div>
+              <a href="{% url 'website:contact' %}" class="btn btn-light btn-lg">Get in Touch</a>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+  
+  <!-- Research & Development Section -->
+  <section class="py-5 bg-light">
+    <div class="container">
+      <div class="text-center mb-5 animate-on-scroll">
+        <h2 class="fw-bold">Research & Development</h2>
+        <p class="lead text-muted">Pushing the boundaries of technology</p>
+      </div>
+      
+      <div class="row">
+        <div class="col-md-6 animate-on-scroll">
+          <div class="card h-100">
+            <div class="card-body">
+              <h3 class="card-title mb-4">Our R&D Focus Areas</h3>
+              <div class="d-flex mb-3">
+                <div class="me-3">
+                  <i class="bi bi-cpu text-primary fs-4"></i>
+                </div>
+                <div>
+                  <h5>Artificial Intelligence</h5>
+                  <p>Developing smart systems and applications powered by AI technology.</p>
+                </div>
+              </div>
+              <div class="d-flex mb-3">
+                <div class="me-3">
+                  <i class="bi bi-link-45deg text-primary fs-4"></i>
+                </div>
+                <div>
+                  <h5>Blockchain Solutions</h5>
+                  <p>Exploring decentralized applications and secure transaction systems.</p>
+                </div>
+              </div>
+              <div class="d-flex mb-3">
+                <div class="me-3">
+                  <i class="bi bi-sun text-primary fs-4"></i>
+                </div>
+                <div>
+                  <h5>Renewable Energy</h5>
+                  <p>Innovating sustainable power solutions for the African continent.</p>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="col-md-6 animate-on-scroll">
+          <div class="card h-100">
+            <div class="card-body">
+              <h3 class="card-title mb-4">Our Approach</h3>
+              <p>Our team of highly qualified and motivated research specialists spans a wide range of technology disciplines. We help our clients with wealth of information from feasibility and implementation studies in any specific technologies they would like to explore to improve their business processes.</p>
+              <p>At BlitzTech Electronics, we believe in creating innovative solutions that address real-world challenges facing Zimbabwe and Africa at large. Our R&D department works closely with academic institutions and industry partners to develop cutting-edge technologies.</p>
+              <a href="{% url 'website:services' %}" class="btn btn-primary mt-3">Learn More</a>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+  
+  <!-- Partners Section -->
+  <section class="py-5">
+    <div class="container">
+      <div class="text-center mb-5 animate-on-scroll">
+        <h2 class="fw-bold">Our Partners</h2>
+        <p class="lead text-muted">Trusted by leading companies and institutions</p>
+      </div>
+      
+      <div class="row align-items-center justify-content-center">
+        <div class="col-md-2 col-4 mb-4 mb-md-0 animate-on-scroll">
+          <img src="{% static 'website/img/partner-1.png' %}" alt="Partner Logo" class="img-fluid px-3">
+        </div>
+        <div class="col-md-2 col-4 mb-4 mb-md-0 animate-on-scroll">
+          <img src="{% static 'website/img/partner-2.png' %}" alt="Partner Logo" class="img-fluid px-3">
+        </div>
+        <div class="col-md-2 col-4 mb-4 mb-md-0 animate-on-scroll">
+          <img src="{% static 'website/img/partner-3.png' %}" alt="Partner Logo" class="img-fluid px-3">
+        </div>
+        <div class="col-md-2 col-4 mb-4 mb-md-0 animate-on-scroll">
+          <img src="{% static 'website/img/partner-4.png' %}" alt="Partner Logo" class="img-fluid px-3">
+        </div>
+        <div class="col-md-2 col-4 mb-4 mb-md-0 animate-on-scroll">
+          <img src="{% static 'website/img/partner-5.png' %}" alt="Partner Logo" class="img-fluid px-3">
+        </div>
+        <div class="col-md-2 col-4 animate-on-scroll">
+          <img src="{% static 'website/img/partner-6.png' %}" alt="Partner Logo" class="img-fluid px-3">
+        </div>
+      </div>
+    </div>
+  </section>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+  // Initialize scroll animations
+  document.addEventListener('DOMContentLoaded', function() {
+    const animatedElements = document.querySelectorAll('.animate-on-scroll');
+    
+    // Check if IntersectionObserver is supported
+    if ("IntersectionObserver" in window) {
+      const observer = new IntersectionObserver((entries) => {
+        entries.forEach(entry => {
+          if (entry.isIntersecting) {
+            entry.target.classList.add('animated');
+            observer.unobserve(entry.target);
+          }
+        });
+      }, { threshold: 0.1 });
+      
+      animatedElements.forEach(element => {
+        observer.observe(element);
+      });
+    } else {
+      // Fallback for browsers that don't support IntersectionObserver
+      animatedElements.forEach(element => {
+        element.classList.add('animated');
+      });
+    }
+  });
+</script>
+{% endblock %}

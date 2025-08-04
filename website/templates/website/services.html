@@ -1,0 +1,433 @@
+<!-- website/templates/website/services.html -->
+{% extends "website_base.html" %}
+{% load crispy_forms_tags %}
+{% load static %}
+
+{% block title %}Services - BlitzTech Electronics{% endblock %}
+
+{% block extra_css %}
+<style>
+  .service-card {
+    transition: all 0.3s ease;
+    border-radius: 10px;
+    overflow: hidden;
+    height: 100%;
+  }
+  
+  .service-card:hover {
+    transform: translateY(-10px);
+    box-shadow: 0 15px 30px rgba(0,0,0,0.1);
+  }
+  
+  .service-icon {
+    font-size: 3rem;
+    margin-bottom: 1.5rem;
+    color: #0d6efd;
+  }
+  
+  .service-section {
+    padding: 80px 0;
+  }
+  
+  .service-section:nth-child(even) {
+    background-color: #f8f9fa;
+  }
+</style>
+{% endblock %}
+
+{% block content %}
+  <!-- Hero Section -->
+  <section class="py-5 bg-light">
+    <div class="container">
+      <div class="row align-items-center">
+        <div class="col-md-6">
+          <h1 class="fw-bold mb-4">Our Services</h1>
+          <p class="lead mb-4">BlitzTech Electronics offers a comprehensive range of electronic solutions to meet the diverse needs of individuals, businesses, and institutions across Zimbabwe and beyond.</p>
+          <p>Our team of experts is dedicated to providing high-quality services that help our clients achieve their technological goals. Explore our services below to learn how we can assist you.</p>
+        </div>
+        <div class="col-md-6">
+          <img src="{% static 'website/img/services-hero.jpg' %}" alt="Our Services" class="img-fluid rounded shadow">
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Electronic Components Section -->
+  <section class="service-section">
+    <div class="container">
+      <div class="row align-items-center">
+        <div class="col-md-6 mb-4 mb-md-0">
+          <img src="{% static 'website/img/electronic-components.jpg' %}" alt="Electronic Components" class="img-fluid rounded shadow">
+        </div>
+        <div class="col-md-6">
+          <h2 class="fw-bold mb-4">Electronic Components Supply</h2>
+          <p>We are reliable suppliers of high-quality electronic components for industrial applications and for school laboratories. Our focus on quality and high-end specifications has made us one of the frontiers of the digital revolution in Africa.</p>
+          <p>Our inventory includes:</p>
+          <div class="row">
+            <div class="col-md-6">
+              <ul>
+                <li>Arduino Boards</li>
+                <li>Resistors</li>
+                <li>Transistors</li>
+                <li>Raspberry Pi</li>
+                <li>Capacitors</li>
+                <li>Inductors</li>
+              </ul>
+            </div>
+            <div class="col-md-6">
+              <ul>
+                <li>Diodes</li>
+                <li>Logic Boards</li>
+                <li>Micro-Controllers</li>
+                <li>Semi-Conductors</li>
+                <li>Chipsets</li>
+                <li>And much more</li>
+              </ul>
+            </div>
+          </div>
+          <a href="{% url 'website:contact' %}" class="btn btn-primary mt-3">Contact Us For Components</a>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Software Development Section -->
+  <section class="service-section">
+    <div class="container">
+      <div class="row align-items-center">
+        <div class="col-md-6 order-md-2 mb-4 mb-md-0">
+          <img src="{% static 'website/img/software-development.jpg' %}" alt="Software Development" class="img-fluid rounded shadow">
+        </div>
+        <div class="col-md-6 order-md-1">
+          <h2 class="fw-bold mb-4">Full Stack Software Development</h2>
+          <p>We have a team of dedicated, highly caffeinated coders ready to jump onto your project. We have mastered software development for all platforms including desktop, mobile and cloud.</p>
+          <div class="row mt-4">
+            <div class="col-md-6">
+              <div class="d-flex mb-3">
+                <i class="bi bi-check-circle-fill text-primary me-2 fs-5"></i>
+                <div>
+                  <h5>Back End Development</h5>
+                  <p class="text-muted small">Robust server-side applications</p>
+                </div>
+              </div>
+              <div class="d-flex mb-3">
+                <i class="bi bi-check-circle-fill text-primary me-2 fs-5"></i>
+                <div>
+                  <h5>User Interface Design</h5>
+                  <p class="text-muted small">Beautiful, intuitive interfaces</p>
+                </div>
+              </div>
+              <div class="d-flex mb-3">
+                <i class="bi bi-check-circle-fill text-primary me-2 fs-5"></i>
+                <div>
+                  <h5>User Experience Design</h5>
+                  <p class="text-muted small">Seamless user journeys</p>
+                </div>
+              </div>
+            </div>
+            <div class="col-md-6">
+              <div class="d-flex mb-3">
+                <i class="bi bi-check-circle-fill text-primary me-2 fs-5"></i>
+                <div>
+                  <h5>Middle Stack Development</h5>
+                  <p class="text-muted small">Efficient application logic</p>
+                </div>
+              </div>
+              <div class="d-flex mb-3">
+                <i class="bi bi-check-circle-fill text-primary me-2 fs-5"></i>
+                <div>
+                  <h5>Mobile Application</h5>
+                  <p class="text-muted small">Cross-platform mobile solutions</p>
+                </div>
+              </div>
+              <div class="d-flex mb-3">
+                <i class="bi bi-check-circle-fill text-primary me-2 fs-5"></i>
+                <div>
+                  <h5>Custom Web Applications</h5>
+                  <p class="text-muted small">Tailored to your needs</p>
+                </div>
+              </div>
+            </div>
+          </div>
+          <a href="{% url 'website:contact' %}" class="btn btn-primary mt-3">Discuss Your Software Project</a>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Security Systems Section -->
+  <section class="service-section">
+    <div class="container">
+      <div class="row align-items-center">
+        <div class="col-md-6 mb-4 mb-md-0">
+          <img src="{% static 'website/img/security-systems.jpg' %}" alt="Security Systems" class="img-fluid rounded shadow">
+        </div>
+        <div class="col-md-6">
+          <h2 class="fw-bold mb-4">Security Systems</h2>
+          <p>From the supply and delivery of electronic security systems, to custom set-up and configuration and maintenance, we do all things in automated security. Our clientele includes residential homes, office premises and large industrial complexes.</p>
+          <div class="row mt-4">
+            <div class="col-md-6">
+              <ul class="list-unstyled">
+                <li class="mb-2"><i class="bi bi-shield-lock text-primary me-2"></i>Biometric Access Control</li>
+                <li class="mb-2"><i class="bi bi-camera-video text-primary me-2"></i>Surveillance Cameras</li>
+                <li class="mb-2"><i class="bi bi-webcam text-primary me-2"></i>Web Cameras</li>
+              </ul>
+            </div>
+            <div class="col-md-6">
+              <ul class="list-unstyled">
+                <li class="mb-2"><i class="bi bi-eye text-primary me-2"></i>Motion Detection</li>
+                <li class="mb-2"><i class="bi bi-display text-primary me-2"></i>Real-time Monitoring</li>
+                <li class="mb-2"><i class="bi bi-shield-check text-primary me-2"></i>Cyber Security</li>
+              </ul>
+            </div>
+          </div>
+          <a href="{% url 'website:contact' %}" class="btn btn-primary mt-3">Secure Your Premises</a>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Drone Technology Section -->
+  <section class="service-section">
+    <div class="container">
+      <div class="row align-items-center">
+        <div class="col-md-6 order-md-2 mb-4 mb-md-0">
+          <img src="{% static 'website/img/drone-technology.jpg' %}" alt="Drone Technology" class="img-fluid rounded shadow">
+        </div>
+        <div class="col-md-6 order-md-1">
+          <h2 class="fw-bold mb-4">Drone Technology</h2>
+          <p>We design, supply and build top of the range Unmanned Aerial Vehicles (UAVs) commonly known as 'drones'. Our expertise in both hardware and software facets allows us to custom build and configure drones for highly specialised purposes to serve every need.</p>
+          <p>The main application areas of this technology include:</p>
+          <div class="row">
+            <div class="col-md-6">
+              <ul>
+                <li>Media for cinematography and filmmaking</li>
+                <li>Real-time security monitoring</li>
+                <li>Education and training</li>
+              </ul>
+            </div>
+            <div class="col-md-6">
+              <ul>
+                <li>High-level engineering applications</li>
+                <li>Land surveying and mapping</li>
+                <li>Agricultural monitoring</li>
+              </ul>
+            </div>
+          </div>
+          <a href="{% url 'website:contact' %}" class="btn btn-primary mt-3">Explore Drone Solutions</a>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Power Systems Section -->
+  <section class="service-section">
+    <div class="container">
+      <div class="row align-items-center">
+        <div class="col-md-6 mb-4 mb-md-0">
+          <img src="{% static 'website/img/power-systems.jpg' %}" alt="Power Systems" class="img-fluid rounded shadow">
+        </div>
+        <div class="col-md-6">
+          <h2 class="fw-bold mb-4">Electric and Solar Power Systems</h2>
+          <p>We design and maintain electrical power supply infrastructure for the home and industry. Our systems easily integrate with Internet of Things (IoT) devices such as smart thermostats and smart locks.</p>
+          <div class="row mt-4">
+            <div class="col-md-6">
+              <ul class="list-unstyled">
+                <li class="mb-2"><i class="bi bi-lightning text-primary me-2"></i>Electrical Wiring – Office and Residential</li>
+                <li class="mb-2"><i class="bi bi-droplet text-primary me-2"></i>Solar Water Pumps</li>
+                <li class="mb-2"><i class="bi bi-lightbulb text-primary me-2"></i>Solar Lighting Kits</li>
+              </ul>
+            </div>
+            <div class="col-md-6">
+              <ul class="list-unstyled">
+                <li class="mb-2"><i class="bi bi-wind text-primary me-2"></i>Wind Water Pumps</li>
+                <li class="mb-2"><i class="bi bi-plug text-primary me-2"></i>Low Noise Generators</li>
+                <li class="mb-2"><i class="bi bi-sun text-primary me-2"></i>Renewable Energy R&D</li>
+              </ul>
+            </div>
+          </div>
+          <a href="{% url 'website:contact' %}" class="btn btn-primary mt-3">Power Your Solutions</a>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- IoT Systems Section -->
+  <section class="service-section">
+    <div class="container">
+      <div class="row align-items-center">
+        <div class="col-md-6 order-md-2 mb-4 mb-md-0">
+          <img src="{% static 'website/img/iot-systems.jpg' %}" alt="IoT Systems" class="img-fluid rounded shadow">
+        </div>
+        <div class="col-md-6 order-md-1">
+          <h2 class="fw-bold mb-4">IoT Devices and Systems</h2>
+          <p>Pushing forward the digital revolution by pioneering the adoption of IoT in Africa. We supply smart devices powered by Artificial Intelligence for the home and the office allowing seamless workflows and maximizing productivity.</p>
+          <div class="row mt-4">
+            <div class="col-md-6">
+              <ul class="list-unstyled">
+                <li class="mb-2"><i class="bi bi-thermometer-half text-primary me-2"></i>Smart Thermostats</li>
+                <li class="mb-2"><i class="bi bi-speedometer2 text-primary me-2"></i>Smart Meters</li>
+                <li class="mb-2"><i class="bi bi-door-closed text-primary me-2"></i>Smart Locks</li>
+              </ul>
+            </div>
+            <div class="col-md-6">
+              <ul class="list-unstyled">
+                <li class="mb-2"><i class="bi bi-house-door text-primary me-2"></i>Connected Appliances</li>
+                <li class="mb-2"><i class="bi bi-robot text-primary me-2"></i>Robotic Equipment</li>
+                <li class="mb-2"><i class="bi bi-wifi text-primary me-2"></i>Smart Home Systems</li>
+              </ul>
+            </div>
+          </div>
+          <a href="{% url 'website:contact' %}" class="btn btn-primary mt-3">Smart Solutions For You</a>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Research & Development Section -->
+  <section class="service-section">
+    <div class="container">
+      <div class="row align-items-center">
+        <div class="col-md-6 mb-4 mb-md-0">
+          <img src="{% static 'website/img/research-development.jpg' %}" alt="Research & Development" class="img-fluid rounded shadow">
+        </div>
+        <div class="col-md-6">
+          <h2 class="fw-bold mb-4">Research and Development</h2>
+          <p>We have a team of highly qualified and motivated research specialists spanning a wide range of technology disciplines. We help our clients with a wealth of information from feasibility and implementation studies in any specific technologies they would like to explore to improve their business processes.</p>
+          <div class="row mt-4">
+            <div class="col-md-6">
+              <ul class="list-unstyled">
+                <li class="mb-2"><i class="bi bi-cpu text-primary me-2"></i>Artificial Intelligence</li>
+                <li class="mb-2"><i class="bi bi-globe text-primary me-2"></i>Digital Presence</li>
+                <li class="mb-2"><i class="bi bi-link-45deg text-primary me-2"></i>Blockchain Solutions</li>
+              </ul>
+            </div>
+            <div class="col-md-6">
+              <ul class="list-unstyled">
+                <li class="mb-2"><i class="bi bi-flask text-primary me-2"></i>Chemical Technology</li>
+                <li class="mb-2"><i class="bi bi-virus text-primary me-2"></i>Biotechnology</li>
+                <li class="mb-2"><i class="bi bi-sun text-primary me-2"></i>Renewable Energy</li>
+              </ul>
+            </div>
+          </div>
+          <a href="{% url 'website:contact' %}" class="btn btn-primary mt-3">Start Your R&D Project</a>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- PCB Fabrication Section -->
+  <section class="service-section">
+    <div class="container">
+      <div class="row align-items-center">
+        <div class="col-md-6 order-md-2 mb-4 mb-md-0">
+          <img src="{% static 'website/img/pcb-fabrication.jpg' %}" alt="PCB Fabrication" class="img-fluid rounded shadow">
+        </div>
+        <div class="col-md-6 order-md-1">
+          <h2 class="fw-bold mb-4">PCB Fabrication</h2>
+          <p>PCB fabrication is the process of making printed circuit boards that are used on all electronic devices internationally e.g. laptops, cell phones, remote controls etc. The company designs and develops PCBs for security systems and for local companies that outsource their designs to China for fabrication at a fraction of the current expensive cost.</p>
+          <p>This localizing of production benefits the country's GDP as it creates local employment and reduces outsourcing of manufacturing costs. Our PCB fabrication services include:</p>
+          <div class="row mt-4">
+            <div class="col-md-6">
+              <ul class="list-unstyled">
+                <li class="mb-2"><i class="bi bi-cpu text-primary me-2"></i>Custom PCB Design</li>
+                <li class="mb-2"><i class="bi bi-tools text-primary me-2"></i>Prototype Development</li>
+                <li class="mb-2"><i class="bi bi-device-ssd text-primary me-2"></i>Component Sourcing</li>
+              </ul>
+            </div>
+            <div class="col-md-6">
+              <ul class="list-unstyled">
+                <li class="mb-2"><i class="bi bi-gear text-primary me-2"></i>Production Setup</li>
+                <li class="mb-2"><i class="bi bi-check-circle text-primary me-2"></i>Quality Testing</li>
+                <li class="mb-2"><i class="bi bi-arrow-repeat text-primary me-2"></i>Repair & Maintenance</li>
+              </ul>
+            </div>
+          </div>
+          <a href="{% url 'website:contact' %}" class="btn btn-primary mt-3">Inquire About PCB Services</a>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Call to Action Section -->
+  <section class="py-5 bg-primary text-white text-center">
+    <div class="container">
+      <div class="row">
+        <div class="col-lg-8 mx-auto">
+          <h2 class="fw-bold mb-3">Need a custom solution?</h2>
+          <p class="lead mb-4">Our team is ready to develop tailored solutions for your specific requirements. Contact us today to discuss your project.</p>
+          <a href="{% url 'website:contact' %}" class="btn btn-light btn-lg">Get in Touch</a>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Why Choose Us Section -->
+  <section class="py-5">
+    <div class="container">
+      <h2 class="text-center fw-bold mb-5">Why Choose Us</h2>
+      
+      <div class="row">
+        <div class="col-md-4 mb-4">
+          <div class="card service-card">
+            <div class="card-body text-center">
+              <div class="service-icon">
+                <i class="bi bi-people"></i>
+              </div>
+              <h4>Expert Team</h4>
+              <p>Our team consists of highly qualified professionals with extensive experience in their respective fields.</p>
+            </div>
+          </div>
+        </div>
+        
+        <div class="col-md-4 mb-4">
+          <div class="card service-card">
+            <div class="card-body text-center">
+              <div class="service-icon">
+                <i class="bi bi-graph-up"></i>
+              </div>
+              <h4>Proven Track Record</h4>
+              <p>With over 250+ successful projects, we have established ourselves as a reliable partner for electronic solutions.</p>
+            </div>
+          </div>
+        </div>
+        
+        <div class="col-md-4 mb-4">
+          <div class="card service-card">
+            <div class="card-body text-center">
+              <div class="service-icon">
+                <i class="bi bi-lightbulb"></i>
+              </div>
+              <h4>Innovative Solutions</h4>
+              <p>We stay at the forefront of technological advancements to provide cutting-edge solutions.</p>
+            </div>
+          </div>
+        </div>
+        
+        <div class="col-md-6 mb-4">
+          <div class="card service-card">
+            <div class="card-body text-center">
+              <div class="service-icon">
+                <i class="bi bi-shield-check"></i>
+              </div>
+              <h4>Quality Assurance</h4>
+              <p>We maintain rigorous quality standards throughout our design, development, and implementation processes.</p>
+            </div>
+          </div>
+        </div>
+        
+        <div class="col-md-6 mb-4">
+          <div class="card service-card">
+            <div class="card-body text-center">
+              <div class="service-icon">
+                <i class="bi bi-headset"></i>
+              </div>
+              <h4>Dedicated Support</h4>
+              <p>Our commitment to customer satisfaction extends beyond project completion with ongoing support and maintenance.</p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+{% endblock %}

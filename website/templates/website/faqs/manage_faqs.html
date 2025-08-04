@@ -1,0 +1,365 @@
+<!-- templates/website/faqs/manage_faqs.html -->
+{% extends "website_base.html" %}
+{% load static %}
+
+{% block title %}Manage FAQs - BlitzTech Electronics{% endblock %}
+
+{% block extra_css %}
+<style>
+/* Custom styles for FAQ management */
+.faq-category-header {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: white;
+    border-radius: 8px 8px 0 0;
+    padding: 1rem 1.5rem;
+}
+.faq-item {
+    border-left: 4px solid #e9ecef;
+    transition: all 0.3s ease;
+}
+.faq-item:hover {
+    border-left-color: #007bff;
+    background-color: #f8f9fa;
+}
+.faq-question {
+    font-weight: 600;
+    color: #2c3e50;
+}
+.faq-answer-preview {
+    color: #6c757d;
+    line-height: 1.4;
+}
+.category-stats {
+    background: rgba(255,255,255,0.9);
+    backdrop-filter: blur(10px);
+    border-radius: 20px;
+    padding: 0.5rem 1rem;
+}
+.faq-search-box {
+    background: white;
+    border-radius: 25px;
+    border: 2px solid #e9ecef;
+    padding: 0.75rem 1.5rem;
+    transition: all 0.3s ease;
+}
+.faq-search-box:focus {
+    border-color: #007bff;
+    box-shadow: 0 0 0 0.2rem rgba(0,123,255,0.25);
+}
+.category-icon {
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.2rem;
+    color: white;
+    margin-right: 1rem;
+}
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container py-4">
+  <!-- Header Section -->
+  <div class="d-flex justify-content-between align-items-center mb-4">
+    <div>
+      <h2><i class="bi bi-question-circle me-2 text-primary"></i>Manage FAQs</h2>
+      <p class="text-muted mb-0">Help customers find answers quickly and reduce support workload</p>
+    </div>
+    <div>
+      <a href="{% url 'website:manage_dashboard' %}" class="btn btn-outline-secondary me-2">
+        <i class="bi bi-arrow-left"></i> Back to Dashboard
+      </a>
+      <a href="{% url 'website:add_faq' %}" class="btn btn-primary">
+        <i class="bi bi-plus-lg"></i> New FAQ
+      </a>
+    </div>
+  </div>
+
+  {% if faqs %}
+    <!-- Search and Filter Section -->
+    <div class="row mb-4">
+      <div class="col-md-8">
+        <input type="text" 
+               class="form-control faq-search-box" 
+               id="faq-search" 
+               placeholder="Search FAQs by question or answer...">
+      </div>
+      <div class="col-md-4">
+        <select class="form-select" id="category-filter">
+          <option value="">All Categories</option>
+          {% regroup faqs by get_category_display as category_groups %}
+          {% for group in category_groups %}
+            <option value="{{ group.grouper|slugify }}">{{ group.grouper }} ({{ group.list|length }})</option>
+          {% endfor %}
+        </select>
+      </div>
+    </div>
+
+    <!-- FAQ Statistics -->
+    <div class="row mb-4">
+      <div class="col-12">
+        <div class="card bg-light border-0">
+          <div class="card-body">
+            <div class="row text-center">
+              <div class="col-md-3">
+                <h3 class="text-primary mb-1">{{ faqs.count }}</h3>
+                <p class="text-muted mb-0">Total FAQs</p>
+              </div>
+              <div class="col-md-3">
+                {% regroup faqs by category as category_groups %}
+                <h3 class="text-success mb-1">{{ category_groups|length }}</h3>
+                <p class="text-muted mb-0">Categories</p>
+              </div>
+              <div class="col-md-3">
+                <h3 class="text-info mb-1">
+                  {% with faqs|dictsort:"order"|first as first_faq %}
+                  {{ first_faq.order|default:"—" }}
+                  {% endwith %}
+                </h3>
+                <p class="text-muted mb-0">Lowest Order</p>
+              </div>
+              <div class="col-md-3">
+                <h3 class="text-warning mb-1">{{ faqs|length|default:"0" }}</h3>
+                <p class="text-muted mb-0">Ready to Publish</p>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- FAQs by Category -->
+    {% regroup faqs by get_category_display as faq_groups %}
+    
+    {% for group in faq_groups %}
+      <div class="faq-category-section mb-5" data-category="{{ group.grouper|slugify }}">
+        <!-- Category Header -->
+        <div class="faq-category-header">
+          <div class="d-flex align-items-center justify-content-between">
+            <div class="d-flex align-items-center">
+              <div class="category-icon" style="background-color: {% cycle '#e74c3c' '#3498db' '#2ecc71' '#f39c12' '#9b59b6' '#1abc9c' '#34495e' '#e67e22' %};">
+                {% if group.grouper == "Components & Supply" %}
+                  <i class="bi bi-cpu"></i>
+                {% elif group.grouper == "Security Systems" %}
+                  <i class="bi bi-shield-lock"></i>
+                {% elif group.grouper == "IoT & Smart Solutions" %}
+                  <i class="bi bi-hdd-network"></i>
+                {% elif group.grouper == "PCB Fabrication" %}
+                  <i class="bi bi-motherboard"></i>
+                {% elif group.grouper == "Power Systems" %}
+                  <i class="bi bi-sun"></i>
+                {% elif group.grouper == "Orders & Payment" %}
+                  <i class="bi bi-credit-card"></i>
+                {% elif group.grouper == "Contact" %}
+                  <i class="bi bi-telephone"></i>
+                {% else %}
+                  <i class="bi bi-question-circle"></i>
+                {% endif %}
+              </div>
+              <div>
+                <h4 class="mb-1">{{ group.grouper }}</h4>
+                <p class="mb-0 opacity-75">Common questions about {{ group.grouper|lower }}</p>
+              </div>
+            </div>
+            <div class="category-stats">
+              <span class="badge bg-white text-dark">{{ group.list|length }} FAQ{{ group.list|length|pluralize }}</span>
+            </div>
+          </div>
+        </div>
+        
+        <!-- FAQs in this category -->
+        <div class="card border-0 shadow-sm">
+          <div class="list-group list-group-flush">
+            {% for faq in group.list %}
+              <div class="list-group-item faq-item" data-question="{{ faq.question|lower }}" data-answer="{{ faq.answer|lower }}">
+                <div class="row align-items-center">
+                  <div class="col-md-1 text-center">
+                    <span class="badge bg-secondary">{{ faq.order }}</span>
+                  </div>
+                  <div class="col-md-7">
+                    <h6 class="faq-question mb-1">{{ faq.question }}</h6>
+                    <p class="faq-answer-preview mb-0">{{ faq.answer|truncatewords:20 }}</p>
+                  </div>
+                  <div class="col-md-4 text-end">
+                    <div class="btn-group" role="group">
+                      <button class="btn btn-sm btn-outline-info" 
+                              data-bs-toggle="collapse" 
+                              data-bs-target="#faq-{{ faq.pk }}"
+                              aria-expanded="false">
+                        <i class="bi bi-eye"></i> Preview
+                      </button>
+                      <a href="{% url 'website:edit_faq' faq.pk %}" 
+                         class="btn btn-sm btn-outline-primary">
+                        <i class="bi bi-pencil"></i> Edit
+                      </a>
+                      <a href="{% url 'website:delete_faq' faq.pk %}" 
+                         class="btn btn-sm btn-outline-danger"
+                         onclick="return confirm('Are you sure you want to delete this FAQ?')">
+                        <i class="bi bi-trash"></i> Delete
+                      </a>
+                    </div>
+                  </div>
+                </div>
+                
+                <!-- Collapsible Full Answer -->
+                <div class="collapse mt-3" id="faq-{{ faq.pk }}">
+                  <div class="card card-body bg-light border-0">
+                    <h6 class="text-primary mb-2">Full Answer:</h6>
+                    <p class="mb-0">{{ faq.answer|linebreaks }}</p>
+                  </div>
+                </div>
+              </div>
+            {% endfor %}
+          </div>
+        </div>
+      </div>
+    {% endfor %}
+
+    <!-- No Results Message -->
+    <div id="no-results" class="text-center py-5" style="display: none;">
+      <i class="bi bi-search display-1 text-muted"></i>
+      <h4 class="text-muted mt-3">No FAQs Found</h4>
+      <p class="text-muted">Try adjusting your search terms or category filter.</p>
+    </div>
+
+  {% else %}
+    <!-- Empty State -->
+    <div class="text-center py-5">
+      <div class="mb-4">
+        <i class="bi bi-question-circle display-1 text-muted"></i>
+      </div>
+      <h4 class="text-muted mb-3">No FAQs Yet</h4>
+      <p class="text-muted mb-4">
+        FAQs are one of the most effective ways to help customers and reduce support workload.
+        <br>
+        Start by answering the questions you hear most often from clients and prospects.
+      </p>
+      <a href="{% url 'website:add_faq' %}" class="btn btn-primary btn-lg">
+        <i class="bi bi-plus-lg me-2"></i>Create Your First FAQ
+      </a>
+      
+      <!-- FAQ Category Suggestions -->
+      <div class="mt-4">
+        <h6 class="text-muted">Common FAQ categories for electronics companies:</h6>
+        <div class="d-flex justify-content-center flex-wrap gap-2 mt-2">
+          <span class="badge bg-light text-dark">Product Specifications</span>
+          <span class="badge bg-light text-dark">Installation Process</span>
+          <span class="badge bg-light text-dark">Warranty & Support</span>
+          <span class="badge bg-light text-dark">Pricing & Payment</span>
+          <span class="badge bg-light text-dark">Technical Requirements</span>
+        </div>
+      </div>
+    </div>
+  {% endif %}
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // Search functionality
+    const searchBox = document.getElementById('faq-search');
+    const categoryFilter = document.getElementById('category-filter');
+    const faqItems = document.querySelectorAll('.faq-item');
+    const categorySections = document.querySelectorAll('.faq-category-section');
+    const noResults = document.getElementById('no-results');
+    
+    function filterFAQs() {
+        const searchTerm = searchBox ? searchBox.value.toLowerCase() : '';
+        const selectedCategory = categoryFilter ? categoryFilter.value : '';
+        let visibleCount = 0;
+        
+        // Hide all category sections first
+        categorySections.forEach(section => {
+            section.style.display = 'none';
+        });
+        
+        // Show relevant categories and FAQs
+        categorySections.forEach(section => {
+            const categoryName = section.dataset.category;
+            let categoryHasVisibleItems = false;
+            
+            // Check if this category should be shown based on filter
+            const categoryMatches = !selectedCategory || categoryName === selectedCategory;
+            
+            if (categoryMatches) {
+                const categoryFAQs = section.querySelectorAll('.faq-item');
+                
+                categoryFAQs.forEach(item => {
+                    const question = item.dataset.question || '';
+                    const answer = item.dataset.answer || '';
+                    const matchesSearch = !searchTerm || 
+                                        question.includes(searchTerm) || 
+                                        answer.includes(searchTerm);
+                    
+                    if (matchesSearch) {
+                        item.style.display = 'block';
+                        categoryHasVisibleItems = true;
+                        visibleCount++;
+                    } else {
+                        item.style.display = 'none';
+                    }
+                });
+                
+                // Show category if it has visible items
+                if (categoryHasVisibleItems) {
+                    section.style.display = 'block';
+                }
+            }
+        });
+        
+        // Show/hide no results message
+        if (noResults) {
+            if (visibleCount === 0 && (searchTerm || selectedCategory)) {
+                noResults.style.display = 'block';
+            } else {
+                noResults.style.display = 'none';
+            }
+        }
+    }
+    
+    // Add event listeners
+    if (searchBox) {
+        searchBox.addEventListener('input', filterFAQs);
+    }
+    
+    if (categoryFilter) {
+        categoryFilter.addEventListener('change', filterFAQs);
+    }
+    
+    // Highlight search terms
+    function highlightSearchTerms() {
+        if (!searchBox) return;
+        
+        const searchTerm = searchBox.value.toLowerCase().trim();
+        if (!searchTerm) return;
+        
+        faqItems.forEach(item => {
+            const question = item.querySelector('.faq-question');
+            const answer = item.querySelector('.faq-answer-preview');
+            
+            if (question && answer) {
+                // Remove existing highlights
+                question.innerHTML = question.textContent;
+                answer.innerHTML = answer.textContent;
+                
+                // Add new highlights
+                if (searchTerm.length > 2) {
+                    const regex = new RegExp(`(${searchTerm})`, 'gi');
+                    question.innerHTML = question.innerHTML.replace(regex, '<mark>$1</mark>');
+                    answer.innerHTML = answer.innerHTML.replace(regex, '<mark>$1</mark>');
+                }
+            }
+        });
+    }
+    
+    if (searchBox) {
+        searchBox.addEventListener('input', function() {
+            filterFAQs();
+            setTimeout(highlightSearchTerms, 100);
+        });
+    }
+});
+</script>
+{% endblock %}

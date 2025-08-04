@@ -1,0 +1,715 @@
+{% extends "inventory_base.html" %}
+{% load static %}
+
+{% block inventory_title %}Reorder Report & Procurement Planning{% endblock %}
+
+{% block inventory_actions %}
+  <div class="btn-group me-2" role="group">
+    <a href="{% url 'inventory:reports_dashboard' %}" class="btn btn-outline-secondary btn-sm">
+      <i class="bi bi-arrow-left me-1"></i>Back to Reports
+    </a>
+    {% if app_permissions.inventory == 'edit' or app_permissions.inventory == 'admin' %}
+      <button type="button" class="btn btn-success btn-sm" onclick="generatePurchaseOrders()">
+        <i class="bi bi-plus-circle me-1"></i>Generate POs
+      </button>
+    {% endif %}
+  </div>
+  <div class="btn-group" role="group">
+    <button type="button" class="btn btn-info btn-sm" onclick="exportReport('excel')">
+      <i class="bi bi-file-excel me-1"></i>Export Excel
+    </button>
+    <button type="button" class="btn btn-primary btn-sm" onclick="refreshReport()">
+      <i class="bi bi-arrow-clockwise me-1"></i>Refresh
+    </button>
+  </div>
+{% endblock %}
+
+{% block inventory_content %}
+<!-- Quick Actions & Filters -->
+<div class="row mb-4">
+  <div class="col-lg-8">
+    <div class="card inventory-card">
+      <div class="card-header">
+        <h6 class="card-title mb-0">
+          <i class="bi bi-funnel me-2"></i>Reorder Filters & Options
+        </h6>
+      </div>
+      <div class="card-body">
+        <form method="get" id="filterForm" class="row g-3">
+          <div class="col-md-3">
+            <label class="form-label">Priority Level</label>
+            <select class="form-select" name="priority">
+              <option value="">All Priorities</option>
+              <option value="critical" {% if request.GET.priority == 'critical' %}selected{% endif %}>Critical</option>
+              <option value="high" {% if request.GET.priority == 'high' %}selected{% endif %}>High</option>
+              <option value="medium" {% if request.GET.priority == 'medium' %}selected{% endif %}>Medium</option>
+              <option value="low" {% if request.GET.priority == 'low' %}selected{% endif %}>Low</option>
+            </select>
+          </div>
+          <div class="col-md-3">
+            <label class="form-label">Supplier</label>
+            <select class="form-select" name="supplier">
+              <option value="">All Suppliers</option>
+              {% for supplier in suppliers %}
+                <option value="{{ supplier.id }}" {% if request.GET.supplier == supplier.id|stringformat:"s" %}selected{% endif %}>
+                  {{ supplier.name }}
+                </option>
+              {% endfor %}
+            </select>
+          </div>
+          <div class="col-md-3">
+            <label class="form-label">Category</label>
+            <select class="form-select" name="category">
+              <option value="">All Categories</option>
+              {% for category in categories %}
+                <option value="{{ category.id }}" {% if request.GET.category == category.id|stringformat:"s" %}selected{% endif %}>
+                  {{ category.name }}
+                </option>
+              {% endfor %}
+            </select>
+          </div>
+          <div class="col-md-3">
+            <label class="form-label">&nbsp;</label>
+            <div class="d-flex gap-2">
+              <button type="submit" class="btn btn-primary flex-fill">
+                <i class="bi bi-search me-1"></i>Filter
+              </button>
+              <button type="button" class="btn btn-outline-secondary" onclick="clearFilters()">
+                <i class="bi bi-x-circle"></i>
+              </button>
+            </div>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+  
+  <div class="col-lg-4">
+    <div class="card inventory-card">
+      <div class="card-header">
+        <h6 class="card-title mb-0">
+          <i class="bi bi-lightning me-2"></i>Quick Actions
+        </h6>
+      </div>
+      <div class="card-body">
+        {% if app_permissions.inventory == 'edit' or app_permissions.inventory == 'admin' %}
+          <button type="button" class="btn btn-warning btn-sm w-100 mb-2" onclick="bulkUpdateReorderLevels()">
+            <i class="bi bi-gear me-1"></i>Update Reorder Levels
+          </button>
+          <button type="button" class="btn btn-info btn-sm w-100 mb-2" onclick="generateReorderAlerts()">
+            <i class="bi bi-bell me-1"></i>Generate Alerts
+          </button>
+          <button type="button" class="btn btn-success btn-sm w-100" onclick="emailToSuppliers()">
+            <i class="bi bi-envelope me-1"></i>Email Suppliers
+          </button>
+        {% else %}
+          <div class="text-muted small">
+            Advanced actions require edit permissions
+          </div>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Reorder Summary -->
+<div class="row mb-4">
+  <div class="col-lg-3 col-md-6 mb-3">
+    <div class="metric-card warning">
+      <div class="d-flex align-items-center">
+        <i class="bi bi-exclamation-triangle fs-1 me-3"></i>
+        <div>
+          <div class="fs-4 fw-bold">{{ report_data.critical_count|default:0 }}</div>
+          <div class="small">Critical Items</div>
+        </div>
+      </div>
+    </div>
+  </div>
+  
+  <div class="col-lg-3 col-md-6 mb-3">
+    <div class="metric-card">
+      <div class="d-flex align-items-center">
+        <i class="bi bi-cart-plus fs-1 me-3"></i>
+        <div>
+          <div class="fs-4 fw-bold">{{ report_data.total_items|default:0 }}</div>
+          <div class="small">Items to Reorder</div>
+        </div>
+      </div>
+    </div>
+  </div>
+  
+  <div class="col-lg-3 col-md-6 mb-3">
+    <div class="metric-card info">
+      <div class="d-flex align-items-center">
+        <i class="bi bi-currency-dollar fs-1 me-3"></i>
+        <div>
+          <div class="fs-4 fw-bold">${{ report_data.estimated_cost|floatformat:0|default:0 }}</div>
+          <div class="small">Estimated Cost</div>
+        </div>
+      </div>
+    </div>
+  </div>
+  
+  <div class="col-lg-3 col-md-6 mb-3">
+    <div class="metric-card success">
+      <div class="d-flex align-items-center">
+        <i class="bi bi-building fs-1 me-3"></i>
+        <div>
+          <div class="fs-4 fw-bold">{{ report_data.suppliers_involved|default:0 }}</div>
+          <div class="small">Suppliers</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Priority Breakdown -->
+<div class="row mb-4">
+  <div class="col-lg-8">
+    <div class="card inventory-card">
+      <div class="card-header">
+        <h6 class="card-title mb-0">
+          <i class="bi bi-speedometer2 me-2"></i>Reorder Priority Distribution
+        </h6>
+      </div>
+      <div class="card-body">
+        <canvas id="priorityChart" height="200"></canvas>
+      </div>
+    </div>
+  </div>
+  
+  <div class="col-lg-4">
+    <div class="card inventory-card">
+      <div class="card-header">
+        <h6 class="card-title mb-0">
+          <i class="bi bi-clock me-2"></i>Lead Time Analysis
+        </h6>
+      </div>
+      <div class="card-body">
+        <div class="mb-3">
+          <div class="d-flex justify-content-between">
+            <span>Immediate (0-7 days)</span>
+            <span class="fw-bold">{{ report_data.immediate_count|default:0 }}</span>
+          </div>
+          <div class="progress mb-2" style="height: 6px;">
+            <div class="progress-bar bg-danger" style="width: {{ report_data.immediate_percentage|default:0 }}%"></div>
+          </div>
+        </div>
+        
+        <div class="mb-3">
+          <div class="d-flex justify-content-between">
+            <span>Short (1-2 weeks)</span>
+            <span class="fw-bold">{{ report_data.short_count|default:0 }}</span>
+          </div>
+          <div class="progress mb-2" style="height: 6px;">
+            <div class="progress-bar bg-warning" style="width: {{ report_data.short_percentage|default:0 }}%"></div>
+          </div>
+        </div>
+        
+        <div class="mb-3">
+          <div class="d-flex justify-content-between">
+            <span>Medium (2-4 weeks)</span>
+            <span class="fw-bold">{{ report_data.medium_count|default:0 }}</span>
+          </div>
+          <div class="progress mb-2" style="height: 6px;">
+            <div class="progress-bar bg-info" style="width: {{ report_data.medium_percentage|default:0 }}%"></div>
+          </div>
+        </div>
+        
+        <div class="mb-3">
+          <div class="d-flex justify-content-between">
+            <span>Long (4+ weeks)</span>
+            <span class="fw-bold">{{ report_data.long_count|default:0 }}</span>
+          </div>
+          <div class="progress mb-2" style="height: 6px;">
+            <div class="progress-bar bg-success" style="width: {{ report_data.long_percentage|default:0 }}%"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Reorder Items Table -->
+<div class="row">
+  <div class="col-12">
+    <div class="card inventory-card">
+      <div class="card-header d-flex justify-content-between align-items-center">
+        <h6 class="card-title mb-0">
+          <i class="bi bi-table me-2"></i>Products Requiring Reorder
+        </h6>
+        <div class="d-flex gap-2">
+          <div class="input-group" style="width: 250px;">
+            <span class="input-group-text"><i class="bi bi-search"></i></span>
+            <input type="text" class="form-control" id="reorderSearch" placeholder="Search products...">
+          </div>
+          {% if app_permissions.inventory == 'edit' or app_permissions.inventory == 'admin' %}
+            <button type="button" class="btn btn-primary btn-sm" onclick="selectAllVisible()">
+              <i class="bi bi-check-square me-1"></i>Select All
+            </button>
+          {% endif %}
+        </div>
+      </div>
+      <div class="card-body p-0">
+        <div class="inventory-table-container">
+          <table class="table table-hover table-sm mb-0" id="reorderTable">
+            <thead class="table-light sticky-top">
+              <tr>
+                {% if app_permissions.inventory == 'edit' or app_permissions.inventory == 'admin' %}
+                  <th width="40">
+                    <input type="checkbox" class="form-check-input" id="selectAllCheck" onchange="toggleSelectAll()">
+                  </th>
+                {% endif %}
+                <th>Priority</th>
+                <th>SKU</th>
+                <th>Product Name</th>
+                <th>Category</th>
+                <th>Supplier</th>
+                <th class="text-end">Current</th>
+                <th class="text-end">Reorder Level</th>
+                <th class="text-end">Suggested Qty</th>
+                <th class="text-end">Unit Cost</th>
+                <th class="text-end">Total Cost</th>
+                <th class="text-center">Lead Time</th>
+                <th class="text-center">Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for item in reorder_items %}
+                <tr data-priority="{{ item.priority }}" data-supplier="{{ item.supplier.id }}">
+                  {% if app_permissions.inventory == 'edit' or app_permissions.inventory == 'admin' %}
+                    <td>
+                      <input type="checkbox" class="form-check-input item-checkbox" value="{{ item.product.id }}">
+                    </td>
+                  {% endif %}
+                  <td>
+                    <span class="badge bg-{% if item.priority == 'critical' %}danger{% elif item.priority == 'high' %}warning{% elif item.priority == 'medium' %}info{% else %}secondary{% endif %}">
+                      {% if item.priority == 'critical' %}
+                        <i class="bi bi-exclamation-triangle me-1"></i>
+                      {% elif item.priority == 'high' %}
+                        <i class="bi bi-exclamation-circle me-1"></i>
+                      {% elif item.priority == 'medium' %}
+                        <i class="bi bi-dash-circle me-1"></i>
+                      {% else %}
+                        <i class="bi bi-circle me-1"></i>
+                      {% endif %}
+                      {{ item.priority|title }}
+                    </span>
+                  </td>
+                  <td>
+                    <a href="{% url 'inventory:product_detail' item.product.id %}" class="text-decoration-none">
+                      <code>{{ item.product.sku }}</code>
+                    </a>
+                  </td>
+                  <td>{{ item.product.name|truncatechars:40 }}</td>
+                  <td>
+                    <small class="text-muted">{{ item.product.category.name }}</small>
+                  </td>
+                  <td>
+                    <div class="d-flex align-items-center">
+                      <div>
+                        <div class="fw-bold">{{ item.supplier.name|truncatechars:20 }}</div>
+                        <small class="text-muted">{{ item.supplier.country }}</small>
+                      </div>
+                    </div>
+                  </td>
+                  <td class="text-end">
+                    <span class="fw-bold {% if item.current_stock <= 0 %}text-danger{% elif item.current_stock <= item.reorder_level %}text-warning{% endif %}">
+                      {{ item.current_stock }}
+                    </span>
+                  </td>
+                  <td class="text-end">{{ item.reorder_level }}</td>
+                  <td class="text-end">
+                    <div class="input-group input-group-sm" style="width: 80px;">
+                      <input type="number" class="form-control text-end" value="{{ item.suggested_quantity }}" 
+                             id="qty-{{ item.product.id }}" onchange="updateCost({{ item.product.id }}, {{ item.unit_cost }})">
+                    </div>
+                  </td>
+                  <td class="text-end">
+                    <small class="text-muted">${{ item.unit_cost|floatformat:2 }}</small>
+                  </td>
+                  <td class="text-end">
+                    <span class="fw-bold" id="total-{{ item.product.id }}">
+                      ${{ item.total_cost|floatformat:2 }}
+                    </span>
+                  </td>
+                  <td class="text-center">
+                    <span class="badge bg-{% if item.lead_time_days <= 7 %}danger{% elif item.lead_time_days <= 14 %}warning{% elif item.lead_time_days <= 30 %}info{% else %}success{% endif %}">
+                      {{ item.lead_time_days }}d
+                    </span>
+                  </td>
+                  <td class="text-center">
+                    <div class="btn-group btn-group-sm" role="group">
+                      {% if app_permissions.inventory == 'edit' or app_permissions.inventory == 'admin' %}
+                        <button type="button" class="btn btn-outline-primary" 
+                                onclick="createPO({{ item.product.id }})" 
+                                title="Create Purchase Order">
+                          <i class="bi bi-plus-circle"></i>
+                        </button>
+                        <button type="button" class="btn btn-outline-success" 
+                                onclick="markAsOrdered({{ item.product.id }})" 
+                                title="Mark as Ordered">
+                          <i class="bi bi-check-circle"></i>
+                        </button>
+                      {% endif %}
+                      <button type="button" class="btn btn-outline-info" 
+                              onclick="viewProductDetails({{ item.product.id }})" 
+                              title="View Details">
+                        <i class="bi bi-eye"></i>
+                      </button>
+                    </div>
+                  </td>
+                </tr>
+              {% empty %}
+                <tr>
+                  <td colspan="{% if app_permissions.inventory == 'edit' or app_permissions.inventory == 'admin' %}13{% else %}12{% endif %}" class="text-center text-muted py-5">
+                    <i class="bi bi-check-circle fs-1 d-block mb-2 text-success"></i>
+                    <h6>All products are adequately stocked!</h6>
+                    <p class="mb-0">No items currently require reordering.</p>
+                  </td>
+                </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </div>
+      
+      {% if reorder_items and app_permissions.inventory == 'edit' or app_permissions.inventory == 'admin' %}
+        <div class="card-footer">
+          <div class="d-flex justify-content-between align-items-center">
+            <div>
+              <span id="selectedCount">0</span> items selected
+            </div>
+            <div class="btn-group" role="group">
+              <button type="button" class="btn btn-success btn-sm" onclick="bulkCreatePOs()" disabled id="bulkPOBtn">
+                <i class="bi bi-cart-plus me-1"></i>Create Purchase Orders
+              </button>
+              <button type="button" class="btn btn-warning btn-sm" onclick="bulkMarkOrdered()" disabled id="bulkMarkBtn">
+                <i class="bi bi-check-circle me-1"></i>Mark as Ordered
+              </button>
+            </div>
+          </div>
+        </div>
+      {% endif %}
+    </div>
+  </div>
+</div>
+
+<!-- Report Summary -->
+<div class="row mt-4">
+  <div class="col-12">
+    <div class="card border-0 bg-light">
+      <div class="card-body py-2">
+        <div class="d-flex justify-content-between align-items-center">
+          <div class="text-muted small">
+            <i class="bi bi-info-circle me-1"></i>
+            Reorder analysis based on current stock levels and reorder points
+          </div>
+          <div class="text-muted small">
+            <i class="bi bi-clock me-1"></i>
+            Report generated: {{ now|date:"Y-m-d H:i" }}
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+{{ block.super }}
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/3.9.1/chart.min.js"></script>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+  // Initialize chart
+  initializePriorityChart();
+  
+  // Initialize search
+  initializeReorderSearch();
+  
+  // Initialize selection tracking
+  initializeSelectionTracking();
+});
+
+function initializePriorityChart() {
+  const ctx = document.getElementById('priorityChart').getContext('2d');
+  
+  const chartData = {
+    labels: ['Critical', 'High', 'Medium', 'Low'],
+    datasets: [{
+      data: [
+        {{ report_data.critical_count|default:0 }},
+        {{ report_data.high_count|default:0 }},
+        {{ report_data.medium_count|default:0 }},
+        {{ report_data.low_count|default:0 }}
+      ],
+      backgroundColor: ['#dc3545', '#ffc107', '#17a2b8', '#6c757d'],
+      borderWidth: 2,
+      borderColor: '#fff'
+    }]
+  };
+  
+  window.priorityChart = new Chart(ctx, {
+    type: 'doughnut',
+    data: chartData,
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: {
+        legend: {
+          position: 'bottom',
+          labels: {
+            padding: 15,
+            usePointStyle: true
+          }
+        },
+        tooltip: {
+          callbacks: {
+            label: function(context) {
+              const label = context.label || '';
+              const value = context.parsed;
+              const total = context.dataset.data.reduce((a, b) => a + b, 0);
+              const percentage = total > 0 ? ((value / total) * 100).toFixed(1) : 0;
+              return `${label}: ${value} items (${percentage}%)`;
+            }
+          }
+        }
+      }
+    }
+  });
+}
+
+function initializeReorderSearch() {
+  const searchInput = document.getElementById('reorderSearch');
+  const table = document.getElementById('reorderTable');
+  const rows = table.getElementsByTagName('tbody')[0].getElementsByTagName('tr');
+  
+  searchInput.addEventListener('input', function() {
+    const searchTerm = this.value.toLowerCase();
+    
+    Array.from(rows).forEach(row => {
+      const text = row.textContent.toLowerCase();
+      row.style.display = text.includes(searchTerm) ? '' : 'none';
+    });
+    
+    // Update selection count after filtering
+    updateSelectionCount();
+  });
+}
+
+function initializeSelectionTracking() {
+  const checkboxes = document.querySelectorAll('.item-checkbox');
+  
+  checkboxes.forEach(checkbox => {
+    checkbox.addEventListener('change', updateSelectionCount);
+  });
+}
+
+function toggleSelectAll() {
+  const selectAllCheck = document.getElementById('selectAllCheck');
+  const checkboxes = document.querySelectorAll('.item-checkbox');
+  
+  checkboxes.forEach(checkbox => {
+    // Only check visible rows
+    if (checkbox.closest('tr').style.display !== 'none') {
+      checkbox.checked = selectAllCheck.checked;
+    }
+  });
+  
+  updateSelectionCount();
+}
+
+function selectAllVisible() {
+  const checkboxes = document.querySelectorAll('.item-checkbox');
+  
+  checkboxes.forEach(checkbox => {
+    if (checkbox.closest('tr').style.display !== 'none') {
+      checkbox.checked = true;
+    }
+  });
+  
+  updateSelectionCount();
+}
+
+function updateSelectionCount() {
+  const checkboxes = document.querySelectorAll('.item-checkbox:checked');
+  const visibleChecked = Array.from(checkboxes).filter(cb => 
+    cb.closest('tr').style.display !== 'none'
+  );
+  
+  const count = visibleChecked.length;
+  document.getElementById('selectedCount').textContent = count;
+  
+  // Enable/disable bulk action buttons
+  const bulkPOBtn = document.getElementById('bulkPOBtn');
+  const bulkMarkBtn = document.getElementById('bulkMarkBtn');
+  
+  if (bulkPOBtn) bulkPOBtn.disabled = count === 0;
+  if (bulkMarkBtn) bulkMarkBtn.disabled = count === 0;
+}
+
+function updateCost(productId, unitCost) {
+  const qtyInput = document.getElementById(`qty-${productId}`);
+  const totalSpan = document.getElementById(`total-${productId}`);
+  
+  const quantity = parseInt(qtyInput.value) || 0;
+  const total = quantity * unitCost;
+  
+  totalSpan.textContent = '$' + total.toFixed(2);
+}
+
+function createPO(productId) {
+  // This would open a modal or redirect to create PO for single product
+  window.location.href = `/inventory/purchase-orders/create/?product=${productId}`;
+}
+
+function markAsOrdered(productId) {
+  if (confirm('Mark this item as ordered? This will create a reorder alert.')) {
+    // AJAX call to mark as ordered
+    fetch(`/inventory/api/mark-ordered/${productId}/`, {
+      method: 'POST',
+      headers: {
+        'X-CSRFToken': getCookie('csrftoken'),
+        'Content-Type': 'application/json'
+      }
+    })
+    .then(response => response.json())
+    .then(data => {
+      if (data.success) {
+        location.reload();
+      } else {
+        alert('Error: ' + data.error);
+      }
+    });
+  }
+}
+
+function viewProductDetails(productId) {
+  window.open(`/inventory/products/${productId}/`, '_blank');
+}
+
+function bulkCreatePOs() {
+  const selectedItems = getSelectedItems();
+  
+  if (selectedItems.length === 0) {
+    alert('Please select items to create purchase orders for.');
+    return;
+  }
+  
+  // Group by supplier and redirect to bulk PO creation
+  window.location.href = `/inventory/purchase-orders/bulk-create/?products=${selectedItems.join(',')}`;
+}
+
+function bulkMarkOrdered() {
+  const selectedItems = getSelectedItems();
+  
+  if (selectedItems.length === 0) {
+    alert('Please select items to mark as ordered.');
+    return;
+  }
+  
+  if (confirm(`Mark ${selectedItems.length} items as ordered?`)) {
+    // AJAX call for bulk mark as ordered
+    fetch('/inventory/api/bulk-mark-ordered/', {
+      method: 'POST',
+      headers: {
+        'X-CSRFToken': getCookie('csrftoken'),
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        product_ids: selectedItems
+      })
+    })
+    .then(response => response.json())
+    .then(data => {
+      if (data.success) {
+        location.reload();
+      } else {
+        alert('Error: ' + data.error);
+      }
+    });
+  }
+}
+
+function getSelectedItems() {
+  const checkboxes = document.querySelectorAll('.item-checkbox:checked');
+  return Array.from(checkboxes)
+    .filter(cb => cb.closest('tr').style.display !== 'none')
+    .map(cb => cb.value);
+}
+
+function generatePurchaseOrders() {
+  window.location.href = '{% url "inventory:generate_po_from_alerts_api" %}';
+}
+
+function bulkUpdateReorderLevels() {
+  // This would open a modal for bulk updating reorder levels
+  alert('Bulk reorder level update feature coming soon!');
+}
+
+function generateReorderAlerts() {
+  fetch('{% url "inventory:generate_reorder_alerts_api" %}', {
+    method: 'POST',
+    headers: {
+      'X-CSRFToken': getCookie('csrftoken')
+    }
+  })
+  .then(response => response.json())
+  .then(data => {
+    if (data.success) {
+      alert(`Generated ${data.alerts_created} new reorder alerts.`);
+      location.reload();
+    } else {
+      alert('Error generating alerts: ' + data.error);
+    }
+  });
+}
+
+function emailToSuppliers() {
+  const selectedItems = getSelectedItems();
+  
+  if (selectedItems.length === 0) {
+    alert('Please select items to email suppliers about.');
+    return;
+  }
+  
+  // This would open email composition
+  window.location.href = `/inventory/suppliers/email-reorder/?products=${selectedItems.join(',')}`;
+}
+
+function clearFilters() {
+  // Clear all form inputs and reload
+  const form = document.getElementById('filterForm');
+  form.reset();
+  window.location.href = window.location.pathname;
+}
+
+function exportReport(format) {
+  const params = new URLSearchParams(window.location.search);
+  params.set('export', format);
+  
+  window.open(`{% url 'inventory:export_report' 'reorder' %}?${params.toString()}`, '_blank');
+}
+
+function refreshReport() {
+  window.location.reload();
+}
+
+// Utility function to get CSRF token
+function getCookie(name) {
+  let cookieValue = null;
+  if (document.cookie && document.cookie !== '') {
+    const cookies = document.cookie.split(';');
+    for (let i = 0; i < cookies.length; i++) {
+      const cookie = cookies[i].trim();
+      if (cookie.substring(0, name.length + 1) === (name + '=')) {
+        cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
+        break;
+      }
+    }
+  }
+  return cookieValue;
+}
+</script>
+{% endblock %}

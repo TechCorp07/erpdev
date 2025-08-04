@@ -1,0 +1,604 @@
+{% extends "inventory_base.html" %}
+{% load static %}
+
+{% block inventory_title %}Stock Movement Analysis{% endblock %}
+
+{% block inventory_actions %}
+  <div class="btn-group me-2" role="group">
+    <a href="{% url 'inventory:reports_dashboard' %}" class="btn btn-outline-secondary btn-sm">
+      <i class="bi bi-arrow-left me-1"></i>Back to Reports
+    </a>
+    <button type="button" class="btn btn-success btn-sm" onclick="exportReport('pdf')">
+      <i class="bi bi-file-pdf me-1"></i>Export PDF
+    </button>
+    <button type="button" class="btn btn-info btn-sm" onclick="exportReport('excel')">
+      <i class="bi bi-file-excel me-1"></i>Export Excel
+    </button>
+  </div>
+  <button type="button" class="btn btn-primary btn-sm" onclick="refreshReport()">
+    <i class="bi bi-arrow-clockwise me-1"></i>Refresh
+  </button>
+{% endblock %}
+
+{% block inventory_content %}
+<!-- Report Filters -->
+<div class="row mb-4">
+  <div class="col-12">
+    <div class="card inventory-card">
+      <div class="card-header">
+        <h6 class="card-title mb-0">
+          <i class="bi bi-funnel me-2"></i>Movement Analysis Filters
+        </h6>
+      </div>
+      <div class="card-body">
+        <form method="get" id="filterForm" class="row g-3">
+          <div class="col-md-2">
+            <label class="form-label">Date From</label>
+            <input type="date" class="form-control" name="date_from" value="{{ request.GET.date_from|default:default_date_from }}">
+          </div>
+          <div class="col-md-2">
+            <label class="form-label">Date To</label>
+            <input type="date" class="form-control" name="date_to" value="{{ request.GET.date_to|default:default_date_to }}">
+          </div>
+          <div class="col-md-2">
+            <label class="form-label">Movement Type</label>
+            <select class="form-select" name="movement_type">
+              <option value="">All Types</option>
+              <option value="in" {% if request.GET.movement_type == 'in' %}selected{% endif %}>Stock In</option>
+              <option value="out" {% if request.GET.movement_type == 'out' %}selected{% endif %}>Stock Out</option>
+              <option value="sale" {% if request.GET.movement_type == 'sale' %}selected{% endif %}>Sales</option>
+              <option value="purchase" {% if request.GET.movement_type == 'purchase' %}selected{% endif %}>Purchases</option>
+              <option value="adjustment" {% if request.GET.movement_type == 'adjustment' %}selected{% endif %}>Adjustments</option>
+              <option value="transfer" {% if request.GET.movement_type == 'transfer' %}selected{% endif %}>Transfers</option>
+            </select>
+          </div>
+          <div class="col-md-2">
+            <label class="form-label">Product</label>
+            <select class="form-select" name="product" id="productSelect">
+              <option value="">All Products</option>
+              {% for product in products %}
+                <option value="{{ product.id }}" {% if request.GET.product == product.id|stringformat:"s" %}selected{% endif %}>
+                  {{ product.name }} ({{ product.sku }})
+                </option>
+              {% endfor %}
+            </select>
+          </div>
+          <div class="col-md-2">
+            <label class="form-label">Location</label>
+            <select class="form-select" name="location">
+              <option value="">All Locations</option>
+              {% for location in locations %}
+                <option value="{{ location.id }}" {% if request.GET.location == location.id|stringformat:"s" %}selected{% endif %}>
+                  {{ location.name }}
+                </option>
+              {% endfor %}
+            </select>
+          </div>
+          <div class="col-md-2">
+            <label class="form-label">&nbsp;</label>
+            <div>
+              <button type="submit" class="btn btn-primary w-100">
+                <i class="bi bi-search me-1"></i>Apply
+              </button>
+            </div>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Movement Summary -->
+<div class="row mb-4">
+  <div class="col-lg-2 col-md-4 col-sm-6 mb-3">
+    <div class="metric-card success">
+      <div class="d-flex align-items-center">
+        <i class="bi bi-arrow-down-circle fs-1 me-3"></i>
+        <div>
+          <div class="fs-4 fw-bold">{{ report_data.total_in|default:0 }}</div>
+          <div class="small">Items In</div>
+        </div>
+      </div>
+    </div>
+  </div>
+  
+  <div class="col-lg-2 col-md-4 col-sm-6 mb-3">
+    <div class="metric-card warning">
+      <div class="d-flex align-items-center">
+        <i class="bi bi-arrow-up-circle fs-1 me-3"></i>
+        <div>
+          <div class="fs-4 fw-bold">{{ report_data.total_out|default:0 }}</div>
+          <div class="small">Items Out</div>
+        </div>
+      </div>
+    </div>
+  </div>
+  
+  <div class="col-lg-2 col-md-4 col-sm-6 mb-3">
+    <div class="metric-card info">
+      <div class="d-flex align-items-center">
+        <i class="bi bi-arrow-left-right fs-1 me-3"></i>
+        <div>
+          <div class="fs-4 fw-bold">{{ report_data.net_movement|default:0 }}</div>
+          <div class="small">Net Movement</div>
+        </div>
+      </div>
+    </div>
+  </div>
+  
+  <div class="col-lg-2 col-md-4 col-sm-6 mb-3">
+    <div class="metric-card">
+      <div class="d-flex align-items-center">
+        <i class="bi bi-currency-dollar fs-1 me-3"></i>
+        <div>
+          <div class="fs-4 fw-bold">${{ report_data.total_value|floatformat:0|default:0 }}</div>
+          <div class="small">Movement Value</div>
+        </div>
+      </div>
+    </div>
+  </div>
+  
+  <div class="col-lg-2 col-md-4 col-sm-6 mb-3">
+    <div class="metric-card">
+      <div class="d-flex align-items-center">
+        <i class="bi bi-graph-up fs-1 me-3"></i>
+        <div>
+          <div class="fs-4 fw-bold">{{ report_data.avg_daily|floatformat:0|default:0 }}</div>
+          <div class="small">Avg Daily</div>
+        </div>
+      </div>
+    </div>
+  </div>
+  
+  <div class="col-lg-2 col-md-4 col-sm-6 mb-3">
+    <div class="metric-card">
+      <div class="d-flex align-items-center">
+        <i class="bi bi-speedometer2 fs-1 me-3"></i>
+        <div>
+          <div class="fs-4 fw-bold">{{ report_data.velocity|floatformat:1|default:0 }}</div>
+          <div class="small">Velocity</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Movement Trends Chart -->
+<div class="row mb-4">
+  <div class="col-lg-8">
+    <div class="card inventory-card">
+      <div class="card-header d-flex justify-content-between align-items-center">
+        <h6 class="card-title mb-0">
+          <i class="bi bi-graph-up me-2"></i>Movement Trends
+        </h6>
+        <div class="btn-group btn-group-sm" role="group">
+          <input type="radio" class="btn-check" name="trendPeriod" id="daily" autocomplete="off" checked>
+          <label class="btn btn-outline-primary" for="daily">Daily</label>
+          
+          <input type="radio" class="btn-check" name="trendPeriod" id="weekly" autocomplete="off">
+          <label class="btn btn-outline-primary" for="weekly">Weekly</label>
+          
+          <input type="radio" class="btn-check" name="trendPeriod" id="monthly" autocomplete="off">
+          <label class="btn btn-outline-primary" for="monthly">Monthly</label>
+        </div>
+      </div>
+      <div class="card-body">
+        <canvas id="movementTrendChart" height="300"></canvas>
+      </div>
+    </div>
+  </div>
+  
+  <div class="col-lg-4">
+    <div class="card inventory-card">
+      <div class="card-header">
+        <h6 class="card-title mb-0">
+          <i class="bi bi-pie-chart me-2"></i>Movement by Type
+        </h6>
+      </div>
+      <div class="card-body">
+        <canvas id="movementTypeChart" height="300"></canvas>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Top Moving Products -->
+<div class="row mb-4">
+  <div class="col-lg-6">
+    <div class="card inventory-card">
+      <div class="card-header">
+        <h6 class="card-title mb-0">
+          <i class="bi bi-trophy me-2"></i>Most Active Products (Outbound)
+        </h6>
+      </div>
+      <div class="card-body">
+        {% for product in report_data.top_outbound %}
+          <div class="d-flex justify-content-between align-items-center mb-3">
+            <div class="d-flex align-items-center">
+              <div class="badge bg-primary rounded-pill me-3">{{ forloop.counter }}</div>
+              <div>
+                <div class="fw-bold">{{ product.name }}</div>
+                <small class="text-muted">{{ product.sku }}</small>
+              </div>
+            </div>
+            <div class="text-end">
+              <div class="fw-bold text-danger">-{{ product.total_out }}</div>
+              <small class="text-muted">${{ product.value_out|floatformat:0 }}</small>
+            </div>
+          </div>
+        {% empty %}
+          <div class="text-muted text-center py-3">No outbound movements in selected period</div>
+        {% endfor %}
+      </div>
+    </div>
+  </div>
+  
+  <div class="col-lg-6">
+    <div class="card inventory-card">
+      <div class="card-header">
+        <h6 class="card-title mb-0">
+          <i class="bi bi-arrow-down-circle me-2"></i>Top Received Products (Inbound)
+        </h6>
+      </div>
+      <div class="card-body">
+        {% for product in report_data.top_inbound %}
+          <div class="d-flex justify-content-between align-items-center mb-3">
+            <div class="d-flex align-items-center">
+              <div class="badge bg-success rounded-pill me-3">{{ forloop.counter }}</div>
+              <div>
+                <div class="fw-bold">{{ product.name }}</div>
+                <small class="text-muted">{{ product.sku }}</small>
+              </div>
+            </div>
+            <div class="text-end">
+              <div class="fw-bold text-success">+{{ product.total_in }}</div>
+              <small class="text-muted">${{ product.value_in|floatformat:0 }}</small>
+            </div>
+          </div>
+        {% empty %}
+          <div class="text-muted text-center py-3">No inbound movements in selected period</div>
+        {% endfor %}
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Detailed Movement List -->
+<div class="row">
+  <div class="col-12">
+    <div class="card inventory-card">
+      <div class="card-header d-flex justify-content-between align-items-center">
+        <h6 class="card-title mb-0">
+          <i class="bi bi-list-ul me-2"></i>Movement Details
+        </h6>
+        <div class="input-group" style="width: 300px;">
+          <span class="input-group-text"><i class="bi bi-search"></i></span>
+          <input type="text" class="form-control" id="movementSearch" placeholder="Search movements...">
+        </div>
+      </div>
+      <div class="card-body p-0">
+        <div class="inventory-table-container">
+          <table class="table table-hover table-sm mb-0" id="movementsTable">
+            <thead class="table-light sticky-top">
+              <tr>
+                <th>Date</th>
+                <th>Type</th>
+                <th>Product</th>
+                <th>SKU</th>
+                <th class="text-end">Quantity</th>
+                <th>From</th>
+                <th>To</th>
+                <th>Reference</th>
+                <th class="text-end">Value</th>
+                <th>User</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for movement in movements %}
+                <tr>
+                  <td>
+                    <small>{{ movement.created_at|date:"M d, Y" }}</small><br>
+                    <small class="text-muted">{{ movement.created_at|time:"H:i" }}</small>
+                  </td>
+                  <td>
+                    <span class="badge bg-{% if movement.movement_type == 'in' or movement.movement_type == 'purchase' %}success{% elif movement.movement_type == 'out' or movement.movement_type == 'sale' %}danger{% elif movement.movement_type == 'transfer' %}info{% else %}warning{% endif %}">
+                      {{ movement.get_movement_type_display }}
+                    </span>
+                  </td>
+                  <td>
+                    <a href="{% url 'inventory:product_detail' movement.product.id %}" class="text-decoration-none">
+                      {{ movement.product.name|truncatechars:30 }}
+                    </a>
+                  </td>
+                  <td><code>{{ movement.product.sku }}</code></td>
+                  <td class="text-end">
+                    <span class="fw-bold {% if movement.quantity > 0 %}text-success{% else %}text-danger{% endif %}">
+                      {% if movement.quantity > 0 %}+{% endif %}{{ movement.quantity }}
+                    </span>
+                  </td>
+                  <td>
+                    {% if movement.from_location %}
+                      <small class="text-muted">{{ movement.from_location.name }}</small>
+                    {% else %}
+                      <small class="text-muted">-</small>
+                    {% endif %}
+                  </td>
+                  <td>
+                    {% if movement.to_location %}
+                      <small class="text-muted">{{ movement.to_location.name }}</small>
+                    {% else %}
+                      <small class="text-muted">-</small>
+                    {% endif %}
+                  </td>
+                  <td>
+                    <small>{{ movement.reference|truncatechars:20 }}</small>
+                  </td>
+                  <td class="text-end">
+                    {% if movement.total_cost %}
+                      ${{ movement.total_cost|floatformat:2 }}
+                    {% else %}
+                      <small class="text-muted">-</small>
+                    {% endif %}
+                  </td>
+                  <td>
+                    {% if movement.created_by %}
+                      <small class="text-muted">{{ movement.created_by.first_name|default:movement.created_by.username }}</small>
+                    {% else %}
+                      <small class="text-muted">System</small>
+                    {% endif %}
+                  </td>
+                </tr>
+              {% empty %}
+                <tr>
+                  <td colspan="10" class="text-center text-muted py-4">
+                    <i class="bi bi-inbox fs-1 d-block mb-2"></i>
+                    No movements found for the selected criteria
+                  </td>
+                </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </div>
+      
+      {% if is_paginated %}
+        <div class="card-footer">
+          <nav>
+            <ul class="pagination pagination-sm mb-0 justify-content-center">
+              {% if page_obj.has_previous %}
+                <li class="page-item">
+                  <a class="page-link" href="?page=1">First</a>
+                </li>
+                <li class="page-item">
+                  <a class="page-link" href="?page={{ page_obj.previous_page_number }}">Previous</a>
+                </li>
+              {% endif %}
+              
+              <li class="page-item active">
+                <span class="page-link">{{ page_obj.number }} of {{ page_obj.paginator.num_pages }}</span>
+              </li>
+              
+              {% if page_obj.has_next %}
+                <li class="page-item">
+                  <a class="page-link" href="?page={{ page_obj.next_page_number }}">Next</a>
+                </li>
+                <li class="page-item">
+                  <a class="page-link" href="?page={{ page_obj.paginator.num_pages }}">Last</a>
+                </li>
+              {% endif %}
+            </ul>
+          </nav>
+        </div>
+      {% endif %}
+    </div>
+  </div>
+</div>
+
+<!-- Report Metadata -->
+<div class="row mt-4">
+  <div class="col-12">
+    <div class="card border-0 bg-light">
+      <div class="card-body py-2">
+        <div class="d-flex justify-content-between align-items-center">
+          <div class="text-muted small">
+            <i class="bi bi-info-circle me-1"></i>
+            Movement analysis from {{ report_data.date_from }} to {{ report_data.date_to }}
+          </div>
+          <div class="text-muted small">
+            <i class="bi bi-clock me-1"></i>
+            Report generated: {{ now|date:"Y-m-d H:i" }}
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+{{ block.super }}
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/3.9.1/chart.min.js"></script>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+  // Initialize charts
+  initializeMovementTrendChart();
+  initializeMovementTypeChart();
+  
+  // Initialize search
+  initializeMovementSearch();
+  
+  // Period toggle handlers
+  document.querySelectorAll('input[name="trendPeriod"]').forEach(radio => {
+    radio.addEventListener('change', function() {
+      updateTrendChart(this.id);
+    });
+  });
+  
+  // Product select with search
+  initializeProductSelect();
+});
+
+function initializeMovementTrendChart() {
+  const ctx = document.getElementById('movementTrendChart').getContext('2d');
+  
+  const chartData = {
+    labels: [{% for item in report_data.trend_data %}'{{ item.date }}'{% if not forloop.last %},{% endif %}{% endfor %}],
+    datasets: [
+      {
+        label: 'Stock In',
+        data: [{% for item in report_data.trend_data %}{{ item.stock_in }}{% if not forloop.last %},{% endif %}{% endfor %}],
+        borderColor: '#28a745',
+        backgroundColor: 'rgba(40, 167, 69, 0.1)',
+        fill: true,
+        tension: 0.4
+      },
+      {
+        label: 'Stock Out',
+        data: [{% for item in report_data.trend_data %}{{ item.stock_out }}{% if not forloop.last %},{% endif %}{% endfor %}],
+        borderColor: '#dc3545',
+        backgroundColor: 'rgba(220, 53, 69, 0.1)',
+        fill: true,
+        tension: 0.4
+      }
+    ]
+  };
+  
+  window.movementTrendChart = new Chart(ctx, {
+    type: 'line',
+    data: chartData,
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: {
+        legend: {
+          position: 'top'
+        },
+        tooltip: {
+          mode: 'index',
+          intersect: false
+        }
+      },
+      scales: {
+        x: {
+          display: true,
+          title: {
+            display: true,
+            text: 'Date'
+          }
+        },
+        y: {
+          display: true,
+          title: {
+            display: true,
+            text: 'Quantity'
+          },
+          beginAtZero: true
+        }
+      },
+      interaction: {
+        mode: 'nearest',
+        axis: 'x',
+        intersect: false
+      }
+    }
+  });
+}
+
+function initializeMovementTypeChart() {
+  const ctx = document.getElementById('movementTypeChart').getContext('2d');
+  
+  const chartData = {
+    labels: [{% for item in report_data.movement_types %}'{{ item.type }}'{% if not forloop.last %},{% endif %}{% endfor %}],
+    datasets: [{
+      data: [{% for item in report_data.movement_types %}{{ item.count }}{% if not forloop.last %},{% endif %}{% endfor %}],
+      backgroundColor: [
+        '#28a745', '#dc3545', '#ffc107', '#17a2b8', '#6f42c1', '#fd7e14'
+      ],
+      borderWidth: 2,
+      borderColor: '#fff'
+    }]
+  };
+  
+  window.movementTypeChart = new Chart(ctx, {
+    type: 'doughnut',
+    data: chartData,
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: {
+        legend: {
+          position: 'bottom',
+          labels: {
+            padding: 15,
+            usePointStyle: true
+          }
+        },
+        tooltip: {
+          callbacks: {
+            label: function(context) {
+              const label = context.label || '';
+              const value = context.parsed;
+              const total = context.dataset.data.reduce((a, b) => a + b, 0);
+              const percentage = ((value / total) * 100).toFixed(1);
+              return `${label}: ${value} (${percentage}%)`;
+            }
+          }
+        }
+      }
+    }
+  });
+}
+
+function initializeMovementSearch() {
+  const searchInput = document.getElementById('movementSearch');
+  const table = document.getElementById('movementsTable');
+  const rows = table.getElementsByTagName('tbody')[0].getElementsByTagName('tr');
+  
+  searchInput.addEventListener('input', function() {
+    const searchTerm = this.value.toLowerCase();
+    
+    Array.from(rows).forEach(row => {
+      const text = row.textContent.toLowerCase();
+      row.style.display = text.includes(searchTerm) ? '' : 'none';
+    });
+  });
+}
+
+function initializeProductSelect() {
+  const productSelect = document.getElementById('productSelect');
+  
+  // Add search functionality to select
+  productSelect.addEventListener('focus', function() {
+    this.size = Math.min(this.options.length, 10);
+  });
+  
+  productSelect.addEventListener('blur', function() {
+    this.size = 1;
+  });
+}
+
+function updateTrendChart(period) {
+  // This would typically fetch new data from the server
+  // For now, we'll just update the chart title
+  if (window.movementTrendChart) {
+    window.movementTrendChart.options.plugins.title = {
+      display: true,
+      text: `Movement Trends (${period.charAt(0).toUpperCase() + period.slice(1)})`
+    };
+    window.movementTrendChart.update();
+  }
+}
+
+function exportReport(format) {
+  const params = new URLSearchParams(window.location.search);
+  params.set('export', format);
+  
+  window.open(`{% url 'inventory:export_report' 'movement' %}?${params.toString()}`, '_blank');
+}
+
+function refreshReport() {
+  window.location.reload();
+}
+</script>
+{% endblock %}

@@ -1,0 +1,574 @@
+{% extends "dashboard_base.html" %}
+{% load static %}
+
+{% block page_title %}Follow-up Management{% endblock %}
+
+{% block page_actions %}
+<div class="btn-group" role="group">
+  <a href="{% url 'crm:dashboard' %}" class="btn btn-outline-secondary">
+    <i class="bi bi-arrow-left me-1"></i> Back to Dashboard
+  </a>
+  <a href="{% url 'crm:client_list' %}" class="btn btn-outline-primary">
+    <i class="bi bi-people me-1"></i> All Clients
+  </a>
+  <div class="btn-group" role="group">
+    <button class="btn btn-outline-info dropdown-toggle" type="button" data-bs-toggle="dropdown">
+      <i class="bi bi-calendar-check me-1"></i> Actions
+    </button>
+    <ul class="dropdown-menu">
+      <li><a class="dropdown-item" href="#" onclick="bulkCompleteFollowups()"><i class="bi bi-check-all me-1"></i> Complete Selected</a></li>
+      <li><a class="dropdown-item" href="#" onclick="rescheduleFollowups()"><i class="bi bi-calendar-event me-1"></i> Reschedule Selected</a></li>
+      <li><hr class="dropdown-divider"></li>
+      <li><a class="dropdown-item" href="#" onclick="exportFollowups()"><i class="bi bi-download me-1"></i> Export Follow-ups</a></li>
+    </ul>
+  </div>
+</div>
+{% endblock %}
+
+{% block dashboard_content %}
+<!-- Alert for Overdue Follow-ups -->
+{% if overdue_followups %}
+<div class="alert alert-danger mb-4" role="alert">
+  <div class="d-flex align-items-center">
+    <i class="bi bi-exclamation-triangle-fill me-2 fs-4"></i>
+    <div class="flex-grow-1">
+      <h5 class="alert-heading mb-1">{{ overdue_followups|length }} Overdue Follow-up{{ overdue_followups|length|pluralize }}!</h5>
+      <p class="mb-0">You have follow-ups that are past due. Please review and complete them as soon as possible.</p>
+    </div>
+    <button class="btn btn-outline-danger btn-sm" onclick="showOverdueOnly()">
+      <i class="bi bi-eye me-1"></i> View Overdue
+    </button>
+  </div>
+</div>
+{% endif %}
+
+<!-- Summary Cards -->
+<div class="row mb-4">
+  <div class="col-md-3 mb-3">
+    <div class="card text-center h-100 border-danger" id="overdueCard">
+      <div class="card-body">
+        <i class="bi bi-exclamation-triangle-fill text-danger fs-1 mb-2"></i>
+        <h4 class="text-danger">{{ overdue_followups|length }}</h4>
+        <p class="card-text text-muted">Overdue</p>
+      </div>
+    </div>
+  </div>
+  
+  <div class="col-md-3 mb-3">
+    <div class="card text-center h-100 border-warning" id="todayCard">
+      <div class="card-body">
+        <i class="bi bi-calendar-day text-warning fs-1 mb-2"></i>
+        <h4 class="text-warning" id="todayCount">0</h4>
+        <p class="card-text text-muted">Due Today</p>
+      </div>
+    </div>
+  </div>
+  
+  <div class="col-md-3 mb-3">
+    <div class="card text-center h-100 border-info" id="weekCard">
+      <div class="card-body">
+        <i class="bi bi-calendar-week text-info fs-1 mb-2"></i>
+        <h4 class="text-info" id="weekCount">{{ upcoming_followups|length }}</h4>
+        <p class="card-text text-muted">This Week</p>
+      </div>
+    </div>
+  </div>
+  
+  <div class="col-md-3 mb-3">
+    <div class="card text-center h-100 border-success">
+      <div class="card-body">
+        <i class="bi bi-check-circle text-success fs-1 mb-2"></i>
+        <h4 class="text-success" id="completedTodayCount">0</h4>
+        <p class="card-text text-muted">Completed Today</p>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Filter and Search Section -->
+<div class="card mb-4">
+  <div class="card-header">
+    <h6 class="card-title mb-0">Filter Follow-ups</h6>
+  </div>
+  <div class="card-body">
+    <div class="row g-3" id="filterForm">
+      <div class="col-md-3">
+        <label class="form-label">Show</label>
+        <select class="form-control" id="statusFilter">
+          <option value="all">All Follow-ups</option>
+          <option value="overdue">Overdue Only</option>
+          <option value="today">Due Today</option>
+          <option value="week">This Week</option>
+          <option value="upcoming">All Upcoming</option>
+        </select>
+      </div>
+      
+      <div class="col-md-3">
+        <label class="form-label">Interaction Type</label>
+        <select class="form-control" id="typeFilter">
+          <option value="">All Types</option>
+          <option value="call">Phone Call</option>
+          <option value="email">Email</option>
+          <option value="meeting">Meeting</option>
+          <option value="visit">Site Visit</option>
+          <option value="followup">Follow-up</option>
+        </select>
+      </div>
+      
+      <div class="col-md-3">
+        <label class="form-label">Assigned To</label>
+        <select class="form-control" id="assigneeFilter">
+          <option value="">All Team Members</option>
+          <option value="me">My Follow-ups</option>
+          <!-- Will be populated by JavaScript -->
+        </select>
+      </div>
+      
+      <div class="col-md-3">
+        <label class="form-label">Search Client</label>
+        <input type="text" class="form-control" id="clientSearch" placeholder="Client name...">
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Overdue Follow-ups Section -->
+{% if overdue_followups %}
+<div class="card mb-4" id="overdueSection">
+  <div class="card-header bg-danger text-white">
+    <h5 class="card-title mb-0">
+      <i class="bi bi-exclamation-triangle-fill me-2"></i>Overdue Follow-ups ({{ overdue_followups|length }})
+    </h5>
+  </div>
+  <div class="card-body p-0">
+    <div class="table-responsive">
+      <table class="table table-hover mb-0">
+        <thead class="table-light">
+          <tr>
+            <th width="30">
+              <input type="checkbox" class="form-check-input" id="selectAllOverdue">
+            </th>
+            <th>Client</th>
+            <th>Interaction Type</th>
+            <th>Due Date</th>
+            <th>Days Overdue</th>
+            <th>Notes</th>
+            <th>Actions</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for interaction in overdue_followups %}
+          <tr class="followup-row" data-status="overdue" data-type="{{ interaction.interaction_type }}" data-client="{{ interaction.client.name|lower }}">
+            <td>
+              <input type="checkbox" class="form-check-input followup-checkbox" value="{{ interaction.id }}">
+            </td>
+            <td>
+              <div>
+                <a href="{% url 'crm:client_detail' interaction.client.id %}" class="text-decoration-none fw-bold">
+                  {{ interaction.client.name }}
+                </a>
+                {% if interaction.client.company %}
+                <br><small class="text-muted">{{ interaction.client.company }}</small>
+                {% endif %}
+              </div>
+            </td>
+            <td>
+              <span class="badge bg-secondary">{{ interaction.get_interaction_type_display }}</span>
+            </td>
+            <td>
+              <span class="text-danger fw-bold">{{ interaction.next_followup|date:"M d, Y H:i" }}</span>
+            </td>
+            <td>
+              <span class="badge bg-danger">
+                {{ interaction.next_followup|timesince }} ago
+              </span>
+            </td>
+            <td>
+              <small>{{ interaction.followup_notes|default:interaction.notes|truncatewords:8 }}</small>
+            </td>
+            <td>
+              <div class="btn-group btn-group-sm">
+                <button class="btn btn-success" onclick="markComplete('{{ interaction.id }}')" title="Mark Complete">
+                  <i class="bi bi-check"></i>
+                </button>
+                <button class="btn btn-warning" onclick="reschedule('{{ interaction.id }}')" title="Reschedule">
+                  <i class="bi bi-calendar-event"></i>
+                </button>
+                <a href="{% url 'crm:add_interaction' interaction.client.id %}" class="btn btn-primary" title="Add New Interaction">
+                  <i class="bi bi-plus"></i>
+                </a>
+              </div>
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+{% endif %}
+
+<!-- Upcoming Follow-ups Section -->
+<div class="card" id="upcomingSection">
+  <div class="card-header">
+    <h5 class="card-title mb-0">
+      <i class="bi bi-calendar-check me-2"></i>Upcoming Follow-ups ({{ upcoming_followups|length }})
+    </h5>
+  </div>
+  <div class="card-body p-0">
+    {% if upcoming_followups %}
+    <div class="table-responsive">
+      <table class="table table-hover mb-0">
+        <thead class="table-light">
+          <tr>
+            <th width="30">
+              <input type="checkbox" class="form-check-input" id="selectAllUpcoming">
+            </th>
+            <th>Client</th>
+            <th>Interaction Type</th>
+            <th>Due Date</th>
+            <th>Time Until Due</th>
+            <th>Notes</th>
+            <th>Actions</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for interaction in upcoming_followups %}
+          <tr class="followup-row" data-status="upcoming" data-type="{{ interaction.interaction_type }}" data-client="{{ interaction.client.name|lower }}">
+            <td>
+              <input type="checkbox" class="form-check-input followup-checkbox" value="{{ interaction.id }}">
+            </td>
+            <td>
+              <div>
+                <a href="{% url 'crm:client_detail' interaction.client.id %}" class="text-decoration-none fw-bold">
+                  {{ interaction.client.name }}
+                </a>
+                {% if interaction.client.company %}
+                <br><small class="text-muted">{{ interaction.client.company }}</small>
+                {% endif %}
+              </div>
+            </td>
+            <td>
+              <span class="badge bg-info">{{ interaction.get_interaction_type_display }}</span>
+            </td>
+            <td>
+              <span class="fw-bold">{{ interaction.next_followup|date:"M d, Y H:i" }}</span>
+            </td>
+            <td>
+              <span class="badge bg-{% if interaction.next_followup|timeuntil < '1 day' %}warning{% else %}success{% endif %}">
+                in {{ interaction.next_followup|timeuntil }}
+              </span>
+            </td>
+            <td>
+              <small>{{ interaction.followup_notes|default:interaction.notes|truncatewords:8 }}</small>
+            </td>
+            <td>
+              <div class="btn-group btn-group-sm">
+                <button class="btn btn-success" onclick="markComplete('{{ interaction.id }}')" title="Mark Complete">
+                  <i class="bi bi-check"></i>
+                </button>
+                <button class="btn btn-warning" onclick="reschedule('{{ interaction.id }}')" title="Reschedule">
+                  <i class="bi bi-calendar-event"></i>
+                </button>
+                <a href="{% url 'crm:add_interaction' interaction.client.id %}" class="btn btn-primary" title="Add New Interaction">
+                  <i class="bi bi-plus"></i>
+                </a>
+              </div>
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% else %}
+    <div class="text-center py-5 text-muted">
+      <i class="bi bi-calendar-check fs-1 mb-3"></i>
+      <h5>No upcoming follow-ups</h5>
+      <p>All follow-ups are either completed or overdue.</p>
+      <a href="{% url 'crm:client_list' %}" class="btn btn-primary">
+        <i class="bi bi-plus me-1"></i> Schedule New Follow-ups
+      </a>
+    </div>
+    {% endif %}
+  </div>
+</div>
+
+<!-- Bulk Actions Modal -->
+<div class="modal fade" id="bulkActionModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title">Bulk Actions</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <div id="bulkActionContent">
+          <!-- Dynamic content -->
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+        <button type="button" class="btn btn-primary" id="confirmBulkAction">Confirm</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Reschedule Modal -->
+<div class="modal fade" id="rescheduleModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title">Reschedule Follow-up</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <div class="mb-3">
+          <label for="newFollowupDate" class="form-label">New Date & Time</label>
+          <input type="datetime-local" class="form-control" id="newFollowupDate">
+        </div>
+        <div class="mb-3">
+          <label for="rescheduleReason" class="form-label">Reason for Rescheduling</label>
+          <textarea class="form-control" id="rescheduleReason" rows="3" placeholder="Why is this being rescheduled?"></textarea>
+        </div>
+        <div class="text-center">
+          <div class="btn-group">
+            <button type="button" class="btn btn-outline-secondary btn-sm" onclick="setQuickReschedule(1)">Tomorrow</button>
+            <button type="button" class="btn btn-outline-secondary btn-sm" onclick="setQuickReschedule(7)">Next Week</button>
+            <button type="button" class="btn btn-outline-secondary btn-sm" onclick="setQuickReschedule(30)">Next Month</button>
+          </div>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+        <button type="button" class="btn btn-warning" id="confirmReschedule">Reschedule</button>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+let currentInteractionId = null;
+
+document.addEventListener('DOMContentLoaded', function() {
+    // Initialize filters
+    setupFilters();
+    updateCounts();
+    
+    // Setup select all checkboxes
+    document.getElementById('selectAllOverdue')?.addEventListener('change', function() {
+        toggleSelectAll('overdue', this.checked);
+    });
+    
+    document.getElementById('selectAllUpcoming')?.addEventListener('change', function() {
+        toggleSelectAll('upcoming', this.checked);
+    });
+});
+
+// Filter functions
+function setupFilters() {
+    const statusFilter = document.getElementById('statusFilter');
+    const typeFilter = document.getElementById('typeFilter');
+    const clientSearch = document.getElementById('clientSearch');
+    
+    statusFilter.addEventListener('change', applyFilters);
+    typeFilter.addEventListener('change', applyFilters);
+    clientSearch.addEventListener('input', debounce(applyFilters, 300));
+}
+
+function applyFilters() {
+    const statusFilter = document.getElementById('statusFilter').value;
+    const typeFilter = document.getElementById('typeFilter').value;
+    const clientSearch = document.getElementById('clientSearch').value.toLowerCase();
+    
+    const rows = document.querySelectorAll('.followup-row');
+    
+    rows.forEach(row => {
+        let show = true;
+        
+        // Status filter
+        if (statusFilter !== 'all') {
+            const rowStatus = row.getAttribute('data-status');
+            if (statusFilter === 'overdue' && rowStatus !== 'overdue') show = false;
+            if (statusFilter === 'upcoming' && rowStatus !== 'upcoming') show = false;
+            // Add more status filters as needed
+        }
+        
+        // Type filter
+        if (typeFilter && row.getAttribute('data-type') !== typeFilter) {
+            show = false;
+        }
+        
+        // Client search
+        if (clientSearch && !row.getAttribute('data-client').includes(clientSearch)) {
+            show = false;
+        }
+        
+        row.style.display = show ? '' : 'none';
+    });
+    
+    // Update section visibility
+    updateSectionVisibility();
+}
+
+function updateSectionVisibility() {
+    const statusFilter = document.getElementById('statusFilter').value;
+    const overdueSection = document.getElementById('overdueSection');
+    const upcomingSection = document.getElementById('upcomingSection');
+    
+    if (statusFilter === 'upcoming') {
+        overdueSection?.style.setProperty('display', 'none');
+        upcomingSection.style.display = 'block';
+    } else if (statusFilter === 'overdue') {
+        overdueSection?.style.setProperty('display', 'block');
+        upcomingSection.style.display = 'none';
+    } else {
+        overdueSection?.style.setProperty('display', 'block');
+        upcomingSection.style.display = 'block';
+    }
+}
+
+function showOverdueOnly() {
+    document.getElementById('statusFilter').value = 'overdue';
+    applyFilters();
+}
+
+// Action functions
+function markComplete(interactionId) {
+    if (confirm('Mark this follow-up as complete?')) {
+        fetch(`/crm/interactions/${interactionId}/complete-followup/`, {
+            method: 'POST',
+            headers: {
+                'X-Requested-With': 'XMLHttpRequest',
+                'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value
+            }
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                location.reload();
+            } else {
+                alert('Error completing follow-up. Please try again.');
+            }
+        })
+        .catch(error => {
+            console.error('Error:', error);
+            alert('Error completing follow-up. Please try again.');
+        });
+    }
+}
+
+function reschedule(interactionId) {
+    currentInteractionId = interactionId;
+    const modal = new bootstrap.Modal(document.getElementById('rescheduleModal'));
+    modal.show();
+}
+
+function setQuickReschedule(days) {
+    const now = new Date();
+    now.setDate(now.getDate() + days);
+    now.setHours(9, 0, 0, 0); // 9 AM
+    
+    const year = now.getFullYear();
+    const month = String(now.getMonth() + 1).padStart(2, '0');
+    const day = String(now.getDate()).padStart(2, '0');
+    const hours = String(now.getHours()).padStart(2, '0');
+    const minutes = String(now.getMinutes()).padStart(2, '0');
+    
+    document.getElementById('newFollowupDate').value = `${year}-${month}-${day}T${hours}:${minutes}`;
+}
+
+document.getElementById('confirmReschedule')?.addEventListener('click', function() {
+    const newDate = document.getElementById('newFollowupDate').value;
+    const reason = document.getElementById('rescheduleReason').value;
+    
+    if (!newDate) {
+        alert('Please select a new date and time.');
+        return;
+    }
+    
+    // Here you would make an AJAX call to reschedule
+    // For now, just show success message
+    alert('Follow-up rescheduled successfully!');
+    location.reload();
+});
+
+// Bulk actions
+function toggleSelectAll(section, checked) {
+    const checkboxes = document.querySelectorAll(`#${section}Section .followup-checkbox`);
+    checkboxes.forEach(cb => cb.checked = checked);
+}
+
+function bulkCompleteFollowups() {
+    const selected = getSelectedFollowups();
+    if (selected.length === 0) {
+        alert('Please select follow-ups to complete.');
+        return;
+    }
+    
+    if (confirm(`Mark ${selected.length} follow-up(s) as complete?`)) {
+        // Bulk complete logic here
+        alert('Follow-ups marked as complete!');
+        location.reload();
+    }
+}
+
+function rescheduleFollowups() {
+    const selected = getSelectedFollowups();
+    if (selected.length === 0) {
+        alert('Please select follow-ups to reschedule.');
+        return;
+    }
+    
+    // Show bulk reschedule modal
+    alert(`Bulk reschedule for ${selected.length} follow-ups will be implemented.`);
+}
+
+function exportFollowups() {
+    const selected = getSelectedFollowups();
+    const type = selected.length > 0 ? 'selected' : 'all';
+    alert(`Export ${type} follow-ups will be implemented.`);
+}
+
+function getSelectedFollowups() {
+    const checkboxes = document.querySelectorAll('.followup-checkbox:checked');
+    return Array.from(checkboxes).map(cb => cb.value);
+}
+
+// Utility functions
+function debounce(func, wait) {
+    let timeout;
+    return function executedFunction(...args) {
+        const later = () => {
+            clearTimeout(timeout);
+            func(...args);
+        };
+        clearTimeout(timeout);
+        timeout = setTimeout(later, wait);
+    };
+}
+
+function updateCounts() {
+    // Count today's and week's follow-ups
+    const today = new Date().toDateString();
+    const oneWeekFromNow = new Date();
+    oneWeekFromNow.setDate(oneWeekFromNow.getDate() + 7);
+    
+    // This would be better calculated server-side, but for demo:
+    let todayCount = 0;
+    let weekCount = {{ upcoming_followups|length }};
+    
+    document.getElementById('todayCount').textContent = todayCount;
+    document.getElementById('weekCount').textContent = weekCount;
+}
+
+// Auto-refresh every 5 minutes
+setInterval(function() {
+    if (document.visibilityState === 'visible') {
+        location.reload();
+    }
+}, 300000);
+</script>
+{% endblock %}

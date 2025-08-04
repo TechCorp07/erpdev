@@ -1,0 +1,554 @@
+{% extends "dashboard_base.html" %}
+{% load static %}
+
+{% block page_title %}Add Interaction - {{ client.name }}{% endblock %}
+
+{% block page_actions %}
+<div class="btn-group" role="group">
+  <a href="{% url 'crm:client_detail' client.id %}" class="btn btn-outline-secondary">
+    <i class="bi bi-arrow-left me-1"></i> Back to Client
+  </a>
+  <a href="{% url 'crm:interaction_list' client.id %}" class="btn btn-outline-info">
+    <i class="bi bi-list me-1"></i> All Interactions
+  </a>
+</div>
+{% endblock %}
+
+{% block dashboard_content %}
+<!-- Client Info Header -->
+<div class="card mb-4">
+  <div class="card-body">
+    <div class="d-flex align-items-center">
+      <div class="flex-shrink-0 me-3">
+        <div class="bg-primary rounded-circle d-flex align-items-center justify-content-center" style="width: 50px; height: 50px;">
+          <span class="text-white fs-5">{{ client.name|first }}</span>
+        </div>
+      </div>
+      <div class="flex-grow-1">
+        <h5 class="mb-1">{{ client.name }}</h5>
+        {% if client.company %}
+        <p class="text-muted mb-1">{{ client.company }}</p>
+        {% endif %}
+        <div class="d-flex align-items-center gap-2">
+          <span class="badge bg-{{ client.status|yesno:'success,warning,secondary' }}">{{ client.get_status_display }}</span>
+          <small class="text-muted">
+            <i class="bi bi-envelope me-1"></i>{{ client.email }}
+          </small>
+          {% if client.phone %}
+          <small class="text-muted">
+            <i class="bi bi-telephone me-1"></i>{{ client.phone }}
+          </small>
+          {% endif %}
+        </div>
+      </div>
+      <div class="text-end">
+        {% if client.last_contacted %}
+        <small class="text-muted">
+          Last contacted: {{ client.last_contacted|date:"M d, Y" }}
+        </small>
+        {% else %}
+        <small class="text-warning">
+          <i class="bi bi-exclamation-triangle me-1"></i>Never contacted
+        </small>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Interaction Form -->
+<div class="row">
+  <div class="col-lg-8">
+    <form method="post" enctype="multipart/form-data" id="interactionForm">
+      {% csrf_token %}
+      
+      <div class="card">
+        <div class="card-header">
+          <h5 class="card-title mb-0">
+            <i class="bi bi-chat-left-text me-2"></i>Record Interaction
+          </h5>
+        </div>
+        <div class="card-body">
+          <!-- Interaction Type and Subject -->
+          <div class="row mb-3">
+            <div class="col-md-6">
+              <label for="id_interaction_type" class="form-label">Interaction Type <span class="text-danger">*</span></label>
+              {{ form.interaction_type }}
+              {% if form.interaction_type.errors %}
+                <div class="text-danger small">
+                  {% for error in form.interaction_type.errors %}{{ error }}{% endfor %}
+                </div>
+              {% endif %}
+            </div>
+            
+            <div class="col-md-6">
+              <label for="id_subject" class="form-label">Subject/Title</label>
+              {{ form.subject }}
+              {% if form.subject.errors %}
+                <div class="text-danger small">
+                  {% for error in form.subject.errors %}{{ error }}{% endfor %}
+                </div>
+              {% endif %}
+            </div>
+          </div>
+          
+          <!-- Notes -->
+          <div class="mb-3">
+            <label for="id_notes" class="form-label">Notes <span class="text-danger">*</span></label>
+            {{ form.notes }}
+            <div class="form-text">Detailed notes about this interaction</div>
+            {% if form.notes.errors %}
+              <div class="text-danger small">
+                {% for error in form.notes.errors %}{{ error }}{% endfor %}
+              </div>
+            {% endif %}
+          </div>
+          
+          <!-- Outcome and Duration -->
+          <div class="row mb-3">
+            <div class="col-md-6">
+              <label for="id_outcome" class="form-label">Outcome</label>
+              {{ form.outcome }}
+              {% if form.outcome.errors %}
+                <div class="text-danger small">
+                  {% for error in form.outcome.errors %}{{ error }}{% endfor %}
+                </div>
+              {% endif %}
+            </div>
+            
+            <div class="col-md-6">
+              <label for="id_duration_minutes" class="form-label">Duration</label>
+              <div class="input-group">
+                {{ form.duration_minutes }}
+                <span class="input-group-text">minutes</span>
+              </div>
+              {% if form.duration_minutes.errors %}
+                <div class="text-danger small">
+                  {% for error in form.duration_minutes.errors %}{{ error }}{% endfor %}
+                </div>
+              {% endif %}
+            </div>
+          </div>
+          
+          <!-- Participants -->
+          <div class="mb-3">
+            <label for="id_participants" class="form-label">Other Participants</label>
+            {{ form.participants }}
+            <div class="form-text">Who else was involved in this interaction?</div>
+            {% if form.participants.errors %}
+              <div class="text-danger small">
+                {% for error in form.participants.errors %}{{ error }}{% endfor %}
+              </div>
+            {% endif %}
+          </div>
+          
+          <!-- Attachments -->
+          <div class="mb-3">
+            <label for="id_attachments" class="form-label">Attachments</label>
+            {{ form.attachments }}
+            <div class="form-text">Upload relevant files (max 10MB)</div>
+            {% if form.attachments.errors %}
+              <div class="text-danger small">
+                {% for error in form.attachments.errors %}{{ error }}{% endfor %}
+              </div>
+            {% endif %}
+          </div>
+        </div>
+      </div>
+      
+      <!-- Follow-up Section -->
+      <div class="card mt-4">
+        <div class="card-header">
+          <div class="d-flex align-items-center">
+            <h5 class="card-title mb-0 me-3">
+              <i class="bi bi-calendar-event me-2"></i>Follow-up
+            </h5>
+            <div class="form-check">
+              <input class="form-check-input" type="checkbox" id="scheduleFollowup">
+              <label class="form-check-label" for="scheduleFollowup">
+                Schedule follow-up
+              </label>
+            </div>
+          </div>
+        </div>
+        <div class="card-body" id="followupSection" style="display: none;">
+          <div class="row">
+            <div class="col-md-6 mb-3">
+              <label for="id_next_followup" class="form-label">Follow-up Date & Time</label>
+              {{ form.next_followup }}
+              {% if form.next_followup.errors %}
+                <div class="text-danger small">
+                  {% for error in form.next_followup.errors %}{{ error }}{% endfor %}
+                </div>
+              {% endif %}
+            </div>
+            
+            <div class="col-md-6 mb-3">
+              <label class="form-label">Quick Schedule</label>
+              <div class="btn-group-vertical d-grid gap-2">
+                <button type="button" class="btn btn-outline-secondary btn-sm" onclick="scheduleFollowup(1)">
+                  Tomorrow
+                </button>
+                <button type="button" class="btn btn-outline-secondary btn-sm" onclick="scheduleFollowup(7)">
+                  Next Week
+                </button>
+                <button type="button" class="btn btn-outline-secondary btn-sm" onclick="scheduleFollowup(30)">
+                  Next Month
+                </button>
+              </div>
+            </div>
+          </div>
+          
+          <div class="mb-3">
+            <label for="id_followup_notes" class="form-label">Follow-up Notes</label>
+            {{ form.followup_notes }}
+            <div class="form-text">What should be discussed in the follow-up?</div>
+            {% if form.followup_notes.errors %}
+              <div class="text-danger small">
+                {% for error in form.followup_notes.errors %}{{ error }}{% endfor %}
+              </div>
+            {% endif %}
+          </div>
+        </div>
+      </div>
+      
+      <!-- Form Errors -->
+      {% if form.non_field_errors %}
+      <div class="alert alert-danger mt-3">
+        <h6 class="alert-heading">Please fix the following errors:</h6>
+        {% for error in form.non_field_errors %}
+          <div>{{ error }}</div>
+        {% endfor %}
+      </div>
+      {% endif %}
+      
+      <!-- Action Buttons -->
+      <div class="card mt-4">
+        <div class="card-body">
+          <div class="d-flex justify-content-between">
+            <a href="{% url 'crm:client_detail' client.id %}" class="btn btn-outline-secondary">
+              <i class="bi bi-x me-1"></i> Cancel
+            </a>
+            
+            <div class="btn-group">
+              <button type="submit" name="action" value="save" class="btn btn-success">
+                <i class="bi bi-save me-1"></i> Record Interaction
+              </button>
+              <button type="submit" name="action" value="save_and_new" class="btn btn-primary">
+                <i class="bi bi-save me-1"></i> Save & Add Another
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </form>
+  </div>
+  
+  <!-- Sidebar with Recent Interactions -->
+  <div class="col-lg-4">
+    <div class="card">
+      <div class="card-header">
+        <h6 class="card-title mb-0">Recent Interactions</h6>
+      </div>
+      <div class="card-body">
+        {% if recent_interactions %}
+        <div class="timeline-sm">
+          {% for interaction in recent_interactions %}
+          <div class="timeline-item-sm mb-3">
+            <div class="d-flex">
+              <div class="flex-shrink-0 me-2">
+                <div class="timeline-marker-sm bg-{% if interaction.outcome == 'positive' %}success{% elif interaction.outcome == 'negative' %}danger{% else %}secondary{% endif %}">
+                  <i class="bi bi-{% if interaction.interaction_type == 'call' %}telephone{% elif interaction.interaction_type == 'email' %}envelope{% elif interaction.interaction_type == 'meeting' %}people{% else %}chat-left-text{% endif %} text-white small"></i>
+                </div>
+              </div>
+              <div class="flex-grow-1">
+                <h6 class="small mb-1">{{ interaction.get_interaction_type_display }}</h6>
+                <p class="small text-muted mb-1">{{ interaction.notes|truncatewords:10 }}</p>
+                <small class="text-muted">{{ interaction.created_at|date:"M d, H:i" }}</small>
+              </div>
+            </div>
+          </div>
+          {% endfor %}
+        </div>
+        {% else %}
+        <div class="text-center text-muted py-3">
+          <i class="bi bi-chat-left-text fs-3 mb-2"></i>
+          <p class="small">No previous interactions</p>
+        </div>
+        {% endif %}
+      </div>
+    </div>
+    
+    <!-- Quick Actions -->
+    <div class="card mt-3">
+      <div class="card-header">
+        <h6 class="card-title mb-0">Quick Actions</h6>
+      </div>
+      <div class="card-body">
+        <div class="d-grid gap-2">
+          <a href="mailto:{{ client.email }}" class="btn btn-outline-primary btn-sm">
+            <i class="bi bi-envelope me-1"></i> Send Email
+          </a>
+          {% if client.phone %}
+          <a href="tel:{{ client.phone }}" class="btn btn-outline-success btn-sm">
+            <i class="bi bi-telephone me-1"></i> Call Client
+          </a>
+          {% endif %}
+          <a href="{% url 'crm:client_update' client.id %}" class="btn btn-outline-warning btn-sm">
+            <i class="bi bi-pencil me-1"></i> Edit Client
+          </a>
+          <button type="button" class="btn btn-outline-info btn-sm" onclick="generateQuote()">
+            <i class="bi bi-file-earmark-text me-1"></i> Generate Quote
+          </button>
+        </div>
+      </div>
+    </div>
+    
+    <!-- Interaction Templates -->
+    <div class="card mt-3">
+      <div class="card-header">
+        <h6 class="card-title mb-0">Quick Templates</h6>
+      </div>
+      <div class="card-body">
+        <div class="d-grid gap-1">
+          <button type="button" class="btn btn-outline-secondary btn-sm" onclick="useTemplate('call')">
+            📞 Phone Call Follow-up
+          </button>
+          <button type="button" class="btn btn-outline-secondary btn-sm" onclick="useTemplate('meeting')">
+            👥 Meeting Notes
+          </button>
+          <button type="button" class="btn btn-outline-secondary btn-sm" onclick="useTemplate('quote')">
+            📄 Quote Discussion
+          </button>
+          <button type="button" class="btn btn-outline-secondary btn-sm" onclick="useTemplate('complaint')">
+            ⚠️ Complaint Resolution
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // Toggle follow-up section
+    const scheduleCheckbox = document.getElementById('scheduleFollowup');
+    const followupSection = document.getElementById('followupSection');
+    
+    scheduleCheckbox.addEventListener('change', function() {
+        if (this.checked) {
+            followupSection.style.display = 'block';
+            // Set default follow-up to next week
+            scheduleFollowup(7);
+        } else {
+            followupSection.style.display = 'none';
+            document.getElementById('id_next_followup').value = '';
+        }
+    });
+    
+    // Auto-expand notes textarea
+    const notesField = document.getElementById('id_notes');
+    notesField.addEventListener('input', function() {
+        this.style.height = 'auto';
+        this.style.height = (this.scrollHeight + 2) + 'px';
+    });
+    
+    // Form validation
+    const form = document.getElementById('interactionForm');
+    form.addEventListener('submit', function(e) {
+        const notes = document.getElementById('id_notes').value.trim();
+        const interactionType = document.getElementById('id_interaction_type').value;
+        
+        if (!notes) {
+            e.preventDefault();
+            alert('Please enter notes for this interaction.');
+            notesField.focus();
+            return false;
+        }
+        
+        if (!interactionType) {
+            e.preventDefault();
+            alert('Please select an interaction type.');
+            document.getElementById('id_interaction_type').focus();
+            return false;
+        }
+        
+        // Show loading state
+        const submitBtns = form.querySelectorAll('button[type="submit"]');
+        submitBtns.forEach(btn => {
+            btn.disabled = true;
+            btn.innerHTML = '<i class="bi bi-hourglass-split me-1"></i> Saving...';
+        });
+    });
+});
+
+// Schedule follow-up function
+function scheduleFollowup(days) {
+    const now = new Date();
+    now.setDate(now.getDate() + days);
+    
+    // Set to 9 AM
+    now.setHours(9, 0, 0, 0);
+    
+    // Format for datetime-local input
+    const year = now.getFullYear();
+    const month = String(now.getMonth() + 1).padStart(2, '0');
+    const day = String(now.getDate()).padStart(2, '0');
+    const hours = String(now.getHours()).padStart(2, '0');
+    const minutes = String(now.getMinutes()).padStart(2, '0');
+    
+    const datetimeLocal = `${year}-${month}-${day}T${hours}:${minutes}`;
+    document.getElementById('id_next_followup').value = datetimeLocal;
+}
+
+// Use interaction templates
+function useTemplate(type) {
+    const notesField = document.getElementById('id_notes');
+    const subjectField = document.getElementById('id_subject');
+    const interactionTypeField = document.getElementById('id_interaction_type');
+    
+    const templates = {
+        'call': {
+            type: 'call',
+            subject: 'Follow-up Phone Call',
+            notes: `Called {{ client.name }} to follow up on previous discussion.
+
+Discussion Points:
+- 
+- 
+- 
+
+Outcome:
+- 
+
+Next Steps:
+- `
+        },
+        'meeting': {
+            type: 'meeting',
+            subject: 'Client Meeting',
+            notes: `Met with {{ client.name }} at [Location].
+
+Attendees:
+- {{ client.name }}
+- [Others]
+
+Agenda:
+- 
+- 
+
+Key Discussion Points:
+- 
+- 
+
+Decisions Made:
+- 
+
+Action Items:
+- `
+        },
+        'quote': {
+            type: 'quote',
+            subject: 'Quote Discussion',
+            notes: `Discussed quote requirements with {{ client.name }}.
+
+Products/Services Discussed:
+- 
+- 
+
+Requirements:
+- 
+- 
+
+Pricing Discussion:
+- 
+
+Timeline:
+- 
+
+Next Steps:
+- Send quote by [date]
+- Follow up on [date]`
+        },
+        'complaint': {
+            type: 'complaint',
+            subject: 'Complaint Resolution',
+            notes: `Received complaint from {{ client.name }}.
+
+Issue Description:
+- 
+
+Root Cause:
+- 
+
+Resolution Actions:
+- 
+- 
+
+Client Satisfaction:
+- 
+
+Prevention Measures:
+- `
+        }
+    };
+    
+    const template = templates[type];
+    if (template) {
+        interactionTypeField.value = template.type;
+        subjectField.value = template.subject;
+        notesField.value = template.notes.replace(/{{ client.name }}/g, '{{ client.name }}');
+        notesField.focus();
+        notesField.setSelectionRange(notesField.value.length, notesField.value.length);
+    }
+}
+
+// Generate quote placeholder
+function generateQuote() {
+    alert('Quote generation will be available in Phase 2 of the CRM enhancement.');
+}
+
+// Keyboard shortcuts
+document.addEventListener('keydown', function(e) {
+    // Ctrl/Cmd + S to save
+    if ((e.ctrlKey || e.metaKey) && e.key === 's') {
+        e.preventDefault();
+        document.querySelector('button[name="action"][value="save"]').click();
+    }
+    
+    // Ctrl/Cmd + Enter to save and add new
+    if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
+        e.preventDefault();
+        document.querySelector('button[name="action"][value="save_and_new"]').click();
+    }
+});
+</script>
+
+<style>
+.timeline-marker-sm {
+    width: 24px;
+    height: 24px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.timeline-sm .timeline-item-sm:not(:last-child)::after {
+    content: '';
+    position: absolute;
+    left: 11px;
+    top: 24px;
+    width: 2px;
+    height: calc(100% - 24px);
+    background-color: #dee2e6;
+    z-index: -1;
+}
+
+.timeline-sm {
+    position: relative;
+}
+</style>
+{% endblock %}

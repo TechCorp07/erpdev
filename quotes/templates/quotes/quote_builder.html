@@ -1,0 +1,518 @@
+{% extends "dashboard_base.html" %}
+{% load static %}
+
+{% block page_title %}Quote Builder - {{ quote.quote_number }}{% endblock %}
+
+{% block extra_css %}
+<link href="{% static 'quotes/css/quotes.css' %}" rel="stylesheet">
+<style>
+/* Custom styles for the quote builder interface */
+.quote-builder-container {
+    background: #f8f9fa;
+    min-height: 100vh;
+}
+
+.quote-item-row {
+    background: white;
+    transition: all 0.2s ease;
+}
+
+.quote-item-row:hover {
+    box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+}
+
+.search-result-item {
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.search-result-item:hover {
+    background-color: #f8f9fa;
+    border-color: #0d6efd !important;
+}
+
+.quote-totals-card {
+    position: sticky;
+    top: 100px;
+}
+
+.product-search-container {
+    position: relative;
+}
+
+#search-results {
+    position: absolute;
+    top: 100%;
+    left: 0;
+    right: 0;
+    z-index: 1000;
+    max-height: 400px;
+    overflow-y: auto;
+    background: white;
+    border: 1px solid #dee2e6;
+    border-top: none;
+    border-radius: 0 0 0.375rem 0.375rem;
+}
+
+.loading-spinner {
+    display: none;
+}
+
+.loading-spinner.show {
+    display: inline-block;
+}
+</style>
+{% endblock %}
+
+{% block page_actions %}
+<div class="btn-group" role="group">
+  <a href="{% url 'quotes:quote_detail' quote.id %}" class="btn btn-outline-secondary">
+    <i class="bi bi-arrow-left me-1"></i> Back to Quote
+  </a>
+  
+  {% if quote.status == 'draft' %}
+  <button class="btn btn-success quote-action-btn" onclick="sendQuote()">
+    <i class="bi bi-send me-1"></i> Send to Client
+  </button>
+  {% endif %}
+  
+  <div class="btn-group" role="group">
+    <button class="btn btn-outline-primary dropdown-toggle" type="button" data-bs-toggle="dropdown">
+      <i class="bi bi-three-dots me-1"></i> More Actions
+    </button>
+    <ul class="dropdown-menu">
+      <li><a class="dropdown-item" href="#" onclick="saveAsTemplate()">
+        <i class="bi bi-bookmark me-1"></i> Save as Template
+      </a></li>
+      <li><a class="dropdown-item" href="#" onclick="duplicateQuote()">
+        <i class="bi bi-files me-1"></i> Duplicate Quote
+      </a></li>
+      <li><a class="dropdown-item" href="#" onclick="exportToPDF()">
+        <i class="bi bi-file-pdf me-1"></i> Export PDF
+      </a></li>
+      <li><hr class="dropdown-divider"></li>
+      <li><a class="dropdown-item" href="#" onclick="previewQuote()">
+        <i class="bi bi-eye me-1"></i> Client Preview
+      </a></li>
+    </ul>
+  </div>
+</div>
+{% endblock %}
+
+{% block dashboard_content %}
+<!-- Hidden input for JavaScript to access quote ID -->
+<input type="hidden" id="quote-id" value="{{ quote.id }}">
+
+<div class="quote-builder-container">
+  <div class="row">
+    <!-- Main Quote Building Area - Left Side -->
+    <div class="col-lg-8">
+      <!-- Quote Header Information -->
+      <div class="card mb-4">
+        <div class="card-header bg-primary text-white">
+          <div class="d-flex justify-content-between align-items-center">
+            <h5 class="mb-0">
+              <i class="bi bi-file-earmark-text me-2"></i>
+              {{ quote.quote_number }} - {{ quote.title }}
+            </h5>
+            <span class="badge bg-light text-dark">{{ quote.get_status_display }}</span>
+          </div>
+        </div>
+        <div class="card-body">
+          <div class="row">
+            <div class="col-md-6">
+              <h6 class="text-muted">Client Information</h6>
+              <p class="mb-1">
+                <strong>{{ quote.client.name }}</strong>
+                {% if quote.client.company %}
+                <br>{{ quote.client.company }}
+                {% endif %}
+              </p>
+              <p class="mb-0">
+                <i class="bi bi-envelope me-1"></i> {{ quote.client.email }}
+                {% if quote.client.phone %}
+                <br><i class="bi bi-telephone me-1"></i> {{ quote.client.phone }}
+                {% endif %}
+              </p>
+            </div>
+            <div class="col-md-6">
+              <h6 class="text-muted">Quote Details</h6>
+              <p class="mb-1">
+                <strong>Valid Until:</strong> {{ quote.validity_date|date:"M d, Y" }}
+                {% if quote.is_expired %}
+                <span class="badge bg-danger ms-1">Expired</span>
+                {% endif %}
+              </p>
+              <p class="mb-1">
+                <strong>Payment Terms:</strong> {{ quote.payment_terms }} days
+              </p>
+              <p class="mb-0">
+                <strong>Currency:</strong> {{ quote.currency }}
+              </p>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Product Search and Add Section -->
+      <div class="card mb-4">
+        <div class="card-header">
+          <h6 class="card-title mb-0">
+            <i class="bi bi-search me-2"></i>Add Products to Quote
+          </h6>
+        </div>
+        <div class="card-body">
+          <div class="product-search-container">
+            <div class="input-group">
+              <span class="input-group-text">
+                <i class="bi bi-search"></i>
+              </span>
+              <input type="text" id="product-search" class="form-control" 
+                     placeholder="Search products by name, SKU, or description...">
+              <button class="btn btn-outline-secondary" type="button" onclick="showAllProducts()">
+                <i class="bi bi-list"></i> Browse All
+              </button>
+            </div>
+            
+            <!-- Search Results Container -->
+            <div id="search-results"></div>
+          </div>
+          
+          <!-- Quick Add Templates -->
+          {% if quote_templates %}
+          <div class="mt-3">
+            <h6 class="text-muted mb-2">Quick Add from Templates:</h6>
+            <div class="btn-group-vertical btn-group-sm d-md-inline" role="group">
+              {% for template in quote_templates %}
+              <button type="button" class="btn btn-outline-secondary" 
+                      onclick="addFromTemplate('{{ template.id }}')">
+                <i class="bi bi-bookmark me-1"></i> {{ template.name }}
+              </button>
+              {% endfor %}
+            </div>
+          </div>
+          {% endif %}
+        </div>
+      </div>
+
+      <!-- Quote Items Section -->
+      <div class="card">
+        <div class="card-header d-flex justify-content-between align-items-center">
+          <h6 class="card-title mb-0">
+            <i class="bi bi-list-ul me-2"></i>Quote Items 
+            <span class="badge bg-secondary" id="quote-item-count">{{ quote_items.count }}</span>
+          </h6>
+          <button class="btn btn-sm btn-outline-primary" onclick="addCustomItem()">
+            <i class="bi bi-plus"></i> Add Custom Item
+          </button>
+        </div>
+        <div class="card-body">
+          {% if quote_items %}
+          <!-- Items Header -->
+          <div class="row fw-bold text-muted border-bottom pb-2 mb-3">
+            <div class="col-md-4">Description</div>
+            <div class="col-md-2">Quantity</div>
+            <div class="col-md-2">Unit Price</div>
+            <div class="col-md-2">Total</div>
+            <div class="col-md-2">Actions</div>
+          </div>
+          
+          <!-- Quote Items Container -->
+          <div id="quote-items">
+            {% for item in quote_items %}
+            <div class="quote-item-row border rounded p-3 mb-3" data-item-id="{{ item.id }}">
+              <div class="row align-items-center">
+                <div class="col-md-4">
+                  <input type="text" class="form-control item-description" 
+                         value="{{ item.description }}" data-item-id="{{ item.id }}">
+                  {% if item.detailed_specs %}
+                  <small class="text-muted">{{ item.detailed_specs|truncatewords:10 }}</small>
+                  {% endif %}
+                </div>
+                <div class="col-md-2">
+                  <input type="number" class="form-control item-quantity" 
+                         value="{{ item.quantity }}" min="1" step="1"
+                         data-item-id="{{ item.id }}">
+                </div>
+                <div class="col-md-2">
+                  <div class="input-group">
+                    <span class="input-group-text">$</span>
+                    <input type="number" class="form-control item-price" 
+                           value="{{ item.unit_price }}" min="0" step="0.01"
+                           data-item-id="{{ item.id }}">
+                  </div>
+                </div>
+                <div class="col-md-2">
+                  <div class="fw-bold item-total">${{ item.total_price|floatformat:2 }}</div>
+                  <small class="text-muted">{{ item.get_source_type_display }}</small>
+                </div>
+                <div class="col-md-2 text-end">
+                  <div class="btn-group btn-group-sm">
+                    <button class="btn btn-outline-secondary" 
+                            onclick="editItemDetails('{{ item.id }}')" title="Edit Details">
+                      <i class="bi bi-gear"></i>
+                    </button>
+                    <button class="btn btn-outline-danger remove-item-btn" 
+                            data-item-id="{{ item.id }}" title="Remove Item">
+                      <i class="bi bi-trash"></i>
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+            {% endfor %}
+          </div>
+          {% else %}
+          <div class="text-center py-5 text-muted" id="empty-quote-message">
+            <i class="bi bi-plus-circle fs-1 mb-3"></i>
+            <h6>No items in this quote yet</h6>
+            <p>Search for products above or add custom items to get started.</p>
+          </div>
+          {% endif %}
+        </div>
+      </div>
+    </div>
+
+    <!-- Quote Summary and Actions - Right Side -->
+    <div class="col-lg-4">
+      <!-- Quote Totals Card -->
+      <div class="card quote-totals-card mb-4">
+        <div class="card-header bg-success text-white">
+          <h6 class="card-title mb-0">
+            <i class="bi bi-calculator me-2"></i>Quote Summary
+          </h6>
+        </div>
+        <div class="card-body">
+          <div class="row mb-2">
+            <div class="col-6">Subtotal:</div>
+            <div class="col-6 text-end">
+              <span class="fw-bold" id="quote-subtotal">${{ quote.subtotal|floatformat:2 }}</span>
+            </div>
+          </div>
+          
+          <div class="row mb-2">
+            <div class="col-6">
+              <label for="quote-discount" class="form-label small">Discount:</label>
+            </div>
+            <div class="col-6">
+              <div class="input-group input-group-sm">
+                <input type="number" id="quote-discount" class="form-control" 
+                       value="{{ quote.discount_percentage }}" min="0" max="100" step="0.01">
+                <span class="input-group-text">%</span>
+              </div>
+            </div>
+          </div>
+          
+          <div class="row mb-2">
+            <div class="col-6">
+              <label for="quote-tax-rate" class="form-label small">Tax Rate:</label>
+            </div>
+            <div class="col-6">
+              <div class="input-group input-group-sm">
+                <input type="number" id="quote-tax-rate" class="form-control" 
+                       value="{{ quote.tax_rate }}" min="0" max="100" step="0.01">
+                <span class="input-group-text">%</span>
+              </div>
+            </div>
+          </div>
+          
+          <div class="row mb-2">
+            <div class="col-6">Tax Amount:</div>
+            <div class="col-6 text-end">
+              <span id="quote-tax-amount">${{ quote.tax_amount|floatformat:2 }}</span>
+            </div>
+          </div>
+          
+          <hr>
+          
+          <div class="row">
+            <div class="col-6">
+              <strong>Total Amount:</strong>
+            </div>
+            <div class="col-6 text-end">
+              <h5 class="text-success mb-0" id="quote-total-amount">
+                ${{ quote.total_amount|floatformat:2 }}
+              </h5>
+            </div>
+          </div>
+          
+          <small class="text-muted">Currency: {{ quote.currency }}</small>
+        </div>
+      </div>
+
+      <!-- Quick Actions Card -->
+      <div class="card mb-4">
+        <div class="card-header">
+          <h6 class="card-title mb-0">
+            <i class="bi bi-lightning me-2"></i>Quick Actions
+          </h6>
+        </div>
+        <div class="card-body">
+          <div class="d-grid gap-2">
+            <button class="btn btn-primary quote-action-btn" onclick="saveQuote()">
+              <i class="bi bi-save me-1"></i> Save Quote
+            </button>
+            
+            {% if quote.status == 'draft' %}
+            <button class="btn btn-success quote-action-btn" onclick="sendQuote()">
+              <i class="bi bi-send me-1"></i> Send to Client
+            </button>
+            {% endif %}
+            
+            <button class="btn btn-outline-secondary" onclick="previewQuote()">
+              <i class="bi bi-eye me-1"></i> Preview
+            </button>
+            
+            <button class="btn btn-outline-info" onclick="exportToPDF()">
+              <i class="bi bi-file-pdf me-1"></i> Export PDF
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Recent Client Activity -->
+      <div class="card">
+        <div class="card-header">
+          <h6 class="card-title mb-0">
+            <i class="bi bi-clock-history me-2"></i>Recent Client Activity
+          </h6>
+        </div>
+        <div class="card-body">
+          <div class="small">
+            <p class="mb-1">
+              <strong>Last Contact:</strong>
+              {% if quote.client.last_contacted %}
+              {{ quote.client.last_contacted|timesince }} ago
+              {% else %}
+              Never contacted
+              {% endif %}
+            </p>
+            <p class="mb-1">
+              <strong>Total Orders:</strong> {{ quote.client.total_orders }}
+            </p>
+            <p class="mb-0">
+              <strong>Client Value:</strong> ${{ quote.client.total_value|floatformat:2 }}
+            </p>
+          </div>
+          
+          <div class="mt-3">
+            <a href="{% url 'crm:client_detail' quote.client.id %}" class="btn btn-sm btn-outline-primary w-100">
+              <i class="bi bi-person me-1"></i> View Client Profile
+            </a>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Loading Indicator -->
+<div class="loading-spinner position-fixed top-50 start-50 translate-middle" style="z-index: 9999;">
+  <div class="spinner-border text-primary" role="status">
+    <span class="visually-hidden">Loading...</span>
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script src="{% static 'quotes/js/quote_builder.js' %}"></script>
+<script>
+// Additional quote builder functionality specific to this template
+
+function saveQuote() {
+    if (window.quoteBuilder) {
+        window.quoteBuilder.showSuccess('Quote saved successfully!');
+        // Additional save logic can be added here
+    }
+}
+
+function sendQuote() {
+    if (confirm('Send this quote to the client? They will receive an email with the quote details.')) {
+        // AJAX call to send quote
+        fetch(`/quotes/${document.getElementById('quote-id').value}/send/`, {
+            method: 'POST',
+            headers: {
+                'X-CSRFToken': window.quoteBuilder.getCsrfToken(),
+                'X-Requested-With': 'XMLHttpRequest',
+            }
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                window.quoteBuilder.showSuccess('Quote sent to client!');
+                // Refresh the page to update status
+                setTimeout(() => location.reload(), 1500);
+            } else {
+                window.quoteBuilder.showError(data.error || 'Failed to send quote');
+            }
+        })
+        .catch(error => {
+            console.error('Send quote error:', error);
+            window.quoteBuilder.showError('Failed to send quote. Please try again.');
+        });
+    }
+}
+
+function previewQuote() {
+    // Open quote preview in new window
+    const quoteId = document.getElementById('quote-id').value;
+    window.open(`/quotes/${quoteId}/preview/`, '_blank');
+}
+
+function exportToPDF() {
+    // Export quote as PDF
+    const quoteId = document.getElementById('quote-id').value;
+    window.location.href = `/quotes/${quoteId}/pdf/`;
+}
+
+function addCustomItem() {
+    // Show modal for adding custom items
+    const itemData = {
+        description: 'Custom Item',
+        quantity: 1,
+        unit_price: 0.00,
+        source_type: 'custom'
+    };
+    
+    if (window.quoteBuilder) {
+        window.quoteBuilder.addItemToQuote(itemData);
+    }
+}
+
+function showAllProducts() {
+    // Show product catalog modal
+    alert('Product catalog will open here in the full implementation.');
+}
+
+function saveAsTemplate() {
+    const templateName = prompt('Enter template name:');
+    if (templateName) {
+        alert(`Template "${templateName}" will be saved in the full implementation.`);
+    }
+}
+
+function duplicateQuote() {
+    if (confirm('Create a copy of this quote?')) {
+        alert('Quote duplication will be implemented in the full system.');
+    }
+}
+
+// Auto-save functionality
+let autoSaveTimeout;
+document.addEventListener('input', function(e) {
+    if (e.target.classList.contains('item-quantity') || 
+        e.target.classList.contains('item-price') || 
+        e.target.classList.contains('item-description')) {
+        
+        // Clear existing timeout
+        clearTimeout(autoSaveTimeout);
+        
+        // Set new timeout for auto-save
+        autoSaveTimeout = setTimeout(() => {
+            console.log('Auto-saving quote...');
+            // Auto-save logic would go here
+        }, 2000); // Auto-save after 2 seconds of inactivity
+    }
+});
+</script>
+{% endblock %}

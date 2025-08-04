@@ -1,0 +1,26 @@
+{% extends "dashboard_base.html" %}
+{% block page_title %}Privacy Settings{% endblock %}
+{% block dashboard_content %}
+<div class="card">
+  <div class="card-header">
+    <h5 class="mb-0"><i class="bi bi-shield me-2"></i>Privacy Settings</h5>
+  </div>
+  <div class="card-body">
+    <form method="post">
+      {% csrf_token %}
+      <div class="mb-3">
+        <div class="form-check">
+          <input class="form-check-input" type="checkbox" name="allow_profile_discovery" id="id_allow_profile_discovery"
+                 {% if user_profile.allow_profile_discovery %}checked{% endif %}>
+          <label class="form-check-label" for="id_allow_profile_discovery">
+            Allow other users to find my profile (directory/discovery)
+          </label>
+        </div>
+      </div>
+      <button type="submit" class="btn btn-primary">Save Privacy Preferences</button>
+    </form>
+    <hr>
+    <p class="text-muted">More privacy controls coming soon (e.g. download data, request account deletion, control what info is shown).</p>
+  </div>
+</div>
+{% endblock %}

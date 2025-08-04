@@ -1,0 +1,625 @@
+<!-- templates/website/company/company_form.html -->
+{% extends "website_base.html" %}
+{% load crispy_forms_tags %}
+
+{% block title %}{{ title }} - BlitzTech Electronics{% endblock %}
+
+{% block extra_css %}
+<style>
+/* Custom styles for company info form */
+.form-section {
+    background-color: #fff;
+    border-radius: 12px;
+    padding: 1.5rem;
+    margin-bottom: 1.5rem;
+    border: 1px solid #e9ecef;
+    position: relative;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+}
+.form-section::before {
+    content: '';
+    position: absolute;
+    left: 0;
+    top: 0;
+    bottom: 0;
+    width: 4px;
+    background: linear-gradient(135deg, #28a745 0%, #20c997 100%);
+    border-radius: 4px 0 0 4px;
+}
+.social-media-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+    gap: 1rem;
+}
+.social-field {
+    position: relative;
+}
+.social-icon {
+    position: absolute;
+    left: 12px;
+    top: 50%;
+    transform: translateY(-50%);
+    color: #6c757d;
+    z-index: 2;
+}
+.social-input {
+    padding-left: 35px !important;
+}
+.company-preview {
+    background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
+    border-radius: 12px;
+    padding: 2rem;
+    border: 1px solid #dee2e6;
+}
+.info-card {
+    background: white;
+    border-radius: 8px;
+    padding: 1rem;
+    border: 1px solid #e9ecef;
+    margin-bottom: 1rem;
+}
+.character-counter {
+    font-size: 0.875rem;
+    text-align: right;
+    color: #6c757d;
+    margin-top: 0.5rem;
+}
+.help-section {
+    background: linear-gradient(135deg, #e3f2fd 0%, #f3e5f5 100%);
+    border: 1px solid #bbdefb;
+    border-radius: 8px;
+    padding: 1rem;
+}
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container py-4">
+  <div class="row justify-content-center">
+    <div class="col-lg-10">
+      <!-- Form Header -->
+      <div class="d-flex align-items-center mb-4">
+        <a href="{% url 'website:manage_dashboard' %}" class="btn btn-outline-secondary me-3">
+          <i class="bi bi-arrow-left"></i>
+        </a>
+        <div>
+          <h2 class="mb-0">
+            <i class="bi bi-building me-2 text-success"></i>{{ title }}
+          </h2>
+          <p class="text-muted mb-0">Update your company's core information and contact details</p>
+        </div>
+      </div>
+
+      <form method="post" class="needs-validation" novalidate>
+        {% csrf_token %}
+        
+        <!-- Basic Company Information -->
+        <div class="form-section">
+          <h5 class="mb-3">
+            <i class="bi bi-building me-2 text-primary"></i>Basic Company Information
+          </h5>
+          
+          <div class="row">
+            <div class="col-md-6">
+              <div class="mb-3">
+                <label for="{{ form.name.id_for_label }}" class="form-label fw-bold">
+                  Company Name <span class="text-danger">*</span>
+                </label>
+                {{ form.name }}
+                <div class="form-text">
+                  Your official company name as it appears on legal documents
+                </div>
+                {% if form.name.errors %}
+                  <div class="invalid-feedback d-block">
+                    {% for error in form.name.errors %}{{ error }}{% endfor %}
+                  </div>
+                {% endif %}
+              </div>
+            </div>
+            <div class="col-md-6">
+              <div class="mb-3">
+                <label for="{{ form.website.id_for_label }}" class="form-label fw-bold">
+                  Website URL <span class="text-danger">*</span>
+                </label>
+                {{ form.website }}
+                <div class="form-text">
+                  Your main website address (e.g., https://www.yourcompany.com)
+                </div>
+                {% if form.website.errors %}
+                  <div class="invalid-feedback d-block">
+                    {% for error in form.website.errors %}{{ error }}{% endfor %}
+                  </div>
+                {% endif %}
+              </div>
+            </div>
+          </div>
+
+          <div class="mb-3">
+            <label for="{{ form.address.id_for_label }}" class="form-label fw-bold">
+              Business Address <span class="text-danger">*</span>
+            </label>
+            {{ form.address }}
+            <div class="form-text">
+              Complete business address including street, city, country, and postal code
+            </div>
+            {% if form.address.errors %}
+              <div class="invalid-feedback d-block">
+                {% for error in form.address.errors %}{{ error }}{% endfor %}
+              </div>
+            {% endif %}
+          </div>
+
+          <div class="row">
+            <div class="col-md-6">
+              <div class="mb-3">
+                <label for="{{ form.phone.id_for_label }}" class="form-label fw-bold">
+                  Phone Number <span class="text-danger">*</span>
+                </label>
+                {{ form.phone }}
+                <div class="form-text">
+                  Main business phone number with country code
+                </div>
+                {% if form.phone.errors %}
+                  <div class="invalid-feedback d-block">
+                    {% for error in form.phone.errors %}{{ error }}{% endfor %}
+                  </div>
+                {% endif %}
+              </div>
+            </div>
+            <div class="col-md-6">
+              <div class="mb-3">
+                <label for="{{ form.email.id_for_label }}" class="form-label fw-bold">
+                  Contact Email <span class="text-danger">*</span>
+                </label>
+                {{ form.email }}
+                <div class="form-text">
+                  Primary email for customer inquiries and general contact
+                </div>
+                {% if form.email.errors %}
+                  <div class="invalid-feedback d-block">
+                    {% for error in form.email.errors %}{{ error }}{% endfor %}
+                  </div>
+                {% endif %}
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Social Media Links -->
+        <div class="form-section">
+          <h5 class="mb-3">
+            <i class="bi bi-share me-2 text-primary"></i>Social Media Presence
+          </h5>
+          
+          <div class="social-media-grid">
+            <div class="social-field">
+              <label for="{{ form.facebook.id_for_label }}" class="form-label fw-bold">
+                <i class="bi bi-facebook text-primary me-1"></i>Facebook Page
+              </label>
+              <div class="position-relative">
+                <i class="bi bi-facebook social-icon"></i>
+                {{ form.facebook|as_crispy_field }}
+              </div>
+              <div class="form-text">Your official Facebook business page</div>
+              {% if form.facebook.errors %}
+                <div class="invalid-feedback d-block">
+                  {% for error in form.facebook.errors %}{{ error }}{% endfor %}
+                </div>
+              {% endif %}
+            </div>
+
+            <div class="social-field">
+              <label for="{{ form.twitter.id_for_label }}" class="form-label fw-bold">
+                <i class="bi bi-twitter text-info me-1"></i>Twitter Profile
+              </label>
+              <div class="position-relative">
+                <i class="bi bi-twitter social-icon"></i>
+                {{ form.twitter|as_crispy_field }}
+              </div>
+              <div class="form-text">Your company Twitter/X account</div>
+              {% if form.twitter.errors %}
+                <div class="invalid-feedback d-block">
+                  {% for error in form.twitter.errors %}{{ error }}{% endfor %}
+                </div>
+              {% endif %}
+            </div>
+
+            <div class="social-field">
+              <label for="{{ form.linkedin.id_for_label }}" class="form-label fw-bold">
+                <i class="bi bi-linkedin text-primary me-1"></i>LinkedIn Company Page
+              </label>
+              <div class="position-relative">
+                <i class="bi bi-linkedin social-icon"></i>
+                {{ form.linkedin|as_crispy_field }}
+              </div>
+              <div class="form-text">Your LinkedIn business page</div>
+              {% if form.linkedin.errors %}
+                <div class="invalid-feedback d-block">
+                  {% for error in form.linkedin.errors %}{{ error }}{% endfor %}
+                </div>
+              {% endif %}
+            </div>
+
+            <div class="social-field">
+              <label for="{{ form.instagram.id_for_label }}" class="form-label fw-bold">
+                <i class="bi bi-instagram text-danger me-1"></i>Instagram Profile
+              </label>
+              <div class="position-relative">
+                <i class="bi bi-instagram social-icon"></i>
+                {{ form.instagram|as_crispy_field }}
+              </div>
+              <div class="form-text">Your company Instagram account</div>
+              {% if form.instagram.errors %}
+                <div class="invalid-feedback d-block">
+                  {% for error in form.instagram.errors %}{{ error }}{% endfor %}
+                </div>
+              {% endif %}
+            </div>
+
+            <div class="social-field">
+              <label for="{{ form.youtube.id_for_label }}" class="form-label fw-bold">
+                <i class="bi bi-youtube text-danger me-1"></i>YouTube Channel
+              </label>
+              <div class="position-relative">
+                <i class="bi bi-youtube social-icon"></i>
+                {{ form.youtube|as_crispy_field }}
+              </div>
+              <div class="form-text">Your company YouTube channel</div>
+              {% if form.youtube.errors %}
+                <div class="invalid-feedback d-block">
+                  {% for error in form.youtube.errors %}{{ error }}{% endfor %}
+                </div>
+              {% endif %}
+            </div>
+          </div>
+
+          <div class="help-section mt-3">
+            <h6 class="mb-2"><i class="bi bi-info-circle me-1"></i>Social Media Tips</h6>
+            <div class="row small">
+              <div class="col-md-6">
+                <p class="mb-1"><strong>Best practices:</strong></p>
+                <ul class="mb-0">
+                  <li>Use official business accounts, not personal</li>
+                  <li>Keep profiles active and up-to-date</li>
+                  <li>Maintain consistent branding across platforms</li>
+                  <li>Include complete profile information</li>
+                </ul>
+              </div>
+              <div class="col-md-6">
+                <p class="mb-1"><strong>For B2B companies:</strong></p>
+                <ul class="mb-0">
+                  <li>LinkedIn is most important for professional networking</li>
+                  <li>Twitter/X good for industry news and thought leadership</li>
+                  <li>YouTube effective for product demos and tutorials</li>
+                  <li>Facebook and Instagram for broader community building</li>
+                </ul>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Company Content -->
+        <div class="form-section">
+          <h5 class="mb-3">
+            <i class="bi bi-file-text me-2 text-primary"></i>Company Content & Messaging
+          </h5>
+          
+          <div class="mb-3">
+            <label for="{{ form.mission.id_for_label }}" class="form-label fw-bold">
+              Mission Statement
+            </label>
+            {{ form.mission }}
+            <div class="form-text">
+              What your company does and why it exists. Keep it clear and concise.
+            </div>
+            <div class="character-counter" id="mission-counter"></div>
+            {% if form.mission.errors %}
+              <div class="invalid-feedback d-block">
+                {% for error in form.mission.errors %}{{ error }}{% endfor %}
+              </div>
+            {% endif %}
+          </div>
+
+          <div class="mb-3">
+            <label for="{{ form.vision.id_for_label }}" class="form-label fw-bold">
+              Vision Statement
+            </label>
+            {{ form.vision }}
+            <div class="form-text">
+              Where you see your company in the future. What you aspire to achieve.
+            </div>
+            <div class="character-counter" id="vision-counter"></div>
+            {% if form.vision.errors %}
+              <div class="invalid-feedback d-block">
+                {% for error in form.vision.errors %}{{ error }}{% endfor %}
+              </div>
+            {% endif %}
+          </div>
+
+          <div class="mb-3">
+            <label for="{{ form.about_us.id_for_label }}" class="form-label fw-bold">
+              About Us
+            </label>
+            {{ form.about_us }}
+            <div class="form-text">
+              Detailed description of your company, history, expertise, and what makes you unique.
+            </div>
+            <div class="character-counter" id="about-counter"></div>
+            {% if form.about_us.errors %}
+              <div class="invalid-feedback d-block">
+                {% for error in form.about_us.errors %}{{ error }}{% endfor %}
+              </div>
+            {% endif %}
+          </div>
+
+          <div class="help-section">
+            <h6 class="mb-2"><i class="bi bi-pencil me-1"></i>Content Writing Guide</h6>
+            <div class="row small">
+              <div class="col-md-4">
+                <p class="mb-1"><strong>Mission (1-2 sentences):</strong></p>
+                <p class="mb-0">"We help businesses solve X by providing Y, enabling them to achieve Z."</p>
+              </div>
+              <div class="col-md-4">
+                <p class="mb-1"><strong>Vision (1-2 sentences):</strong></p>
+                <p class="mb-0">"To become the leading provider of X in Y market, known for Z qualities."</p>
+              </div>
+              <div class="col-md-4">
+                <p class="mb-1"><strong>About Us (2-3 paragraphs):</strong></p>
+                <p class="mb-0">Company history, expertise, team, values, and unique differentiators.</p>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Live Preview -->
+        <div class="form-section">
+          <h5 class="mb-3">
+            <i class="bi bi-eye me-2 text-primary"></i>Company Information Preview
+          </h5>
+          
+          <div class="company-preview">
+            <div class="row">
+              <div class="col-md-6">
+                <div class="info-card">
+                  <h6 class="text-primary mb-2">Contact Information</h6>
+                  <p class="mb-1" id="preview-name"><strong>{{ object.name|default:"Your Company Name" }}</strong></p>
+                  <p class="mb-1 small" id="preview-address">{{ object.address|default:"Your business address will appear here" }}</p>
+                  <p class="mb-1 small">
+                    <i class="bi bi-telephone me-1"></i>
+                    <span id="preview-phone">{{ object.phone|default:"Phone number" }}</span>
+                  </p>
+                  <p class="mb-1 small">
+                    <i class="bi bi-envelope me-1"></i>
+                    <span id="preview-email">{{ object.email|default:"email@company.com" }}</span>
+                  </p>
+                  <p class="mb-0 small">
+                    <i class="bi bi-globe me-1"></i>
+                    <span id="preview-website">{{ object.website|default:"www.company.com" }}</span>
+                  </p>
+                </div>
+              </div>
+              <div class="col-md-6">
+                <div class="info-card">
+                  <h6 class="text-primary mb-2">Social Media</h6>
+                  <div id="preview-social">
+                    <div class="d-flex gap-2">
+                      <span class="badge bg-light text-dark">Social links will appear here</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+            
+            <div class="info-card">
+              <h6 class="text-primary mb-2">Mission Statement</h6>
+              <p class="mb-0" id="preview-mission">{{ object.mission|default:"Your mission statement will appear here as you type..." }}</p>
+            </div>
+            
+            <div class="info-card">
+              <h6 class="text-primary mb-2">Vision Statement</h6>
+              <p class="mb-0" id="preview-vision">{{ object.vision|default:"Your vision statement will appear here as you type..." }}</p>
+            </div>
+            
+            <div class="info-card">
+              <h6 class="text-primary mb-2">About Us</h6>
+              <p class="mb-0" id="preview-about">{{ object.about_us|default:"Your about us content will appear here as you type..." }}</p>
+            </div>
+          </div>
+        </div>
+
+        <!-- Form Actions -->
+        <div class="d-flex gap-2 pt-3">
+          <button class="btn btn-success btn-lg" type="submit">
+            <i class="bi bi-check-lg me-2"></i>Save Company Information
+          </button>
+          <a href="{% url 'website:manage_dashboard' %}" class="btn btn-outline-secondary btn-lg">
+            <i class="bi bi-x-lg me-2"></i>Cancel
+          </a>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // Form elements
+    const fields = {
+        name: document.getElementById('{{ form.name.id_for_label }}'),
+        address: document.getElementById('{{ form.address.id_for_label }}'),
+        phone: document.getElementById('{{ form.phone.id_for_label }}'),
+        email: document.getElementById('{{ form.email.id_for_label }}'),
+        website: document.getElementById('{{ form.website.id_for_label }}'),
+        mission: document.getElementById('{{ form.mission.id_for_label }}'),
+        vision: document.getElementById('{{ form.vision.id_for_label }}'),
+        about_us: document.getElementById('{{ form.about_us.id_for_label }}'),
+        facebook: document.getElementById('{{ form.facebook.id_for_label }}'),
+        twitter: document.getElementById('{{ form.twitter.id_for_label }}'),
+        linkedin: document.getElementById('{{ form.linkedin.id_for_label }}'),
+        instagram: document.getElementById('{{ form.instagram.id_for_label }}'),
+        youtube: document.getElementById('{{ form.youtube.id_for_label }}')
+    };
+    
+    // Preview elements
+    const preview = {
+        name: document.getElementById('preview-name'),
+        address: document.getElementById('preview-address'),
+        phone: document.getElementById('preview-phone'),
+        email: document.getElementById('preview-email'),
+        website: document.getElementById('preview-website'),
+        mission: document.getElementById('preview-mission'),
+        vision: document.getElementById('preview-vision'),
+        about: document.getElementById('preview-about'),
+        social: document.getElementById('preview-social')
+    };
+    
+    // Character counters
+    const counters = {
+        mission: document.getElementById('mission-counter'),
+        vision: document.getElementById('vision-counter'),
+        about: document.getElementById('about-counter')
+    };
+    
+    // Live preview updates
+    function updatePreview() {
+        // Basic info
+        if (fields.name && preview.name) {
+            const company = fields.name.value || 'Your Company Name';
+            preview.name.innerHTML = `<strong>${company}</strong>`;
+        }
+        
+        if (fields.address && preview.address) {
+            preview.address.textContent = fields.address.value || 'Your business address will appear here';
+        }
+        
+        if (fields.phone && preview.phone) {
+            preview.phone.textContent = fields.phone.value || 'Phone number';
+        }
+        
+        if (fields.email && preview.email) {
+            preview.email.textContent = fields.email.value || 'email@company.com';
+        }
+        
+        if (fields.website && preview.website) {
+            preview.website.textContent = fields.website.value || 'www.company.com';
+        }
+        
+        // Content
+        if (fields.mission && preview.mission) {
+            preview.mission.textContent = fields.mission.value || 'Your mission statement will appear here as you type...';
+        }
+        
+        if (fields.vision && preview.vision) {
+            preview.vision.textContent = fields.vision.value || 'Your vision statement will appear here as you type...';
+        }
+        
+        if (fields.about_us && preview.about) {
+            preview.about.textContent = fields.about_us.value || 'Your about us content will appear here as you type...';
+        }
+        
+        // Social media
+        updateSocialPreview();
+    }
+    
+    function updateSocialPreview() {
+        if (!preview.social) return;
+        
+        const socialLinks = [];
+        const socialPlatforms = [
+            { field: fields.facebook, icon: 'facebook', name: 'Facebook', color: 'primary' },
+            { field: fields.twitter, icon: 'twitter', name: 'Twitter', color: 'info' },
+            { field: fields.linkedin, icon: 'linkedin', name: 'LinkedIn', color: 'primary' },
+            { field: fields.instagram, icon: 'instagram', name: 'Instagram', color: 'danger' },
+            { field: fields.youtube, icon: 'youtube', name: 'YouTube', color: 'danger' }
+        ];
+        
+        socialPlatforms.forEach(platform => {
+            if (platform.field && platform.field.value.trim()) {
+                socialLinks.push(`
+                    <span class="badge bg-${platform.color} me-1">
+                        <i class="bi bi-${platform.icon} me-1"></i>${platform.name}
+                    </span>
+                `);
+            }
+        });
+        
+        if (socialLinks.length > 0) {
+            preview.social.innerHTML = `<div class="d-flex flex-wrap gap-1">${socialLinks.join('')}</div>`;
+        } else {
+            preview.social.innerHTML = '<div class="d-flex gap-2"><span class="badge bg-light text-dark">Social links will appear here</span></div>';
+        }
+    }
+    
+    // Character counters
+    function updateCounter(field, counter, limit = 500) {
+        if (!field || !counter) return;
+        
+        const length = field.value.length;
+        const words = field.value.trim().split(/\s+/).filter(word => word.length > 0).length;
+        counter.textContent = `${length} characters, ${words} words`;
+        
+        if (length > limit) {
+            counter.className = 'character-counter text-danger';
+        } else if (length > limit * 0.8) {
+            counter.className = 'character-counter text-warning';
+        } else {
+            counter.className = 'character-counter text-muted';
+        }
+    }
+    
+    // Auto-format URLs
+    function formatURL(field) {
+        if (!field) return;
+        
+        field.addEventListener('blur', function() {
+            const value = this.value.trim();
+            if (value && !value.startsWith('http://') && !value.startsWith('https://')) {
+                this.value = 'https://' + value;
+                updatePreview();
+            }
+        });
+    }
+    
+    // Add event listeners
+    Object.values(fields).forEach(field => {
+        if (field) {
+            field.addEventListener('input', updatePreview);
+        }
+    });
+    
+    // Character counters
+    if (fields.mission && counters.mission) {
+        fields.mission.addEventListener('input', () => updateCounter(fields.mission, counters.mission, 200));
+    }
+    
+    if (fields.vision && counters.vision) {
+        fields.vision.addEventListener('input', () => updateCounter(fields.vision, counters.vision, 200));
+    }
+    
+    if (fields.about_us && counters.about) {
+        fields.about_us.addEventListener('input', () => updateCounter(fields.about_us, counters.about, 1000));
+    }
+    
+    // Format URLs
+    [fields.website, fields.facebook, fields.twitter, fields.linkedin, fields.instagram, fields.youtube].forEach(formatURL);
+    
+    // Initialize
+    updatePreview();
+    updateCounter(fields.mission, counters.mission, 200);
+    updateCounter(fields.vision, counters.vision, 200);
+    updateCounter(fields.about_us, counters.about, 1000);
+    
+    // Form validation
+    const form = document.querySelector('.needs-validation');
+    if (form) {
+        form.addEventListener('submit', function(event) {
+            if (!form.checkValidity()) {
+                event.preventDefault();
+                event.stopPropagation();
+            }
+            form.classList.add('was-validated');
+        });
+    }
+});
+</script>
+{% endblock %}

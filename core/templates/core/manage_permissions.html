@@ -1,0 +1,118 @@
+{% extends "dashboard_base.html" %}
+{% load static %}
+
+{% block page_title %}Manage User Permissions{% endblock %}
+
+{% block page_actions %}
+<a href="{% url 'core:employee_list' %}" class="btn btn-outline-secondary">
+  <i class="bi bi-arrow-left me-1"></i> Back to Employee List
+</a>
+{% endblock %}
+
+{% block dashboard_content %}
+<div class="row justify-content-center">
+  <div class="col-md-10">
+    <div class="card shadow-sm mb-4">
+      <div class="card-header">
+        <div class="d-flex align-items-center">
+          {% if target_user.profile.profile_image %}
+            <img src="{{ target_user.profile.profile_image.url }}" alt="{{ target_user.username }}" class="rounded-circle me-3" width="50" height="50" style="object-fit: cover;">
+          {% else %}
+            <div class="rounded-circle bg-secondary me-3 d-flex align-items-center justify-content-center" style="width: 50px; height: 50px;">
+              <span class="text-white">{{ target_user.first_name|first }}{{ target_user.last_name|first }}</span>
+            </div>
+          {% endif %}
+          
+          <div>
+            <h5 class="card-title mb-0">{{ target_user.first_name }} {{ target_user.last_name }}</h5>
+            <p class="text-muted mb-0">
+              {{ target_user.profile.get_user_type_display }}
+              {% if target_user.profile.department %}
+              - {{ target_user.profile.get_department_display }} Department
+              {% endif %}
+            </p>
+          </div>
+        </div>
+      </div>
+      <div class="card-body">
+        <form method="post">
+          {% csrf_token %}
+          
+          <div class="table-responsive">
+            <table class="table">
+              <thead>
+                <tr>
+                  <th>Application</th>
+                  <th>Permission Level</th>
+                  <th>Description</th>
+                </tr>
+              </thead>
+              <tbody>
+                {% for app_name, app_label in app_choices %}
+                <tr>
+                  <td>
+                    <div class="d-flex align-items-center">
+                      {% if app_name == 'crm' %}
+                        <i class="bi bi-people fs-4 text-primary me-2"></i>
+                      {% elif app_name == 'inventory' %}
+                        <i class="bi bi-box-seam fs-4 text-success me-2"></i>
+                      {% elif app_name == 'shop' %}
+                        <i class="bi bi-cart fs-4 text-info me-2"></i>
+                      {% elif app_name == 'website' %}
+                        <i class="bi bi-globe fs-4 text-warning me-2"></i>
+                      {% elif app_name == 'admin' %}
+                        <i class="bi bi-shield-lock fs-4 text-danger me-2"></i>
+                      {% endif %}
+                      <strong>{{ app_label }}</strong>
+                    </div>
+                  </td>
+                  <td>
+                    <select name="permission_{{ app_name }}" class="form-select">
+                      <option value="">No Access</option>
+                      {% for level_name, level_label in permission_levels %}
+                        <option value="{{ level_name }}" {% if existing_permissions.app_name == level_name %}selected{% endif %}>
+                          {{ level_label }}
+                        </option>
+                      {% endfor %}
+                    </select>
+                  </td>
+                  <td>
+                    {% if app_name == 'crm' %}
+                      Manage leads, customers, and sales
+                    {% elif app_name == 'inventory' %}
+                      Manage products, stock, and suppliers
+                    {% elif app_name == 'shop' %}
+                      Manage orders and e-commerce
+                    {% elif app_name == 'website' %}
+                      Manage website content and settings
+                    {% elif app_name == 'admin' %}
+                      Access administrative functions
+                    {% endif %}
+                  </td>
+                </tr>
+                {% endfor %}
+              </tbody>
+            </table>
+          </div>
+          
+          <div class="alert alert-info">
+            <h6><i class="bi bi-info-circle me-1"></i> Permission Levels</h6>
+            <ul class="mb-0">
+              <li><strong>View Only:</strong> User can view information but cannot make changes</li>
+              <li><strong>Create and Edit:</strong> User can create and edit records but cannot delete them</li>
+              <li><strong>Full Admin Access:</strong> User has full access to the application including deleting records</li>
+            </ul>
+          </div>
+          
+          <div class="d-flex justify-content-end mt-4">
+            <a href="{% url 'core:employee_list' %}" class="btn btn-outline-secondary me-2">Cancel</a>
+            <button type="submit" class="btn btn-primary">
+              <i class="bi bi-shield-check me-1"></i> Save Permissions
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

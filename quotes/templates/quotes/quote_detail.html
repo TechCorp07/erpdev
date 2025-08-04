@@ -1,0 +1,655 @@
+{% extends "dashboard_base.html" %}
+{% load static %}
+
+{% block page_title %}{{ quote.quote_number }} - {{ quote.client.name }}{% endblock %}
+
+{% block extra_css %}
+<style>
+/* Professional styling for quote presentation */
+.quote-header {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: white;
+}
+
+.quote-status-badge {
+    font-size: 0.9rem;
+    padding: 0.5rem 1rem;
+}
+
+.quote-item-table {
+    background: white;
+    border-radius: 0.5rem;
+    overflow: hidden;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+}
+
+.profit-analysis {
+    background: #f8f9fa;
+    border-left: 4px solid #28a745;
+}
+
+.quote-timeline {
+    position: relative;
+}
+
+.quote-timeline::before {
+    content: '';
+    position: absolute;
+    left: 15px;
+    top: 0;
+    bottom: 0;
+    width: 2px;
+    background: #dee2e6;
+}
+
+.timeline-item {
+    position: relative;
+    padding-left: 40px;
+    margin-bottom: 1rem;
+}
+
+.timeline-marker {
+    position: absolute;
+    left: 8px;
+    top: 0;
+    width: 16px;
+    height: 16px;
+    border-radius: 50%;
+    background: #fff;
+    border: 3px solid #0d6efd;
+}
+
+@media print {
+    .no-print { display: none !important; }
+    .quote-header { background: #333 !important; }
+}
+</style>
+{% endblock %}
+
+{% block page_actions %}
+<div class="btn-group no-print" role="group">
+  <a href="{% url 'quotes:quote_list' %}" class="btn btn-outline-secondary">
+    <i class="bi bi-arrow-left me-1"></i> Back to Quotes
+  </a>
+  
+  {% if can_edit %}
+  <a href="{% url 'quotes:quote_builder' quote.id %}" class="btn btn-warning">
+    <i class="bi bi-pencil me-1"></i> Edit Quote
+  </a>
+  {% endif %}
+  
+  <div class="btn-group" role="group">
+    <button class="btn btn-outline-primary dropdown-toggle" type="button" data-bs-toggle="dropdown">
+      <i class="bi bi-download me-1"></i> Export
+    </button>
+    <ul class="dropdown-menu">
+      <li><a class="dropdown-item" href="#" onclick="exportToPDF()">
+        <i class="bi bi-file-pdf me-1"></i> Download PDF
+      </a></li>
+      <li><a class="dropdown-item" href="#" onclick="emailToClient()">
+        <i class="bi bi-envelope me-1"></i> Email to Client
+      </a></li>
+      <li><a class="dropdown-item" href="#" onclick="printQuote()">
+        <i class="bi bi-printer me-1"></i> Print Quote
+      </a></li>
+    </ul>
+  </div>
+  
+  {% if quote.status == 'draft' %}
+  <button class="btn btn-success" onclick="sendQuote()">
+    <i class="bi bi-send me-1"></i> Send to Client
+  </button>
+  {% elif quote.status == 'sent' %}
+  <div class="btn-group" role="group">
+    <button class="btn btn-outline-success dropdown-toggle" type="button" data-bs-toggle="dropdown">
+      <i class="bi bi-check-circle me-1"></i> Mark As
+    </button>
+    <ul class="dropdown-menu">
+      <li><a class="dropdown-item" href="#" onclick="updateQuoteStatus('accepted')">
+        <i class="bi bi-check-circle me-1"></i> Accepted
+      </a></li>
+      <li><a class="dropdown-item" href="#" onclick="updateQuoteStatus('rejected')">
+        <i class="bi bi-x-circle me-1"></i> Rejected
+      </a></li>
+      <li><a class="dropdown-item" href="#" onclick="updateQuoteStatus('under_review')">
+        <i class="bi bi-clock me-1"></i> Under Review
+      </a></li>
+    </ul>
+  </div>
+  {% endif %}
+</div>
+{% endblock %}
+
+{% block dashboard_content %}
+<!-- Quote Header Section -->
+<div class="card mb-4">
+  <div class="quote-header card-header">
+    <div class="row align-items-center">
+      <div class="col-md-8">
+        <h4 class="mb-1">{{ quote.quote_number }}</h4>
+        <h6 class="mb-0 opacity-75">{{ quote.title }}</h6>
+      </div>
+      <div class="col-md-4 text-md-end">
+        <span class="quote-status-badge badge bg-{% if quote.status == 'accepted' %}success{% elif quote.status == 'sent' %}primary{% elif quote.status == 'draft' %}warning{% elif quote.status == 'rejected' %}danger{% else %}secondary{% endif %}">
+          {{ quote.get_status_display }}
+        </span>
+      </div>
+    </div>
+  </div>
+  <div class="card-body">
+    <div class="row">
+      <!-- Client Information -->
+      <div class="col-md-6">
+        <h6 class="text-muted mb-2">
+          <i class="bi bi-person me-1"></i> Client Information
+        </h6>
+        <div class="mb-3">
+          <h5 class="mb-1">{{ quote.client.name }}</h5>
+          {% if quote.client.company %}
+          <p class="text-muted mb-1">{{ quote.client.company }}</p>
+          {% endif %}
+          <p class="mb-1">
+            <i class="bi bi-envelope me-1"></i> 
+            <a href="mailto:{{ quote.client.email }}">{{ quote.client.email }}</a>
+          </p>
+          {% if quote.client.phone %}
+          <p class="mb-1">
+            <i class="bi bi-telephone me-1"></i> 
+            <a href="tel:{{ quote.client.phone }}">{{ quote.client.phone }}</a>
+          </p>
+          {% endif %}
+          {% if quote.client.full_address %}
+          <p class="mb-0">
+            <i class="bi bi-geo-alt me-1"></i> {{ quote.client.full_address }}
+          </p>
+          {% endif %}
+        </div>
+        
+        <a href="{% url 'crm:client_detail' quote.client.id %}" class="btn btn-sm btn-outline-primary">
+          <i class="bi bi-person me-1"></i> View Client Profile
+        </a>
+      </div>
+      
+      <!-- Quote Details -->
+      <div class="col-md-6">
+        <h6 class="text-muted mb-2">
+          <i class="bi bi-file-text me-1"></i> Quote Details
+        </h6>
+        <div class="row">
+          <div class="col-6">
+            <p class="mb-1">
+              <strong>Created:</strong><br>
+              <span class="text-muted">{{ quote.created_at|date:"M d, Y" }}</span>
+            </p>
+            <p class="mb-1">
+              <strong>Valid Until:</strong><br>
+              <span class="{% if quote.is_expired %}text-danger{% else %}text-muted{% endif %}">
+                {{ quote.validity_date|date:"M d, Y" }}
+                {% if quote.is_expired %}
+                <i class="bi bi-exclamation-triangle text-danger"></i>
+                {% endif %}
+              </span>
+            </p>
+            <p class="mb-1">
+              <strong>Payment Terms:</strong><br>
+              <span class="text-muted">{{ quote.payment_terms }} days</span>
+            </p>
+          </div>
+          <div class="col-6">
+            <p class="mb-1">
+              <strong>Created By:</strong><br>
+              <span class="text-muted">{{ quote.created_by.get_full_name|default:quote.created_by.username }}</span>
+            </p>
+            <p class="mb-1">
+              <strong>Assigned To:</strong><br>
+              <span class="text-muted">
+                {% if quote.assigned_to %}
+                {{ quote.assigned_to.get_full_name|default:quote.assigned_to.username }}
+                {% else %}
+                Unassigned
+                {% endif %}
+              </span>
+            </p>
+            <p class="mb-1">
+              <strong>Currency:</strong><br>
+              <span class="text-muted">{{ quote.currency }}</span>
+            </p>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Quote Items Section -->
+<div class="card mb-4">
+  <div class="card-header">
+    <h5 class="card-title mb-0">
+      <i class="bi bi-list-ul me-2"></i>Quote Items
+      <span class="badge bg-secondary ms-2">{{ quote_items.count }}</span>
+    </h5>
+  </div>
+  <div class="card-body p-0">
+    {% if quote_items %}
+    <div class="table-responsive quote-item-table">
+      <table class="table table-hover mb-0">
+        <thead class="table-dark">
+          <tr>
+            <th style="width: 5%">#</th>
+            <th style="width: 40%">Description</th>
+            <th style="width: 10%" class="text-center">Qty</th>
+            <th style="width: 15%" class="text-end">Unit Price</th>
+            <th style="width: 15%" class="text-end">Total</th>
+            <th style="width: 15%" class="text-center">Source</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for item in quote_items %}
+          <tr>
+            <td class="text-muted">{{ forloop.counter }}</td>
+            <td>
+              <div>
+                <strong>{{ item.description }}</strong>
+                {% if item.detailed_specs %}
+                <br><small class="text-muted">{{ item.detailed_specs|truncatewords:15 }}</small>
+                {% endif %}
+                {% if item.product %}
+                <br><small class="badge bg-light text-dark">SKU: {{ item.product.sku }}</small>
+                {% endif %}
+              </div>
+            </td>
+            <td class="text-center">
+              <span class="fw-bold">{{ item.quantity }}</span>
+              {% if item.product and item.product.unit %}
+              <br><small class="text-muted">{{ item.product.unit }}</small>
+              {% endif %}
+            </td>
+            <td class="text-end">
+              <span class="fw-bold">${{ item.unit_price|floatformat:2 }}</span>
+              {% if item.estimated_delivery %}
+              <br><small class="text-muted">
+                <i class="bi bi-truck me-1"></i>{{ item.estimated_delivery|date:"M d" }}
+              </small>
+              {% endif %}
+            </td>
+            <td class="text-end">
+              <span class="fw-bold fs-6">${{ item.total_price|floatformat:2 }}</span>
+            </td>
+            <td class="text-center">
+              <span class="badge bg-{% if item.source_type == 'stock' %}success{% elif item.source_type == 'order' %}warning{% else %}info{% endif %}">
+                {{ item.get_source_type_display }}
+              </span>
+              {% if item.supplier %}
+              <br><small class="text-muted">{{ item.supplier.name }}</small>
+              {% endif %}
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% else %}
+    <div class="text-center py-5 text-muted">
+      <i class="bi bi-inbox fs-1 mb-3"></i>
+      <h6>No items in this quote</h6>
+      {% if can_edit %}
+      <a href="{% url 'quotes:quote_builder' quote.id %}" class="btn btn-primary">
+        <i class="bi bi-plus me-1"></i> Add Items
+      </a>
+      {% endif %}
+    </div>
+    {% endif %}
+  </div>
+</div>
+
+<!-- Quote Totals and Analysis -->
+<div class="row mb-4">
+  <!-- Financial Summary -->
+  <div class="col-md-6">
+    <div class="card h-100">
+      <div class="card-header bg-success text-white">
+        <h6 class="card-title mb-0">
+          <i class="bi bi-calculator me-2"></i>Financial Summary
+        </h6>
+      </div>
+      <div class="card-body">
+        <div class="row mb-2">
+          <div class="col-6">Subtotal:</div>
+          <div class="col-6 text-end">${{ quote.subtotal|floatformat:2 }}</div>
+        </div>
+        
+        {% if quote.discount_percentage > 0 %}
+        <div class="row mb-2 text-warning">
+          <div class="col-6">Discount ({{ quote.discount_percentage }}%):</div>
+          <div class="col-6 text-end">-${{ quote.discount_amount|floatformat:2 }}</div>
+        </div>
+        {% endif %}
+        
+        <div class="row mb-2">
+          <div class="col-6">Tax ({{ quote.tax_rate }}%):</div>
+          <div class="col-6 text-end">${{ quote.tax_amount|floatformat:2 }}</div>
+        </div>
+        
+        <hr>
+        
+        <div class="row">
+          <div class="col-6">
+            <strong>Total Amount:</strong>
+          </div>
+          <div class="col-6 text-end">
+            <h4 class="text-success mb-0">${{ quote.total_amount|floatformat:2 }}</h4>
+            <small class="text-muted">{{ quote.currency }}</small>
+          </div>
+        </div>
+        
+        {% if quote.payment_terms %}
+        <div class="mt-3 p-2 bg-light rounded">
+          <small class="text-muted">
+            <i class="bi bi-info-circle me-1"></i>
+            Payment due {{ quote.payment_terms }} days after acceptance
+          </small>
+        </div>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+  
+  <!-- Profit Analysis (Internal View Only) -->
+  <div class="col-md-6 no-print">
+    <div class="card h-100 profit-analysis">
+      <div class="card-header">
+        <h6 class="card-title mb-0">
+          <i class="bi bi-graph-up me-2"></i>Profit Analysis
+        </h6>
+      </div>
+      <div class="card-body">
+        <div class="row mb-2">
+          <div class="col-6">Total Cost:</div>
+          <div class="col-6 text-end">${{ total_cost|floatformat:2 }}</div>
+        </div>
+        
+        <div class="row mb-2">
+          <div class="col-6">Gross Profit:</div>
+          <div class="col-6 text-end text-{% if profit_amount > 0 %}success{% else %}danger{% endif %}">
+            ${{ profit_amount|floatformat:2 }}
+          </div>
+        </div>
+        
+        <div class="row mb-2">
+          <div class="col-6">Profit Margin:</div>
+          <div class="col-6 text-end text-{% if profit_percentage > 0 %}success{% else %}danger{% endif %}">
+            {{ profit_percentage|floatformat:1 }}%
+          </div>
+        </div>
+        
+        <div class="progress mt-3">
+          <div class="progress-bar bg-{% if profit_percentage > 30 %}success{% elif profit_percentage > 15 %}warning{% else %}danger{% endif %}" 
+               style="width: {{ profit_percentage|floatformat:0 }}%">
+            {{ profit_percentage|floatformat:1 }}%
+          </div>
+        </div>
+        
+        <div class="mt-3">
+          {% if profit_percentage < 15 %}
+          <div class="alert alert-warning alert-sm mb-0">
+            <i class="bi bi-exclamation-triangle me-1"></i>
+            <small>Low profit margin. Consider adjusting pricing.</small>
+          </div>
+          {% elif profit_percentage > 50 %}
+          <div class="alert alert-info alert-sm mb-0">
+            <i class="bi bi-info-circle me-1"></i>
+            <small>High margin. Competitive opportunity exists.</small>
+          </div>
+          {% else %}
+          <div class="alert alert-success alert-sm mb-0">
+            <i class="bi bi-check-circle me-1"></i>
+            <small>Healthy profit margin.</small>
+          </div>
+          {% endif %}
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Quote History and Timeline -->
+<div class="row">
+  <!-- Quote Timeline -->
+  <div class="col-md-6 no-print">
+    <div class="card h-100">
+      <div class="card-header">
+        <h6 class="card-title mb-0">
+          <i class="bi bi-clock-history me-2"></i>Quote Timeline
+        </h6>
+      </div>
+      <div class="card-body">
+        <div class="quote-timeline">
+          <!-- Created Event -->
+          <div class="timeline-item">
+            <div class="timeline-marker"></div>
+            <div>
+              <h6 class="mb-1">Quote Created</h6>
+              <p class="text-muted small mb-0">
+                {{ quote.created_at|date:"M d, Y H:i" }} by {{ quote.created_by.get_full_name|default:quote.created_by.username }}
+              </p>
+            </div>
+          </div>
+          
+          <!-- Sent Event -->
+          {% if quote.sent_date %}
+          <div class="timeline-item">
+            <div class="timeline-marker bg-primary"></div>
+            <div>
+              <h6 class="mb-1">Quote Sent</h6>
+              <p class="text-muted small mb-0">
+                {{ quote.sent_date|date:"M d, Y H:i" }}
+              </p>
+            </div>
+          </div>
+          {% endif %}
+          
+          <!-- Viewed Event -->
+          {% if quote.viewed_date %}
+          <div class="timeline-item">
+            <div class="timeline-marker bg-info"></div>
+            <div>
+              <h6 class="mb-1">Quote Viewed by Client</h6>
+              <p class="text-muted small mb-0">
+                {{ quote.viewed_date|date:"M d, Y H:i" }}
+              </p>
+            </div>
+          </div>
+          {% endif %}
+          
+          <!-- Response Event -->
+          {% if quote.response_date %}
+          <div class="timeline-item">
+            <div class="timeline-marker bg-{% if quote.status == 'accepted' %}success{% else %}danger{% endif %}"></div>
+            <div>
+              <h6 class="mb-1">Client {{ quote.get_status_display }}</h6>
+              <p class="text-muted small mb-0">
+                {{ quote.response_date|date:"M d, Y H:i" }}
+              </p>
+            </div>
+          </div>
+          {% endif %}
+          
+          <!-- Revisions -->
+          {% for revision in revisions %}
+          <div class="timeline-item">
+            <div class="timeline-marker bg-warning"></div>
+            <div>
+              <h6 class="mb-1">Revision {{ revision.revision_number }}</h6>
+              <p class="text-muted small mb-1">{{ revision.change_summary }}</p>
+              <p class="text-muted small mb-0">
+                {{ revision.created_at|date:"M d, Y H:i" }} by {{ revision.created_by.get_full_name|default:revision.created_by.username }}
+              </p>
+            </div>
+          </div>
+          {% endfor %}
+        </div>
+      </div>
+    </div>
+  </div>
+  
+  <!-- Related CRM Activity -->
+  <div class="col-md-6 no-print">
+    <div class="card h-100">
+      <div class="card-header">
+        <h6 class="card-title mb-0">
+          <i class="bi bi-chat-left-text me-2"></i>Related Client Activity
+        </h6>
+      </div>
+      <div class="card-body">
+        {% if related_interactions %}
+        <div class="list-group list-group-flush">
+          {% for interaction in related_interactions %}
+          <div class="list-group-item px-0 py-2">
+            <div class="d-flex justify-content-between align-items-start">
+              <div>
+                <h6 class="mb-1">{{ interaction.get_interaction_type_display }}</h6>
+                {% if interaction.subject %}
+                <p class="mb-1 small">{{ interaction.subject }}</p>
+                {% endif %}
+                <p class="mb-0 small text-muted">{{ interaction.notes|truncatewords:15 }}</p>
+              </div>
+              <small class="text-muted">{{ interaction.created_at|date:"M d" }}</small>
+            </div>
+          </div>
+          {% endfor %}
+        </div>
+        
+        <div class="mt-3">
+          <a href="{% url 'crm:client_detail' quote.client.id %}" class="btn btn-sm btn-outline-primary w-100">
+            <i class="bi bi-arrow-right me-1"></i> View All Client Activity
+          </a>
+        </div>
+        {% else %}
+        <div class="text-center py-3 text-muted">
+          <i class="bi bi-chat-left-text fs-3 mb-2"></i>
+          <p class="small">No recent client activity</p>
+        </div>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+function exportToPDF() {
+    const quoteId = {{ quote.id }};
+    window.open(`/quotes/${quoteId}/pdf/`, '_blank');
+}
+
+function emailToClient() {
+    if (confirm('Send this quote to {{ quote.client.name }} at {{ quote.client.email }}?')) {
+        fetch(`/quotes/{{ quote.id }}/email/`, {
+            method: 'POST',
+            headers: {
+                'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value,
+                'X-Requested-With': 'XMLHttpRequest',
+            }
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                alert('Quote emailed successfully!');
+            } else {
+                alert('Failed to send email: ' + (data.error || 'Unknown error'));
+            }
+        })
+        .catch(error => {
+            console.error('Email error:', error);
+            alert('Failed to send email. Please try again.');
+        });
+    }
+}
+
+function printQuote() {
+    window.print();
+}
+
+function sendQuote() {
+    if (confirm('Send this quote to the client? They will receive an email notification.')) {
+        fetch(`/quotes/{{ quote.id }}/send/`, {
+            method: 'POST',
+            headers: {
+                'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value,
+                'X-Requested-With': 'XMLHttpRequest',
+            }
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                alert('Quote sent successfully!');
+                location.reload();
+            } else {
+                alert('Failed to send quote: ' + (data.error || 'Unknown error'));
+            }
+        })
+        .catch(error => {
+            console.error('Send error:', error);
+            alert('Failed to send quote. Please try again.');
+        });
+    }
+}
+
+function updateQuoteStatus(newStatus) {
+    const statusLabels = {
+        'accepted': 'accepted',
+        'rejected': 'rejected', 
+        'under_review': 'under review'
+    };
+    
+    if (confirm(`Mark this quote as ${statusLabels[newStatus]}?`)) {
+        fetch(`/quotes/{{ quote.id }}/update-status/`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value,
+                'X-Requested-With': 'XMLHttpRequest',
+            },
+            body: JSON.stringify({status: newStatus})
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                alert('Quote status updated successfully!');
+                location.reload();
+            } else {
+                alert('Failed to update status: ' + (data.error || 'Unknown error'));
+            }
+        })
+        .catch(error => {
+            console.error('Status update error:', error);
+            alert('Failed to update status. Please try again.');
+        });
+    }
+}
+
+// Auto-refresh quote status for real-time updates
+setInterval(function() {
+    if (document.visibilityState === 'visible') {
+        // Check for status updates every 30 seconds
+        fetch(`/quotes/{{ quote.id }}/status-check/`, {
+            headers: { 'X-Requested-With': 'XMLHttpRequest' }
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.status_changed) {
+                // Show notification and offer to refresh
+                if (confirm('Quote status has been updated. Refresh page to see changes?')) {
+                    location.reload();
+                }
+            }
+        })
+        .catch(error => {
+            // Silently fail - don't interrupt user experience
+            console.log('Status check failed:', error);
+        });
+    }
+}, 30000);
+</script>
+{% endblock %}

@@ -1,0 +1,158 @@
+<!-- templates/website/categories/manage_categories.html -->
+{% extends "website_base.html" %}
+{% load static %}
+
+{% block title %}Manage Categories - BlitzTech Electronics{% endblock %}
+
+{% block extra_css %}
+<style>
+/* Custom styles for category management */
+.category-stats {
+    font-size: 0.875rem;
+}
+.usage-badge {
+    font-size: 0.75rem;
+}
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container py-4">
+  <!-- Header Section -->
+  <div class="d-flex justify-content-between align-items-center mb-4">
+    <div>
+      <h2><i class="bi bi-tags me-2 text-primary"></i>Manage Categories</h2>
+      <p class="text-muted mb-0">Organize your blog posts and portfolio items with categories</p>
+    </div>
+    <div>
+      <a href="{% url 'website:manage_dashboard' %}" class="btn btn-outline-secondary me-2">
+        <i class="bi bi-arrow-left"></i> Back to Dashboard
+      </a>
+      <a href="{% url 'website:add_category' %}" class="btn btn-primary">
+        <i class="bi bi-plus-lg"></i> New Category
+      </a>
+    </div>
+  </div>
+
+  <!-- Categories List -->
+  {% if categories %}
+    <div class="row">
+      <div class="col-12">
+        <div class="card shadow-sm">
+          <div class="card-header bg-light">
+            <div class="d-flex justify-content-between align-items-center">
+              <h5 class="mb-0"><i class="bi bi-folder2-open me-2"></i>All Categories</h5>
+              <span class="badge bg-primary">{{ categories.count }} Categories</span>
+            </div>
+          </div>
+          <div class="table-responsive">
+            <table class="table table-hover mb-0">
+              <thead class="table-light">
+                <tr>
+                  <th width="30%">Category Name</th>
+                  <th width="25%">URL Slug</th>
+                  <th width="15%" class="text-center">Blog Posts</th>
+                  <th width="15%" class="text-center">Portfolio Items</th>
+                  <th width="15%" class="text-center">Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                {% for category in categories %}
+                <tr>
+                  <td>
+                    <div class="d-flex align-items-center">
+                      <div class="bg-primary rounded-circle me-2 d-flex align-items-center justify-content-center" 
+                           style="width: 32px; height: 32px;">
+                        <i class="bi bi-tag-fill text-white small"></i>
+                      </div>
+                      <div>
+                        <strong class="text-dark">{{ category.name }}</strong>
+                        <br>
+                        <small class="text-muted">Created for content organization</small>
+                      </div>
+                    </div>
+                  </td>
+                  <td>
+                    <code class="bg-light px-2 py-1 rounded">{{ category.slug }}</code>
+                    <br>
+                    <small class="text-muted">/category/{{ category.slug }}/</small>
+                  </td>
+                  <td class="text-center">
+                    {% if category.blog_posts.count > 0 %}
+                      <span class="badge bg-info usage-badge">{{ category.blog_posts.count }} post{{ category.blog_posts.count|pluralize }}</span>
+                      <br>
+                      <small class="text-muted">Used in blog</small>
+                    {% else %}
+                      <span class="text-muted">—</span>
+                      <br>
+                      <small class="text-muted">No posts</small>
+                    {% endif %}
+                  </td>
+                  <td class="text-center">
+                    {% if category.portfolio_items.count > 0 %}
+                      <span class="badge bg-success usage-badge">{{ category.portfolio_items.count }} item{{ category.portfolio_items.count|pluralize }}</span>
+                      <br>
+                      <small class="text-muted">Used in portfolio</small>
+                    {% else %}
+                      <span class="text-muted">—</span>
+                      <br>
+                      <small class="text-muted">No items</small>
+                    {% endif %}
+                  </td>
+                  <td class="text-center">
+                    <div class="btn-group" role="group" aria-label="Category actions">
+                      <a href="{% url 'website:edit_category' category.pk %}" 
+                         class="btn btn-sm btn-outline-primary"
+                         data-bs-toggle="tooltip" 
+                         data-bs-placement="top" 
+                         title="Edit category">
+                        <i class="bi bi-pencil"></i>
+                      </a>
+                      <a href="{% url 'website:delete_category' category.pk %}" 
+                         class="btn btn-sm btn-outline-danger"
+                         data-bs-toggle="tooltip" 
+                         data-bs-placement="top" 
+                         title="Delete category"
+                         onclick="return confirm('Are you sure you want to delete this category?')">
+                        <i class="bi bi-trash"></i>
+                      </a>
+                    </div>
+                  </td>
+                </tr>
+                {% endfor %}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </div>
+  {% else %}
+    <!-- Empty State -->
+    <div class="text-center py-5">
+      <div class="mb-4">
+        <i class="bi bi-tags display-1 text-muted"></i>
+      </div>
+      <h4 class="text-muted mb-3">No Categories Yet</h4>
+      <p class="text-muted mb-4">
+        Categories help organize your blog posts and portfolio items, making it easier for visitors to find related content.
+        <br>
+        Create your first category to get started with content organization.
+      </p>
+      <a href="{% url 'website:add_category' %}" class="btn btn-primary btn-lg">
+        <i class="bi bi-plus-lg me-2"></i>Create Your First Category
+      </a>
+    </div>
+  {% endif %}
+</div>
+
+<!-- Tooltips initialization -->
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // Initialize Bootstrap tooltips
+    var tooltipTriggerList = [].slice.call(document.querySelectorAll('[data-bs-toggle="tooltip"]'));
+    var tooltipList = tooltipTriggerList.map(function (tooltipTriggerEl) {
+        return new bootstrap.Tooltip(tooltipTriggerEl);
+    });
+});
+</script>
+{% endblock %}

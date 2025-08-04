@@ -1,0 +1,508 @@
+<!-- templates/website/partners/partner_form.html -->
+{% extends "website_base.html" %}
+{% load crispy_forms_tags %}
+
+{% block title %}{{ title }} - BlitzTech Electronics{% endblock %}
+
+{% block extra_css %}
+<style>
+/* Custom styles for partner form */
+.form-section {
+    background-color: #fff;
+    border-radius: 12px;
+    padding: 1.5rem;
+    margin-bottom: 1.5rem;
+    border: 1px solid #e9ecef;
+    position: relative;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+}
+.form-section::before {
+    content: '';
+    position: absolute;
+    left: 0;
+    top: 0;
+    bottom: 0;
+    width: 4px;
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    border-radius: 4px 0 0 4px;
+}
+.logo-preview-container {
+    background: #f8f9fa;
+    border: 2px dashed #dee2e6;
+    border-radius: 8px;
+    padding: 2rem;
+    text-align: center;
+    min-height: 200px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.3s ease;
+}
+.logo-preview-container:hover {
+    border-color: #007bff;
+    background: #f0f8ff;
+}
+.logo-preview {
+    max-width: 100%;
+    max-height: 180px;
+    object-fit: contain;
+    border-radius: 4px;
+}
+.partner-preview {
+    background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
+    border-radius: 12px;
+    padding: 2rem;
+    text-align: center;
+    border: 1px solid #dee2e6;
+}
+.tips-section {
+    background: linear-gradient(135deg, #e3f2fd 0%, #f3e5f5 100%);
+    border: 1px solid #bbdefb;
+    border-radius: 8px;
+    padding: 1rem;
+}
+.url-preview {
+    background: #f8f9fa;
+    border: 1px solid #dee2e6;
+    border-radius: 4px;
+    padding: 0.5rem;
+    font-family: monospace;
+    font-size: 0.875rem;
+    word-break: break-all;
+}
+.logo-specs {
+    background: #fff3cd;
+    border: 1px solid #ffeaa7;
+    border-radius: 8px;
+    padding: 1rem;
+}
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container py-4">
+  <div class="row justify-content-center">
+    <div class="col-lg-8">
+      <!-- Form Header -->
+      <div class="d-flex align-items-center mb-4">
+        <a href="{% url 'website:manage_partners' %}" class="btn btn-outline-secondary me-3">
+          <i class="bi bi-arrow-left"></i>
+        </a>
+        <div>
+          <h2 class="mb-0">
+            <i class="bi bi-building me-2 text-primary"></i>{{ title }}
+          </h2>
+          <p class="text-muted mb-0">Add partner logos to build credibility and showcase business relationships</p>
+        </div>
+      </div>
+
+      <form method="post" enctype="multipart/form-data" class="needs-validation" novalidate>
+        {% csrf_token %}
+        
+        <!-- Basic Information Section -->
+        <div class="form-section">
+          <h5 class="mb-3">
+            <i class="bi bi-info-circle me-2 text-primary"></i>Partner Information
+          </h5>
+          
+          <div class="mb-3">
+            <label for="{{ form.name.id_for_label }}" class="form-label fw-bold">
+              Partner/Client Name <span class="text-danger">*</span>
+            </label>
+            {{ form.name }}
+            <div class="form-text">
+              Official company or organization name as it should appear on your website
+            </div>
+            {% if form.name.errors %}
+              <div class="invalid-feedback d-block">
+                {% for error in form.name.errors %}{{ error }}{% endfor %}
+              </div>
+            {% endif %}
+          </div>
+
+          <div class="mb-3">
+            <label for="{{ form.url.id_for_label }}" class="form-label fw-bold">
+              Website URL
+            </label>
+            {{ form.url }}
+            <div class="form-text">
+              Partner's official website (optional but recommended for credibility)
+            </div>
+            <div class="url-preview mt-2" id="url-preview" style="display: none;">
+              <small class="text-muted">Preview: </small>
+              <span id="url-display"></span>
+            </div>
+            {% if form.url.errors %}
+              <div class="invalid-feedback d-block">
+                {% for error in form.url.errors %}{{ error }}{% endfor %}
+              </div>
+            {% endif %}
+          </div>
+
+          <div class="mb-3">
+            <label for="{{ form.order.id_for_label }}" class="form-label fw-bold">
+              Display Order
+            </label>
+            {{ form.order }}
+            <div class="form-text">
+              {{ form.order.help_text }}
+            </div>
+            {% if form.order.errors %}
+              <div class="invalid-feedback d-block">
+                {% for error in form.order.errors %}{{ error }}{% endfor %}
+              </div>
+            {% endif %}
+          </div>
+        </div>
+
+        <!-- Logo Upload Section -->
+        <div class="form-section">
+          <h5 class="mb-3">
+            <i class="bi bi-image me-2 text-primary"></i>Partner Logo
+          </h5>
+          
+          <div class="row">
+            <div class="col-md-6">
+              <div class="mb-3">
+                <label for="{{ form.logo.id_for_label }}" class="form-label fw-bold">
+                  Logo File <span class="text-danger">*</span>
+                </label>
+                {{ form.logo }}
+                <div class="form-text">
+                  High-quality logo file (PNG preferred for transparent backgrounds)
+                </div>
+                {% if form.logo.errors %}
+                  <div class="invalid-feedback d-block">
+                    {% for error in form.logo.errors %}{{ error }}{% endfor %}
+                  </div>
+                {% endif %}
+              </div>
+
+              <!-- Logo Specifications -->
+              <div class="logo-specs">
+                <h6 class="mb-2"><i class="bi bi-gear me-1"></i>Logo Specifications</h6>
+                <div class="small">
+                  <p class="mb-1"><strong>Recommended format:</strong> PNG with transparent background</p>
+                  <p class="mb-1"><strong>Alternative formats:</strong> SVG, JPG</p>
+                  <p class="mb-1"><strong>Dimensions:</strong> 200-400px wide (height varies)</p>
+                  <p class="mb-1"><strong>File size:</strong> Under 500KB for web optimization</p>
+                  <p class="mb-0"><strong>Quality:</strong> High resolution, clean edges</p>
+                </div>
+              </div>
+            </div>
+            <div class="col-md-6">
+              <!-- Logo Preview -->
+              <div class="logo-preview-container" id="logo-preview-container">
+                {% if object and object.logo %}
+                  <img src="{{ object.logo.url }}" 
+                       alt="{{ object.name }}" 
+                       class="logo-preview"
+                       id="logo-preview">
+                {% else %}
+                  <div class="text-center text-muted" id="logo-placeholder">
+                    <i class="bi bi-cloud-upload display-1 mb-3"></i>
+                    <p class="mb-0">Logo preview will appear here</p>
+                    <small>Upload a logo file to see preview</small>
+                  </div>
+                {% endif %}
+              </div>
+              {% if object and object.logo %}
+                <div class="text-center mt-2">
+                  <small class="text-muted">Current logo</small>
+                </div>
+              {% endif %}
+            </div>
+          </div>
+
+          <!-- Logo Guidelines -->
+          <div class="tips-section mt-3">
+            <h6 class="mb-2"><i class="bi bi-lightbulb me-1"></i>Logo Guidelines</h6>
+            <div class="row small">
+              <div class="col-md-6">
+                <p class="mb-1"><strong>✓ Best practices:</strong></p>
+                <ul class="mb-2">
+                  <li>Use official brand logos when possible</li>
+                  <li>Ensure adequate contrast and clarity</li>
+                  <li>Maintain original proportions</li>
+                  <li>Use high-resolution files</li>
+                </ul>
+              </div>
+              <div class="col-md-6">
+                <p class="mb-1"><strong>⚠ Considerations:</strong></p>
+                <ul class="mb-0">
+                  <li>Respect trademark and brand guidelines</li>
+                  <li>Get permission before displaying logos</li>
+                  <li>Consider confidentiality agreements</li>
+                  <li>Update logos when brands change</li>
+                </ul>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Preview Section -->
+        <div class="form-section">
+          <h5 class="mb-3">
+            <i class="bi bi-eye me-2 text-primary"></i>Website Display Preview
+          </h5>
+          
+          <div class="partner-preview">
+            <div class="row align-items-center">
+              <div class="col-md-4">
+                <div id="preview-logo" class="mb-3 mb-md-0">
+                  {% if object and object.logo %}
+                    <img src="{{ object.logo.url }}" 
+                         alt="{{ object.name }}" 
+                         class="img-fluid"
+                         style="max-height: 80px; filter: grayscale(100%); opacity: 0.7;">
+                  {% else %}
+                    <div class="bg-light p-3 rounded">
+                      <i class="bi bi-building display-4 text-muted"></i>
+                    </div>
+                  {% endif %}
+                </div>
+              </div>
+              <div class="col-md-8 text-md-start">
+                <h6 id="preview-name" class="mb-1">{{ object.name|default:"Partner Name" }}</h6>
+                <div id="preview-url">
+                  {% if object.url %}
+                    <small class="text-muted">
+                      <i class="bi bi-globe me-1"></i>
+                      <a href="{{ object.url }}" target="_blank" class="text-decoration-none">
+                        Visit Website
+                      </a>
+                    </small>
+                  {% else %}
+                    <small class="text-muted" id="preview-url-placeholder">
+                      Website link will appear here if provided
+                    </small>
+                  {% endif %}
+                </div>
+                <div class="mt-2">
+                  <span class="badge bg-light text-dark" id="preview-order">
+                    Order: {{ object.order|default:"0" }}
+                  </span>
+                </div>
+              </div>
+            </div>
+            
+            <div class="mt-3 pt-3 border-top">
+              <small class="text-muted">
+                <i class="bi bi-info-circle me-1"></i>
+                Partners are typically displayed in a grid or carousel on your website homepage and about page
+              </small>
+            </div>
+          </div>
+        </div>
+
+        <!-- Form Actions -->
+        <div class="d-flex gap-2 pt-3">
+          <button class="btn btn-primary btn-lg" type="submit">
+            <i class="bi bi-check-lg me-2"></i>
+            {% if object %}Update Partner{% else %}Add Partner{% endif %}
+          </button>
+          <a href="{% url 'website:manage_partners' %}" class="btn btn-outline-secondary btn-lg">
+            <i class="bi bi-x-lg me-2"></i>Cancel
+          </a>
+        </div>
+      </form>
+
+      <!-- Additional Information -->
+      <div class="mt-4">
+        <div class="card border-info">
+          <div class="card-header bg-info text-white">
+            <h6 class="mb-0"><i class="bi bi-shield-check me-2"></i>Legal & Ethical Considerations</h6>
+          </div>
+          <div class="card-body">
+            <div class="row">
+              <div class="col-md-6">
+                <h6 class="text-info">Permission & Rights</h6>
+                <ul class="small mb-3">
+                  <li>Always get permission before displaying partner logos</li>
+                  <li>Respect brand guidelines and usage policies</li>
+                  <li>Consider signed agreements for logo usage</li>
+                  <li>Keep records of permission for compliance</li>
+                </ul>
+              </div>
+              <div class="col-md-6">
+                <h6 class="text-warning">Best Practices</h6>
+                <ul class="small mb-0">
+                  <li>Update logos when partners rebrand</li>
+                  <li>Remove logos if relationships end</li>
+                  <li>Display logos at appropriate size and quality</li>
+                  <li>Consider confidentiality for sensitive clients</li>
+                </ul>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // Form elements
+    const nameField = document.getElementById('{{ form.name.id_for_label }}');
+    const urlField = document.getElementById('{{ form.url.id_for_label }}');
+    const orderField = document.getElementById('{{ form.order.id_for_label }}');
+    const logoField = document.getElementById('{{ form.logo.id_for_label }}');
+    
+    // Preview elements
+    const previewName = document.getElementById('preview-name');
+    const previewUrl = document.getElementById('preview-url');
+    const previewUrlPlaceholder = document.getElementById('preview-url-placeholder');
+    const previewOrder = document.getElementById('preview-order');
+    const previewLogo = document.getElementById('preview-logo');
+    const logoPreviewContainer = document.getElementById('logo-preview-container');
+    const logoPlaceholder = document.getElementById('logo-placeholder');
+    
+    // URL preview elements
+    const urlPreview = document.getElementById('url-preview');
+    const urlDisplay = document.getElementById('url-display');
+    
+    // Live preview updates
+    function updatePreview() {
+        // Update name
+        if (nameField && previewName) {
+            previewName.textContent = nameField.value || 'Partner Name';
+        }
+        
+        // Update URL
+        if (urlField && previewUrl) {
+            const url = urlField.value.trim();
+            if (url) {
+                previewUrl.innerHTML = `
+                    <small class="text-muted">
+                        <i class="bi bi-globe me-1"></i>
+                        <a href="${url}" target="_blank" class="text-decoration-none">
+                            Visit Website
+                        </a>
+                    </small>
+                `;
+                
+                // Show URL preview
+                if (urlPreview && urlDisplay) {
+                    urlDisplay.textContent = url;
+                    urlPreview.style.display = 'block';
+                }
+            } else {
+                if (previewUrlPlaceholder) {
+                    previewUrl.innerHTML = '<small class="text-muted">Website link will appear here if provided</small>';
+                }
+                
+                // Hide URL preview
+                if (urlPreview) {
+                    urlPreview.style.display = 'none';
+                }
+            }
+        }
+        
+        // Update order
+        if (orderField && previewOrder) {
+            previewOrder.textContent = `Order: ${orderField.value || '0'}`;
+        }
+    }
+    
+    // Logo preview
+    if (logoField) {
+        logoField.addEventListener('change', function(event) {
+            const file = event.target.files[0];
+            if (file) {
+                const reader = new FileReader();
+                reader.onload = function(e) {
+                    // Update main preview
+                    if (logoPreviewContainer) {
+                        logoPreviewContainer.innerHTML = `
+                            <img src="${e.target.result}" 
+                                 alt="Logo Preview" 
+                                 class="logo-preview"
+                                 style="max-width: 100%; max-height: 180px; object-fit: contain;">
+                        `;
+                    }
+                    
+                    // Update website display preview
+                    if (previewLogo) {
+                        previewLogo.innerHTML = `
+                            <img src="${e.target.result}" 
+                                 alt="Preview" 
+                                 class="img-fluid"
+                                 style="max-height: 80px; filter: grayscale(100%); opacity: 0.7;">
+                        `;
+                    }
+                };
+                reader.readAsDataURL(file);
+            }
+        });
+    }
+    
+    // Auto-format URLs
+    if (urlField) {
+        urlField.addEventListener('blur', function() {
+            const value = this.value.trim();
+            if (value && !value.startsWith('http://') && !value.startsWith('https://')) {
+                this.value = 'https://' + value;
+                updatePreview();
+            }
+        });
+    }
+    
+    // Add event listeners for live preview
+    [nameField, urlField, orderField].forEach(field => {
+        if (field) {
+            field.addEventListener('input', updatePreview);
+        }
+    });
+    
+    // Initialize preview
+    updatePreview();
+    
+    // Form validation
+    const form = document.querySelector('.needs-validation');
+    if (form) {
+        form.addEventListener('submit', function(event) {
+            if (!form.checkValidity()) {
+                event.preventDefault();
+                event.stopPropagation();
+            }
+            form.classList.add('was-validated');
+        });
+    }
+    
+    // Drag and drop for logo upload
+    if (logoPreviewContainer && logoField) {
+        logoPreviewContainer.addEventListener('dragover', function(e) {
+            e.preventDefault();
+            this.style.borderColor = '#007bff';
+            this.style.background = '#f0f8ff';
+        });
+        
+        logoPreviewContainer.addEventListener('dragleave', function(e) {
+            e.preventDefault();
+            this.style.borderColor = '#dee2e6';
+            this.style.background = '#f8f9fa';
+        });
+        
+        logoPreviewContainer.addEventListener('drop', function(e) {
+            e.preventDefault();
+            this.style.borderColor = '#dee2e6';
+            this.style.background = '#f8f9fa';
+            
+            const files = e.dataTransfer.files;
+            if (files.length > 0) {
+                logoField.files = files;
+                // Trigger change event
+                const event = new Event('change');
+                logoField.dispatchEvent(event);
+            }
+        });
+        
+        // Click to upload
+        logoPreviewContainer.addEventListener('click', function() {
+            logoField.click();
+        });
+    }
+});
+</script>
+{% endblock %}

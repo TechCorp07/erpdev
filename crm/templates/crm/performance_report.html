@@ -1,0 +1,193 @@
+{% extends "dashboard_base.html" %}
+{% load humanize %}
+
+{% block page_title %}Performance Report{% endblock %}
+
+{% block dashboard_content %}
+<div class="alert alert-info shadow-sm">
+  <h5 class="mb-1">Executive Summary</h5>
+  <p class="mb-0">
+    In the last 30 days, we acquired <b>{{ client_new_30 }}</b> new clients, closed <b>{{ deals_closed_won_30 }}</b> deals worth 
+    <b>${{ sales_growth_30|floatformat:0 }}</b>, with a win rate of <b>{{ win_rate_30 }}%</b>. 
+    <b>{{ completed_tasks_30 }}</b> tasks were completed, averaging <b>{{ avg_task_completion_time|default:"--" }}</b> per task.
+  </p>
+</div>
+
+<div class="d-flex justify-content-end mb-4">
+  <a href="{% url 'crm:export_performance_pdf' %}" class="btn btn-outline-secondary me-2">
+    <i class="bi bi-file-earmark-pdf"></i> Export PDF
+  </a>
+  <a href="{% url 'crm:export_performance_excel' %}" class="btn btn-outline-success">
+    <i class="bi bi-file-earmark-spreadsheet"></i> Export Excel
+  </a>
+</div>
+
+<!-- Summary Metrics -->
+<div class="row mb-4">
+  <div class="col-md-3">
+    <div class="card border-success shadow-sm mb-3">
+      <div class="card-body">
+        <h5 class="card-title text-success"><i class="bi bi-people"></i> Total Clients</h5>
+        <h2 class="fw-bold">{{ client_total }}</h2>
+        <small class="text-muted">+{{ client_new_30 }} new in last 30 days</small>
+      </div>
+    </div>
+  </div>
+  <div class="col-md-3">
+    <div class="card border-primary shadow-sm mb-3">
+      <div class="card-body">
+        <h5 class="card-title text-primary"><i class="bi bi-briefcase"></i> Deals in Pipeline</h5>
+        <h2 class="fw-bold">${{ pipeline_value|floatformat:0 }}</h2>
+        <small class="text-muted">{{ deal_total }} total | Won: {{ deals_closed_won_30 }}, Lost: {{ deals_closed_lost_30 }}</small>
+      </div>
+    </div>
+  </div>
+  <div class="col-md-3">
+    <div class="card border-info shadow-sm mb-3">
+      <div class="card-body">
+        <h5 class="card-title text-info"><i class="bi bi-trophy"></i> Win Rate</h5>
+        <h2 class="fw-bold">{{ win_rate_30 }}%</h2>
+        <small class="text-muted">Avg deal: ${{ avg_deal_size_30|floatformat:0 }}</small>
+      </div>
+    </div>
+  </div>
+  <div class="col-md-3">
+    <div class="card border-warning shadow-sm mb-3">
+      <div class="card-body">
+        <h5 class="card-title text-warning"><i class="bi bi-check2-circle"></i> Tasks</h5>
+        <h2 class="fw-bold">{{ completed_tasks_30 }}</h2>
+        <small class="text-muted">{{ overdue_tasks }} overdue | Avg completion: {{ avg_task_completion_time|default:"--" }}</small>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Deal Trend Chart -->
+<div class="row">
+  <div class="col-lg-8 mb-4">
+    <div class="card shadow-sm mb-3">
+      <div class="card-header"><b>Deal Volume Trend (30 Days)</b></div>
+      <div class="card-body">
+        {% if deals_trend_30 %}
+        <div id="dealTrendChart"></div>
+        <script>
+        document.addEventListener("DOMContentLoaded", function() {
+          var ctx = document.createElement('canvas');
+          document.getElementById('dealTrendChart').appendChild(ctx);
+          new Chart(ctx, {
+            type: 'line',
+            data: {
+              labels: [{% for item in deals_trend_30 %}"{{ item.date|date:'M d' }}",{% endfor %}],
+              datasets: [{
+                label: 'Deals Created',
+                data: [{% for item in deals_trend_30 %}{{ item.count }},{% endfor %}],
+                tension: 0.3,
+                borderColor: "#0d6efd",
+                fill: false
+              }]
+            },
+            options: {
+              scales: {
+                x: { title: { display: true, text: 'Date' }},
+                y: { title: { display: true, text: 'Deals' }, beginAtZero: true }
+              }
+            }
+          });
+        });
+        </script>
+        {% else %}
+        <p class="text-muted">No deals created in last 30 days.</p>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+
+  <div class="col-lg-4 mb-4">
+    <div class="card shadow-sm mb-3">
+      <div class="card-header"><b>Client Status Overview</b></div>
+      <div class="card-body">
+        <ul class="list-group">
+          {% for s in client_by_status %}
+          <li class="list-group-item d-flex justify-content-between align-items-center">
+            {{ s.status|capfirst }} <span class="badge bg-secondary">{{ s.count }}</span>
+          </li>
+          {% endfor %}
+        </ul>
+      </div>
+    </div>
+    <div class="card shadow-sm">
+      <div class="card-header"><b>Engagement</b></div>
+      <div class="card-body">
+        <div>Interactions (30d): <b>{{ interactions_30 }}</b></div>
+        <div>Avg per client: <b>{{ avg_interaction_per_client|floatformat:1 }}</b></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Sales + Risk Sections -->
+<div class="row mb-4">
+  <div class="col-lg-7">
+    <div class="card shadow-sm mb-3">
+      <div class="card-header"><b>Top Sales Performers</b></div>
+      <div class="card-body p-0">
+        <table class="table table-sm mb-0">
+          <thead class="table-light">
+            <tr><th>Name</th><th>Deals Won</th><th>Total Value</th></tr>
+          </thead>
+          <tbody>
+            {% for rep in team_performance %}
+            <tr>
+              <td>{{ rep.assigned_to__first_name }} {{ rep.assigned_to__last_name }}</td>
+              <td>{{ rep.won }}</td>
+              <td>${{ rep.value|floatformat:0 }}</td>
+            </tr>
+            {% empty %}
+            <tr><td colspan="3" class="text-muted">No closed deals this period.</td></tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+    <div class="card shadow-sm">
+      <div class="card-header"><b>Top Clients</b></div>
+      <div class="card-body p-0">
+        <table class="table table-sm mb-0">
+          <thead class="table-light">
+            <tr><th>Client</th><th>Total Deal Value</th></tr>
+          </thead>
+          <tbody>
+            {% for client in top_clients %}
+            <tr>
+              <td>{{ client.name }}{% if client.company %} ({{ client.company }}){% endif %}</td>
+              <td>${{ client.deal_value|floatformat:0 }}</td>
+            </tr>
+            {% empty %}
+            <tr><td colspan="2" class="text-muted">No clients with recent deal activity.</td></tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <div class="col-lg-5">
+    <div class="card border-danger shadow-sm">
+      <div class="card-header"><b>Risk: Stagnant Clients</b></div>
+      <div class="card-body">
+        <p class="text-muted small">No contact in 60+ days. Consider follow-up:</p>
+        <ul class="list-group">
+          {% for c in stagnant_clients %}
+          <li class="list-group-item d-flex justify-content-between align-items-center">
+            {{ c.name }}{% if c.company %} ({{ c.company }}){% endif %}
+            <span class="badge bg-danger">{{ c.days_since_last_contact }} days</span>
+          </li>
+          {% empty %}
+          <li class="list-group-item text-success">No stagnant clients. 🎉</li>
+          {% endfor %}
+        </ul>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
