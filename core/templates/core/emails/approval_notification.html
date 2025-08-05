@@ -1,0 +1,78 @@
+<!-- core/templates/core/emails/approval_notification.html -->
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Access Request {{ action|title }}</title>
+    <style>
+        body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; margin: 0; padding: 0; }
+        .container { max-width: 600px; margin: 0 auto; padding: 20px; }
+        .header { background: {% if action == 'approved' %}#28a745{% else %}#dc3545{% endif %}; color: white; padding: 30px; text-align: center; border-radius: 10px 10px 0 0; }
+        .content { background: #f8f9fa; padding: 30px; border-radius: 0 0 10px 10px; }
+        .button { display: inline-block; background: #0d6efd; color: white; padding: 12px 24px; text-decoration: none; border-radius: 5px; margin: 10px 0; }
+        .status-box { background: {% if action == 'approved' %}#d4edda{% else %}#f8d7da{% endif %}; border: 1px solid {% if action == 'approved' %}#c3e6cb{% else %}#f5c6cb{% endif %}; padding: 15px; border-radius: 5px; margin: 20px 0; }
+        .footer { text-align: center; padding: 20px; color: #666; font-size: 14px; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>{% if action == 'approved' %}✅ Access Approved!{% else %}❌ Access Request Rejected{% endif %}</h1>
+            <p>{{ approval_request.get_request_type_display }}</p>
+        </div>
+        
+        <div class="content">
+            <h2>Hello {{ user.first_name|default:user.username }},</h2>
+            
+            {% if action == 'approved' %}
+            <p>Great news! Your request for <strong>{{ approval_request.get_request_type_display }}</strong> has been approved.</p>
+            
+            <div class="status-box">
+                <h3>✅ You now have access to:</h3>
+                <ul>
+                    {% if approval_request.request_type == 'crm' %}
+                    <li>Customer relationship management system</li>
+                    <li>Client data and interaction tracking</li>
+                    <li>Sales pipeline management</li>
+                    {% elif approval_request.request_type == 'blog' %}
+                    <li>Blog content management</li>
+                    <li>Article creation and editing</li>
+                    <li>Content publishing tools</li>
+                    {% endif %}
+                </ul>
+            </div>
+            
+            <p>You can now login and access these features immediately.</p>
+            
+            {% else %}
+            <p>We regret to inform you that your request for <strong>{{ approval_request.get_request_type_display }}</strong> has been rejected.</p>
+            
+            <div class="status-box">
+                <h3>❌ Rejection Reason:</h3>
+                <p>{{ approval_request.review_notes|default:"No specific reason provided. Please contact support for more information." }}</p>
+            </div>
+            
+            <p>If you believe this decision was made in error or if you have additional information to support your request, please contact our support team.</p>
+            {% endif %}
+            
+            <h3>Request Details:</h3>
+            <ul>
+                <li><strong>Request Type:</strong> {{ approval_request.get_request_type_display }}</li>
+                <li><strong>Requested Date:</strong> {{ approval_request.requested_at|date:"F d, Y" }}</li>
+                <li><strong>Reviewed By:</strong> {{ reviewer.get_full_name|default:reviewer.username }}</li>
+                <li><strong>Review Date:</strong> {{ approval_request.reviewed_at|date:"F d, Y" }}</li>
+            </ul>
+            
+            <div style="text-align: center; margin: 30px 0;">
+                <a href="{{ site_url }}/auth/customer-dashboard/" class="button">Go to Dashboard</a>
+            </div>
+        </div>
+        
+        <div class="footer">
+            <p>Questions? Contact us at support@blitztech.co.zw</p>
+            <p>&copy; 2025 {{ company_name }}. All rights reserved.</p>
+        </div>
+    </div>
+</body>
+</html>

@@ -8,15 +8,17 @@ from django.urls import path, reverse
 from django.utils.html import format_html
 from django.db import transaction
 from django.utils import timezone
+from datetime import timedelta
 from .models import (
     UserProfile, AppPermission, LoginActivity, Notification, 
-    SecurityLog, SessionActivity, SystemSetting, GuestSession
+    SecurityLog, SessionActivity, SystemSetting, GuestSession,
+    ApprovalRequest, SecurityEvent
 )
 from .utils import create_notification, create_bulk_notifications, invalidate_permission_cache
 from django.db.models import Q, Count, Sum
 
+admin.site.unregister(User)
 
-# Enhanced UserProfile Inline with Quote Capabilities
 class UserProfileInline(admin.StackedInline):
     model = UserProfile
     can_delete = False
@@ -24,23 +26,44 @@ class UserProfileInline(admin.StackedInline):
     
     fieldsets = (
         ('Basic Information', {
-            'fields': (
-                ('user_type', 'department'),
-                ('phone', 'address'),
-                'profile_image',
-            )
+            'fields': ('user_type', 'department', 'phone', 'address','profile_image')
         }),
-        ('Security Settings', {
+        ('Approval Status', {
+            'fields': ('is_approved', 'crm_approved', 'blog_approved', 'shop_approved'),
+            'classes': ('collapse',)
+        }),
+        ('Profile Completion', {
+            'fields': ('profile_completed', 'profile_completion_date', 'required_fields_completed'),
+            'classes': ('collapse',)
+        }),
+        ('Social Authentication', {
+            'fields': ('is_social_account', 'social_provider', 'social_verified'),
+            'classes': ('collapse',)
+        }),
+        ('Business Information', {
+            'fields': ('company_name', 'tax_number', 'business_registration'),
+            'classes': ('collapse',)
+        }),
+        ('Addresses', {
+            'fields': ('billing_address', 'shipping_address', 'same_as_billing'),
+            'classes': ('collapse',)
+        }),
+        ('Notifications', {
+            'fields': ('email_notifications', 'sms_notifications', 'approval_notifications', 'marketing_emails'),
+            'classes': ('collapse',)
+        }),
+        ('Security', {
             'fields': (
-                ('requires_password_change', 'account_locked_until'),
-                ('last_password_change', 'failed_login_count'),
+                ('two_factor_enabled', 'last_security_check', 'last_password_change'),
+                ('requires_password_change', 'account_locked_until', 'failed_login_count'),
             ),
             'classes': ('collapse',)
         }),
     )
     
-    readonly_fields = ('last_password_change', 'failed_login_count', 'account_locked_until')
-    
+    readonly_fields = ('last_password_change', 'failed_login_count', 'account_locked_until',
+                       'profile_completion_date', 'last_security_check', 'required_fields_completed')
+
     def has_add_permission(self, request, obj):
         return obj is not None
     
@@ -50,45 +73,74 @@ class UserProfileInline(admin.StackedInline):
             return self.readonly_fields + ('user_type', 'requires_password_change')
         return self.readonly_fields
 
-# Enhanced User Admin with Quote Management
 class UserAdmin(BaseUserAdmin):
-    inlines = (UserProfileInline,)
+    inlines = (UserProfileInline, AppPermissionInline)
     
     # Enhanced list display with quote statistics
     list_display = (
         'username', 'email', 'first_name', 'last_name', 
         'get_user_type', 'get_department', 'get_last_login',
-        'get_quote_stats', 'get_account_status', 'is_staff', 'is_active'
+        'get_quote_stats', 'get_account_status', 'is_staff', 'is_active',
+        '', 'get_approval_status', 'get_profile_completion', 'date_joined'
     )
     
     # Enhanced filtering including quote-related filters
     list_filter = (
-        'profile__user_type', 
-        'profile__department',
-        'is_staff', 
-        'is_active', 
-        'date_joined',
-        'profile__requires_password_change',
+        'profile__user_type', 'profile__department',
+        'is_staff', 'is_active', 'is_superuser', 
+        'date_joined', 'profile__requires_password_change',
+        'profile__is_approved', 'profile__profile_completed',
+        'profile__crm_approved', 'profile__social_provider'
     )
     
     # Enhanced search including quote-related fields
     search_fields = (
         'username', 'email', 'first_name', 'last_name', 
-        'profile__phone', 'profile__department'
+        'profile__phone', 'profile__department', 'email'
     )
+    
+    ordering = ('-date_joined',)
     
     # Enhanced actions including quote-related bulk operations
     actions = [
         'create_employee_accounts',
         'assign_crm_permissions',
         'assign_inventory_permissions',
-        'assign_quote_permissions',  # NEW
-        'assign_sales_rep_role',     # NEW
-        'assign_sales_manager_role', # NEW
+        'assign_quote_permissions',
+        'assign_sales_rep_role',
+        'assign_sales_manager_role',
         'reset_passwords',
         'unlock_accounts',
         'send_bulk_notification',
     ]
+    
+    def get_user_type(self, obj):
+        if hasattr(obj, 'profile'):
+            return obj.profile.get_user_type_display()
+        return 'No Profile'
+    get_user_type.short_description = 'User Type'
+    get_user_type.admin_order_field = 'profile__user_type'
+    
+    def get_approval_status(self, obj):
+        if hasattr(obj, 'profile'):
+            profile = obj.profile
+            if profile.user_type == 'employee':
+                return format_html('<span style="color: blue;">Employee</span>')
+            elif profile.is_approved:
+                return format_html('<span style="color: green;">✓ Approved</span>')
+            else:
+                return format_html('<span style="color: orange;">⏳ Pending</span>')
+        return 'No Profile'
+    get_approval_status.short_description = 'Approval Status'
+    
+    def get_profile_completion(self, obj):
+        if hasattr(obj, 'profile'):
+            if obj.profile.profile_completed:
+                return format_html('<span style="color: green;">✓ Complete</span>')
+            else:
+                return format_html('<span style="color: red;">✗ Incomplete</span>')
+        return 'No Profile'
+    get_profile_completion.short_description = 'Profile'
     
     def get_queryset(self, request):
         return super().get_queryset(request).select_related('profile').annotate(
@@ -103,8 +155,8 @@ class UserAdmin(BaseUserAdmin):
                 'customer': 'blue',
                 'blogger': 'green', 
                 'employee': 'orange',
-                'sales_rep': 'purple',      # NEW
-                'sales_manager': 'indigo',  # NEW
+                'sales_rep': 'purple',
+                'sales_manager': 'indigo',
                 'blitzhub_admin': 'red',
                 'it_admin': 'black'
             }
@@ -114,7 +166,7 @@ class UserAdmin(BaseUserAdmin):
                 color,
                 obj.profile.get_user_type_display()
             )
-        return '-'
+        return 'No Profile'
     get_user_type.short_description = 'User Type'
     get_user_type.admin_order_field = 'profile__user_type'
     
@@ -132,7 +184,6 @@ class UserAdmin(BaseUserAdmin):
     get_last_login.short_description = 'Last Login'
     get_last_login.admin_order_field = 'profile__last_login'
     
-    # NEW: Quote statistics in admin
     def get_quote_stats(self, obj):
         if hasattr(obj, 'profile') and obj.profile.can_manage_quotes:
             quote_count = getattr(obj, 'quote_count', 0)
@@ -162,7 +213,6 @@ class UserAdmin(BaseUserAdmin):
         return '-'
     get_account_status.short_description = 'Account Status'
     
-    # Enhanced Custom Actions
     @admin.action(description='Convert selected users to employees')
     def create_employee_accounts(self, request, queryset):
         count = 0
@@ -192,7 +242,6 @@ class UserAdmin(BaseUserAdmin):
         
         self.message_user(request, f'{count} users converted to employees with quote access.')
     
-    # NEW: Quote-specific admin actions
     @admin.action(description='Assign Quote permissions to selected users')
     def assign_quote_permissions(self, request, queryset):
         count = 0
@@ -315,7 +364,6 @@ class UserAdmin(BaseUserAdmin):
         
         self.message_user(request, f'{count} users assigned Sales Manager role.')
     
-    # Keep all your existing actions (assign_crm_permissions, etc.)
     @admin.action(description='Assign CRM permissions to selected employees')
     def assign_crm_permissions(self, request, queryset):
         count = 0
@@ -364,7 +412,6 @@ class UserAdmin(BaseUserAdmin):
         
         self.message_user(request, f'Inventory permissions assigned to {count} employees.')
     
-    # Keep all your other existing actions...
     @admin.action(description='Force password reset for selected users')
     def reset_passwords(self, request, queryset):
         count = 0
@@ -413,11 +460,195 @@ class UserAdmin(BaseUserAdmin):
         
         self.message_user(request, f'Notification sent to {queryset.count()} users.')
 
-# Re-register UserAdmin
-admin.site.unregister(User)
-admin.site.register(User, UserAdmin)
+@admin.register(UserProfile)
+class UserProfileAdmin(admin.ModelAdmin):
+    """Standalone UserProfile admin"""
+    list_display = (
+        'user', 'user_type', 'get_approval_badges', 'profile_completed',
+        'is_social_account', 'social_provider', 'date_joined'
+    )
+    
+    list_filter = (
+        'user_type', 'is_approved', 'crm_approved', 'blog_approved', 'shop_approved',
+        'profile_completed', 'is_social_account', 'social_provider',
+        'email_notifications', 'marketing_emails'
+    )
+    
+    search_fields = ('user__username', 'user__email', 'user__first_name', 'user__last_name', 'phone', 'company_name')
+    
+    readonly_fields = (
+        'date_joined', 'profile_completion_date', 'last_security_check',
+        'required_fields_completed', 'approval_date'
+    )
+    
+    fieldsets = (
+        ('User', {
+            'fields': ('user',)
+        }),
+        ('Basic Information', {
+            'fields': ('user_type', 'department', 'phone', 'address', 'date_joined')
+        }),
+        ('Approval Status', {
+            'fields': (
+                'is_approved', 'crm_approved', 'blog_approved', 'shop_approved',
+                'approved_by', 'approval_date', 'approval_notes'
+            )
+        }),
+        ('Profile Completion', {
+            'fields': ('profile_completed', 'profile_completion_date', 'required_fields_completed')
+        }),
+        ('Social Authentication', {
+            'fields': ('is_social_account', 'social_provider', 'social_verified')
+        }),
+        ('Business Information', {
+            'fields': ('company_name', 'tax_number', 'business_registration')
+        }),
+        ('Addresses', {
+            'fields': ('billing_address', 'shipping_address', 'same_as_billing')
+        }),
+        ('Security', {
+            'fields': ('two_factor_enabled', 'last_security_check', 'last_password_change')
+        }),
+        ('Notifications', {
+            'fields': ('email_notifications', 'sms_notifications', 'approval_notifications', 'marketing_emails')
+        }),
+    )
+    
+    def get_approval_badges(self, obj):
+        badges = []
+        if obj.shop_approved:
+            badges.append('<span class="badge" style="background: green; color: white; padding: 2px 6px; border-radius: 3px; margin-right: 2px;">Shop</span>')
+        if obj.crm_approved:
+            badges.append('<span class="badge" style="background: blue; color: white; padding: 2px 6px; border-radius: 3px; margin-right: 2px;">CRM</span>')
+        if obj.blog_approved and obj.user_type == 'blogger':
+            badges.append('<span class="badge" style="background: purple; color: white; padding: 2px 6px; border-radius: 3px; margin-right: 2px;">Blog</span>')
+        
+        return format_html(''.join(badges)) if badges else 'None'
+    get_approval_badges.short_description = 'Approved Access'
+    
+    actions = ['approve_crm_access', 'approve_blog_access', 'complete_profiles']
+    
+    def approve_crm_access(self, request, queryset):
+        updated = 0
+        for profile in queryset:
+            if not profile.crm_approved:
+                profile.approve_for_access('crm', request.user, 'Bulk approved by admin')
+                updated += 1
+        
+        self.message_user(request, f'Approved CRM access for {updated} users.')
+    approve_crm_access.short_description = 'Approve CRM access for selected users'
+    
+    def approve_blog_access(self, request, queryset):
+        updated = 0
+        for profile in queryset.filter(user_type='blogger'):
+            if not profile.blog_approved:
+                profile.approve_for_access('blog', request.user, 'Bulk approved by admin')
+                updated += 1
+        
+        self.message_user(request, f'Approved blog access for {updated} bloggers.')
+    approve_blog_access.short_description = 'Approve blog access for selected bloggers'
+    
+    def complete_profiles(self, request, queryset):
+        updated = 0
+        for profile in queryset:
+            if profile.check_profile_completion():
+                updated += 1
+        
+        self.message_user(request, f'Updated completion status for {updated} profiles.')
+    complete_profiles.short_description = 'Update profile completion status'
 
-# Enhanced AppPermission Admin with Quote Context
+@admin.register(ApprovalRequest)
+class ApprovalRequestAdmin(admin.ModelAdmin):
+    """Admin for ApprovalRequest"""
+    list_display = (
+        'user', 'get_user_type', 'request_type', 'status', 
+        'requested_at', 'reviewed_by', 'reviewed_at'
+    )
+    
+    list_filter = (
+        'request_type', 'status', 'requested_at', 'reviewed_at',
+        'user__profile__user_type'
+    )
+    
+    search_fields = (
+        'user__username', 'user__email', 'user__first_name', 'user__last_name',
+        'requested_reason', 'business_justification'
+    )
+    
+    readonly_fields = ('requested_at', 'reviewed_at')
+    
+    fieldsets = (
+        ('Request Information', {
+            'fields': ('user', 'request_type', 'status', 'requested_at')
+        }),
+        ('Request Details', {
+            'fields': ('requested_reason', 'business_justification')
+        }),
+        ('Review Information', {
+            'fields': ('reviewed_by', 'reviewed_at', 'review_notes')
+        }),
+    )
+    
+    def get_user_type(self, obj):
+        return obj.user.profile.get_user_type_display()
+    get_user_type.short_description = 'User Type'
+    get_user_type.admin_order_field = 'user__profile__user_type'
+    
+    actions = ['approve_requests', 'reject_requests']
+    
+    def approve_requests(self, request, queryset):
+        updated = 0
+        for approval_request in queryset.filter(status='pending'):
+            approval_request.approve(request.user, 'Bulk approved by admin')
+            updated += 1
+        
+        self.message_user(request, f'Approved {updated} requests.')
+    approve_requests.short_description = 'Approve selected requests'
+    
+    def reject_requests(self, request, queryset):
+        updated = 0
+        for approval_request in queryset.filter(status='pending'):
+            approval_request.reject(request.user, 'Bulk rejected by admin')
+            updated += 1
+        
+        self.message_user(request, f'Rejected {updated} requests.')
+    reject_requests.short_description = 'Reject selected requests'
+
+@admin.register(SecurityEvent)
+class SecurityEventAdmin(admin.ModelAdmin):
+    """Admin for SecurityEvent"""
+    list_display = (
+        'user', 'event_type', 'ip_address', 'timestamp', 'get_details_summary'
+    )
+    
+    list_filter = (
+        'event_type', 'timestamp', 'ip_address'
+    )
+    
+    search_fields = (
+        'user__username', 'user__email', 'ip_address', 'user_agent'
+    )
+    
+    readonly_fields = ('user', 'event_type', 'ip_address', 'user_agent', 'details', 'timestamp')
+    
+    date_hierarchy = 'timestamp'
+    
+    def get_details_summary(self, obj):
+        if obj.details:
+            summary = []
+            for key, value in obj.details.items():
+                if len(str(value)) < 50:
+                    summary.append(f"{key}: {value}")
+            return ', '.join(summary[:3])
+        return 'No details'
+    get_details_summary.short_description = 'Details Summary'
+    
+    def has_add_permission(self, request):
+        return False  # Security events are created programmatically
+    
+    def has_change_permission(self, request, obj=None):
+        return False  # Security events should not be modified
+
 @admin.register(AppPermission)
 class AppPermissionAdmin(admin.ModelAdmin):
     list_display = ('user', 'get_user_type', 'app', 'permission_level', 'created_at', 'get_quote_activity')
@@ -435,8 +666,8 @@ class AppPermissionAdmin(admin.ModelAdmin):
     actions = [
         'bulk_assign_view_permission', 
         'bulk_assign_edit_permission',
-        'bulk_assign_quote_permissions',  # NEW
-        'bulk_revoke_permissions'         # NEW
+        'bulk_assign_quote_permissions',
+        'bulk_revoke_permissions'
     ]
     
     def get_user_type(self, obj):
@@ -513,14 +744,46 @@ class AppPermissionAdmin(admin.ModelAdmin):
         
         self.message_user(request, f'Quote permissions assigned to {count} users.')
 
-# Security Monitoring Admins
+class AppPermissionInline(admin.TabularInline):
+    """Inline admin for AppPermission"""
+    model = AppPermission
+    extra = 0
+    fields = ('app', 'permission_level', 'created_at', 'updated_at')
+    readonly_fields = ('created_at', 'updated_at')
+
 @admin.register(LoginActivity)
 class LoginActivityAdmin(admin.ModelAdmin):
-    list_display = ('user', 'get_user_type', 'login_datetime', 'ip_address', 'get_location')
+    list_display = ('user', 'get_user_type', 'login_datetime', 'ip_address', 'get_location', 'get_user_agent_summary')
     list_filter = ('login_datetime', 'user__profile__user_type')
-    search_fields = ('user__username', 'ip_address', 'user_agent')
+    search_fields = ('user__username', 'ip_address', 'user_agent', 'user__email')
     readonly_fields = ('user', 'login_datetime', 'ip_address', 'user_agent')
     date_hierarchy = 'login_datetime'
+    
+    def get_user_agent_summary(self, obj):
+        if obj.user_agent:
+            # Extract browser/device info
+            agent = obj.user_agent.lower()
+            if 'chrome' in agent:
+                browser = 'Chrome'
+            elif 'firefox' in agent:
+                browser = 'Firefox'
+            elif 'safari' in agent:
+                browser = 'Safari'
+            elif 'edge' in agent:
+                browser = 'Edge'
+            else:
+                browser = 'Other'
+            
+            if 'mobile' in agent:
+                device = 'Mobile'
+            elif 'tablet' in agent:
+                device = 'Tablet'
+            else:
+                device = 'Desktop'
+            
+            return f"{browser} ({device})"
+        return 'Unknown'
+    get_user_agent_summary.short_description = 'Browser/Device'
     
     def has_add_permission(self, request):
         return False
@@ -551,7 +814,6 @@ class SecurityLogAdmin(admin.ModelAdmin):
     def has_change_permission(self, request, obj=None):
         return False
 
-# Enhanced Notification Admin with Quote Context
 @admin.register(Notification)
 class NotificationAdmin(admin.ModelAdmin):
     list_display = ('user', 'get_user_type', 'title', 'type', 'is_read', 'created_at', 'get_action_info')
@@ -653,8 +915,6 @@ class NotificationAdmin(admin.ModelAdmin):
         except ImportError:
             self.message_user(request, 'Quote system not available.', level=messages.ERROR)
 
-
-# Enhanced System Settings Admin with Quote Categories
 @admin.register(SystemSetting)
 class SystemSettingAdmin(admin.ModelAdmin):
     list_display = ('key', 'value_preview', 'category', 'is_active', 'updated_at')
@@ -678,7 +938,6 @@ class SystemSettingAdmin(admin.ModelAdmin):
     def value_preview(self, obj):
         return obj.value[:100] + '...' if len(obj.value) > 100 else obj.value
     value_preview.short_description = 'Value'
-
 
 @admin.register(GuestSession)
 class GuestSessionAdmin(admin.ModelAdmin):
@@ -706,6 +965,7 @@ class GuestSessionAdmin(admin.ModelAdmin):
         self.message_user(request, f'{count} expired guest sessions cleaned up.')
 
 # Customize Admin Site
+admin.site.register(User, UserAdmin)
 admin.site.site_header = "BlitzTech Electronics Administration"
 admin.site.site_title = "BlitzTech Admin"
 admin.site.index_title = "Welcome to BlitzTech Electronics Administration"

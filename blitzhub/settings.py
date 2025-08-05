@@ -1,7 +1,6 @@
 """
 Django settings for blitzhub project with Enhanced Quote System Integration.
 """
-
 from datetime import timedelta
 import os
 from pathlib import Path
@@ -38,6 +37,13 @@ INSTALLED_APPS = [
     'crispy_bootstrap5',
     'django_extensions',
     'django.contrib.humanize',
+    'django.contrib.sites',
+    'phonenumber_field',
+    'allauth',
+    'allauth.account',
+    'allauth.socialaccount',
+    'allauth.socialaccount.providers.google',
+    'allauth.socialaccount.providers.facebook',
 
     #Apps
     'core',
@@ -53,6 +59,7 @@ MIDDLEWARE = [
     'django.middleware.common.CommonMiddleware',
     'django.middleware.csrf.CsrfViewMiddleware',
     'django.contrib.auth.middleware.AuthenticationMiddleware',
+    'allauth.account.middleware.AccountMiddleware',
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
     'core.middleware.EmployeeAccessMiddleware',
@@ -98,6 +105,53 @@ DATABASES = {
         'PORT': os.getenv('DB_PORT'),
     }
 }
+# Social Auth Configuration
+SITE_ID = 1
+
+# Social providers configuration
+SOCIALACCOUNT_PROVIDERS = {
+    'google': {
+        'SCOPE': [
+            'profile',
+            'email',
+        ],
+        'AUTH_PARAMS': {
+            'access_type': 'online',
+        },
+        'OAUTH_PKCE_ENABLED': True,
+        'APP': {
+            'client_id': os.getenv('GOOGLE_OAUTH_CLIENT_ID'),
+            'secret': os.getenv('GOOGLE_OAUTH_SECRET'),
+            'key': ''
+        }
+    },
+    'facebook': {
+        'METHOD': 'oauth2',
+        'SCOPE': ['email', 'public_profile'],
+        'AUTH_PARAMS': {'auth_type': 'reauthenticate'},
+        'INIT_PARAMS': {'cookie': True},
+        'FIELDS': [
+            'id',
+            'first_name',
+            'last_name',
+            'middle_name',
+            'name',
+            'name_format',
+            'picture',
+            'short_name',
+            'email',
+        ],
+        'EXCHANGE_TOKEN': True,
+        'LOCALE_FUNC': 'path.to.callable',
+        'VERIFIED_EMAIL': False,
+        'VERSION': 'v17.0',
+        'APP': {
+            'client_id': os.getenv('FACEBOOK_APP_ID'),
+            'secret': os.getenv('FACEBOOK_APP_SECRET'),
+            'key': ''
+        }
+    }
+}
 
 # Password validation
 AUTH_PASSWORD_VALIDATORS = [
@@ -107,7 +161,7 @@ AUTH_PASSWORD_VALIDATORS = [
     {
         'NAME': 'django.contrib.auth.password_validation.MinimumLengthValidator',
         'OPTIONS': {
-            'min_length': 8,
+            'min_length': 12,
         }
     },
     {
@@ -116,10 +170,14 @@ AUTH_PASSWORD_VALIDATORS = [
     {
         'NAME': 'django.contrib.auth.password_validation.NumericPasswordValidator',
     },
+        {
+        'NAME': 'core.validators.CustomPasswordValidator',
+    },
 ]
 
 AUTHENTICATION_BACKENDS = [
     'django.contrib.auth.backends.ModelBackend',
+    'allauth.account.auth_backends.AuthenticationBackend',
 ]
 
 CSRF_TRUSTED_ORIGINS = [
@@ -159,10 +217,21 @@ DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 CRISPY_ALLOWED_TEMPLATE_PACKS = "bootstrap5"
 CRISPY_TEMPLATE_PACK = "bootstrap5"
 
+# AllAuth Configuration
+ACCOUNT_AUTHENTICATION_METHOD = 'username_email'
+ACCOUNT_EMAIL_REQUIRED = True
+ACCOUNT_EMAIL_VERIFICATION = 'mandatory'
+ACCOUNT_USERNAME_REQUIRED = True
+ACCOUNT_SIGNUP_FORM_CLASS = 'core.forms.CustomSignupForm'
+ACCOUNT_ADAPTER = 'core.adapters.CustomAccountAdapter'
+SOCIALACCOUNT_ADAPTER = 'core.adapters.CustomSocialAccountAdapter'
+
 # Authentication settings
 LOGIN_URL = 'core:login'
-LOGIN_REDIRECT_URL = 'core:dashboard'
+LOGIN_REDIRECT_URL = 'core:profile_completion'
 LOGOUT_REDIRECT_URL = 'website:home'
+ACCOUNT_LOGOUT_REDIRECT_URL = 'website:home'
+SOCIALACCOUNT_LOGIN_ON_GET = True
 
 # Email settings (for contact form)
 EMAIL_BACKEND = os.getenv('EMAIL_BACKEND')
@@ -246,17 +315,64 @@ QUOTE_NOTIFICATION_THRESHOLD = Decimal('5000.00')  # Notify management for quote
 
 AUTH_USER_MODEL = 'auth.User'  # Using Django's default user model
 
+# =====================================
+# ENHANCED SECURITY SETTINGS
+# =====================================
+
 # Authentication and security settings
+LOGIN_BLOCK_TIME = 900  # 15 minutes in seconds
+MAX_REGISTRATION_ATTEMPTS = 3
+REGISTRATION_BLOCK_TIME = 3600  # 1 hour
 PASSWORD_EXPIRY_DAYS = 90  # Password expires after 90 days
 MAX_LOGIN_ATTEMPTS = 5  # Maximum failed login attempts before temporary lockout
-LOGIN_BLOCK_TIME = 1800  # Block time in seconds (30 minutes) after max attempts
 REQUIRE_PASSWORD_HISTORY = 5  # Number of old passwords that cannot be reused
 SESSION_EXPIRE_AT_BROWSER_CLOSE = True  # Force login after browser close
-SESSION_COOKIE_AGE = 1800  # 30 minutes
+SESSION_COOKIE_AGE = 3600  # 1 hour
 SESSION_SAVE_EVERY_REQUEST = True  # Refresh session with each request to keep it active
+SESSION_COOKIE_SECURE = not DEBUG  # HTTPS only in production
+SESSION_COOKIE_HTTPONLY = True
+SESSION_COOKIE_SAMESITE = 'Lax'
+CSRF_COOKIE_SECURE = not DEBUG
+CSRF_COOKIE_HTTPONLY = True
+# Account lockout settings
+ACCOUNT_LOCKOUT_THRESHOLD = 5
+ACCOUNT_LOCKOUT_DURATION = 1800  # 30 minutes
+PASSWORD_RESET_TIMEOUT = 3600  # 1 hour for password reset links
+# Profile completion requirements
+PROFILE_COMPLETION_REQUIRED_FIELDS = [
+    'first_name', 'last_name', 'phone', 'address'
+]
+# Approval workflow settings
+APPROVAL_WORKFLOW = {
+    'customer': {
+        'crm_approval_required': True,
+        'shop_approval_required': False,
+        'auto_approve_after_hours': 48,  # Auto-approve customers after 48 hours
+    },
+    'blogger': {
+        'crm_approval_required': True,
+        'shop_approval_required': False,
+        'blog_approval_required': True,
+        'auto_approve_after_hours': 72,  # Auto-approve bloggers after 72 hours
+    },
+    'employee': {
+        'admin_creation_only': True,
+        'requires_department': True,
+        'requires_manager_approval': True,
+    }
+}
+
+# Notification settings for approvals
+APPROVAL_NOTIFICATION_EMAILS = [
+    'admin@blitztech.co.zw',
+    'manager@blitztech.co.zw',
+]
+# Email verification settings
+EMAIL_VERIFICATION_REQUIRED = True
+EMAIL_VERIFICATION_TIMEOUT = 86400  # 24 hours
 
 # =====================================
-# ENHANCED ACCESS CONTROL RULES WITH QUOTE INTEGRATION
+# ENHANCED ACCESS_CONTROL_RULES WITH QUOTE INTEGRATION
 # =====================================
 ACCESS_CONTROL_RULES = {
     # Core application access rules
@@ -424,12 +540,18 @@ LOGGING = {
             'formatter': 'verbose',
         },
         'security_file': {
-            'level': 'INFO',
+            'level': 'WARNING',
             'class': 'logging.handlers.RotatingFileHandler',
             'filename': os.path.join(BASE_DIR, 'logs', 'security.log'),
             'maxBytes': 10 * 1024 * 1024,  # 10 MB
             'backupCount': 10,
             'formatter': 'security',
+        },
+        'auth_file': {
+            'level': 'INFO',
+            'class': 'logging.FileHandler',
+            'filename': os.path.join(BASE_DIR, 'logs', 'authentication.log'),
+            'formatter': 'verbose',
         },
         'mail_admins': {
             'level': 'ERROR',
@@ -465,7 +587,12 @@ LOGGING = {
             'propagate': True,
         },
         'core.security': {
-            'handlers': ['security_file', 'mail_admins'],
+            'handlers': ['security_file', 'console'],
+            'level': 'INFO',
+            'propagate': False,
+        },
+        'core.authentication': {
+            'handlers': ['auth_file', 'console'],
             'level': 'INFO',
             'propagate': False,
         },

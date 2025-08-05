@@ -1,0 +1,56 @@
+<!-- core/templates/core/emails/admin_new_user.html -->
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <title>New User Registration - {{ company_name }}</title>
+    <style>
+        body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
+        .container { max-width: 600px; margin: 0 auto; padding: 20px; }
+        .header { background: #0d6efd; color: white; padding: 20px; text-align: center; }
+        .content { background: #f8f9fa; padding: 20px; }
+        .user-info { background: white; padding: 15px; border-radius: 5px; margin: 15px 0; border-left: 4px solid #0d6efd; }
+        .button { display: inline-block; background: #0d6efd; color: white; padding: 10px 20px; text-decoration: none; border-radius: 5px; margin: 5px; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h2>🆕 New User Registration</h2>
+            <p>{{ company_name }} Admin Notification</p>
+        </div>
+        
+        <div class="content">
+            <p>A new user has registered on the platform and may require approval for additional access.</p>
+            
+            <div class="user-info">
+                <h3>User Details:</h3>
+                <ul>
+                    <li><strong>Name:</strong> {{ user.get_full_name|default:user.username }}</li>
+                    <li><strong>Email:</strong> {{ user.email }}</li>
+                    <li><strong>Username:</strong> {{ user.username }}</li>
+                    <li><strong>User Type:</strong> {{ user_type|title }}</li>
+                    <li><strong>Registration Date:</strong> {{ user.date_joined|date:"F d, Y H:i" }}</li>
+                    <li><strong>Social Account:</strong> {% if user.profile.is_social_account %}Yes ({{ user.profile.social_provider|title }}){% else %}No{% endif %}</li>
+                </ul>
+            </div>
+            
+            <h3>Required Actions:</h3>
+            <ul>
+                {% if user_type == 'customer' %}
+                <li>Review customer information for CRM access approval</li>
+                {% elif user_type == 'blogger' %}
+                <li>Review blogger credentials for content management access</li>
+                <li>Verify blog management capabilities</li>
+                {% endif %}
+                <li>Monitor user activity for compliance</li>
+            </ul>
+            
+            <div style="text-align: center; margin: 20px 0;">
+                <a href="{{ admin_url }}" class="button">Manage Users</a>
+                <a href="{{ approval_url }}" class="button">Review Approvals</a>
+            </div>
+        </div>
+    </div>
+</body>
+</html>

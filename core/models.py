@@ -18,15 +18,11 @@ class UserProfile(models.Model):
     )
     
     DEPARTMENTS = (
-        ('sales', 'Sales'),
+        ('sales', 'Sales and Marketing'),
         ('support', 'Customer Support'),
         ('technical', 'Technical'),
         ('admin', 'Administration'),
-        ('marketing', 'Marketing'),
-        ('content', 'Content'),
-        ('warehouse', 'Warehouse'),
-        ('hr', 'Human Resources'),
-        ('finance', 'Finance'),
+        ('procurement', 'Procurement'),
         ('other', 'Other'),
     )
     
@@ -38,9 +34,53 @@ class UserProfile(models.Model):
     profile_image = models.ImageField(upload_to='profile_images/', blank=True, null=True)
     date_joined = models.DateTimeField(auto_now_add=True)
     last_login = models.DateTimeField(blank=True, null=True)
+    
+    # Approval workflow fields
+    is_approved = models.BooleanField(default=False, help_text="General account approval status")
+    crm_approved = models.BooleanField(default=False, help_text="Approved for CRM access")
+    blog_approved = models.BooleanField(default=False, help_text="Approved for blog management")
+    shop_approved = models.BooleanField(default=True, help_text="Approved for shopping cart (default true)")
+    
+    # Approval tracking
+    approved_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True,
+        related_name='approved_profiles', help_text="Admin who approved this profile"
+    )
+    approval_date = models.DateTimeField(null=True, blank=True)
+    approval_notes = models.TextField(blank=True, help_text="Notes from approver")
+    
+    # Profile completion tracking
+    profile_completed = models.BooleanField(default=False)
+    profile_completion_date = models.DateTimeField(null=True, blank=True)
+    required_fields_completed = models.JSONField(default=list, blank=True)
+    
+    # Enhanced security fields
+    two_factor_enabled = models.BooleanField(default=False)
+    backup_codes = models.JSONField(default=list, blank=True)
+    last_security_check = models.DateTimeField(null=True, blank=True)
+    
+    # Social login tracking
+    is_social_account = models.BooleanField(default=False)
+    social_provider = models.CharField( max_length=20, blank=True, 
+        choices=[('google', 'Google'), ('facebook', 'Facebook'), ('manual', 'Manual Registration')])
+    social_verified = models.BooleanField(default=False)
+    
+    # Business information (for customers and bloggers)
+    company_name = models.CharField(max_length=200, blank=True)
+    tax_number = models.CharField(max_length=50, blank=True)
+    business_registration = models.CharField(max_length=100, blank=True)
+    
+    # NEW: Enhanced notification preferences
     email_notifications = models.BooleanField(default=True)
+    sms_notifications = models.BooleanField(default=False)
+    approval_notifications = models.BooleanField(default=True)
+    marketing_emails = models.BooleanField(default=False)
     theme_preference = models.CharField(max_length=10, default='light', choices=[('light', 'Light'), ('dark', 'Dark'), ('auto', 'Auto')])
     allow_profile_discovery = models.BooleanField(default=True)
+    
+    # Billing information
+    billing_address = models.TextField(blank=True)
+    shipping_address = models.TextField(blank=True)
+    same_as_billing = models.BooleanField(default=True)
     
     # Security enhancements
     last_password_change = models.DateTimeField(blank=True, null=True)
@@ -52,10 +92,130 @@ class UserProfile(models.Model):
     
     class Meta:
         ordering = ['user__first_name', 'user__last_name']
+        indexes = [
+            models.Index(fields=['user_type', 'is_approved']),
+            models.Index(fields=['crm_approved']),
+            models.Index(fields=['profile_completed']),
+        ]
     
     def __str__(self):
-        return f"{self.user.username} - {self.get_user_type_display()}"
+        return f"{self.user.get_full_name() or self.user.username} ({self.get_user_type_display()})"
     
+    def needs_approval_for(self, access_type):
+        """Check if user needs approval for specific access type"""
+        approval_mapping = {
+            'crm': not self.crm_approved,
+            'blog': not self.blog_approved and self.user_type == 'blogger',
+            'shop': not self.shop_approved,
+        }
+        return approval_mapping.get(access_type, False)
+
+    def approve_for_access(self, access_type, approved_by_user, notes=""):
+        """Approve user for specific access type"""
+        from django.utils import timezone
+        
+        if access_type == 'crm':
+            self.crm_approved = True
+        elif access_type == 'blog':
+            self.blog_approved = True
+        elif access_type == 'shop':
+            self.shop_approved = True
+        elif access_type == 'general':
+            self.is_approved = True
+            
+        self.approved_by = approved_by_user
+        self.approval_date = timezone.now()
+        self.approval_notes = notes
+        self.save()
+        
+        # Create notification
+        from .utils import create_notification
+        create_notification(
+            user=self.user,
+            title=f"Access Approved: {access_type.upper()}",
+            message=f"Your access to {access_type} has been approved. You can now use this feature.",
+            notification_type='success'
+        )
+        
+        # Log the approval
+        import logging
+        logger = logging.getLogger('core.authentication')
+        logger.info(f"User {self.user.username} approved for {access_type} by {approved_by_user.username}")
+
+    def check_profile_completion(self):
+        """Check if profile is complete based on required fields"""
+        from django.conf import settings
+        
+        required_fields = getattr(settings, 'PROFILE_COMPLETION_REQUIRED_FIELDS', [])
+        completed_fields = []
+        
+        for field in required_fields:
+            if hasattr(self.user, field):
+                if getattr(self.user, field):
+                    completed_fields.append(field)
+            elif hasattr(self, field):
+                if getattr(self, field):
+                    completed_fields.append(field)
+        
+        self.required_fields_completed = completed_fields
+        self.profile_completed = len(completed_fields) == len(required_fields)
+        
+        if self.profile_completed and not self.profile_completion_date:
+            from django.utils import timezone
+            self.profile_completion_date = timezone.now()
+        
+        self.save(update_fields=['required_fields_completed', 'profile_completed', 'profile_completion_date'])
+        return self.profile_completed
+
+    def get_incomplete_fields(self):
+        """Get list of incomplete required fields"""
+        from django.conf import settings
+        
+        required_fields = getattr(settings, 'PROFILE_COMPLETION_REQUIRED_FIELDS', [])
+        incomplete_fields = []
+        
+        for field in required_fields:
+            value = None
+            if hasattr(self.user, field):
+                value = getattr(self.user, field)
+            elif hasattr(self, field):
+                value = getattr(self, field)
+            
+            if not value:
+                incomplete_fields.append(field)
+        
+        return incomplete_fields
+
+    def can_access_crm(self):
+        """Check if user can access CRM"""
+        if self.user_type == 'employee':
+            return True  # Employees get access based on permissions
+        return self.crm_approved and self.profile_completed
+
+    def can_access_shop(self):
+        """Check if user can access shopping cart"""
+        return self.shop_approved  # Shopping is less restrictive
+
+    def can_access_blog(self):
+        """Check if blogger can manage blog content"""
+        return self.user_type == 'blogger' and self.blog_approved and self.profile_completed
+
+    @property
+    def approval_status_display(self):
+        """Human-readable approval status"""
+        if self.user_type == 'employee':
+            return "Employee Account"
+        
+        statuses = []
+        if self.crm_approved:
+            statuses.append("CRM")
+        if self.blog_approved and self.user_type == 'blogger':
+            statuses.append("Blog")
+        if self.shop_approved:
+            statuses.append("Shop")
+            
+        return f"Approved: {', '.join(statuses)}" if statuses else "Pending Approval"
+
     @property
     def has_shop_access(self):
         """Check if user has access to shop management"""
@@ -192,6 +352,83 @@ class AppPermission(models.Model):
         return f"{self.user.username} - {self.get_app_display()} ({self.get_permission_level_display()})"
 
 
+class ApprovalRequest(models.Model):
+    """Track approval requests for users"""
+    
+    REQUEST_TYPES = (
+        ('crm', 'CRM Access'),
+        ('blog', 'Blog Management'),
+        ('shop', 'Shop Access'),
+        ('general', 'General Account'),
+    )
+    
+    STATUS_CHOICES = (
+        ('pending', 'Pending'),
+        ('approved', 'Approved'),
+        ('rejected', 'Rejected'),
+    )
+    
+    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='approval_requests')
+    request_type = models.CharField(max_length=20, choices=REQUEST_TYPES)
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='pending')
+    
+    # Request details
+    requested_at = models.DateTimeField(auto_now_add=True)
+    requested_reason = models.TextField(blank=True, help_text="Why user needs this access")
+    business_justification = models.TextField(blank=True)
+    
+    # Approval details
+    reviewed_by = models.ForeignKey(
+        User, on_delete=models.SET_NULL, null=True, blank=True,
+        related_name='reviewed_approval_requests'
+    )
+    reviewed_at = models.DateTimeField(null=True, blank=True)
+    review_notes = models.TextField(blank=True)
+    
+    class Meta:
+        ordering = ['-requested_at']
+        unique_together = ('user', 'request_type', 'status')  # Prevent duplicate pending requests
+    
+    def __str__(self):
+        return f"{self.user.username} - {self.get_request_type_display()} ({self.status})"
+
+    def approve(self, reviewer, notes=""):
+        """Approve the request"""
+        from django.utils import timezone
+        
+        self.status = 'approved'
+        self.reviewed_by = reviewer
+        self.reviewed_at = timezone.now()
+        self.review_notes = notes
+        self.save()
+        
+        # Apply the approval to user profile
+        self.user.profile.approve_for_access(self.request_type, reviewer, notes)
+        
+        return True
+
+    def reject(self, reviewer, notes=""):
+        """Reject the request"""
+        from django.utils import timezone
+        
+        self.status = 'rejected'
+        self.reviewed_by = reviewer
+        self.reviewed_at = timezone.now()
+        self.review_notes = notes
+        self.save()
+        
+        # Create notification for user
+        from .utils import create_notification
+        create_notification(
+            user=self.user,
+            title=f"Access Request Rejected: {self.get_request_type_display()}",
+            message=f"Your request for {self.get_request_type_display()} has been rejected. Reason: {notes}",
+            notification_type='warning'
+        )
+        
+        return True
+
+
 class LoginActivity(models.Model):
     """Track user login activity for security monitoring"""
     user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='login_activities')
@@ -205,6 +442,42 @@ class LoginActivity(models.Model):
     
     def __str__(self):
         return f"{self.user.username} - {self.login_datetime.strftime('%Y-%m-%d %H:%M:%S')}"
+
+
+class SecurityEvent(models.Model):
+    """Log security-related events"""
+    
+    EVENT_TYPES = (
+        ('login_success', 'Successful Login'),
+        ('login_failure', 'Failed Login'),
+        ('password_change', 'Password Changed'),
+        ('profile_update', 'Profile Updated'),
+        ('permission_change', 'Permissions Modified'),
+        ('suspicious_activity', 'Suspicious Activity'),
+        ('account_lockout', 'Account Locked'),
+        ('social_login', 'Social Login'),
+        ('approval_granted', 'Approval Granted'),
+        ('approval_rejected', 'Approval Rejected'),
+    )
+    
+    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='security_events', null=True, blank=True)
+    event_type = models.CharField(max_length=30, choices=EVENT_TYPES)
+    ip_address = models.GenericIPAddressField()
+    user_agent = models.TextField(blank=True)
+    details = models.JSONField(default=dict)
+    timestamp = models.DateTimeField(auto_now_add=True)
+    
+    class Meta:
+        ordering = ['-timestamp']
+        indexes = [
+            models.Index(fields=['user', '-timestamp']),
+            models.Index(fields=['event_type', '-timestamp']),
+            models.Index(fields=['ip_address', '-timestamp']),
+        ]
+    
+    def __str__(self):
+        username = self.user.username if self.user else 'Anonymous'
+        return f"{username} - {self.get_event_type_display()} at {self.timestamp}"
 
 
 class Notification(models.Model):

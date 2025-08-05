@@ -1,0 +1,121 @@
+<!-- core/templates/core/request_approval.html -->
+{% extends 'core/base_dashboard.html' %}
+{% load crispy_forms_tags %}
+
+{% block title %}Request Access - {{ block.super }}{% endblock %}
+
+{% block dashboard_content %}
+<div class="row justify-content-center">
+    <div class="col-lg-8">
+        <div class="card shadow">
+            <div class="card-header bg-primary text-white">
+                <h4 class="mb-0">
+                    <i class="bi bi-key me-2"></i>Request Additional Access
+                </h4>
+                <p class="mb-0 mt-1">Submit a request for additional system access</p>
+            </div>
+            
+            <div class="card-body p-4">
+                {% if form.request_type.field.choices %}
+                <form method="post">
+                    {% csrf_token %}
+                    
+                    <div class="mb-4">
+                        <label class="form-label fw-bold">Access Type *</label>
+                        {{ form.request_type }}
+                        <div class="form-text">Select the type of access you need</div>
+                    </div>
+                    
+                    <div class="mb-4">
+                        <label class="form-label fw-bold">Reason for Request *</label>
+                        {{ form.requested_reason }}
+                        <div class="form-text">Explain why you need this access</div>
+                    </div>
+                    
+                    <div class="mb-4">
+                        <label class="form-label fw-bold">Business Justification *</label>
+                        {{ form.business_justification }}
+                        <div class="form-text">Provide business justification for this request</div>
+                    </div>
+                    
+                    <div class="d-grid gap-2 d-md-flex justify-content-md-end">
+                        <a href="{% url 'core:customer_dashboard' %}" class="btn btn-outline-secondary me-md-2">Cancel</a>
+                        <button type="submit" class="btn btn-primary">
+                            <i class="bi bi-send me-2"></i>Submit Request
+                        </button>
+                    </div>
+                </form>
+                {% else %}
+                <div class="text-center py-5">
+                    <i class="bi bi-check-circle text-success" style="font-size: 4rem;"></i>
+                    <h4 class="mt-3">All Access Granted!</h4>
+                    <p class="text-muted">You currently have access to all available features for your account type.</p>
+                    <a href="{% url 'core:customer_dashboard' %}" class="btn btn-primary">
+                        <i class="bi bi-arrow-left me-2"></i>Back to Dashboard
+                    </a>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+        
+        <!-- Existing Requests -->
+        {% if existing_requests %}
+        <div class="card mt-4">
+            <div class="card-header">
+                <h5 class="mb-0">
+                    <i class="bi bi-list-check me-2"></i>Your Previous Requests
+                </h5>
+            </div>
+            <div class="card-body">
+                <div class="table-responsive">
+                    <table class="table table-hover">
+                        <thead>
+                            <tr>
+                                <th>Access Type</th>
+                                <th>Status</th>
+                                <th>Requested</th>
+                                <th>Reviewed</th>
+                                <th>Notes</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for request in existing_requests %}
+                            <tr>
+                                <td>{{ request.get_request_type_display }}</td>
+                                <td>
+                                    {% if request.status == 'pending' %}
+                                        <span class="badge bg-warning">Pending</span>
+                                    {% elif request.status == 'approved' %}
+                                        <span class="badge bg-success">Approved</span>
+                                    {% else %}
+                                        <span class="badge bg-danger">Rejected</span>
+                                    {% endif %}
+                                </td>
+                                <td>{{ request.requested_at|date:"M d, Y" }}</td>
+                                <td>
+                                    {% if request.reviewed_at %}
+                                        {{ request.reviewed_at|date:"M d, Y" }}
+                                    {% else %}
+                                        <span class="text-muted">-</span>
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    {% if request.review_notes %}
+                                        <span data-bs-toggle="tooltip" title="{{ request.review_notes }}">
+                                            {{ request.review_notes|truncatewords:5 }}
+                                        </span>
+                                    {% else %}
+                                        <span class="text-muted">-</span>
+                                    {% endif %}
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}

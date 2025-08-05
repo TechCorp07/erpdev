@@ -8,30 +8,96 @@ are commented out with clear notes about what needs to be implemented.
 """
 
 from django.urls import path, include
+from django.contrib.auth import views as auth_views
 from . import views
 
 app_name = 'core'
 
 urlpatterns = [
     # =====================================
-    # AUTHENTICATION URLS (All implemented ✓)
+    # AUTHENTICATION URLS
     # =====================================
     path('login/', views.CustomLoginView.as_view(), name='login'),
-    path('logout/', views.logout_view, name='logout'),
+    path('logout/', auth_views.LogoutView.as_view(), name='logout'),
     path('register/', views.register_view, name='register'),
+    
+    # Password management URLs
     path('password/change/', views.CustomPasswordChangeView.as_view(), name='password_change'),
+    path('password/reset/', auth_views.PasswordResetView.as_view(
+        template_name='core/password_reset.html',
+        email_template_name='core/emails/password_reset_email.html',
+        success_url='/auth/password/reset/done/'), name='password_reset'),
+    path('password/reset/done/', auth_views.PasswordResetDoneView.as_view(
+        template_name='core/password_reset_done.html'), name='password_reset_done'),
+    path('password/reset/<uidb64>/<token>/', auth_views.PasswordResetConfirmView.as_view(
+        template_name='core/password_reset_confirm.html',
+        success_url='/auth/password/reset/complete/'), name='password_reset_confirm'),
+    path('password/reset/complete/', auth_views.PasswordResetCompleteView.as_view(
+        template_name='core/password_reset_complete.html'
+    ), name='password_reset_complete'),
+    
+    # Social authentication URLs (allauth)
+    path('accounts/', include('allauth.urls')),
     
     # =====================================
-    # DASHBOARD AND PROFILE URLS (All implemented ✓)
+    # DASHBOARD AND PROFILE URLS
     # =====================================
     path('dashboard/', views.dashboard_view, name='dashboard'),
-    path('profile/', views.profile_view, name='profile'),
-    path('system-logs/', views.system_logs, name='system_logs'),
-    path('system-reports/', views.system_reports, name='system_reports'),
-    path('audit-log/', views.audit_log_view, name='audit_log'),
+    path('customer-dashboard/', views.customer_dashboard_view, name='customer_dashboard'),
+    path('security-dashboard/', views.security_dashboard_view, name='security_dashboard'),
     
     # =====================================
-    # EMPLOYEE MANAGEMENT URLS (All implemented ✓)
+    # PROFILE MANAGEMENT URLS
+    # =====================================
+    path('profile/', views.profile_view, name='profile'),
+    path('profile/complete/', views.profile_completion_view, name='profile_completion'),
+    
+    # =====================================
+    # APPROVAL WORKFLOW URLS
+    # =====================================
+    path('request-approval/', views.request_approval_view, name='request_approval'),
+    path('manage-approvals/', views.manage_approvals_view, name='manage_approvals'),
+    path('process-approval/<int:request_id>/', views.process_approval_view, name='process_approval'),
+    path('bulk-approve/', views.bulk_approve_requests, name='bulk_approve_requests'),
+    
+    # =====================================
+    # USER MANAGEMENT URLS
+    # =====================================
+    path('users/', views.user_management_view, name='user_management'),
+    path('users/<int:user_id>/', views.user_detail_view, name='user_detail'),
+    path('users/<int:user_id>/permissions/', views.manage_user_permissions, name='manage_permissions'),
+    path('employees/', views.employee_list_view, name='employee_list'), 
+    path('employees/add/', views.add_employee_view, name='add_employee'),
+    
+    # =====================================
+    # NOTIFICATION URLS
+    # =====================================
+    path('notifications/', views.notifications_view, name='notifications'),
+    path('notifications/mark-read/<int:notification_id>/', views.mark_notification_read, name='mark_notification_read'),
+    path('notifications/mark-all-read/', views.mark_all_notifications_read, name='mark_all_notifications_read'),
+    path('notifications/export/', views.export_notifications_view, name='export_notifications'),
+    path('notifications/details/<int:notification_id>/', views.get_notification_details, name='get_notification_details'),
+    path('notifications/archive/<int:notification_id>/', views.archive_notification, name='archive_notification'),
+    path('notifications/updates/', views.get_notification_updates, name='get_notification_updates'),
+    
+    # =====================================
+    # API ENDPOINTS
+    # =====================================
+    path('api/check-username/', views.check_username_availability, name='check_username'),
+    path('api/check-email/', views.check_email_availability, name='check_email'),
+    path('api/profile-completion-status/', views.profile_completion_status, name='profile_completion_status'),
+    path('api/user-stats/', views.user_stats_api, name='user_stats_api'),
+    
+    # =====================================
+    # ADMIN UTILITIES
+    # =====================================
+    path('system-settings/', views.system_settings_view, name='system_settings'),
+    path('system-logs/', views.system_logs, name='system_logs'),
+    path('system-reports/', views.system_reports, name='system_reports'),
+    path('audit-logs/', views.audit_log_view, name='audit_logs'),
+    
+    # =====================================
+    # EMPLOYEE MANAGEMENT URLS
     # =====================================
     path('employees/', views.employee_list_view, name='employee_list'),
     path('employees/add/', views.add_employee_view, name='add_employee'),
@@ -41,32 +107,16 @@ urlpatterns = [
     path('employees/performance-report/', views.employee_performance_report_view, name='employee_performance_report'),
     path('employees/bulk-assign-permissions/', views.bulk_assign_permissions_view, name='bulk_assign_permissions'),
 
-    # Sales team management (Currently implemented ✓)
+    # Sales team management
     path('sales-team/', views.sales_team_dashboard, name='sales_team_dashboard'),
-    
-    # FUTURE: Advanced sales team features (requires implementation)
-    # TODO: Implement sales performance tracking and territory management
-    # path('sales-team/performance/', views.sales_performance_view, name='sales_performance'),
-    # path('sales-team/assign-territories/', views.assign_sales_territories, name='assign_territories'),
-    
-    # =====================================
-    # NOTIFICATION URLS (Implemented ✓)
-    # =====================================
-    path('notifications/', views.notifications_view, name='notifications'),
-    path('notifications/mark-read/<int:notification_id>/', views.mark_notification_read, name='mark_notification_read'),
-    path('notifications/export/', views.export_notifications_view, name='export_notifications'),
-    path('notifications/mark-all-read/', views.mark_all_notifications_read, name='mark_all_notifications_read'),
-    path('notifications/details/<int:notification_id>/', views.get_notification_details, name='get_notification_details'),
-    path('notifications/archive/<int:notification_id>/', views.archive_notification, name='archive_notification'),
-    path('notifications/updates/', views.get_notification_updates, name='get_notification_updates'),
-
-    # FUTURE: Advanced notification features (requires implementation)
-    # TODO: Implement bulk notification operations and quote-specific reminders
-    # path('notifications/quote-reminders/', views.send_quote_reminders, name='send_quote_reminders'),
-    # path('notifications/followup-alerts/', views.create_followup_alerts, name='create_followup_alerts'),
+    path('admin/permissions-overview/', views.permissions_overview_view, name='permissions_overview'),
+    path('settings/notifications/', views.notification_settings_view, name='notification_settings'),
+    path('settings/update-user-preference/', views.update_user_preference, name='update_user_preference'),
+    path('settings/privacy/', views.privacy_settings_view, name='privacy_settings'),
+    path('export/data/', views.export_data_view, name='export_data'),
     
     # =====================================
-    # AJAX/API URLS (All implemented ✓)
+    # AJAX/API URLS
     # =====================================
     path('api/check-username/', views.check_username_availability, name='check_username'),
     path('api/notifications/', views.get_user_notifications, name='get_notifications'),
@@ -83,9 +133,8 @@ urlpatterns = [
     path('api/quotes-needing-attention/', views.get_quotes_needing_attention, name='get_quotes_needing_attention'),
     
     # =====================================
-    # INTEGRATION ENDPOINTS (Implemented ✓)
+    # INTEGRATION ENDPOINTS
     # =====================================
-    # These endpoints help other apps integrate with core functionality
     
     # Quote system integration endpoints (All implemented ✓)
     path('integration/quote-user-access/', views.quote_user_access_check, name='quote_user_access_check'),
@@ -103,12 +152,7 @@ urlpatterns = [
     # TODO: Build permissions overview dashboard
     # path('admin/system-settings/', views.system_settings_view, name='system_settings'),
     # path('admin/user-roles/', views.manage_user_roles_view, name='manage_user_roles'),
-    path('admin/permissions-overview/', views.permissions_overview_view, name='permissions_overview'),
-    path('settings/notifications/', views.notification_settings_view, name='notification_settings'),
-    path('settings/update-user-preference/', views.update_user_preference, name='update_user_preference'),
-    path('settings/privacy/', views.privacy_settings_view, name='privacy_settings'),
-    path('export/data/', views.export_data_view, name='export_data'),
-    
+
     # QUOTE SYSTEM ADMINISTRATION (requires implementation)
     # TODO: Create quote system configuration interface
     # TODO: Implement quote template management
@@ -138,6 +182,16 @@ urlpatterns = [
     # path('integration/user-lookup/', views.user_lookup_api, name='user_lookup'),
     # path('integration/permission-check/', views.permission_check_api, name='permission_check'),
     # path('integration/create-notification/', views.create_notification_api, name='create_notification_api'),
+    
+    # FUTURE: Advanced sales team features (requires implementation)
+    # TODO: Implement sales performance tracking and territory management
+    # path('sales-team/performance/', views.sales_performance_view, name='sales_performance'),
+    # path('sales-team/assign-territories/', views.assign_sales_territories, name='assign_territories'),
+
+    # FUTURE: Advanced notification features (requires implementation)
+    # TODO: Implement bulk notification operations and quote-specific reminders
+    # path('notifications/quote-reminders/', views.send_quote_reminders, name='send_quote_reminders'),
+    # path('notifications/followup-alerts/', views.create_followup_alerts, name='create_followup_alerts'),
 ]
 
 # =====================================

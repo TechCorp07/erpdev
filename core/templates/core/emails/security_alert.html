@@ -1,0 +1,51 @@
+<!-- core/templates/core/emails/security_alert.html -->
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <title>Security Alert - {{ company_name }}</title>
+    <style>
+        body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
+        .container { max-width: 600px; margin: 0 auto; padding: 20px; }
+        .header { background: #dc3545; color: white; padding: 20px; text-align: center; }
+        .content { background: #f8f9fa; padding: 20px; }
+        .alert-box { background: #f8d7da; border: 1px solid #f5c6cb; padding: 15px; border-radius: 5px; margin: 15px 0; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h2>🚨 Security Alert</h2>
+            <p>Unusual Activity Detected</p>
+        </div>
+        
+        <div class="content">
+            <p>Hello {{ user.first_name|default:user.username }},</p>
+            
+            <p>We detected a login to your account from a new location or device.</p>
+            
+            <div class="alert-box">
+                <h3>Login Details:</h3>
+                <ul>
+                    <li><strong>Time:</strong> {{ timestamp|date:"F d, Y H:i" }}</li>
+                    <li><strong>IP Address:</strong> {{ ip_address }}</li>
+                    <li><strong>Device:</strong> {{ user_agent }}</li>
+                </ul>
+            </div>
+            
+            <p><strong>If this was you:</strong> No action is required. Your account is secure.</p>
+            
+            <p><strong>If this wasn't you:</strong> Please change your password immediately and contact our support team.</p>
+            
+            <p>For your security, we recommend:</p>
+            <ul>
+                <li>Using strong, unique passwords</li>
+                <li>Enabling two-factor authentication</li>
+                <li>Logging out from public computers</li>
+            </ul>
+            
+            <p>Contact support: support@blitztech.co.zw</p>
+        </div>
+    </div>
+</body>
+</html>

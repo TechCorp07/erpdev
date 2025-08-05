@@ -3,15 +3,15 @@ from django.http import HttpResponseRedirect, JsonResponse
 from django.views.decorators.csrf import csrf_exempt
 from django.shortcuts import render, redirect, get_object_or_404
 from django.contrib.auth.decorators import user_passes_test, login_required
-from .models import AuditLog, SecurityLog
 from django.contrib.auth import login, logout, update_session_auth_hash
 from django.contrib.auth.views import LoginView, PasswordChangeView
+from django.views.decorators.http import require_http_methods
+from django.contrib.auth.hashers import make_password
 from django.contrib.auth.models import User
 from django.contrib import messages
 from django.urls import reverse_lazy, reverse
 from django.http import HttpResponse, JsonResponse
 from django.utils import timezone
-from django.contrib.auth.hashers import make_password
 from django.db import transaction
 from django.core.cache import cache
 from django.db import models
@@ -24,16 +24,18 @@ import json
 
 from .forms import (
     CoreLoginForm, UserRegistrationForm, UserProfileForm, 
-    PasswordChangeCustomForm, EmployeeRegistrationForm, AppPermissionForm
+    PasswordChangeCustomForm, EmployeeRegistrationForm, AppPermissionForm,
+    ProfileCompletionForm, ApprovalRequestForm, AdminApprovalForm, 
+    EnhancedUserProfileForm
 )
-from .models import UserProfile, AppPermission, LoginActivity, Notification
+from .models import UserProfile, AppPermission, LoginActivity, Notification, AuditLog, SecurityLog, ApprovalRequest, SecurityEvent
 from .decorators import user_type_required, permission_required, ajax_required, password_expiration_check
 from .utils import (
-    authenticate_user, check_app_permission, create_bulk_notifications, get_unread_notifications_count, invalidate_permission_cache, 
-    create_notification, get_quote_dashboard_stats, get_user_permissions_dict, get_navigation_context
+    authenticate_user, check_app_permission, create_bulk_notifications, get_unread_notifications_count, get_user_dashboard_stats, invalidate_permission_cache, 
+    create_notification, get_quote_dashboard_stats, get_user_permissions_dict, get_navigation_context, log_security_event
 )
 
-logger = logging.getLogger(__name__)
+logger = logging.getLogger('core.authentication')
 
 # =====================================
 # AUTHENTICATION VIEWS
@@ -186,6 +188,283 @@ def register_view(request):
         'registration_type': request.GET.get('for', 'general')
     }
     return render(request, 'core/register.html', context)
+
+# =====================================
+# USER MANAGEMENT VIEWS
+# =====================================
+
+@user_passes_test(lambda u: u.is_superuser or (hasattr(u, 'profile') and u.profile.user_type in ['blitzhub_admin', 'it_admin']))
+def user_management_view(request):
+    """Enhanced user management view"""
+    # Get filter parameters
+    user_type_filter = request.GET.get('type', '')
+    approval_status = request.GET.get('approval', '')
+    search_query = request.GET.get('search', '')
+    
+    # Build queryset
+    queryset = User.objects.select_related('profile').all()
+    
+    if user_type_filter:
+        queryset = queryset.filter(profile__user_type=user_type_filter)
+    
+    if approval_status == 'approved':
+        queryset = queryset.filter(profile__is_approved=True)
+    elif approval_status == 'pending':
+        queryset = queryset.filter(profile__is_approved=False)
+    
+    if search_query:
+        queryset = queryset.filter(
+            Q(username__icontains=search_query) |
+            Q(first_name__icontains=search_query) |
+            Q(last_name__icontains=search_query) |
+            Q(email__icontains=search_query)
+        )
+    
+    queryset = queryset.order_by('-date_joined')
+    
+    # Pagination
+    paginator = Paginator(queryset, 25)
+    page = request.GET.get('page')
+    users = paginator.get_page(page)
+    
+    # Get statistics
+    stats = {
+        'total_users': User.objects.count(),
+        'customers': UserProfile.objects.filter(user_type='customer').count(),
+        'bloggers': UserProfile.objects.filter(user_type='blogger').count(),
+        'employees': UserProfile.objects.filter(user_type__in=['employee', 'sales_rep', 'sales_manager']).count(),
+        'pending_approval': UserProfile.objects.filter(is_approved=False).count(),
+        'social_accounts': UserProfile.objects.filter(is_social_account=True).count(),
+    }
+    
+    context = {
+        'users': users,
+        'stats': stats,
+        'user_type_filter': user_type_filter,
+        'approval_status': approval_status,
+        'search_query': search_query,
+        'user_types': UserProfile.USER_TYPES,
+    }
+    
+    return render(request, 'core/user_management.html', context)
+
+
+@user_passes_test(lambda u: u.is_superuser or (hasattr(u, 'profile') and u.profile.user_type in ['blitzhub_admin', 'it_admin']))
+def user_detail_view(request, user_id):
+    """Detailed view of a specific user"""
+    target_user = get_object_or_404(User, id=user_id)
+    profile = target_user.profile
+    
+    # Get user's approval requests
+    approval_requests = ApprovalRequest.objects.filter(user=target_user).order_by('-requested_at')
+    
+    # Get user's login activity
+    login_activities = target_user.login_activities.all()[:10]
+    
+    # Get security events
+    security_events = target_user.security_events.all()[:10]
+    
+    context = {
+        'target_user': target_user,
+        'profile': profile,
+        'approval_requests': approval_requests,
+        'login_activities': login_activities,
+        'security_events': security_events,
+    }
+    
+    return render(request, 'core/user_detail.html', context)
+
+# =====================================
+# APPROVAL REQUEST VIEWS
+# =====================================
+
+@login_required
+def request_approval_view(request):
+    """Allow users to request additional access"""
+    user = request.user
+    profile = user.profile
+    
+    # Employees don't need to request approval
+    if profile.user_type == 'employee':
+        messages.info(request, "Employees don't need to request additional access.")
+        return redirect('core:dashboard')
+    
+    if request.method == 'POST':
+        form = ApprovalRequestForm(request.POST, user=user)
+        if form.is_valid():
+            approval_request = form.save(commit=False)
+            approval_request.user = user
+            approval_request.save()
+            
+            # Notify admins about new approval request
+            admin_users = User.objects.filter(
+                Q(is_superuser=True) | 
+                Q(profile__user_type__in=['blitzhub_admin', 'it_admin'])
+            )
+            
+            for admin in admin_users:
+                create_notification(
+                    user=admin,
+                    title=f"New Approval Request: {approval_request.get_request_type_display()}",
+                    message=f"{user.get_full_name()} has requested {approval_request.get_request_type_display()} access.",
+                    notification_type='info',
+                    action_url=reverse('core:manage_approvals')
+                )
+            
+            messages.success(request, "Your approval request has been submitted and is being reviewed.")
+            return redirect('core:customer_dashboard')
+    else:
+        form = ApprovalRequestForm(user=user)
+    
+    # Get existing requests
+    existing_requests = ApprovalRequest.objects.filter(user=user).order_by('-requested_at')
+    
+    context = {
+        'form': form,
+        'existing_requests': existing_requests,
+        'profile': profile,
+    }
+    
+    return render(request, 'core/request_approval.html', context)
+
+
+@user_passes_test(lambda u: u.is_superuser or (hasattr(u, 'profile') and u.profile.user_type in ['blitzhub_admin', 'it_admin']))
+def manage_approvals_view(request):
+    """Admin view to manage approval requests"""
+    # Get filter parameters
+    status_filter = request.GET.get('status', 'pending')
+    request_type_filter = request.GET.get('type', '')
+    search_query = request.GET.get('search', '')
+    
+    # Build queryset
+    queryset = ApprovalRequest.objects.all()
+    
+    if status_filter:
+        queryset = queryset.filter(status=status_filter)
+    
+    if request_type_filter:
+        queryset = queryset.filter(request_type=request_type_filter)
+    
+    if search_query:
+        queryset = queryset.filter(
+            Q(user__username__icontains=search_query) |
+            Q(user__first_name__icontains=search_query) |
+            Q(user__last_name__icontains=search_query) |
+            Q(user__email__icontains=search_query)
+        )
+    
+    queryset = queryset.order_by('-requested_at')
+    
+    # Pagination
+    paginator = Paginator(queryset, 20)
+    page = request.GET.get('page')
+    approval_requests = paginator.get_page(page)
+    
+    # Get statistics
+    stats = {
+        'pending': ApprovalRequest.objects.filter(status='pending').count(),
+        'approved': ApprovalRequest.objects.filter(status='approved').count(),
+        'rejected': ApprovalRequest.objects.filter(status='rejected').count(),
+    }
+    
+    context = {
+        'approval_requests': approval_requests,
+        'stats': stats,
+        'status_filter': status_filter,
+        'request_type_filter': request_type_filter,
+        'search_query': search_query,
+        'request_types': ApprovalRequest.REQUEST_TYPES,
+    }
+    
+    return render(request, 'core/manage_approvals.html', context)
+
+
+@user_passes_test(lambda u: u.is_superuser or (hasattr(u, 'profile') and u.profile.user_type in ['blitzhub_admin', 'it_admin']))
+def process_approval_view(request, request_id):
+    """Process individual approval request"""
+    approval_request = get_object_or_404(ApprovalRequest, id=request_id)
+    
+    if request.method == 'POST':
+        form = AdminApprovalForm(request.POST, instance=approval_request)
+        if form.is_valid():
+            form.save(reviewer=request.user)
+            
+            action = form.cleaned_data['action']
+            action_text = 'approved' if action == 'approve' else 'rejected'
+            
+            messages.success(request, f"Request {action_text} successfully!")
+            
+            # Log the action
+            log_security_event(
+                user=request.user,
+                event_type=f'approval_{action}d',
+                ip_address=request.META.get('REMOTE_ADDR'),
+                details={
+                    'target_user': approval_request.user.username,
+                    'request_type': approval_request.request_type,
+                    'action': action
+                }
+            )
+            
+            return redirect('core:manage_approvals')
+    else:
+        form = AdminApprovalForm(instance=approval_request)
+    
+    context = {
+        'approval_request': approval_request,
+        'form': form,
+        'user_profile': approval_request.user.profile,
+    }
+    
+    return render(request, 'core/process_approval.html', context)
+
+
+# =====================================
+# BULK APPROVAL VIEWS
+# =====================================
+
+@user_passes_test(lambda u: u.is_superuser or (hasattr(u, 'profile') and u.profile.user_type in ['blitzhub_admin', 'it_admin']))
+@require_http_methods(["POST"])
+def bulk_approve_requests(request):
+    """Bulk approve multiple requests"""
+    request_ids = request.POST.getlist('request_ids')
+    action = request.POST.get('action')  # 'approve' or 'reject'
+    notes = request.POST.get('notes', '')
+    
+    if not request_ids:
+        return JsonResponse({'success': False, 'error': 'No requests selected'})
+    
+    try:
+        requests_qs = ApprovalRequest.objects.filter(id__in=request_ids, status='pending')
+        processed_count = 0
+        
+        for approval_request in requests_qs:
+            if action == 'approve':
+                approval_request.approve(request.user, notes)
+            else:
+                approval_request.reject(request.user, notes)
+            processed_count += 1
+        
+        # Log bulk action
+        log_security_event(
+            user=request.user,
+            event_type=f'approval_{action}d',
+            ip_address=request.META.get('REMOTE_ADDR'),
+            details={
+                'bulk_action': True,
+                'count': processed_count,
+                'action': action
+            }
+        )
+        
+        return JsonResponse({
+            'success': True, 
+            'message': f'Successfully {action}d {processed_count} requests'
+        })
+        
+    except Exception as e:
+        logger.error(f"Bulk approval error: {str(e)}")
+        return JsonResponse({'success': False, 'error': 'An error occurred processing the requests'})
 
 # =====================================
 # ENHANCED DASHBOARD WITH QUOTE INTEGRATION
@@ -351,6 +630,90 @@ def dashboard_view(request):
 # =====================================
 
 @login_required
+def profile_completion_view(request):
+    """Complete user profile after registration or social login"""
+    user = request.user
+    profile = user.profile
+    
+    # Check if profile is already complete
+    if profile.profile_completed:
+        messages.info(request, "Your profile is already complete!")
+        if profile.user_type == 'employee':
+            return redirect('core:dashboard')
+        else:
+            return redirect('core:customer_dashboard')
+    
+    if request.method == 'POST':
+        form = ProfileCompletionForm(request.POST, instance=profile, user=user)
+        if form.is_valid():
+            form.save()
+            
+            # Log profile completion
+            log_security_event(
+                user=user,
+                event_type='profile_update',
+                ip_address=request.META.get('REMOTE_ADDR'),
+                details={'action': 'profile_completed'}
+            )
+            
+            messages.success(request, "Profile completed successfully! You can now access approved features.")
+            
+            # Redirect based on user type
+            if profile.user_type == 'employee':
+                return redirect('core:dashboard')
+            else:
+                return redirect('core:customer_dashboard')
+    else:
+        form = ProfileCompletionForm(instance=profile, user=user)
+    
+    # Get incomplete fields for display
+    incomplete_fields = profile.get_incomplete_fields()
+    
+    context = {
+        'form': form,
+        'profile': profile,
+        'incomplete_fields': incomplete_fields,
+        'user_type_display': profile.get_user_type_display(),
+    }
+    
+    return render(request, 'core/profile_completion.html', context)
+
+
+@login_required
+def customer_dashboard_view(request):
+    """Dashboard for customers and bloggers"""
+    user = request.user
+    profile = user.profile
+    
+    # Check if user should be here
+    if profile.user_type == 'employee':
+        return redirect('core:dashboard')
+    
+    # Get user's approval requests
+    approval_requests = ApprovalRequest.objects.filter(user=user).order_by('-requested_at')[:5]
+    
+    # Get recent notifications
+    notifications = user.notifications.filter(is_read=False)[:10]
+    
+    # Check what features user can access
+    access_status = {
+        'shop': profile.can_access_shop(),
+        'crm': profile.can_access_crm(),
+        'blog': profile.can_access_blog() if profile.user_type == 'blogger' else False,
+    }
+    
+    context = {
+        'profile': profile,
+        'approval_requests': approval_requests,
+        'notifications': notifications,
+        'access_status': access_status,
+        'profile_completed': profile.profile_completed,
+        'incomplete_fields': profile.get_incomplete_fields(),
+    }
+    
+    return render(request, 'core/customer_dashboard.html', context)
+
+@login_required
 @password_expiration_check
 def profile_view(request):
     """
@@ -378,6 +741,13 @@ def profile_view(request):
                 message="Your profile information has been updated successfully.",
                 notification_type="success"
             )
+            # Log profile update
+            log_security_event(
+                user=user,
+                event_type='profile_update',
+                ip_address=request.META.get('REMOTE_ADDR'),
+                details={'action': 'profile_edited'}
+            )
             
             logger.info(f"Profile updated for user {user.username}")
             messages.success(request, 'Your profile has been updated successfully.')
@@ -385,11 +755,22 @@ def profile_view(request):
     else:
         form = UserProfileForm(instance=profile, user=user)
     
+        # Get user's recent activity
+    recent_logins = user.login_activities.all()[:5]
+    recent_approvals = user.approval_requests.all()[:5]
+    
     # Enhanced context with role-specific information
     context = {
         'form': form,
         'user_profile': profile,
         'user_permissions': get_user_permissions_dict(user),
+        'recent_logins': recent_logins,
+        'recent_approvals': recent_approvals,
+        'access_status': {
+            'shop': profile.can_access_shop(),
+            'crm': profile.can_access_crm(),
+            'blog': profile.can_access_blog() if profile.user_type == 'blogger' else False,
+        }
     }
     
     # Add quote statistics for sales team members
@@ -779,7 +1160,6 @@ class CustomPasswordChangeView(PasswordChangeView):
         messages.success(self.request, 'Your password has been changed successfully.')
         return response
 
-
 # =====================================
 # UTILITY VIEWS
 # =====================================
@@ -804,7 +1184,6 @@ def unlock_user_account(request, user_id):
     
     return redirect('core:employee_list')
 
-
 # =====================================
 # API/AJAX VIEWS FOR FUTURE USE
 # =====================================
@@ -824,7 +1203,6 @@ def check_username_availability(request):
         'available': not exists,
         'message': 'Username available' if not exists else 'Username already taken'
     })
-
 
 @ajax_required
 @login_required
@@ -1630,3 +2008,68 @@ def audit_log_view(request):
         return response
 
     return render(request, "core/audit_log.html", context)
+
+# =====================================
+# SECURITY MONITORING VIEWS
+# =====================================
+
+@user_passes_test(lambda u: u.is_superuser or (hasattr(u, 'profile') and u.profile.user_type == 'it_admin'))
+def security_dashboard_view(request):
+    """Security monitoring dashboard"""
+    from datetime import timedelta
+    from django.db.models import Count
+    
+    # Get recent security events
+    recent_events = SecurityEvent.objects.all()[:50]
+    
+    # Get statistics for last 30 days
+    thirty_days_ago = timezone.now() - timedelta(days=30)
+    
+    event_stats = SecurityEvent.objects.filter(
+        timestamp__gte=thirty_days_ago
+    ).values('event_type').annotate(count=Count('id')).order_by('-count')
+    
+    # Failed login attempts by IP
+    failed_logins = SecurityEvent.objects.filter(
+        event_type='login_failure',
+        timestamp__gte=thirty_days_ago
+    ).values('ip_address').annotate(count=Count('id')).order_by('-count')[:10]
+    
+    # Recent registrations
+    recent_registrations = User.objects.filter(
+        date_joined__gte=thirty_days_ago
+    ).select_related('profile').order_by('-date_joined')[:20]
+    
+    context = {
+        'recent_events': recent_events,
+        'event_stats': event_stats,
+        'failed_logins': failed_logins,
+        'recent_registrations': recent_registrations,
+    }
+    
+    return render(request, 'core/security_dashboard.html', context)
+
+@require_http_methods(["GET"])
+def check_email_availability(request):
+    email = request.GET.get('email', '').strip()
+    if not email:
+        return JsonResponse({'available': False, 'message': 'Email required'})
+    
+    available = not User.objects.filter(email=email).exists()
+    return JsonResponse({'available': available})
+
+@login_required
+@require_http_methods(["GET"])
+def profile_completion_status(request):
+    profile = request.user.profile
+    return JsonResponse({
+        'completed': profile.profile_completed,
+        'completion_percentage': profile.get_completion_percentage(),
+        'incomplete_fields': profile.get_incomplete_fields()
+    })
+
+@login_required
+@require_http_methods(["GET"])
+def user_stats_api(request):
+    stats = get_user_dashboard_stats(request.user)
+    return JsonResponse(stats)

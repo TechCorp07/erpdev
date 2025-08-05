@@ -1,0 +1,24 @@
+<!-- core/templates/core/emails/welcome_email.txt -->
+Welcome to {{ company_name }}!
+
+Hello {{ user.first_name|default:user.username }},
+
+Thank you for registering with {{ company_name }}. Your {{ user_type }} account has been created successfully.
+
+ACCOUNT STATUS:
+- Shopping Cart: Active (start shopping immediately)
+- CRM Access: Pending approval
+{% if user_type == 'blogger' %}- Blog Management: Pending approval{% endif %}
+
+NEXT STEPS:
+1. Complete your profile: {{ profile_url }}
+2. Login to your dashboard: {{ login_url }}
+3. Contact support if you need help: support@blitztech.co.zw
+
+Best regards,
+{{ company_name }} Team
+
+---
+{{ company_name }}
+Harare, Zimbabwe
+{{ site_url }}

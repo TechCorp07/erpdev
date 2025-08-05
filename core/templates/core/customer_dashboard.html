@@ -1,0 +1,229 @@
+<!-- core/templates/core/customer_dashboard.html -->
+{% extends 'core/base_dashboard.html' %}
+{% load humanize %}
+
+{% block title %}Dashboard - {{ block.super }}{% endblock %}
+
+{% block dashboard_content %}
+<div class="row">
+    <div class="col-12">
+        <div class="d-flex justify-content-between align-items-center mb-4">
+            <div>
+                <h2 class="mb-1">Welcome back, {{ user.first_name|default:user.username }}!</h2>
+                <p class="text-muted mb-0">{{ profile.get_user_type_display }} Account</p>
+            </div>
+            <div class="text-end">
+                <div class="badge bg-{% if profile.profile_completed %}success{% else %}warning{% endif %} fs-6">
+                    {% if profile.profile_completed %}Profile Complete{% else %}Profile Incomplete{% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Profile Completion Alert -->
+{% if not profile.profile_completed %}
+<div class="row mb-4">
+    <div class="col-12">
+        <div class="alert alert-warning d-flex align-items-center">
+            <i class="bi bi-exclamation-triangle me-3 fs-4"></i>
+            <div class="flex-grow-1">
+                <h6 class="mb-1">Complete Your Profile</h6>
+                <p class="mb-2">Please complete your profile to access all features and ensure smooth service delivery.</p>
+                <div class="progress mb-2" style="height: 6px;">
+                    <div class="progress-bar" style="width: {{ profile.get_completion_percentage }}%"></div>
+                </div>
+                <small class="text-muted">{{ profile.get_completion_percentage }}% complete</small>
+            </div>
+            <a href="{% url 'core:profile_completion' %}" class="btn btn-warning ms-3">
+                <i class="bi bi-person-check me-2"></i>Complete Now
+            </a>
+        </div>
+    </div>
+</div>
+{% endif %}
+
+<!-- Access Status Cards -->
+<div class="row mb-4">
+    <div class="col-md-4">
+        <div class="card h-100 {% if access_status.shop %}border-success{% else %}border-warning{% endif %}">
+            <div class="card-body text-center">
+                <div class="mb-3">
+                    <i class="bi bi-cart3 fs-1 text-{% if access_status.shop %}success{% else %}warning{% endif %}"></i>
+                </div>
+                <h5 class="card-title">Shopping Cart</h5>
+                <p class="card-text">
+                    {% if access_status.shop %}
+                        <span class="badge bg-success">Active</span>
+                        <br><small class="text-muted">Browse and purchase products</small>
+                    {% else %}
+                        <span class="badge bg-warning">Pending</span>
+                        <br><small class="text-muted">Complete profile to activate</small>
+                    {% endif %}
+                </p>
+                {% if access_status.shop %}
+                <a href="#" class="btn btn-success btn-sm">Start Shopping</a>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-md-4">
+        <div class="card h-100 {% if access_status.crm %}border-success{% else %}border-secondary{% endif %}">
+            <div class="card-body text-center">
+                <div class="mb-3">
+                    <i class="bi bi-people fs-1 text-{% if access_status.crm %}success{% else %}secondary{% endif %}"></i>
+                </div>
+                <h5 class="card-title">CRM Access</h5>
+                <p class="card-text">
+                    {% if access_status.crm %}
+                        <span class="badge bg-success">Approved</span>
+                        <br><small class="text-muted">Manage customer relationships</small>
+                    {% else %}
+                        <span class="badge bg-secondary">Needs Approval</span>
+                        <br><small class="text-muted">Request access from admin</small>
+                    {% endif %}
+                </p>
+                {% if access_status.crm %}
+                <a href="{% url 'crm:dashboard' %}" class="btn btn-success btn-sm">Open CRM</a>
+                {% else %}
+                <p class="mb-0">
+                    {% if profile.approval_requests.filter:request_type='crm',status='pending' %}
+                        <small class="text-info">Request pending review</small>
+                    {% else %}
+                        <a href="{% url 'core:request_approval' %}" class="btn btn-outline-primary btn-sm">Request Access</a>
+                    {% endif %}
+                </p>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+    
+    {% if profile.user_type == 'blogger' %}
+    <div class="col-md-4">
+        <div class="card h-100 {% if access_status.blog %}border-success{% else %}border-secondary{% endif %}">
+            <div class="card-body text-center">
+                <div class="mb-3">
+                    <i class="bi bi-pencil-square fs-1 text-{% if access_status.blog %}success{% else %}secondary{% endif %}"></i>
+                </div>
+                <h5 class="card-title">Blog Management</h5>
+                <p class="card-text">
+                    {% if access_status.blog %}
+                        <span class="badge bg-success">Approved</span>
+                        <br><small class="text-muted">Create and manage content</small>
+                    {% else %}
+                        <span class="badge bg-secondary">Needs Approval</span>
+                        <br><small class="text-muted">Request blog access</small>
+                    {% endif %}
+                </p>
+                {% if access_status.blog %}
+                <a href="#" class="btn btn-success btn-sm">Manage Blog</a>
+                {% else %}
+                <p class="mb-0">
+                    {% if profile.approval_requests.filter:request_type='blog',status='pending' %}
+                        <small class="text-info">Request pending review</small>
+                    {% else %}
+                        <a href="{% url 'core:request_approval' %}" class="btn btn-outline-primary btn-sm">Request Access</a>
+                    {% endif %}
+                </p>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+    {% endif %}
+</div>
+
+<!-- Recent Activity -->
+<div class="row">
+    <div class="col-lg-8">
+        <div class="card">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <h5 class="mb-0">
+                    <i class="bi bi-clock-history me-2"></i>Recent Approval Requests
+                </h5>
+                <a href="{% url 'core:request_approval' %}" class="btn btn-outline-primary btn-sm">
+                    <i class="bi bi-plus-circle me-1"></i>New Request
+                </a>
+            </div>
+            <div class="card-body">
+                {% if approval_requests %}
+                <div class="list-group list-group-flush">
+                    {% for request in approval_requests %}
+                    <div class="list-group-item d-flex justify-content-between align-items-center">
+                        <div>
+                            <h6 class="mb-1">{{ request.get_request_type_display }}</h6>
+                            <p class="mb-1 text-muted">{{ request.requested_reason|truncatewords:15 }}</p>
+                            <small class="text-muted">{{ request.requested_at|naturaltime }}</small>
+                        </div>
+                        <div>
+                            {% if request.status == 'pending' %}
+                                <span class="badge bg-warning">Pending</span>
+                            {% elif request.status == 'approved' %}
+                                <span class="badge bg-success">Approved</span>
+                            {% else %}
+                                <span class="badge bg-danger">Rejected</span>
+                            {% endif %}
+                        </div>
+                    </div>
+                    {% endfor %}
+                </div>
+                {% else %}
+                <div class="text-center py-4">
+                    <i class="bi bi-inbox text-muted" style="font-size: 3rem;"></i>
+                    <p class="text-muted mt-2">No approval requests yet</p>
+                    <a href="{% url 'core:request_approval' %}" class="btn btn-primary">
+                        Request Additional Access
+                    </a>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-lg-4">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0">
+                    <i class="bi bi-bell me-2"></i>Recent Notifications
+                </h5>
+            </div>
+            <div class="card-body">
+                {% if notifications %}
+                <div class="list-group list-group-flush">
+                    {% for notification in notifications %}
+                    <div class="list-group-item border-0 px-0">
+                        <div class="d-flex align-items-start">
+                            <div class="flex-shrink-0 me-2">
+                                {% if notification.type == 'success' %}
+                                    <i class="bi bi-check-circle text-success"></i>
+                                {% elif notification.type == 'warning' %}
+                                    <i class="bi bi-exclamation-triangle text-warning"></i>
+                                {% elif notification.type == 'error' %}
+                                    <i class="bi bi-x-circle text-danger"></i>
+                                {% else %}
+                                    <i class="bi bi-info-circle text-info"></i>
+                                {% endif %}
+                            </div>
+                            <div class="flex-grow-1">
+                                <h6 class="mb-1">{{ notification.title }}</h6>
+                                <p class="mb-1 small">{{ notification.message|truncatewords:10 }}</p>
+                                <small class="text-muted">{{ notification.created_at|naturaltime }}</small>
+                            </div>
+                        </div>
+                    </div>
+                    {% endfor %}
+                </div>
+                <div class="text-center mt-3">
+                    <a href="{% url 'core:notifications' %}" class="btn btn-outline-primary btn-sm">View All</a>
+                </div>
+                {% else %}
+                <div class="text-center py-3">
+                    <i class="bi bi-bell-slash text-muted" style="font-size: 2rem;"></i>
+                    <p class="text-muted mt-2 mb-0">No new notifications</p>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

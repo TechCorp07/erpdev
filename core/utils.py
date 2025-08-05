@@ -15,10 +15,11 @@ from django.core.files.base import ContentFile
 from django.core.cache import cache
 from django.urls import reverse
 from decimal import Decimal
-from .models import Notification
-from .models import AuditLog
+from .models import Notification, SecurityEvent, AuditLog, ApprovalRequest
+from django.core.mail import send_mail, EmailMultiAlternatives
+from django.template.loader import render_to_string
 
-logger = logging.getLogger(__name__)
+logger = logging.getLogger('core.authentication')
 
 def create_notification(user, title, message, notification_type='info', action_url=None, action_text=None):
     """
@@ -238,6 +239,229 @@ def check_app_permission(user, app_name, required_level='view'):
         # No specific permission found - cache negative result
         cache.set(cache_key, '', 3600)
         return False
+
+def log_security_event(user=None, event_type=None, ip_address=None, user_agent=None, details=None):
+    """Enhanced security event logging"""
+    try:
+        SecurityEvent.objects.create(
+            user=user,
+            event_type=event_type,
+            ip_address=ip_address or 'unknown',
+            user_agent=user_agent or '',
+            details=details or {}
+        )
+        
+        # Log critical events
+        if event_type in ['login_failure', 'suspicious_activity', 'account_lockout']:
+            logger.warning(f"Security event: {event_type} for user {user.username if user else 'unknown'} from IP {ip_address}")
+        else:
+            logger.info(f"Security event: {event_type} for user {user.username if user else 'unknown'}")
+            
+    except Exception as e:
+        logger.error(f"Failed to log security event: {str(e)}")
+
+def send_approval_notification_email(approval_request, action, reviewer):
+    """Send email notification for approval actions"""
+    try:
+        user = approval_request.user
+        subject = f"BlitzTech Electronics - Access Request {action.title()}"
+        
+        context = {
+            'user': user,
+            'approval_request': approval_request,
+            'action': action,
+            'reviewer': reviewer,
+            'company_name': settings.COMPANY_NAME,
+            'site_url': settings.SITE_URL,
+        }
+        
+        # Render email templates
+        text_content = render_to_string('core/emails/approval_notification.txt', context)
+        html_content = render_to_string('core/emails/approval_notification.html', context)
+        
+        # Send email
+        msg = EmailMultiAlternatives(
+            subject=subject,
+            body=text_content,
+            from_email=settings.DEFAULT_FROM_EMAIL,
+            to=[user.email]
+        )
+        msg.attach_alternative(html_content, "text/html")
+        msg.send()
+        
+        logger.info(f"Approval notification sent to {user.email} for {action}")
+        
+    except Exception as e:
+        logger.error(f"Failed to send approval notification: {str(e)}")
+
+def send_welcome_email(user, user_type):
+    """Send welcome email to new users"""
+    try:
+        subject = f"Welcome to {settings.COMPANY_NAME}!"
+        
+        context = {
+            'user': user,
+            'user_type': user_type,
+            'company_name': settings.COMPANY_NAME,
+            'site_url': settings.SITE_URL,
+            'login_url': f"{settings.SITE_URL}{reverse('core:login')}",
+            'profile_url': f"{settings.SITE_URL}{reverse('core:profile_completion')}",
+        }
+        
+        # Render email templates
+        text_content = render_to_string('core/emails/welcome_email.txt', context)
+        html_content = render_to_string('core/emails/welcome_email.html', context)
+        
+        # Send email
+        msg = EmailMultiAlternatives(
+            subject=subject,
+            body=text_content,
+            from_email=settings.DEFAULT_FROM_EMAIL,
+            to=[user.email]
+        )
+        msg.attach_alternative(html_content, "text/html")
+        msg.send()
+        
+        logger.info(f"Welcome email sent to {user.email}")
+        
+    except Exception as e:
+        logger.error(f"Failed to send welcome email: {str(e)}")
+
+def notify_admins_new_user(user, user_type):
+    """Notify admins about new user registrations"""
+    try:
+        # Get admin users
+        admin_emails = getattr(settings, 'APPROVAL_NOTIFICATION_EMAILS', [])
+        
+        if not admin_emails:
+            admin_users = User.objects.filter(
+                is_superuser=True
+            ).values_list('email', flat=True)
+            admin_emails = list(admin_users)
+        
+        if admin_emails:
+            subject = f"New User Registration - {settings.COMPANY_NAME}"
+            
+            context = {
+                'user': user,
+                'user_type': user_type,
+                'company_name': settings.COMPANY_NAME,
+                'admin_url': f"{settings.SITE_URL}{reverse('core:user_management')}",
+                'approval_url': f"{settings.SITE_URL}{reverse('core:manage_approvals')}",
+            }
+            
+            # Render email templates
+            text_content = render_to_string('core/emails/admin_new_user.txt', context)
+            html_content = render_to_string('core/emails/admin_new_user.html', context)
+            
+            # Send email
+            msg = EmailMultiAlternatives(
+                subject=subject,
+                body=text_content,
+                from_email=settings.DEFAULT_FROM_EMAIL,
+                to=admin_emails
+            )
+            msg.attach_alternative(html_content, "text/html")
+            msg.send()
+            
+            logger.info(f"Admin notification sent for new user {user.username}")
+            
+    except Exception as e:
+        logger.error(f"Failed to send admin notification: {str(e)}")
+
+def check_user_access_level(user, required_access):
+    """Check if user has required access level"""
+    if not user.is_authenticated or not hasattr(user, 'profile'):
+        return False
+        
+    profile = user.profile
+    
+    # Employee access is based on permissions
+    if profile.user_type == 'employee':
+        return check_app_permission(user, required_access, 'view')
+    
+    # Customer/blogger access based on approval status
+    access_map = {
+        'shop': profile.can_access_shop(),
+        'crm': profile.can_access_crm(),
+        'blog': profile.can_access_blog(),
+    }
+    
+    return access_map.get(required_access, False)
+
+def get_user_dashboard_stats(user):
+    """Get dashboard statistics for user"""
+    if not hasattr(user, 'profile'):
+        return {}
+    
+    profile = user.profile
+    stats = {
+        'profile_completed': profile.profile_completed,
+        'approval_requests': {
+            'pending': user.approval_requests.filter(status='pending').count(),
+            'approved': user.approval_requests.filter(status='approved').count(),
+            'rejected': user.approval_requests.filter(status='rejected').count(),
+        },
+        'notifications': {
+            'unread': user.notifications.filter(is_read=False).count(),
+            'total': user.notifications.count(),
+        },
+        'access_status': {
+            'shop': profile.can_access_shop(),
+            'crm': profile.can_access_crm(),
+            'blog': profile.can_access_blog() if profile.user_type == 'blogger' else False,
+        }
+    }
+    
+    return stats
+
+def cleanup_old_security_events(days=90):
+    """Clean up old security events (run as periodic task)"""
+    try:
+        cutoff_date = timezone.now() - timezone.timedelta(days=days)
+        deleted_count = SecurityEvent.objects.filter(timestamp__lt=cutoff_date).delete()[0]
+        logger.info(f"Cleaned up {deleted_count} old security events")
+        return deleted_count
+    except Exception as e:
+        logger.error(f"Failed to cleanup security events: {str(e)}")
+        return 0
+
+def auto_approve_old_requests():
+    """Auto-approve old requests based on business rules (run as periodic task)"""
+    try:
+        from django.conf import settings
+        
+        approval_settings = getattr(settings, 'APPROVAL_WORKFLOW', {})
+        auto_approved = 0
+        
+        for user_type, config in approval_settings.items():
+            auto_approve_hours = config.get('auto_approve_after_hours')
+            if auto_approve_hours:
+                cutoff_time = timezone.now() - timezone.timedelta(hours=auto_approve_hours)
+                
+                # Get old pending requests for this user type
+                old_requests = ApprovalRequest.objects.filter(
+                    user__profile__user_type=user_type,
+                    status='pending',
+                    requested_at__lt=cutoff_time
+                )
+                
+                # Auto-approve them
+                for request in old_requests:
+                    request.approve(
+                        reviewer=None,  # System approval
+                        notes=f"Auto-approved after {auto_approve_hours} hours"
+                    )
+                    auto_approved += 1
+        
+        if auto_approved > 0:
+            logger.info(f"Auto-approved {auto_approved} old requests")
+        
+        return auto_approved
+        
+    except Exception as e:
+        logger.error(f"Failed to auto-approve requests: {str(e)}")
+        return 0
 
 def invalidate_permission_cache(user_id):
     """
@@ -465,7 +689,6 @@ def setup_default_user_permissions(user):
     except Exception as e:
         logger.error(f"Error setting up default permissions for user {user.username}: {str(e)}")
 
-# Enhanced utility functions for quote number generation
 def generate_quote_number():
     """
     Generate a unique quote number using business-friendly format.
@@ -506,7 +729,6 @@ def generate_quote_number():
         import uuid
         return f"QUO-{timezone.now().year}-{str(uuid.uuid4())[:8].upper()}"
 
-# Enhanced context helper for templates
 def get_navigation_context(user):
     """
     Get navigation context including quote system links.
@@ -652,35 +874,48 @@ def resize_profile_image(image_field, max_width=300, max_height=300, quality=85)
 def authenticate_user(request, username, password, remember_me=False):
     """
     Centralized authentication service with enhanced security
-    
-    Args:
-        request: HTTP request object
-        username: Username credential
-        password: Password credential
-        remember_me: Whether to keep the session after browser close
-        
-    Returns:
-        User object if authentication successful, None otherwise
     """
     from django.contrib.auth import authenticate, login
     from .models import LoginActivity
-    
+    from django.core.cache import cache
+
     # Rate limiting check
+    cache_key = f"login_attempts:{ip_address}"
     ip_address = get_client_ip(request)
+    user_agent = request.META.get('HTTP_USER_AGENT', '')
     cache_key = f"login_attempts:{ip_address}"
     attempts = cache.get(cache_key, 0)
     
     max_attempts = getattr(settings, 'MAX_LOGIN_ATTEMPTS', 5)
-    block_time = getattr(settings, 'LOGIN_BLOCK_TIME', 300)  # 5 minutes default
+    block_time = getattr(settings, 'LOGIN_BLOCK_TIME', 900)  # 15 minutes default
     
     if attempts >= max_attempts:
-        logger.warning(f"Login blocked due to too many attempts for IP: {ip_address}")
+        log_security_event(
+            user=None,
+            event_type='login_failure',
+            ip_address=ip_address,
+            user_agent=user_agent,
+            details={'reason': 'rate_limited', 'attempts': attempts}
+        )
         return None
     
     # Authenticate user
     user = authenticate(username=username, password=password)
     
     if user is not None:
+        # Check for suspicious activity
+        if is_suspicious_activity(user, ip_address, user_agent):
+            log_security_event(
+                user=user,
+                event_type='suspicious_activity',
+                ip_address=ip_address,
+                user_agent=user_agent,
+                details={'reason': 'new_location_or_device'}
+            )
+            
+            # Optionally send security alert email
+            send_security_alert_email(user, ip_address, user_agent)
+            
         # Reset login attempts on successful login
         cache.delete(cache_key)
         
@@ -691,11 +926,13 @@ def authenticate_user(request, username, password, remember_me=False):
         # Log the user in
         login(request, user)
         
-        # Record login activity
-        LoginActivity.objects.create(
+        # Log successful login
+        log_security_event(
             user=user,
+            event_type='login_success',
             ip_address=ip_address,
-            user_agent=request.META.get('HTTP_USER_AGENT', '')
+            user_agent=user_agent,
+            details={'social_login': False}
         )
         
         # Update last login in profile
@@ -703,23 +940,27 @@ def authenticate_user(request, username, password, remember_me=False):
             user.profile.last_login = timezone.now()
             user.profile.save(update_fields=['last_login'])
         
-        logger.info(f"Successful login for user: {username}")
+        logger.info(f"Successful login for {username} from {ip_address}")
         return user
     else:
         # Increment failed login attempts
         cache.set(cache_key, attempts + 1, block_time)
-        logger.warning(f"Failed login attempt for username: {username}, IP: {ip_address}")
+        
+        # Log failed login
+        log_security_event(
+            user=None,
+            event_type='login_failure',
+            ip_address=ip_address,
+            user_agent=user_agent,
+            details={'username': username, 'attempts': attempts + 1}
+        )
+        
+        logger.warning(f"Failed login attempt for {username} from {ip_address}")
         return None
 
 def get_client_ip(request):
     """
     Get the client's IP address from request
-    
-    Args:
-        request: HTTP request object
-        
-    Returns:
-        IP address as string
     """
     x_forwarded_for = request.META.get('HTTP_X_FORWARDED_FOR')
     if x_forwarded_for:
@@ -728,15 +969,32 @@ def get_client_ip(request):
         ip = request.META.get('REMOTE_ADDR')
     return ip
 
+def is_suspicious_activity(user, ip_address, user_agent):
+    """Detect suspicious login activity"""
+    if not user or not hasattr(user, 'login_activities'):
+        return False
+    
+    # Check for login from new location
+    recent_ips = user.login_activities.filter(
+        login_datetime__gte=timezone.now() - timezone.timedelta(days=30)
+    ).values_list('ip_address', flat=True).distinct()
+    
+    if ip_address not in recent_ips and len(recent_ips) > 0:
+        return True
+    
+    # Check for unusual user agent
+    recent_agents = user.login_activities.filter(
+        login_datetime__gte=timezone.now() - timezone.timedelta(days=7)
+    ).values_list('user_agent', flat=True).distinct()
+    
+    if user_agent not in recent_agents and len(recent_agents) > 0:
+        return True
+    
+    return False
+
 def get_unread_notifications_count(user):
     """
     Get count of unread notifications with caching
-    
-    Args:
-        user: User object
-        
-    Returns:
-        Count of unread notifications
     """
     cache_key = f"user_notifications:{user.id}"
     count = cache.get(cache_key)
@@ -751,12 +1009,6 @@ def get_unread_notifications_count(user):
 def is_password_expired(user):
     """
     Check if a user's password has expired
-    
-    Args:
-        user: User object
-        
-    Returns:
-        Boolean indicating if password has expired
     """
     password_expiry_days = getattr(settings, 'PASSWORD_EXPIRY_DAYS', None)
     
@@ -772,14 +1024,6 @@ def is_password_expired(user):
 def update_department_permissions(department, app_name, level):
     """
     Update permissions for all users in a department
-    
-    Args:
-        department: Department code (e.g., 'sales', 'technical')
-        app_name: Name of the app to update permissions for
-        level: Permission level to set ('view', 'edit', 'admin')
-        
-    Returns:
-        Number of users whose permissions were updated
     """
     from django.db import transaction
     from .models import UserProfile, AppPermission
@@ -822,3 +1066,56 @@ def log_audit_event(user, action, description, request=None, object_type='', obj
         user_agent=agent,
         extra_data=extra_data,
     )
+
+def send_security_alert_email(user, ip_address, user_agent):
+    """Send security alert email for suspicious activity"""
+    try:
+        subject = f"{settings.COMPANY_NAME} - Security Alert"
+        
+        context = {
+            'user': user,
+            'ip_address': ip_address,
+            'user_agent': user_agent,
+            'timestamp': timezone.now(),
+            'company_name': settings.COMPANY_NAME,
+        }
+        
+        text_content = render_to_string('core/emails/security_alert.txt', context)
+        html_content = render_to_string('core/emails/security_alert.html', context)
+        
+        msg = EmailMultiAlternatives(
+            subject=subject,
+            body=text_content,
+            from_email=settings.DEFAULT_FROM_EMAIL,
+            to=[user.email]
+        )
+        msg.attach_alternative(html_content, "text/html")
+        msg.send()
+        
+    except Exception as e:
+        logger.error(f"Failed to send security alert: {str(e)}")
+
+def validate_business_rules(user, action, **kwargs):
+    """Validate business rules for various actions"""
+    if not hasattr(user, 'profile'):
+        return False, "User profile not found"
+    
+    profile = user.profile
+    
+    if action == 'crm_access':
+        if profile.user_type == 'employee':
+            return True, "Employee access granted"
+        elif profile.crm_approved and profile.profile_completed:
+            return True, "CRM access approved"
+        else:
+            return False, "CRM access requires approval and completed profile"
+    
+    elif action == 'shop_access':
+        return profile.shop_approved, "Shop access status"
+    
+    elif action == 'blog_access':
+        if profile.user_type != 'blogger':
+            return False, "Only bloggers can access blog management"
+        return profile.blog_approved and profile.profile_completed, "Blog access status"
+    
+    return True, "Action allowed"

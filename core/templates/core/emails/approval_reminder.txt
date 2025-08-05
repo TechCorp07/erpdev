@@ -1,0 +1,19 @@
+# core/templates/core/emails/approval_reminder.txt
+Pending Approval Requests Reminder - {{ company_name }}
+
+Dear Admin,
+
+You have {{ count }} approval requests that have been pending for more than {{ days }} days:
+
+{% for request in requests %}
+- {{ request.user.get_full_name|default:request.user.username }} ({{ request.user.email }})
+  Type: {{ request.get_request_type_display }}
+  Requested: {{ request.requested_at|date:"F d, Y" }}
+  Reason: {{ request.requested_reason|truncatewords:20 }}
+
+{% endfor %}
+
+Please review these requests at: {{ admin_url }}
+
+Best regards,
+{{ company_name }} System
