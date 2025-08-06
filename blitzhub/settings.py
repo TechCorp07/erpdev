@@ -3,6 +3,7 @@ Django settings for blitzhub project with Enhanced Quote System Integration.
 """
 from datetime import timedelta
 import os
+import sys
 from pathlib import Path
 from dotenv import load_dotenv
 from decimal import Decimal
@@ -234,12 +235,32 @@ ACCOUNT_LOGOUT_REDIRECT_URL = 'website:home'
 SOCIALACCOUNT_LOGIN_ON_GET = True
 
 # Email settings (for contact form)
-EMAIL_BACKEND = os.getenv('EMAIL_BACKEND')
+if 'test' in sys.argv or os.getenv('TESTING'):
+    # Use in-memory backend for testing
+    EMAIL_BACKEND = 'django.core.mail.backends.locmem.EmailBackend'
+else:
+    # Use environment variables for production/development
+    EMAIL_BACKEND = os.getenv('EMAIL_BACKEND', 'django.core.mail.backends.console.EmailBackend')
+
 EMAIL_HOST = os.getenv('EMAIL_HOST')
 EMAIL_PORT = os.getenv('EMAIL_PORT')
 EMAIL_USE_TLS = os.getenv('EMAIL_USE_TLS')
 EMAIL_HOST_USER = os.getenv('EMAIL_HOST_USER')
 EMAIL_HOST_PASSWORD = os.getenv('EMAIL_HOST_PASSWORD')
+
+# Notification settings for approvals
+APPROVAL_NOTIFICATION_EMAILS = [
+    'admin@blitztechelectronics.co.zw',
+    'manager@blitztechelectronics.co.zw',
+]
+
+# Default email addresses
+DEFAULT_FROM_EMAIL = os.getenv('DEFAULT_FROM_EMAIL', 'noreply@blitztechelectronics.co.zw')
+SERVER_EMAIL = DEFAULT_FROM_EMAIL
+
+# Email verification settings
+EMAIL_VERIFICATION_REQUIRED = True
+EMAIL_VERIFICATION_TIMEOUT = 86400  # 24 hours
 
 # =====================================
 # ENHANCED COMPANY INFORMATION FOR EMAILS AND QUOTES
@@ -247,23 +268,23 @@ EMAIL_HOST_PASSWORD = os.getenv('EMAIL_HOST_PASSWORD')
 COMPANY_NAME = 'BlitzTech Electronics'
 COMPANY_ADDRESS = 'Harare, Zimbabwe'
 COMPANY_PHONE = '+263 XX XXX XXXX'
-COMPANY_EMAIL = 'info@blitztech.co.zw'
-COMPANY_WEBSITE = 'www.blitztech.co.zw'
-COMPANY_TAX_NUMBER = 'TAX123456789'  # NEW: For quote system
-SUPPORT_EMAIL = 'support@blitztech.co.zw'
+COMPANY_EMAIL = 'info@blitztechelectronics.co.zw'
+COMPANY_WEBSITE = 'www.blitztechelectronics.co.zw'
+COMPANY_TAX_NUMBER = 'TAX123456789'
+SUPPORT_EMAIL = 'support@blitztechelectronics.co.zw'
 
 # Management notification emails
 MANAGEMENT_NOTIFICATION_EMAILS = [
-    'manager@blitztech.co.zw',
-    'director@blitztech.co.zw',
+    'manager@blitztechelectronics.co.zw',
+    'director@blitztechelectronics.co.zw',
 ]
 
 MANAGEMENT_CC_EMAILS = [
-    'sales-manager@blitztech.co.zw',
+    'sales-manager@blitztechelectronics.co.zw',
 ]
 
 # Site URL for generating absolute URLs in emails
-SITE_URL = 'https://blitztechelectronics.co.zw'  # Updated to your domain
+SITE_URL = os.getenv('SITE_URL', 'http://127.0.0.1:8000')
 
 # =====================================
 # ENHANCED QUOTE SYSTEM SETTINGS
@@ -361,15 +382,6 @@ APPROVAL_WORKFLOW = {
         'requires_manager_approval': True,
     }
 }
-
-# Notification settings for approvals
-APPROVAL_NOTIFICATION_EMAILS = [
-    'admin@blitztech.co.zw',
-    'manager@blitztech.co.zw',
-]
-# Email verification settings
-EMAIL_VERIFICATION_REQUIRED = True
-EMAIL_VERIFICATION_TIMEOUT = 86400  # 24 hours
 
 # =====================================
 # ENHANCED ACCESS_CONTROL_RULES WITH QUOTE INTEGRATION

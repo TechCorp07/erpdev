@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import datetime, timedelta
 from django.http import Http404, HttpResponseRedirect, JsonResponse
 from django.views.decorators.csrf import csrf_exempt
 from django.shortcuts import render, redirect, get_object_or_404
@@ -482,146 +482,168 @@ def dashboard_view(request):
     if profile.user_type not in ['employee', 'sales_rep', 'sales_manager']:
         return redirect('core:customer_dashboard')
     
-    cache_key = f"user_permissions:{user.id}"
-    user_permissions = cache.get(cache_key)
+    # Check cache first to avoid expensive queries
+    cache_key = f"dashboard_data:{user.id}"
+    dashboard_context = cache.get(cache_key)
     
-    if user_permissions is None:
-        # Get all user permissions in one query
+    if dashboard_context is None:
+        # Performance optimization: Get all user permissions in one query
         permissions = AppPermission.objects.filter(user=user).select_related()
         user_permissions = {perm.app: perm.permission_level for perm in permissions}
-        cache.set(cache_key, user_permissions, 3600)  # Cache for 1 hour
-    
-    # Get dashboard context with optimized queries
-    dashboard_context = {
-        'user': user,
-        'profile': profile,
-        'app_permissions': user_permissions,
-        'is_manager': check_app_permission(user, 'employee_management', 'view'),
-        'is_admin': user.is_superuser or profile.user_type in ['it_admin', 'general_manager'],
-    }
-    
-    # Use single query for user statistics with aggregation
-    if user_permissions:
-        try:
-            from django.db.models import Count, Sum, Avg
-            
-            # Get all counts in a single query using aggregation
-            stats_query = User.objects.aggregate(
-                total_users=Count('id'),
-                total_customers=Count('profile', filter=Q(profile__user_type='customer')),
-                total_bloggers=Count('profile', filter=Q(profile__user_type='blogger')),
-                total_employees=Count('profile', filter=Q(profile__user_type__in=['employee', 'sales_rep', 'sales_manager'])),
-                pending_approvals=Count('profile', filter=Q(profile__is_approved=False)),
-                social_users=Count('profile', filter=Q(profile__is_social_account=True))
-            )
-            
-            dashboard_context.update(stats_query)
-            
-        except Exception as e:
-            logger.error(f"Error getting user statistics: {str(e)}")
-            # Fallback to defaults
-            dashboard_context.update({
-                'total_users': 0,
-                'total_customers': 0, 
-                'total_bloggers': 0,
-                'total_employees': 0,
-                'pending_approvals': 0,
-                'social_users': 0
-            })
-    
-    # ===== QUOTES INTEGRATION (optimized) =====
-    if user_permissions.get('quotes'):
-        dashboard_context['has_quote_access'] = True
         
-        try:
-            from quotes.models import Quote
+        # Cache permissions separately for longer period
+        perm_cache_key = f"user_permissions:{user.id}"
+        cache.set(perm_cache_key, user_permissions, 3600)  # Cache for 1 hour
+        
+        # Get dashboard context with optimized queries
+        dashboard_context = {
+            'user': user,
+            'profile': profile,
+            'app_permissions': user_permissions,
+            'is_manager': check_app_permission(user, 'employee_management', 'view'),
+            'is_admin': user.is_superuser or profile.user_type in ['it_admin', 'general_manager'],
+        }
+        
+        # Use single query for user statistics with aggregation
+        if user_permissions:
+            try:
+                from django.db.models import Count
+                
+                # Get all counts in a single query
+                stats_query = User.objects.aggregate(
+                    total_users=Count('id'),
+                    total_customers=Count('profile', filter=Q(profile__user_type='customer')),
+                    total_bloggers=Count('profile', filter=Q(profile__user_type='blogger')),
+                    total_employees=Count('profile', filter=Q(profile__user_type__in=['employee', 'sales_rep', 'sales_manager'])),
+                    pending_approvals=Count('profile', filter=Q(profile__is_approved=False)),
+                    social_users=Count('profile', filter=Q(profile__is_social_account=True))
+                )
+                
+                dashboard_context.update(stats_query)
+                
+            except Exception as e:
+                logger.error(f"Error getting user statistics: {str(e)}")
+                # Fallback to defaults
+                dashboard_context.update({
+                    'total_users': 0,
+                    'total_customers': 0, 
+                    'total_bloggers': 0,
+                    'total_employees': 0,
+                    'pending_approvals': 0,
+                    'social_users': 0
+                })
+        
+        # ===== QUOTES INTEGRATION (with caching to prevent duplicate queries) =====
+        if user_permissions.get('quotes'):
+            dashboard_context['has_quote_access'] = True
             
-            # Single query with aggregation for quote statistics
-            quote_stats = Quote.objects.filter(
-                Q(assigned_to=user) | Q(created_by=user)
-            ).aggregate(
-                total_quotes=Count('id'),
-                draft_quotes=Count('id', filter=Q(status='draft')),
-                active_quotes=Count('id', filter=Q(status__in=['sent', 'viewed', 'under_review'])),
-                overdue_quotes=Count('id', filter=Q(
-                    sent_date__lte=timezone.now() - timedelta(days=3),
-                    status__in=['sent', 'viewed']
-                ))
-            )
+            # Check if quote stats are already cached
+            quote_cache_key = f"quote_stats:{user.id}"
+            quote_stats = cache.get(quote_cache_key)
+            
+            if quote_stats is None:
+                try:
+                    from quotes.models import Quote
+                    from django.db.models import Sum
+                    
+                    # Calculate once and cache
+                    base_quotes = Quote.objects.filter(
+                        Q(assigned_to=user) | Q(created_by=user)
+                    )
+                    
+                    # Get all quote statistics in minimal queries
+                    quote_stats = {
+                        'total_quotes': base_quotes.count(),
+                        'active_quotes': base_quotes.filter(status__in=['draft', 'sent', 'viewed', 'under_review']).count(),
+                        'draft_quotes': base_quotes.filter(status='draft').count(),
+                        'month_total': base_quotes.filter(
+                            created_at__gte=timezone.now().replace(day=1),
+                            status__in=['accepted', 'converted']
+                        ).aggregate(total=Sum('total_amount'))['total'] or 0,
+                        'expiring_quotes': base_quotes.filter(
+                            status__in=['sent', 'viewed', 'under_review'],
+                            validity_date__lte=timezone.now().date() + timedelta(days=7)
+                        ).count(),
+                        'overdue_quotes': base_quotes.filter(
+                            sent_date__lte=timezone.now() - timedelta(days=3),
+                            status__in=['sent', 'viewed']
+                        ).count(),
+                    }
+                    
+                    # Cache for 5 minutes to prevent repeated calculations
+                    cache.set(quote_cache_key, quote_stats, 300)
+                    
+                except ImportError:
+                    # Quotes app not available
+                    quote_stats = {}
             
             dashboard_context.update({
                 'quote_stats': quote_stats,
-                'total_my_quotes': quote_stats['total_quotes'],
-                'draft_quotes': quote_stats['draft_quotes'],
-                'active_quotes': quote_stats['active_quotes'],
-                'overdue_quotes': quote_stats['overdue_quotes']
+                'total_my_quotes': quote_stats.get('total_quotes', 0),
+                'draft_quotes': quote_stats.get('draft_quotes', 0),
+                'active_quotes': quote_stats.get('active_quotes', 0),
+                'overdue_quotes': quote_stats.get('overdue_quotes', 0)
             })
-            
-        except ImportError:
-            # Quotes app not available
-            pass
-    
-    # ===== CRM INTEGRATION (optimized) =====
-    if user_permissions.get('crm'):
-        dashboard_context['has_crm_access'] = True
         
-        try:
-            from crm.models import CustomerInteraction
+        # ===== CRM INTEGRATION (optimized) =====
+        if user_permissions.get('crm'):
+            dashboard_context['has_crm_access'] = True
             
-            # Get recent interactions with select_related in single query
-            followup_interactions = CustomerInteraction.objects.filter(
-                next_followup__lte=timezone.now(),
-                is_completed=False
-            ).select_related('client')[:3]
-            
-            dashboard_context['followup_needed'] = followup_interactions
-            
-        except ImportError:
-            # CRM not available
-            pass
-    
-    # ===== INVENTORY INTEGRATION (optimized) =====
-    if user_permissions.get('inventory'):
-        dashboard_context['has_inventory_access'] = True
+            try:
+                from crm.models import CustomerInteraction
+                
+                # Get recent interactions with select_related in single query
+                followup_interactions = CustomerInteraction.objects.filter(
+                    next_followup__lte=timezone.now(),
+                    is_completed=False
+                ).select_related('client')[:3]
+                
+                dashboard_context['followup_needed'] = followup_interactions
+                
+            except ImportError:
+                # CRM not available
+                pass
         
+        # ===== INVENTORY INTEGRATION (optimized) =====
+        if user_permissions.get('inventory'):
+            dashboard_context['has_inventory_access'] = True
+            
+            try:
+                from inventory.models import Product
+                
+                # Single query for low stock products
+                low_stock_products = Product.objects.filter(
+                    current_stock__lte=models.F('reorder_level')
+                ).order_by('current_stock')[:5]
+                
+                dashboard_context['low_stock_alerts'] = low_stock_products
+                
+            except ImportError:
+                # Inventory not available
+                pass
+        
+        # Get recent users and company info
         try:
-            from inventory.models import Product
-            
-            # Single query for low stock products
-            low_stock_products = Product.objects.filter(
-                current_stock__lte=models.F('reorder_level')
-            ).order_by('current_stock')[:5]
-            
-            dashboard_context['low_stock_alerts'] = low_stock_products
-            
+            recent_users = User.objects.select_related('profile').order_by('-date_joined')[:10]
+            dashboard_context['recent_users'] = recent_users
+        except Exception as e:
+            logger.error(f"Error fetching recent users: {str(e)}")
+            dashboard_context['recent_users'] = []
+        
+        # Get company info with longer caching
+        try:
+            from website.models import CompanyInfo
+            company_info = cache.get('company_info')
+            if company_info is None:
+                company_info = CompanyInfo.objects.first()
+                if company_info:
+                    cache.set('company_info', company_info, 7200)  # Cache for 2 hours
+            dashboard_context['company_info'] = company_info
         except ImportError:
-            # Inventory not available
             pass
-    
-    # Get recent users in a single optimized query
-    try:
-        recent_users = User.objects.select_related('profile').order_by('-date_joined')[:10]
-        dashboard_context['recent_users'] = recent_users
-    except Exception as e:
-        logger.error(f"Error fetching recent users: {str(e)}")
-        dashboard_context['recent_users'] = []
-    
-    # Get company info with caching
-    try:
-        from website.models import CompanyInfo
-        company_info = cache.get('company_info')
-        if company_info is None:
-            company_info = CompanyInfo.objects.first()
-            if company_info:
-                cache.set('company_info', company_info, 7200)  # Cache for 2 hours
-        dashboard_context['company_info'] = company_info
-    except ImportError:
-        pass
-    
-    # Performance optimization: Cache dashboard data for a short time
-    # This prevents expensive queries on every page load
-    user_cache_key = f"dashboard_data:{user.id}"
-    cache.set(user_cache_key, dashboard_context, 300)  # Cache for 5 minutes
+        
+        # Cache the entire dashboard context for 5 minutes
+        cache.set(cache_key, dashboard_context, 300)
     
     return render(request, 'core/dashboard.html', dashboard_context)
 
@@ -673,7 +695,7 @@ def profile_completion_view(request):
     context = {
         'form': form,
         'profile': profile,
-        'incomplete_fields': incomplete_fields,  # Already formatted
+        'incomplete_fields': incomplete_fields,
         'user_type_display': profile.get_user_type_display(),
     }
     
