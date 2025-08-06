@@ -666,18 +666,18 @@ def profile_completion_view(request):
     else:
         form = ProfileCompletionForm(instance=profile, user=user)
     
-    # Get incomplete fields for display
-    incomplete_fields = profile.get_incomplete_fields()
+    # Get incomplete fields and format them for display
+    incomplete_fields_raw = profile.get_incomplete_fields()
+    incomplete_fields = [field.replace('_', ' ').title() for field in incomplete_fields_raw]
     
     context = {
         'form': form,
         'profile': profile,
-        'incomplete_fields': incomplete_fields,
+        'incomplete_fields': incomplete_fields,  # Already formatted
         'user_type_display': profile.get_user_type_display(),
     }
     
     return render(request, 'core/profile_completion.html', context)
-
 
 @login_required
 def customer_dashboard_view(request):

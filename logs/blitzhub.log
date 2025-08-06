@@ -1,11 +1,4 @@
-ERROR 2025-08-06 20:18:54,689 log 33872 6568 Internal Server Error: /auth/customer-dashboard/
-Traceback (most recent call last):
-  File "C:\Local Disk E\BlitzTech Systems\erpdev\venv\lib\site-packages\django\template\smartif.py", line 180, in translate_token
-    op = OPERATORS[token]
-KeyError: "request_type='crm'"
-
-During handling of the above exception, another exception occurred:
-
+ERROR 2025-08-06 22:49:46,058 log 40592 3832 Internal Server Error: /auth/profile/complete/
 Traceback (most recent call last):
   File "C:\Local Disk E\BlitzTech Systems\erpdev\venv\lib\site-packages\django\core\handlers\exception.py", line 55, in inner
     response = get_response(request)
@@ -13,74 +6,7 @@ Traceback (most recent call last):
     response = wrapped_callback(request, *callback_args, **callback_kwargs)
   File "C:\Local Disk E\BlitzTech Systems\erpdev\venv\lib\site-packages\django\contrib\auth\decorators.py", line 60, in _view_wrapper
     return view_func(request, *args, **kwargs)
-  File "C:\Local Disk E\BlitzTech Systems\erpdev\core\views.py", line 713, in customer_dashboard_view
-    return render(request, 'core/customer_dashboard.html', context)
-  File "C:\Local Disk E\BlitzTech Systems\erpdev\venv\lib\site-packages\django\shortcuts.py", line 25, in render
-    content = loader.render_to_string(template_name, context, request, using=using)
-  File "C:\Local Disk E\BlitzTech Systems\erpdev\venv\lib\site-packages\django\template\loader.py", line 61, in render_to_string
-    template = get_template(template_name, using=using)
-  File "C:\Local Disk E\BlitzTech Systems\erpdev\venv\lib\site-packages\django\template\loader.py", line 15, in get_template
-    return engine.get_template(template_name)
-  File "C:\Local Disk E\BlitzTech Systems\erpdev\venv\lib\site-packages\django\template\backends\django.py", line 79, in get_template
-    return Template(self.engine.get_template(template_name), self)
-  File "C:\Local Disk E\BlitzTech Systems\erpdev\venv\lib\site-packages\django\template\engine.py", line 177, in get_template
-    template, origin = self.find_template(template_name)
-  File "C:\Local Disk E\BlitzTech Systems\erpdev\venv\lib\site-packages\django\template\engine.py", line 159, in find_template
-    template = loader.get_template(name, skip=skip)
-  File "C:\Local Disk E\BlitzTech Systems\erpdev\venv\lib\site-packages\django\template\loaders\cached.py", line 57, in get_template
-    template = super().get_template(template_name, skip)
-  File "C:\Local Disk E\BlitzTech Systems\erpdev\venv\lib\site-packages\django\template\loaders\base.py", line 28, in get_template
-    return Template(
-  File "C:\Local Disk E\BlitzTech Systems\erpdev\venv\lib\site-packages\django\template\base.py", line 154, in __init__
-    self.nodelist = self.compile_nodelist()
-  File "C:\Local Disk E\BlitzTech Systems\erpdev\venv\lib\site-packages\django\template\base.py", line 196, in compile_nodelist
-    nodelist = parser.parse()
-  File "C:\Local Disk E\BlitzTech Systems\erpdev\venv\lib\site-packages\django\template\base.py", line 518, in parse
-    raise self.error(token, e)
-  File "C:\Local Disk E\BlitzTech Systems\erpdev\venv\lib\site-packages\django\template\base.py", line 516, in parse
-    compiled_result = compile_func(self, token)
-  File "C:\Local Disk E\BlitzTech Systems\erpdev\venv\lib\site-packages\django\template\loader_tags.py", line 295, in do_extends
-    nodelist = parser.parse()
-  File "C:\Local Disk E\BlitzTech Systems\erpdev\venv\lib\site-packages\django\template\base.py", line 518, in parse
-    raise self.error(token, e)
-  File "C:\Local Disk E\BlitzTech Systems\erpdev\venv\lib\site-packages\django\template\base.py", line 516, in parse
-    compiled_result = compile_func(self, token)
-  File "C:\Local Disk E\BlitzTech Systems\erpdev\venv\lib\site-packages\django\template\loader_tags.py", line 234, in do_block
-    nodelist = parser.parse(("endblock",))
-  File "C:\Local Disk E\BlitzTech Systems\erpdev\venv\lib\site-packages\django\template\base.py", line 518, in parse
-    raise self.error(token, e)
-  File "C:\Local Disk E\BlitzTech Systems\erpdev\venv\lib\site-packages\django\template\base.py", line 516, in parse
-    compiled_result = compile_func(self, token)
-  File "C:\Local Disk E\BlitzTech Systems\erpdev\venv\lib\site-packages\django\template\defaulttags.py", line 976, in do_if
-    nodelist = parser.parse(("endif",))
-  File "C:\Local Disk E\BlitzTech Systems\erpdev\venv\lib\site-packages\django\template\base.py", line 518, in parse
-    raise self.error(token, e)
-  File "C:\Local Disk E\BlitzTech Systems\erpdev\venv\lib\site-packages\django\template\base.py", line 516, in parse
-    compiled_result = compile_func(self, token)
-  File "C:\Local Disk E\BlitzTech Systems\erpdev\venv\lib\site-packages\django\template\defaulttags.py", line 961, in do_if
-    condition = TemplateIfParser(parser, bits).parse()
-  File "C:\Local Disk E\BlitzTech Systems\erpdev\venv\lib\site-packages\django\template\defaulttags.py", line 894, in __init__
-    super().__init__(*args, **kwargs)
-  File "C:\Local Disk E\BlitzTech Systems\erpdev\venv\lib\site-packages\django\template\smartif.py", line 171, in __init__
-    mapped_tokens.append(self.translate_token(token))
-  File "C:\Local Disk E\BlitzTech Systems\erpdev\venv\lib\site-packages\django\template\smartif.py", line 182, in translate_token
-    return self.create_var(token)
-  File "C:\Local Disk E\BlitzTech Systems\erpdev\venv\lib\site-packages\django\template\defaulttags.py", line 897, in create_var
-    return TemplateLiteral(self.template_parser.compile_filter(value), value)
-  File "C:\Local Disk E\BlitzTech Systems\erpdev\venv\lib\site-packages\django\template\base.py", line 605, in compile_filter
-    return FilterExpression(token, self)
-  File "C:\Local Disk E\BlitzTech Systems\erpdev\venv\lib\site-packages\django\template\base.py", line 706, in __init__
-    raise TemplateSyntaxError(
-django.template.exceptions.TemplateSyntaxError: Could not parse the remainder: '='crm'' from 'request_type='crm''
-ERROR 2025-08-06 20:18:57,752 log 33872 6568 Internal Server Error: /auth/profile/complete/
-Traceback (most recent call last):
-  File "C:\Local Disk E\BlitzTech Systems\erpdev\venv\lib\site-packages\django\core\handlers\exception.py", line 55, in inner
-    response = get_response(request)
-  File "C:\Local Disk E\BlitzTech Systems\erpdev\venv\lib\site-packages\django\core\handlers\base.py", line 197, in _get_response
-    response = wrapped_callback(request, *callback_args, **callback_kwargs)
-  File "C:\Local Disk E\BlitzTech Systems\erpdev\venv\lib\site-packages\django\contrib\auth\decorators.py", line 60, in _view_wrapper
-    return view_func(request, *args, **kwargs)
-  File "C:\Local Disk E\BlitzTech Systems\erpdev\core\views.py", line 678, in profile_completion_view
+  File "C:\Local Disk E\BlitzTech Systems\erpdev\core\views.py", line 680, in profile_completion_view
     return render(request, 'core/profile_completion.html', context)
   File "C:\Local Disk E\BlitzTech Systems\erpdev\venv\lib\site-packages\django\shortcuts.py", line 25, in render
     content = loader.render_to_string(template_name, context, request, using=using)
@@ -112,106 +38,12 @@ Traceback (most recent call last):
     raise self.error(token, e)
   File "C:\Local Disk E\BlitzTech Systems\erpdev\venv\lib\site-packages\django\template\base.py", line 516, in parse
     compiled_result = compile_func(self, token)
-  File "C:\Local Disk E\BlitzTech Systems\erpdev\venv\lib\site-packages\django\template\loader_tags.py", line 234, in do_block
-    nodelist = parser.parse(("endblock",))
-  File "C:\Local Disk E\BlitzTech Systems\erpdev\venv\lib\site-packages\django\template\base.py", line 518, in parse
-    raise self.error(token, e)
-  File "C:\Local Disk E\BlitzTech Systems\erpdev\venv\lib\site-packages\django\template\base.py", line 516, in parse
-    compiled_result = compile_func(self, token)
-  File "C:\Local Disk E\BlitzTech Systems\erpdev\venv\lib\site-packages\django\template\defaulttags.py", line 962, in do_if
-    nodelist = parser.parse(("elif", "else", "endif"))
-  File "C:\Local Disk E\BlitzTech Systems\erpdev\venv\lib\site-packages\django\template\base.py", line 518, in parse
-    raise self.error(token, e)
-  File "C:\Local Disk E\BlitzTech Systems\erpdev\venv\lib\site-packages\django\template\base.py", line 516, in parse
-    compiled_result = compile_func(self, token)
-  File "C:\Local Disk E\BlitzTech Systems\erpdev\venv\lib\site-packages\django\template\defaulttags.py", line 862, in do_for
-    nodelist_loop = parser.parse(
-  File "C:\Local Disk E\BlitzTech Systems\erpdev\venv\lib\site-packages\django\template\base.py", line 489, in parse
-    raise self.error(token, e)
-  File "C:\Local Disk E\BlitzTech Systems\erpdev\venv\lib\site-packages\django\template\base.py", line 487, in parse
-    filter_expression = self.compile_filter(token.contents)
-  File "C:\Local Disk E\BlitzTech Systems\erpdev\venv\lib\site-packages\django\template\base.py", line 605, in compile_filter
-    return FilterExpression(token, self)
-  File "C:\Local Disk E\BlitzTech Systems\erpdev\venv\lib\site-packages\django\template\base.py", line 701, in __init__
-    filter_func = parser.find_filter(filter_name)
-  File "C:\Local Disk E\BlitzTech Systems\erpdev\venv\lib\site-packages\django\template\base.py", line 611, in find_filter
-    raise TemplateSyntaxError("Invalid filter: '%s'" % filter_name)
-django.template.exceptions.TemplateSyntaxError: Invalid filter: 'replace'
-ERROR 2025-08-06 22:06:25,956 log 34016 37352 Internal Server Error: /auth/profile/complete/
-Traceback (most recent call last):
-  File "C:\Local Disk E\BlitzTech Systems\erpdev\venv\lib\site-packages\django\template\defaulttags.py", line 1035, in find_library
-    return parser.libraries[name]
-KeyError: 'core_extras'
-
-During handling of the above exception, another exception occurred:
-
-Traceback (most recent call last):
-  File "C:\Local Disk E\BlitzTech Systems\erpdev\venv\lib\site-packages\django\core\handlers\exception.py", line 55, in inner
-    response = get_response(request)
-  File "C:\Local Disk E\BlitzTech Systems\erpdev\venv\lib\site-packages\django\core\handlers\base.py", line 197, in _get_response
-    response = wrapped_callback(request, *callback_args, **callback_kwargs)
-  File "C:\Local Disk E\BlitzTech Systems\erpdev\venv\lib\site-packages\django\contrib\auth\decorators.py", line 60, in _view_wrapper
-    return view_func(request, *args, **kwargs)
-  File "C:\Local Disk E\BlitzTech Systems\erpdev\core\views.py", line 679, in profile_completion_view
-    return render(request, 'core/profile_completion.html', context)
-  File "C:\Local Disk E\BlitzTech Systems\erpdev\venv\lib\site-packages\django\shortcuts.py", line 25, in render
-    content = loader.render_to_string(template_name, context, request, using=using)
-  File "C:\Local Disk E\BlitzTech Systems\erpdev\venv\lib\site-packages\django\template\loader.py", line 61, in render_to_string
-    template = get_template(template_name, using=using)
-  File "C:\Local Disk E\BlitzTech Systems\erpdev\venv\lib\site-packages\django\template\loader.py", line 15, in get_template
-    return engine.get_template(template_name)
-  File "C:\Local Disk E\BlitzTech Systems\erpdev\venv\lib\site-packages\django\template\backends\django.py", line 79, in get_template
-    return Template(self.engine.get_template(template_name), self)
-  File "C:\Local Disk E\BlitzTech Systems\erpdev\venv\lib\site-packages\django\template\engine.py", line 177, in get_template
-    template, origin = self.find_template(template_name)
-  File "C:\Local Disk E\BlitzTech Systems\erpdev\venv\lib\site-packages\django\template\engine.py", line 159, in find_template
-    template = loader.get_template(name, skip=skip)
-  File "C:\Local Disk E\BlitzTech Systems\erpdev\venv\lib\site-packages\django\template\loaders\cached.py", line 57, in get_template
-    template = super().get_template(template_name, skip)
-  File "C:\Local Disk E\BlitzTech Systems\erpdev\venv\lib\site-packages\django\template\loaders\base.py", line 28, in get_template
-    return Template(
-  File "C:\Local Disk E\BlitzTech Systems\erpdev\venv\lib\site-packages\django\template\base.py", line 154, in __init__
-    self.nodelist = self.compile_nodelist()
-  File "C:\Local Disk E\BlitzTech Systems\erpdev\venv\lib\site-packages\django\template\base.py", line 196, in compile_nodelist
-    nodelist = parser.parse()
-  File "C:\Local Disk E\BlitzTech Systems\erpdev\venv\lib\site-packages\django\template\base.py", line 518, in parse
-    raise self.error(token, e)
-  File "C:\Local Disk E\BlitzTech Systems\erpdev\venv\lib\site-packages\django\template\base.py", line 516, in parse
-    compiled_result = compile_func(self, token)
   File "C:\Local Disk E\BlitzTech Systems\erpdev\venv\lib\site-packages\django\template\loader_tags.py", line 295, in do_extends
     nodelist = parser.parse()
   File "C:\Local Disk E\BlitzTech Systems\erpdev\venv\lib\site-packages\django\template\base.py", line 518, in parse
     raise self.error(token, e)
   File "C:\Local Disk E\BlitzTech Systems\erpdev\venv\lib\site-packages\django\template\base.py", line 516, in parse
     compiled_result = compile_func(self, token)
-  File "C:\Local Disk E\BlitzTech Systems\erpdev\venv\lib\site-packages\django\template\defaulttags.py", line 1097, in load
-    lib = find_library(parser, name)
-  File "C:\Local Disk E\BlitzTech Systems\erpdev\venv\lib\site-packages\django\template\defaulttags.py", line 1037, in find_library
+  File "C:\Local Disk E\BlitzTech Systems\erpdev\venv\lib\site-packages\django\template\loader_tags.py", line 228, in do_block
     raise TemplateSyntaxError(
-django.template.exceptions.TemplateSyntaxError: 'core_extras' is not a registered tag library. Must be one of:
-account
-admin_list
-admin_modify
-admin_urls
-cache
-crispy_forms_field
-crispy_forms_filters
-crispy_forms_tags
-crispy_forms_utils
-custom_filters
-debugger_tags
-dict_extras
-highlighting
-humanize
-i18n
-indent_text
-l10n
-log
-query_string
-socialaccount
-static
-syntax_color
-tz
-website_tags
-widont
-zip_filter
+django.template.exceptions.TemplateSyntaxError: 'block' tag with name 'title' appears more than once

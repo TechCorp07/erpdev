@@ -1,7 +1,225 @@
-<!-- core/templates/core/profile_completion.html -->
+<!-- core/templates/core/profile_completion.html
 {% extends 'auth_base.html' %}
 {% load crispy_forms_tags %}
 {% load core_extras %}
+
+{% block title %}Complete Your Profile - {{ block.super }}{% endblock %}
+
+{% block auth_content %}
+<div class="row justify-content-center">
+    <div class="col-lg-8">
+        <div class="card shadow-lg">
+            <div class="card-header bg-primary text-white text-center">
+                <h3 class="mb-0">
+                    <i class="bi bi-person-check me-2"></i>
+                    Complete Your Profile
+                </h3>
+                <p class="mb-0 mt-2">Please provide additional information to complete your account setup</p>
+            </div>
+            
+            <div class="card-body p-4">
+                // Progress Bar 
+                <div class="mb-4">
+                    <div class="d-flex justify-content-between align-items-center mb-2">
+                        <span class="fw-bold">Profile Completion</span>
+                        <span class="text-muted">{{ profile.get_completion_percentage }}%</span>
+                    </div>
+                    <div class="progress" style="height: 8px;">
+                        <div class="progress-bar bg-success" role="progressbar" 
+                             style="width: {{ profile.get_completion_percentage }}%"></div>
+                    </div>
+                </div>
+
+                // User Type Badge
+                <div class="alert alert-info d-flex align-items-center mb-4">
+                    <i class="bi bi-info-circle me-2"></i>
+                    <div>
+                        <strong>Account Type:</strong> {{ user_type_display }}
+                        {% if profile.user_type == 'customer' %}
+                        <br><small class="text-muted">You can shop immediately and request CRM access after completing your profile.</small>
+                        {% elif profile.user_type == 'blogger' %}
+                        <br><small class="text-muted">You can shop immediately and request blog management access.</small>
+                        {% endif %}
+                    </div>
+                </div>
+
+                // Incomplete Fields Alert
+                {% if incomplete_fields %}
+                <div class="alert alert-warning">
+                    <h6><i class="bi bi-exclamation-triangle me-2"></i>Required Information Missing:</h6>
+                    <ul class="mb-0">
+                        {% for field in incomplete_fields %}
+                        <li>{{ field|format_field_name }}</li>
+                        {% endfor %}
+                    </ul>
+                </div>
+                {% endif %}
+
+                // Profile Completion Form 
+                <form method="post" enctype="multipart/form-data">
+                    {% csrf_token %}
+                    
+                    <div class="row">
+                        <div class="col-md-6">
+                            <h5 class="border-bottom pb-2 mb-3">
+                                <i class="bi bi-person me-2 text-primary"></i>Personal Information
+                            </h5>
+                            
+                            <div class="mb-3">
+                                <label class="form-label fw-bold">First Name *</label>
+                                {{ form.first_name }}
+                            </div>
+                            
+                            <div class="mb-3">
+                                <label class="form-label fw-bold">Last Name *</label>
+                                {{ form.last_name }}
+                            </div>
+                            
+                            <div class="mb-3">
+                                <label class="form-label fw-bold">Email Address *</label>
+                                {{ form.email }}
+                            </div>
+                            
+                            <div class="mb-3">
+                                <label class="form-label fw-bold">Phone Number *</label>
+                                {{ form.phone }}
+                            </div>
+                            
+                            <div class="mb-3">
+                                <label class="form-label">Profile Image</label>
+                                {{ form.profile_image }}
+                                <small class="form-text text-muted">Optional: Upload a profile picture</small>
+                            </div>
+                        </div>
+                        
+                        <div class="col-md-6">
+                            <h5 class="border-bottom pb-2 mb-3">
+                                <i class="bi bi-building me-2 text-primary"></i>Additional Information
+                            </h5>
+                            
+                            {% if profile.user_type != 'employee' %}
+                            <div class="mb-3">
+                                <label class="form-label">Company Name</label>
+                                {{ form.company_name }}
+                                <small class="form-text text-muted">Your business or organization</small>
+                            </div>
+                            {% endif %}
+                            
+                            <div class="mb-3">
+                                <label class="form-label">Address</label>
+                                {{ form.address }}
+                                <small class="form-text text-muted">Complete physical address</small>
+                            </div>
+                            
+                            {% if profile.user_type == 'employee' %}
+                            <div class="mb-3">
+                                <label class="form-label">Department</label>
+                                {{ form.department }}
+                            </div>
+                            {% endif %}
+                        </div>
+                    </div>
+
+                    // Business Information (for business customers) 
+                    {% if profile.user_type == 'customer' %}
+                    <div class="row mt-4">
+                        <div class="col-12">
+                            <h5 class="border-bottom pb-2 mb-3">
+                                <i class="bi bi-briefcase me-2 text-primary"></i>Business Information
+                                <small class="text-muted">(Optional)</small>
+                            </h5>
+                        </div>
+                        
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label class="form-label">Tax Number</label>
+                                {{ form.tax_number }}
+                                <small class="form-text text-muted">For business purchases</small>
+                            </div>
+                        </div>
+                        
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label class="form-label">Business Registration</label>
+                                {{ form.business_registration }}
+                                <small class="form-text text-muted">Company registration number</small>
+                            </div>
+                        </div>
+                    </div>
+                    {% endif %}
+
+                    // Notification Preferences
+                    <div class="row mt-4">
+                        <div class="col-12">
+                            <h5 class="border-bottom pb-2 mb-3">
+                                <i class="bi bi-gear me-2 text-primary"></i>Notification Preferences
+                            </h5>
+                            
+                            <div class="row">
+                                <div class="col-md-6">
+                                    <div class="form-check mb-2">
+                                        {{ form.email_notifications }}
+                                        <label class="form-check-label" for="{{ form.email_notifications.id_for_label }}">
+                                            Email Notifications
+                                        </label>
+                                    </div>
+                                    
+                                    <div class="form-check mb-2">
+                                        {{ form.sms_notifications }}
+                                        <label class="form-check-label" for="{{ form.sms_notifications.id_for_label }}">
+                                            SMS Notifications
+                                        </label>
+                                    </div>
+                                </div>
+                                
+                                <div class="col-md-6">
+                                    <div class="form-check mb-2">
+                                        {{ form.approval_notifications }}
+                                        <label class="form-check-label" for="{{ form.approval_notifications.id_for_label }}">
+                                            Approval Updates
+                                        </label>
+                                    </div>
+                                    
+                                    <div class="form-check mb-2">
+                                        {{ form.marketing_emails }}
+                                        <label class="form-check-label" for="{{ form.marketing_emails.id_for_label }}">
+                                            Marketing Emails
+                                        </label>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    // Submit Button 
+                    <div class="row mt-4">
+                        <div class="col-12">
+                            <div class="d-flex justify-content-between align-items-center">
+                                <div>
+                                    <small class="text-muted">
+                                        <i class="bi bi-info-circle me-1"></i>
+                                        Fields marked with * are required
+                                    </small>
+                                </div>
+                                <div>
+                                    <button type="submit" class="btn btn-primary btn-lg">
+                                        <i class="bi bi-check-circle me-2"></i>
+                                        Complete Profile
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %} -->
+
+<!-- core/templates/core/profile_completion.html -->
+{% extends 'auth_base.html' %}
+{% load crispy_forms_tags %}
 
 {% block title %}Complete Your Profile - {{ block.super }}{% endblock %}
 
@@ -49,7 +267,7 @@
                     <h6><i class="bi bi-exclamation-triangle me-2"></i>Required Information Missing:</h6>
                     <ul class="mb-0">
                         {% for field in incomplete_fields %}
-                        <li>{{ field|format_field_name }}</li>
+                        <li>{{ field }}</li>
                         {% endfor %}
                     </ul>
                 </div>
