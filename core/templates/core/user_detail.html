@@ -1,0 +1,515 @@
+{% extends "dashboard_base.html" %}
+{% load static %}
+{% load humanize %}
+
+{% block page_title %}{{ target_user.get_full_name|default:target_user.username }} - User Details{% endblock %}
+
+{% block page_actions %}
+<div class="d-flex gap-2">
+  <a href="{% url 'core:manage_permissions' target_user.id %}" class="btn btn-outline-primary">
+    <i class="bi bi-shield-check me-1"></i> Manage Permissions
+  </a>
+  <a href="{% url 'core:user_management' %}" class="btn btn-outline-secondary">
+    <i class="bi bi-arrow-left me-1"></i> Back to Users
+  </a>
+</div>
+{% endblock %}
+
+{% block dashboard_content %}
+<div class="row">
+  <!-- User Information Card -->
+  <div class="col-lg-4 mb-4">
+    <div class="card">
+      <div class="card-body text-center">
+        {% if profile.profile_image %}
+        <img src="{{ profile.profile_image.url }}" alt="{{ target_user.username }}" 
+             class="rounded-circle mb-3" width="120" height="120" style="object-fit: cover;">
+        {% else %}
+        <div class="rounded-circle bg-secondary mx-auto mb-3 d-flex align-items-center justify-content-center" 
+             style="width: 120px; height: 120px;">
+          <span class="text-white h3 mb-0">{{ target_user.first_name|first }}{{ target_user.last_name|first }}</span>
+        </div>
+        {% endif %}
+        
+        <h5 class="mb-1">{{ target_user.get_full_name|default:target_user.username }}</h5>
+        <p class="text-muted mb-3">{{ profile.get_user_type_display }}</p>
+        
+        <!-- User Status Badges -->
+        <div class="d-flex flex-wrap justify-content-center gap-2 mb-3">
+          {% if target_user.is_superuser %}
+          <span class="badge bg-danger">
+            <i class="bi bi-shield-fill me-1"></i>Superuser
+          </span>
+          {% endif %}
+          
+          {% if target_user.is_staff %}
+          <span class="badge bg-primary">
+            <i class="bi bi-gear-fill me-1"></i>Staff
+          </span>
+          {% endif %}
+          
+          {% if target_user.is_active %}
+          <span class="badge bg-success">
+            <i class="bi bi-check-circle me-1"></i>Active
+          </span>
+          {% else %}
+          <span class="badge bg-danger">
+            <i class="bi bi-x-circle me-1"></i>Inactive
+          </span>
+          {% endif %}
+          
+          {% if profile.profile_completed %}
+          <span class="badge bg-info">
+            <i class="bi bi-person-check me-1"></i>Profile Complete
+          </span>
+          {% else %}
+          <span class="badge bg-warning text-dark">
+            <i class="bi bi-person-exclamation me-1"></i>Profile Incomplete
+          </span>
+          {% endif %}
+          
+          {% if profile.is_social_account %}
+          <span class="badge bg-light text-dark border">
+            <i class="bi bi-{% if profile.social_provider == 'google' %}google{% elif profile.social_provider == 'facebook' %}facebook{% else %}person-circle{% endif %} me-1"></i>
+            {{ profile.social_provider|title }}
+          </span>
+          {% endif %}
+        </div>
+        
+        <!-- Quick Actions -->
+        <div class="d-grid gap-2">
+          <a href="mailto:{{ target_user.email }}" class="btn btn-outline-primary btn-sm">
+            <i class="bi bi-envelope me-1"></i> Send Email
+          </a>
+          <button class="btn btn-outline-secondary btn-sm" onclick="sendPasswordReset({{ target_user.id }})">
+            <i class="bi bi-key me-1"></i> Reset Password
+          </button>
+          {% if target_user.is_active %}
+          <button class="btn btn-outline-warning btn-sm" onclick="toggleUserStatus({{ target_user.id }}, false)">
+            <i class="bi bi-pause-circle me-1"></i> Deactivate
+          </button>
+          {% else %}
+          <button class="btn btn-outline-success btn-sm" onclick="toggleUserStatus({{ target_user.id }}, true)">
+            <i class="bi bi-play-circle me-1"></i> Activate
+          </button>
+          {% endif %}
+        </div>
+      </div>
+    </div>
+    
+    <!-- Contact Information Card -->
+    <div class="card mt-3">
+      <div class="card-header">
+        <h6 class="mb-0">
+          <i class="bi bi-person-lines-fill me-2"></i>Contact Information
+        </h6>
+      </div>
+      <div class="card-body">
+        <div class="row g-3">
+          <div class="col-12">
+            <label class="text-muted small">Email</label>
+            <div class="fw-bold">{{ target_user.email }}</div>
+          </div>
+          
+          {% if profile.phone %}
+          <div class="col-12">
+            <label class="text-muted small">Phone</label>
+            <div class="fw-bold">{{ profile.phone }}</div>
+          </div>
+          {% endif %}
+          
+          {% if profile.address %}
+          <div class="col-12">
+            <label class="text-muted small">Address</label>
+            <div class="fw-bold">{{ profile.address }}</div>
+          </div>
+          {% endif %}
+          
+          {% if profile.company_name %}
+          <div class="col-12">
+            <label class="text-muted small">Company</label>
+            <div class="fw-bold">{{ profile.company_name }}</div>
+          </div>
+          {% endif %}
+          
+          {% if profile.department %}
+          <div class="col-12">
+            <label class="text-muted small">Department</label>
+            <div class="fw-bold">{{ profile.get_department_display }}</div>
+          </div>
+          {% endif %}
+        </div>
+      </div>
+    </div>
+  </div>
+  
+  <!-- Main Content -->
+  <div class="col-lg-8">
+    <!-- Account Details -->
+    <div class="card mb-4">
+      <div class="card-header">
+        <h6 class="mb-0">
+          <i class="bi bi-info-circle me-2"></i>Account Details
+        </h6>
+      </div>
+      <div class="card-body">
+        <div class="row g-3">
+          <div class="col-md-6">
+            <label class="text-muted small">Username</label>
+            <div class="fw-bold">{{ target_user.username }}</div>
+          </div>
+          
+          <div class="col-md-6">
+            <label class="text-muted small">Date Joined</label>
+            <div class="fw-bold">{{ target_user.date_joined|date:"F d, Y H:i" }}</div>
+          </div>
+          
+          <div class="col-md-6">
+            <label class="text-muted small">Last Login</label>
+            <div class="fw-bold">
+              {% if target_user.last_login %}
+                {{ target_user.last_login|date:"F d, Y H:i" }}
+                <small class="text-muted d-block">{{ target_user.last_login|naturaltime }}</small>
+              {% else %}
+                <span class="text-muted">Never</span>
+              {% endif %}
+            </div>
+          </div>
+          
+          <div class="col-md-6">
+            <label class="text-muted small">User Type</label>
+            <div class="fw-bold">{{ profile.get_user_type_display }}</div>
+          </div>
+          
+          {% if profile.tax_number %}
+          <div class="col-md-6">
+            <label class="text-muted small">Tax Number</label>
+            <div class="fw-bold">{{ profile.tax_number }}</div>
+          </div>
+          {% endif %}
+          
+          {% if profile.business_registration %}
+          <div class="col-md-6">
+            <label class="text-muted small">Business Registration</label>
+            <div class="fw-bold">{{ profile.business_registration }}</div>
+          </div>
+          {% endif %}
+        </div>
+      </div>
+    </div>
+    
+    <!-- Access Permissions -->
+    <div class="card mb-4">
+      <div class="card-header">
+        <div class="d-flex justify-content-between align-items-center">
+          <h6 class="mb-0">
+            <i class="bi bi-shield-check me-2"></i>Access Permissions
+          </h6>
+          <a href="{% url 'core:manage_permissions' target_user.id %}" class="btn btn-outline-primary btn-sm">
+            <i class="bi bi-gear me-1"></i> Manage
+          </a>
+        </div>
+      </div>
+      <div class="card-body">
+        {% if profile.user_type == 'employee' %}
+        <p class="text-muted mb-3">Employee permissions are managed through the app permission system.</p>
+        
+        {% if target_user.app_permissions.exists %}
+        <div class="row g-2">
+          {% for permission in target_user.app_permissions.all %}
+          <div class="col-md-4">
+            <div class="border rounded p-2 text-center">
+              <div class="fw-bold">{{ permission.get_app_display }}</div>
+              <span class="badge bg-{% if permission.permission_level == 'admin' %}danger{% elif permission.permission_level == 'edit' %}warning{% else %}info{% endif %} mt-1">
+                {{ permission.get_permission_level_display }}
+              </span>
+            </div>
+          </div>
+          {% endfor %}
+        </div>
+        {% else %}
+        <div class="text-center py-3 text-muted">
+          <i class="bi bi-shield-slash" style="font-size: 2rem;"></i>
+          <p class="mt-2 mb-0">No app permissions assigned</p>
+        </div>
+        {% endif %}
+        
+        {% else %}
+        <!-- Customer/Blogger permissions -->
+        <div class="row g-3">
+          <div class="col-md-4 text-center">
+            <div class="border rounded p-3">
+              <i class="bi bi-cart3 fs-1 mb-2 text-{% if profile.shop_approved %}success{% else %}muted{% endif %}"></i>
+              <h6>Shopping Cart</h6>
+              {% if profile.shop_approved %}
+              <span class="badge bg-success">Approved</span>
+              {% else %}
+              <span class="badge bg-secondary">Not Approved</span>
+              {% endif %}
+            </div>
+          </div>
+          
+          <div class="col-md-4 text-center">
+            <div class="border rounded p-3">
+              <i class="bi bi-people fs-1 mb-2 text-{% if profile.crm_approved %}success{% else %}muted{% endif %}"></i>
+              <h6>CRM Access</h6>
+              {% if profile.crm_approved %}
+              <span class="badge bg-success">Approved</span>
+              {% else %}
+              <span class="badge bg-secondary">Not Approved</span>
+              {% endif %}
+            </div>
+          </div>
+          
+          {% if profile.user_type == 'blogger' %}
+          <div class="col-md-4 text-center">
+            <div class="border rounded p-3">
+              <i class="bi bi-pencil-square fs-1 mb-2 text-{% if profile.blog_approved %}success{% else %}muted{% endif %}"></i>
+              <h6>Blog Management</h6>
+              {% if profile.blog_approved %}
+              <span class="badge bg-success">Approved</span>
+              {% else %}
+              <span class="badge bg-secondary">Not Approved</span>
+              {% endif %}
+            </div>
+          </div>
+          {% endif %}
+        </div>
+        {% endif %}
+      </div>
+    </div>
+    
+    <!-- Approval Requests -->
+    {% if approval_requests %}
+    <div class="card mb-4">
+      <div class="card-header">
+        <h6 class="mb-0">
+          <i class="bi bi-clipboard-check me-2"></i>Approval Requests
+          <span class="badge bg-secondary ms-2">{{ approval_requests.count }}</span>
+        </h6>
+      </div>
+      <div class="card-body">
+        <div class="table-responsive">
+          <table class="table table-sm">
+            <thead>
+              <tr>
+                <th>Type</th>
+                <th>Status</th>
+                <th>Requested</th>
+                <th>Reviewed By</th>
+                <th>Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for request in approval_requests %}
+              <tr>
+                <td>{{ request.get_request_type_display }}</td>
+                <td>
+                  {% if request.status == 'pending' %}
+                  <span class="badge bg-warning">Pending</span>
+                  {% elif request.status == 'approved' %}
+                  <span class="badge bg-success">Approved</span>
+                  {% else %}
+                  <span class="badge bg-danger">Rejected</span>
+                  {% endif %}
+                </td>
+                <td>{{ request.requested_at|date:"M d, Y" }}</td>
+                <td>
+                  {% if request.reviewed_by %}
+                  {{ request.reviewed_by.get_full_name|default:request.reviewed_by.username }}
+                  {% else %}
+                  <span class="text-muted">-</span>
+                  {% endif %}
+                </td>
+                <td>
+                  {% if request.status == 'pending' %}
+                  <a href="{% url 'core:process_approval' request.id %}" class="btn btn-outline-primary btn-sm">
+                    <i class="bi bi-eye me-1"></i>Review
+                  </a>
+                  {% else %}
+                  <span class="text-muted">-</span>
+                  {% endif %}
+                </td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+    {% endif %}
+    
+    <!-- Recent Activity -->
+    <div class="row">
+      <!-- Login Activity -->
+      <div class="col-md-6 mb-4">
+        <div class="card h-100">
+          <div class="card-header">
+            <h6 class="mb-0">
+              <i class="bi bi-clock-history me-2"></i>Recent Logins
+            </h6>
+          </div>
+          <div class="card-body">
+            {% if login_activities %}
+            <div class="timeline">
+              {% for activity in login_activities %}
+              <div class="timeline-item">
+                <div class="timeline-marker bg-primary"></div>
+                <div class="timeline-content">
+                  <div class="d-flex justify-content-between align-items-start">
+                    <div>
+                      <div class="fw-bold">{{ activity.login_datetime|date:"M d, Y H:i" }}</div>
+                      <div class="text-muted small">
+                        <i class="bi bi-geo-alt me-1"></i>{{ activity.ip_address }}
+                      </div>
+                    </div>
+                    <small class="text-muted">{{ activity.login_datetime|naturaltime }}</small>
+                  </div>
+                </div>
+              </div>
+              {% endfor %}
+            </div>
+            {% else %}
+            <div class="text-center py-3 text-muted">
+              <i class="bi bi-clock" style="font-size: 2rem;"></i>
+              <p class="mt-2 mb-0">No login activity</p>
+            </div>
+            {% endif %}
+          </div>
+        </div>
+      </div>
+      
+      <!-- Security Events -->
+      <div class="col-md-6 mb-4">
+        <div class="card h-100">
+          <div class="card-header">
+            <h6 class="mb-0">
+              <i class="bi bi-shield-exclamation me-2"></i>Security Events
+            </h6>
+          </div>
+          <div class="card-body">
+            {% if security_events %}
+            <div class="timeline">
+              {% for event in security_events %}
+              <div class="timeline-item">
+                <div class="timeline-marker bg-{% if event.event_type == 'login_success' %}success{% elif event.event_type == 'login_failure' %}danger{% elif event.event_type == 'suspicious_activity' %}warning{% else %}info{% endif %}"></div>
+                <div class="timeline-content">
+                  <div class="d-flex justify-content-between align-items-start">
+                    <div>
+                      <div class="fw-bold">{{ event.get_event_type_display }}</div>
+                      <div class="text-muted small">
+                        <i class="bi bi-geo-alt me-1"></i>{{ event.ip_address }}
+                      </div>
+                    </div>
+                    <small class="text-muted">{{ event.timestamp|naturaltime }}</small>
+                  </div>
+                </div>
+              </div>
+              {% endfor %}
+            </div>
+            {% else %}
+            <div class="text-center py-3 text-muted">
+              <i class="bi bi-shield-check" style="font-size: 2rem;"></i>
+              <p class="mt-2 mb-0">No security events</p>
+            </div>
+            {% endif %}
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<style>
+/* Timeline Styles */
+.timeline {
+  position: relative;
+  padding-left: 30px;
+}
+
+.timeline::before {
+  content: '';
+  position: absolute;
+  left: 15px;
+  top: 0;
+  bottom: 0;
+  width: 2px;
+  background: #dee2e6;
+}
+
+.timeline-item {
+  position: relative;
+  margin-bottom: 20px;
+}
+
+.timeline-item:last-child {
+  margin-bottom: 0;
+}
+
+.timeline-marker {
+  position: absolute;
+  left: -23px;
+  top: 5px;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  border: 2px solid #fff;
+  box-shadow: 0 0 0 2px #dee2e6;
+}
+
+.timeline-content {
+  background: #f8f9fa;
+  padding: 10px;
+  border-radius: 5px;
+  border: 1px solid #dee2e6;
+}
+</style>
+
+<script>
+function sendPasswordReset(userId) {
+  if (confirm('Send password reset email to this user?')) {
+    fetch(`/auth/users/${userId}/reset-password/`, {
+      method: 'POST',
+      headers: {
+        'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]')?.value || '',
+        'Content-Type': 'application/json'
+      }
+    })
+    .then(response => response.json())
+    .then(data => {
+      if (data.success) {
+        alert('Password reset email sent successfully!');
+      } else {
+        alert('Error: ' + data.error);
+      }
+    })
+    .catch(error => {
+      alert('Error sending password reset email');
+      console.error('Error:', error);
+    });
+  }
+}
+
+function toggleUserStatus(userId, activate) {
+  const action = activate ? 'activate' : 'deactivate';
+  if (confirm(`Are you sure you want to ${action} this user?`)) {
+    fetch(`/auth/users/${userId}/toggle-status/`, {
+      method: 'POST',
+      headers: {
+        'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]')?.value || '',
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({ activate: activate })
+    })
+    .then(response => response.json())
+    .then(data => {
+      if (data.success) {
+        location.reload();
+      } else {
+        alert('Error: ' + data.error);
+      }
+    });
+  }
+}
+</script>
+{% endblock %}

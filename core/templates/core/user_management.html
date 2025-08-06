@@ -1,0 +1,572 @@
+{% extends "dashboard_base.html" %}
+{% load static %}
+{% load humanize %}
+
+{% block page_title %}User Management{% endblock %}
+
+{% block page_actions %}
+<a href="{% url 'core:add_employee' %}" class="btn btn-primary">
+  <i class="bi bi-person-plus me-1"></i> Add Employee
+</a>
+{% endblock %}
+
+{% block dashboard_content %}
+<!-- User Management Dashboard -->
+<div class="row mb-4">
+  <!-- User Statistics Cards -->
+  <div class="col-lg-3 col-md-6 mb-3">
+    <div class="card bg-primary text-white h-100">
+      <div class="card-body">
+        <div class="d-flex justify-content-between">
+          <div>
+            <div class="h4 mb-0">{{ stats.total_users }}</div>
+            <div class="small">Total Users</div>
+          </div>
+          <div class="align-self-center">
+            <i class="bi bi-people-fill" style="font-size: 2rem; opacity: 0.5;"></i>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+  
+  <div class="col-lg-3 col-md-6 mb-3">
+    <div class="card bg-success text-white h-100">
+      <div class="card-body">
+        <div class="d-flex justify-content-between">
+          <div>
+            <div class="h4 mb-0">{{ stats.customers }}</div>
+            <div class="small">Customers</div>
+          </div>
+          <div class="align-self-center">
+            <i class="bi bi-cart-fill" style="font-size: 2rem; opacity: 0.5;"></i>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+  
+  <div class="col-lg-3 col-md-6 mb-3">
+    <div class="card bg-info text-white h-100">
+      <div class="card-body">
+        <div class="d-flex justify-content-between">
+          <div>
+            <div class="h4 mb-0">{{ stats.employees }}</div>
+            <div class="small">Employees</div>
+          </div>
+          <div class="align-self-center">
+            <i class="bi bi-briefcase-fill" style="font-size: 2rem; opacity: 0.5;"></i>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+  
+  <div class="col-lg-3 col-md-6 mb-3">
+    <div class="card bg-warning text-white h-100">
+      <div class="card-body">
+        <div class="d-flex justify-content-between">
+          <div>
+            <div class="h4 mb-0">{{ stats.pending_approval }}</div>
+            <div class="small">Pending Approval</div>
+          </div>
+          <div class="align-self-center">
+            <i class="bi bi-hourglass-split" style="font-size: 2rem; opacity: 0.5;"></i>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Filters and Search -->
+<div class="card mb-4">
+  <div class="card-body">
+    <form method="get" class="row g-3">
+      <div class="col-md-3">
+        <label for="search" class="form-label">Search Users</label>
+        <input type="text" class="form-control" id="search" name="search" 
+               value="{{ search_query }}" placeholder="Name, username, email...">
+      </div>
+      
+      <div class="col-md-3">
+        <label for="type" class="form-label">User Type</label>
+        <select class="form-select" id="type" name="type">
+          <option value="">All Types</option>
+          {% for type_key, type_display in user_types %}
+          <option value="{{ type_key }}" {% if user_type_filter == type_key %}selected{% endif %}>
+            {{ type_display }}
+          </option>
+          {% endfor %}
+        </select>
+      </div>
+      
+      <div class="col-md-3">
+        <label for="approval" class="form-label">Approval Status</label>
+        <select class="form-select" id="approval" name="approval">
+          <option value="">All Status</option>
+          <option value="approved" {% if approval_status == 'approved' %}selected{% endif %}>Approved</option>
+          <option value="pending" {% if approval_status == 'pending' %}selected{% endif %}>Pending</option>
+        </select>
+      </div>
+      
+      <div class="col-md-3">
+        <label class="form-label">&nbsp;</label>
+        <div class="d-flex gap-2">
+          <button type="submit" class="btn btn-primary">
+            <i class="bi bi-search me-1"></i> Filter
+          </button>
+          <a href="{% url 'core:user_management' %}" class="btn btn-outline-secondary">
+            <i class="bi bi-x-circle me-1"></i> Clear
+          </a>
+        </div>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- Users Table -->
+<div class="card">
+  <div class="card-header">
+    <div class="row align-items-center">
+      <div class="col">
+        <h5 class="mb-0">
+          <i class="bi bi-people me-2"></i>Users
+          {% if users.paginator.count %}
+          <span class="badge bg-secondary ms-2">{{ users.paginator.count }} total</span>
+          {% endif %}
+        </h5>
+      </div>
+      <div class="col-auto">
+        <div class="dropdown">
+          <button class="btn btn-outline-primary dropdown-toggle btn-sm" type="button" id="bulkActions" data-bs-toggle="dropdown">
+            <i class="bi bi-gear me-1"></i> Bulk Actions
+          </button>
+          <ul class="dropdown-menu">
+            <li><a class="dropdown-item" href="#" onclick="bulkApprove()">
+              <i class="bi bi-check-circle me-2"></i>Approve Selected
+            </a></li>
+            <li><a class="dropdown-item" href="#" onclick="bulkExport()">
+              <i class="bi bi-download me-2"></i>Export Selected
+            </a></li>
+          </ul>
+        </div>
+      </div>
+    </div>
+  </div>
+  
+  <div class="card-body p-0">
+    {% if users %}
+    <div class="table-responsive">
+      <table class="table table-hover mb-0">
+        <thead class="table-light">
+          <tr>
+            <th width="40">
+              <input type="checkbox" class="form-check-input" id="selectAll">
+            </th>
+            <th>User</th>
+            <th>Type</th>
+            <th>Status</th>
+            <th>Joined</th>
+            <th>Last Login</th>
+            <th width="120">Actions</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for user_obj in users %}
+          <tr>
+            <td>
+              <input type="checkbox" class="form-check-input user-checkbox" value="{{ user_obj.id }}">
+            </td>
+            
+            <td>
+              <div class="d-flex align-items-center">
+                {% if user_obj.profile.profile_image %}
+                <img src="{{ user_obj.profile.profile_image.url }}" alt="{{ user_obj.username }}" 
+                     class="rounded-circle me-2" width="32" height="32" style="object-fit: cover;">
+                {% else %}
+                <div class="rounded-circle bg-secondary me-2 d-flex align-items-center justify-content-center" 
+                     style="width: 32px; height: 32px;">
+                  <span class="text-white small">{{ user_obj.first_name|first }}{{ user_obj.last_name|first }}</span>
+                </div>
+                {% endif %}
+                
+                <div>
+                  <div class="fw-bold">
+                    {{ user_obj.first_name }} {{ user_obj.last_name }}
+                    {% if user_obj.is_superuser %}
+                    <span class="badge bg-danger ms-1" title="Superuser">
+                      <i class="bi bi-shield-fill"></i>
+                    </span>
+                    {% endif %}
+                    {% if user_obj.is_staff %}
+                    <span class="badge bg-primary ms-1" title="Staff">
+                      <i class="bi bi-gear-fill"></i>
+                    </span>
+                    {% endif %}
+                  </div>
+                  <div class="text-muted small">
+                    @{{ user_obj.username }} • {{ user_obj.email }}
+                    {% if user_obj.profile.phone %}
+                    • {{ user_obj.profile.phone }}
+                    {% endif %}
+                  </div>
+                  {% if user_obj.profile.company_name %}
+                  <div class="text-muted small">
+                    <i class="bi bi-building me-1"></i>{{ user_obj.profile.company_name }}
+                  </div>
+                  {% endif %}
+                </div>
+              </div>
+            </td>
+            
+            <td>
+              <span class="badge bg-{% if user_obj.profile.user_type == 'employee' %}primary{% elif user_obj.profile.user_type == 'customer' %}success{% elif user_obj.profile.user_type == 'blogger' %}info{% else %}secondary{% endif %}">
+                {{ user_obj.profile.get_user_type_display }}
+              </span>
+              {% if user_obj.profile.department %}
+              <br><small class="text-muted">{{ user_obj.profile.get_department_display }}</small>
+              {% endif %}
+              {% if user_obj.profile.is_social_account %}
+              <br><span class="badge bg-light text-dark border">
+                <i class="bi bi-{% if user_obj.profile.social_provider == 'google' %}google{% elif user_obj.profile.social_provider == 'facebook' %}facebook{% else %}person-circle{% endif %} me-1"></i>
+                {{ user_obj.profile.social_provider|title }}
+              </span>
+              {% endif %}
+            </td>
+            
+            <td>
+              {% if user_obj.profile.user_type == 'employee' %}
+              <span class="badge bg-primary">Employee</span>
+              {% else %}
+              <div class="d-flex flex-column gap-1">
+                {% if user_obj.profile.shop_approved %}
+                <span class="badge bg-success" title="Shop Access">
+                  <i class="bi bi-cart-check me-1"></i>Shop
+                </span>
+                {% endif %}
+                {% if user_obj.profile.crm_approved %}
+                <span class="badge bg-info" title="CRM Access">
+                  <i class="bi bi-people me-1"></i>CRM
+                </span>
+                {% endif %}
+                {% if user_obj.profile.blog_approved and user_obj.profile.user_type == 'blogger' %}
+                <span class="badge bg-warning" title="Blog Access">
+                  <i class="bi bi-pencil me-1"></i>Blog
+                </span>
+                {% endif %}
+                {% if not user_obj.profile.shop_approved and not user_obj.profile.crm_approved and not user_obj.profile.blog_approved %}
+                <span class="badge bg-secondary">No Access</span>
+                {% endif %}
+              </div>
+              {% endif %}
+              
+              {% if not user_obj.profile.profile_completed %}
+              <br><span class="badge bg-warning text-dark">
+                <i class="bi bi-exclamation-triangle me-1"></i>Incomplete Profile
+              </span>
+              {% endif %}
+            </td>
+            
+            <td>
+              <div class="text-muted small">
+                {{ user_obj.date_joined|date:"M d, Y" }}
+                <br>{{ user_obj.date_joined|naturaltime }}
+              </div>
+            </td>
+            
+            <td>
+              {% if user_obj.last_login %}
+              <div class="text-muted small">
+                {{ user_obj.last_login|date:"M d, Y H:i" }}
+                <br>{{ user_obj.last_login|naturaltime }}
+              </div>
+              {% else %}
+              <span class="text-muted small">Never</span>
+              {% endif %}
+            </td>
+            
+            <td>
+              <div class="btn-group" role="group">
+                <a href="{% url 'core:user_detail' user_obj.id %}" class="btn btn-outline-primary btn-sm" title="View Details">
+                  <i class="bi bi-eye"></i>
+                </a>
+                <a href="{% url 'core:manage_permissions' user_obj.id %}" class="btn btn-outline-secondary btn-sm" title="Manage Permissions">
+                  <i class="bi bi-shield"></i>
+                </a>
+                <div class="dropdown">
+                  <button class="btn btn-outline-secondary btn-sm dropdown-toggle" type="button" data-bs-toggle="dropdown">
+                    <i class="bi bi-three-dots-vertical"></i>
+                  </button>
+                  <ul class="dropdown-menu">
+                    {% if not user_obj.profile.is_approved and user_obj.profile.user_type != 'employee' %}
+                    <li>
+                      <a class="dropdown-item text-success" href="#" onclick="approveUser({{ user_obj.id }})">
+                        <i class="bi bi-check-circle me-2"></i>Approve User
+                      </a>
+                    </li>
+                    {% endif %}
+                    
+                    <li>
+                      <a class="dropdown-item" href="#" onclick="sendPasswordReset({{ user_obj.id }})">
+                        <i class="bi bi-key me-2"></i>Reset Password
+                      </a>
+                    </li>
+                    
+                    {% if user_obj.is_active %}
+                    <li>
+                      <a class="dropdown-item text-warning" href="#" onclick="toggleUserStatus({{ user_obj.id }}, false)">
+                        <i class="bi bi-pause-circle me-2"></i>Deactivate
+                      </a>
+                    </li>
+                    {% else %}
+                    <li>
+                      <a class="dropdown-item text-success" href="#" onclick="toggleUserStatus({{ user_obj.id }}, true)">
+                        <i class="bi bi-play-circle me-2"></i>Activate
+                      </a>
+                    </li>
+                    {% endif %}
+                    
+                    <li><hr class="dropdown-divider"></li>
+                    
+                    <li>
+                      <a class="dropdown-item" href="#" onclick="viewUserActivity({{ user_obj.id }})">
+                        <i class="bi bi-activity me-2"></i>Activity Log
+                      </a>
+                    </li>
+                    
+                    <li>
+                      <a class="dropdown-item" href="mailto:{{ user_obj.email }}">
+                        <i class="bi bi-envelope me-2"></i>Send Email
+                      </a>
+                    </li>
+                  </ul>
+                </div>
+              </div>
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    
+    <!-- Pagination -->
+    {% if users.has_other_pages %}
+    <div class="card-footer">
+      <div class="d-flex justify-content-between align-items-center">
+        <div class="text-muted small">
+          Showing {{ users.start_index }} to {{ users.end_index }} of {{ users.paginator.count }} users
+        </div>
+        
+        <nav aria-label="User pagination">
+          <ul class="pagination pagination-sm mb-0">
+            {% if users.has_previous %}
+            <li class="page-item">
+              <a class="page-link" href="?{% if search_query %}search={{ search_query }}&{% endif %}{% if user_type_filter %}type={{ user_type_filter }}&{% endif %}{% if approval_status %}approval={{ approval_status }}&{% endif %}page={{ users.previous_page_number }}">
+                <i class="bi bi-chevron-left"></i>
+              </a>
+            </li>
+            {% endif %}
+            
+            {% for num in users.paginator.page_range %}
+            {% if users.number == num %}
+            <li class="page-item active">
+              <span class="page-link">{{ num }}</span>
+            </li>
+            {% elif num > users.number|add:'-3' and num < users.number|add:'3' %}
+            <li class="page-item">
+              <a class="page-link" href="?{% if search_query %}search={{ search_query }}&{% endif %}{% if user_type_filter %}type={{ user_type_filter }}&{% endif %}{% if approval_status %}approval={{ approval_status }}&{% endif %}page={{ num }}">{{ num }}</a>
+            </li>
+            {% endif %}
+            {% endfor %}
+            
+            {% if users.has_next %}
+            <li class="page-item">
+              <a class="page-link" href="?{% if search_query %}search={{ search_query }}&{% endif %}{% if user_type_filter %}type={{ user_type_filter }}&{% endif %}{% if approval_status %}approval={{ approval_status }}&{% endif %}page={{ users.next_page_number }}">
+                <i class="bi bi-chevron-right"></i>
+              </a>
+            </li>
+            {% endif %}
+          </ul>
+        </nav>
+      </div>
+    </div>
+    {% endif %}
+    
+    {% else %}
+    <!-- No users found -->
+    <div class="text-center py-5">
+      <i class="bi bi-people" style="font-size: 4rem; color: #dee2e6;"></i>
+      <h5 class="text-muted mt-3">No users found</h5>
+      {% if search_query or user_type_filter or approval_status %}
+      <p class="text-muted">Try adjusting your filters or search terms</p>
+      <a href="{% url 'core:user_management' %}" class="btn btn-outline-primary">
+        <i class="bi bi-x-circle me-1"></i> Clear Filters
+      </a>
+      {% else %}
+      <p class="text-muted">Get started by adding your first employee</p>
+      <a href="{% url 'core:add_employee' %}" class="btn btn-primary">
+        <i class="bi bi-person-plus me-1"></i> Add Employee
+      </a>
+      {% endif %}
+    </div>
+    {% endif %}
+  </div>
+</div>
+
+<!-- User Activity Modal -->
+<div class="modal fade" id="userActivityModal" tabindex="-1">
+  <div class="modal-dialog modal-lg">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title">
+          <i class="bi bi-activity me-2"></i>User Activity
+        </h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <div id="activityContent">
+          <div class="text-center py-3">
+            <div class="spinner-border" role="status">
+              <span class="visually-hidden">Loading...</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+// Select all functionality
+document.getElementById('selectAll').addEventListener('change', function() {
+  const checkboxes = document.querySelectorAll('.user-checkbox');
+  checkboxes.forEach(checkbox => {
+    checkbox.checked = this.checked;
+  });
+});
+
+// Bulk operations
+function bulkApprove() {
+  const selected = Array.from(document.querySelectorAll('.user-checkbox:checked')).map(cb => cb.value);
+  if (selected.length === 0) {
+    alert('Please select users to approve');
+    return;
+  }
+  
+  if (confirm(`Approve ${selected.length} selected user(s)?`)) {
+    // Implementation for bulk approval
+    console.log('Bulk approving users:', selected);
+    // You would implement the actual bulk approval logic here
+  }
+}
+
+function bulkExport() {
+  const selected = Array.from(document.querySelectorAll('.user-checkbox:checked')).map(cb => cb.value);
+  if (selected.length === 0) {
+    alert('Please select users to export');
+    return;
+  }
+  
+  // Implementation for bulk export
+  window.location.href = `/auth/users/export/?users=${selected.join(',')}`;
+}
+
+// Individual user actions
+function approveUser(userId) {
+  if (confirm('Approve this user for general access?')) {
+    fetch(`/auth/users/${userId}/approve/`, {
+      method: 'POST',
+      headers: {
+        'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]')?.value || '',
+        'Content-Type': 'application/json'
+      }
+    })
+    .then(response => response.json())
+    .then(data => {
+      if (data.success) {
+        location.reload();
+      } else {
+        alert('Error: ' + data.error);
+      }
+    })
+    .catch(error => {
+      alert('Error approving user');
+      console.error('Error:', error);
+    });
+  }
+}
+
+function toggleUserStatus(userId, activate) {
+  const action = activate ? 'activate' : 'deactivate';
+  if (confirm(`Are you sure you want to ${action} this user?`)) {
+    fetch(`/auth/users/${userId}/toggle-status/`, {
+      method: 'POST',
+      headers: {
+        'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]')?.value || '',
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({ activate: activate })
+    })
+    .then(response => response.json())
+    .then(data => {
+      if (data.success) {
+        location.reload();
+      } else {
+        alert('Error: ' + data.error);
+      }
+    });
+  }
+}
+
+function sendPasswordReset(userId) {
+  if (confirm('Send password reset email to this user?')) {
+    fetch(`/auth/users/${userId}/reset-password/`, {
+      method: 'POST',
+      headers: {
+        'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]')?.value || '',
+        'Content-Type': 'application/json'
+      }
+    })
+    .then(response => response.json())
+    .then(data => {
+      if (data.success) {
+        alert('Password reset email sent successfully!');
+      } else {
+        alert('Error: ' + data.error);
+      }
+    });
+  }
+}
+
+function viewUserActivity(userId) {
+  const modal = new bootstrap.Modal(document.getElementById('userActivityModal'));
+  const content = document.getElementById('activityContent');
+  
+  // Show loading
+  content.innerHTML = `
+    <div class="text-center py-3">
+      <div class="spinner-border" role="status">
+        <span class="visually-hidden">Loading...</span>
+      </div>
+    </div>
+  `;
+  
+  modal.show();
+  
+  // Load activity data
+  fetch(`/auth/users/${userId}/activity/`)
+    .then(response => response.json())
+    .then(data => {
+      if (data.success) {
+        content.innerHTML = data.html;
+      } else {
+        content.innerHTML = '<div class="alert alert-danger">Error loading user activity</div>';
+      }
+    })
+    .catch(error => {
+      content.innerHTML = '<div class="alert alert-danger">Error loading user activity</div>';
+    });
+}
+</script>
+{% endblock %}
