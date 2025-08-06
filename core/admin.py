@@ -73,6 +73,13 @@ class UserProfileInline(admin.StackedInline):
             return self.readonly_fields + ('user_type', 'requires_password_change')
         return self.readonly_fields
 
+class AppPermissionInline(admin.TabularInline):
+    """Inline admin for AppPermission"""
+    model = AppPermission
+    extra = 0
+    fields = ('app', 'permission_level', 'created_at', 'updated_at')
+    readonly_fields = ('created_at', 'updated_at')
+
 class UserAdmin(BaseUserAdmin):
     inlines = (UserProfileInline, AppPermissionInline)
     
@@ -743,13 +750,6 @@ class AppPermissionAdmin(admin.ModelAdmin):
                 count += 1
         
         self.message_user(request, f'Quote permissions assigned to {count} users.')
-
-class AppPermissionInline(admin.TabularInline):
-    """Inline admin for AppPermission"""
-    model = AppPermission
-    extra = 0
-    fields = ('app', 'permission_level', 'created_at', 'updated_at')
-    readonly_fields = ('created_at', 'updated_at')
 
 @admin.register(LoginActivity)
 class LoginActivityAdmin(admin.ModelAdmin):
