@@ -222,9 +222,9 @@ ACCOUNT_AUTHENTICATION_METHOD = 'username_email'
 ACCOUNT_EMAIL_REQUIRED = True
 ACCOUNT_EMAIL_VERIFICATION = 'mandatory'
 ACCOUNT_USERNAME_REQUIRED = True
-ACCOUNT_SIGNUP_FORM_CLASS = 'core.forms.CustomSignupForm'
 ACCOUNT_ADAPTER = 'core.adapters.CustomAccountAdapter'
 SOCIALACCOUNT_ADAPTER = 'core.adapters.CustomSocialAccountAdapter'
+ACCOUNT_FORMS = {'signup': 'core.allauth_forms.CustomSignupForm',}
 
 # Authentication settings
 LOGIN_URL = 'core:login'
@@ -485,6 +485,53 @@ AUTH_VIEWS = [
     ('quotes', 'quote_contact_public'),
 ]
 
+# CRM Configuration
+CRM_SETTINGS = {
+    'DEFAULT_FOLLOWUP_DAYS': 7,
+    'AUTO_ASSIGN_LEADS': True,
+    'LEAD_SCORING_ENABLED': True,
+    'EMAIL_NOTIFICATIONS': True,
+    'ANALYTICS_RETENTION_DAYS': 365,
+}
+
+# =====================================
+# FEATURE FLAGS FOR QUOTE SYSTEM
+# =====================================
+FEATURE_FLAGS = {
+    'NEW_QUOTE_BUILDER': True,
+    'ADVANCED_ANALYTICS': True,
+    'BULK_OPERATIONS': True,
+    'CLIENT_PORTAL': True,
+    'QUOTE_TEMPLATES': True,
+    'MOBILE_ACCESS': True,
+    'AI_PRICING_SUGGESTIONS': False,  # Future feature
+    'AUTOMATED_FOLLOWUPS': False,     # Future feature
+}
+
+# =====================================
+# PERFORMANCE MONITORING
+# =====================================
+SLOW_QUERY_THRESHOLD = 2.0  # Log queries taking more than 2 seconds
+SLOW_REQUEST_THRESHOLD = 5.0  # Log requests taking more than 5 seconds
+
+# =====================================
+# CACHING CONFIGURATION
+# =====================================
+CACHES = {
+    'default': {
+        'BACKEND': 'django.core.cache.backends.locmem.LocMemCache',
+        'LOCATION': 'unique-snowflake',
+        # For production, use Redis:
+        # 'BACKEND': 'django.core.cache.backends.redis.RedisCache',
+        # 'LOCATION': 'redis://127.0.0.1:6379/1',
+    }
+}
+
+# Cache settings for performance optimization
+CACHE_MIDDLEWARE_ALIAS = 'default'
+CACHE_MIDDLEWARE_SECONDS = 600
+CACHE_MIDDLEWARE_KEY_PREFIX = 'blitztech'
+
 # =====================================
 # ENHANCED LOGGING CONFIGURATION WITH QUOTE TRACKING
 # =====================================
@@ -598,50 +645,3 @@ LOGGING = {
         },
     },
 }
-
-# CRM Configuration
-CRM_SETTINGS = {
-    'DEFAULT_FOLLOWUP_DAYS': 7,
-    'AUTO_ASSIGN_LEADS': True,
-    'LEAD_SCORING_ENABLED': True,
-    'EMAIL_NOTIFICATIONS': True,
-    'ANALYTICS_RETENTION_DAYS': 365,
-}
-
-# =====================================
-# FEATURE FLAGS FOR QUOTE SYSTEM
-# =====================================
-FEATURE_FLAGS = {
-    'NEW_QUOTE_BUILDER': True,
-    'ADVANCED_ANALYTICS': True,
-    'BULK_OPERATIONS': True,
-    'CLIENT_PORTAL': True,
-    'QUOTE_TEMPLATES': True,
-    'MOBILE_ACCESS': True,
-    'AI_PRICING_SUGGESTIONS': False,  # Future feature
-    'AUTOMATED_FOLLOWUPS': False,     # Future feature
-}
-
-# =====================================
-# PERFORMANCE MONITORING
-# =====================================
-SLOW_QUERY_THRESHOLD = 2.0  # Log queries taking more than 2 seconds
-SLOW_REQUEST_THRESHOLD = 5.0  # Log requests taking more than 5 seconds
-
-# =====================================
-# CACHING CONFIGURATION
-# =====================================
-CACHES = {
-    'default': {
-        'BACKEND': 'django.core.cache.backends.locmem.LocMemCache',
-        'LOCATION': 'unique-snowflake',
-        # For production, use Redis:
-        # 'BACKEND': 'django.core.cache.backends.redis.RedisCache',
-        # 'LOCATION': 'redis://127.0.0.1:6379/1',
-    }
-}
-
-# Cache settings for performance optimization
-CACHE_MIDDLEWARE_ALIAS = 'default'
-CACHE_MIDDLEWARE_SECONDS = 600
-CACHE_MIDDLEWARE_KEY_PREFIX = 'blitztech'

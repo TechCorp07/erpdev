@@ -9,12 +9,13 @@ from django.utils import timezone
 from django.core.exceptions import ValidationError
 from unittest.mock import patch, MagicMock
 from datetime import timedelta
+from .allauth_forms import CustomSignupForm
 import json
 
 from .models import (
     UserProfile, ApprovalRequest, SecurityEvent, LoginActivity, Notification
 )
-from .forms import CustomSignupForm, ProfileCompletionForm, ApprovalRequestForm
+from .forms import ProfileCompletionForm, ApprovalRequestForm
 from .utils import (
     authenticate_user, log_security_event, send_approval_notification_email,
     check_user_access_level, validate_business_rules

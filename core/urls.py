@@ -65,7 +65,7 @@ urlpatterns = [
     # =====================================
     path('users/', views.user_management_view, name='user_management'),
     path('users/<int:user_id>/', views.user_detail_view, name='user_detail'),
-    path('users/<int:user_id>/permissions/', views.manage_user_permissions, name='manage_permissions'),
+    path('users/<int:user_id>/permissions/', views.manage_permissions_view, name='manage_permissions'),
     path('employees/', views.employee_list_view, name='employee_list'), 
     path('employees/add/', views.add_employee_view, name='add_employee'),
     
@@ -91,7 +91,7 @@ urlpatterns = [
     # =====================================
     # ADMIN UTILITIES
     # =====================================
-    path('system-settings/', views.system_settings_view, name='system_settings'),
+    path('system-settings/', views.privacy_settings_view, name='system_settings'),
     path('system-logs/', views.system_logs, name='system_logs'),
     path('system-reports/', views.system_reports, name='system_reports'),
     path('audit-logs/', views.audit_log_view, name='audit_logs'),

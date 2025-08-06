@@ -1,5 +1,5 @@
 <!-- core/templates/core/customer_dashboard.html -->
-{% extends 'core/base_dashboard.html' %}
+{% extends "dashboard_base.html" %}
 {% load humanize %}
 
 {% block title %}Dashboard - {{ block.super }}{% endblock %}
@@ -88,7 +88,7 @@
                 <a href="{% url 'crm:dashboard' %}" class="btn btn-success btn-sm">Open CRM</a>
                 {% else %}
                 <p class="mb-0">
-                    {% if profile.approval_requests.filter:request_type='crm',status='pending' %}
+                    {% if profile.approval_requests.filter request_type='crm' status='pending' %}
                         <small class="text-info">Request pending review</small>
                     {% else %}
                         <a href="{% url 'core:request_approval' %}" class="btn btn-outline-primary btn-sm">Request Access</a>
@@ -120,7 +120,7 @@
                 <a href="#" class="btn btn-success btn-sm">Manage Blog</a>
                 {% else %}
                 <p class="mb-0">
-                    {% if profile.approval_requests.filter:request_type='blog',status='pending' %}
+                    {% if profile.approval_requests.filter request_type='blog' status='pending' %}
                         <small class="text-info">Request pending review</small>
                     {% else %}
                         <a href="{% url 'core:request_approval' %}" class="btn btn-outline-primary btn-sm">Request Access</a>

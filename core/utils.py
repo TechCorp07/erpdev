@@ -23,23 +23,7 @@ logger = logging.getLogger('core.authentication')
 
 def create_notification(user, title, message, notification_type='info', action_url=None, action_text=None):
     """
-    Enhanced notification creation with quote system support.
-    
-    This function now supports interactive notifications that can link directly
-    to quote actions, making your notification system much more powerful for
-    sales workflows.
-    
-    Args:
-        user: User object to notify
-        title: Notification title
-        message: Notification message  
-        notification_type: Type ('info', 'success', 'warning', 'error', 'quote')
-        action_url: Optional URL for notification action (NEW)
-        action_text: Optional text for action button (NEW)
-        
-    Returns:
-        Notification object or None if error occurred
-        
+    Enhanced notification creation with quote system support.        
     Example:
         create_notification(
             user=sales_rep,
@@ -57,7 +41,7 @@ def create_notification(user, title, message, notification_type='info', action_u
             message=message,
             type=notification_type,
             action_url=action_url,
-            action_text=action_text
+            action_text=action_text or ""
         )
         
         # Update notification cache with the new count
@@ -288,6 +272,7 @@ def send_approval_notification_email(approval_request, action, reviewer):
         )
         msg.attach_alternative(html_content, "text/html")
         msg.send()
+        send_mail(subject, text_content, settings.DEFAULT_FROM_EMAIL, [user.email])
         
         logger.info(f"Approval notification sent to {user.email} for {action}")
         
@@ -321,6 +306,7 @@ def send_welcome_email(user, user_type):
         )
         msg.attach_alternative(html_content, "text/html")
         msg.send()
+        send_mail(subject, text_content, settings.DEFAULT_FROM_EMAIL, [user.email])
         
         logger.info(f"Welcome email sent to {user.email}")
         
@@ -363,6 +349,7 @@ def notify_admins_new_user(user, user_type):
             )
             msg.attach_alternative(html_content, "text/html")
             msg.send()
+            send_mail(subject, text_content, settings.DEFAULT_FROM_EMAIL, [user.email])
             
             logger.info(f"Admin notification sent for new user {user.username}")
             
@@ -880,8 +867,8 @@ def authenticate_user(request, username, password, remember_me=False):
     from django.core.cache import cache
 
     # Rate limiting check
-    cache_key = f"login_attempts:{ip_address}"
     ip_address = get_client_ip(request)
+    cache_key = f"login_attempts:{ip_address}"
     user_agent = request.META.get('HTTP_USER_AGENT', '')
     cache_key = f"login_attempts:{ip_address}"
     attempts = cache.get(cache_key, 0)
@@ -924,7 +911,7 @@ def authenticate_user(request, username, password, remember_me=False):
             request.session.set_expiry(0)
             
         # Log the user in
-        login(request, user)
+        login(request, user, backend='django.contrib.auth.backends.ModelBackend')
         
         # Log successful login
         log_security_event(
@@ -1079,10 +1066,10 @@ def send_security_alert_email(user, ip_address, user_agent):
             'timestamp': timezone.now(),
             'company_name': settings.COMPANY_NAME,
         }
-        
+
         text_content = render_to_string('core/emails/security_alert.txt', context)
         html_content = render_to_string('core/emails/security_alert.html', context)
-        
+
         msg = EmailMultiAlternatives(
             subject=subject,
             body=text_content,
@@ -1091,7 +1078,8 @@ def send_security_alert_email(user, ip_address, user_agent):
         )
         msg.attach_alternative(html_content, "text/html")
         msg.send()
-        
+        send_mail(subject, text_content, settings.DEFAULT_FROM_EMAIL, [user.email])
+
     except Exception as e:
         logger.error(f"Failed to send security alert: {str(e)}")
 

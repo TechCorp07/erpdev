@@ -433,7 +433,6 @@ def quote_status_validation(allowed_statuses):
         return _wrapped_view
     return decorator
 
-# Convenience decorators for common quote operations
 def quote_edit_required(view_func):
     """Shortcut decorator for views that require quote editing permissions"""
     return quote_access_required('edit')(view_func)

@@ -1,5 +1,5 @@
 from datetime import datetime
-from django.http import HttpResponseRedirect, JsonResponse
+from django.http import Http404, HttpResponseRedirect, JsonResponse
 from django.views.decorators.csrf import csrf_exempt
 from django.shortcuts import render, redirect, get_object_or_404
 from django.contrib.auth.decorators import user_passes_test, login_required
@@ -26,7 +26,6 @@ from .forms import (
     CoreLoginForm, UserRegistrationForm, UserProfileForm, 
     PasswordChangeCustomForm, EmployeeRegistrationForm, AppPermissionForm,
     ProfileCompletionForm, ApprovalRequestForm, AdminApprovalForm, 
-    EnhancedUserProfileForm
 )
 from .models import UserProfile, AppPermission, LoginActivity, Notification, AuditLog, SecurityLog, ApprovalRequest, SecurityEvent
 from .decorators import user_type_required, permission_required, ajax_required, password_expiration_check
@@ -161,7 +160,7 @@ def register_view(request):
             user = form.save()
             
             # Log the user in automatically
-            login(request, user)
+            login(request, user, backend='django.contrib.auth.backends.ModelBackend')
             
             # Create welcome notification
             create_notification(

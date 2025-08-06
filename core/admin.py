@@ -21,6 +21,7 @@ admin.site.unregister(User)
 
 class UserProfileInline(admin.StackedInline):
     model = UserProfile
+    fk_name = 'user'
     can_delete = False
     verbose_name_plural = 'Profile Information'
     
@@ -88,7 +89,7 @@ class UserAdmin(BaseUserAdmin):
         'username', 'email', 'first_name', 'last_name', 
         'get_user_type', 'get_department', 'get_last_login',
         'get_quote_stats', 'get_account_status', 'is_staff', 'is_active',
-        '', 'get_approval_status', 'get_profile_completion', 'date_joined'
+        'get_approval_status', 'get_profile_completion', 'date_joined'
     )
     
     # Enhanced filtering including quote-related filters
