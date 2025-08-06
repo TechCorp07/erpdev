@@ -49,21 +49,19 @@
         <div class="card h-100 {% if access_status.shop %}border-success{% else %}border-warning{% endif %}">
             <div class="card-body text-center">
                 <div class="mb-3">
-                    <i class="bi bi-cart3 fs-1 text-{% if access_status.shop %}success{% else %}warning{% endif %}"></i>
+                    <i class="bi bi-shop fs-1 text-{% if access_status.shop %}success{% else %}warning{% endif %}"></i>
                 </div>
-                <h5 class="card-title">Shopping Cart</h5>
+                <h5 class="card-title">Shop Access</h5>
                 <p class="card-text">
                     {% if access_status.shop %}
-                        <span class="badge bg-success">Active</span>
+                        <span class="badge bg-success">Available</span>
                         <br><small class="text-muted">Browse and purchase products</small>
                     {% else %}
-                        <span class="badge bg-warning">Pending</span>
-                        <br><small class="text-muted">Complete profile to activate</small>
+                        <span class="badge bg-warning">Limited</span>
+                        <br><small class="text-muted">Complete profile for full access</small>
                     {% endif %}
                 </p>
-                {% if access_status.shop %}
-                <a href="#" class="btn btn-success btn-sm">Start Shopping</a>
-                {% endif %}
+                <a href="#" class="btn btn-{% if access_status.shop %}success{% else %}warning{% endif %} btn-sm">Visit Shop</a>
             </div>
         </div>
     </div>
@@ -78,18 +76,23 @@
                 <p class="card-text">
                     {% if access_status.crm %}
                         <span class="badge bg-success">Approved</span>
-                        <br><small class="text-muted">Manage customer relationships</small>
+                        <br><small class="text-muted">Access customer tools</small>
                     {% else %}
                         <span class="badge bg-secondary">Needs Approval</span>
-                        <br><small class="text-muted">Request access from admin</small>
+                        <br><small class="text-muted">Request business access</small>
                     {% endif %}
                 </p>
                 {% if access_status.crm %}
-                <a href="{% url 'crm:dashboard' %}" class="btn btn-success btn-sm">Open CRM</a>
+                <a href="{% url 'crm:dashboard' %}" class="btn btn-success btn-sm">Access CRM</a>
                 {% else %}
                 <p class="mb-0">
-                    {% if profile.approval_requests.filter request_type='crm' status='pending' %}
-                        <small class="text-info">Request pending review</small>
+                    {% comment %}Check if user has pending CRM request{% endcomment %}
+                    {% if approval_requests %}
+                        {% for request in approval_requests %}
+                            {% if request.request_type == 'crm' and request.status == 'pending' %}
+                                <small class="text-info">Request pending review</small>
+                            {% endif %}
+                        {% endfor %}
                     {% else %}
                         <a href="{% url 'core:request_approval' %}" class="btn btn-outline-primary btn-sm">Request Access</a>
                     {% endif %}
@@ -120,8 +123,13 @@
                 <a href="#" class="btn btn-success btn-sm">Manage Blog</a>
                 {% else %}
                 <p class="mb-0">
-                    {% if profile.approval_requests.filter request_type='blog' status='pending' %}
-                        <small class="text-info">Request pending review</small>
+                    {% comment %}Check if user has pending blog request{% endcomment %}
+                    {% if approval_requests %}
+                        {% for request in approval_requests %}
+                            {% if request.request_type == 'blog' and request.status == 'pending' %}
+                                <small class="text-info">Request pending review</small>
+                            {% endif %}
+                        {% endfor %}
                     {% else %}
                         <a href="{% url 'core:request_approval' %}" class="btn btn-outline-primary btn-sm">Request Access</a>
                     {% endif %}
@@ -139,11 +147,9 @@
         <div class="card">
             <div class="card-header d-flex justify-content-between align-items-center">
                 <h5 class="mb-0">
-                    <i class="bi bi-clock-history me-2"></i>Recent Approval Requests
+                    <i class="bi bi-clock-history me-2"></i>Recent Activity
                 </h5>
-                <a href="{% url 'core:request_approval' %}" class="btn btn-outline-primary btn-sm">
-                    <i class="bi bi-plus-circle me-1"></i>New Request
-                </a>
+                <small class="text-muted">Last 30 days</small>
             </div>
             <div class="card-body">
                 {% if approval_requests %}
@@ -151,29 +157,19 @@
                     {% for request in approval_requests %}
                     <div class="list-group-item d-flex justify-content-between align-items-center">
                         <div>
-                            <h6 class="mb-1">{{ request.get_request_type_display }}</h6>
-                            <p class="mb-1 text-muted">{{ request.requested_reason|truncatewords:15 }}</p>
+                            <h6 class="mb-1">{{ request.get_request_type_display }} Access Request</h6>
                             <small class="text-muted">{{ request.requested_at|naturaltime }}</small>
                         </div>
-                        <div>
-                            {% if request.status == 'pending' %}
-                                <span class="badge bg-warning">Pending</span>
-                            {% elif request.status == 'approved' %}
-                                <span class="badge bg-success">Approved</span>
-                            {% else %}
-                                <span class="badge bg-danger">Rejected</span>
-                            {% endif %}
-                        </div>
+                        <span class="badge bg-{% if request.status == 'approved' %}success{% elif request.status == 'rejected' %}danger{% else %}warning{% endif %}">
+                            {{ request.get_status_display }}
+                        </span>
                     </div>
                     {% endfor %}
                 </div>
                 {% else %}
                 <div class="text-center py-4">
                     <i class="bi bi-inbox text-muted" style="font-size: 3rem;"></i>
-                    <p class="text-muted mt-2">No approval requests yet</p>
-                    <a href="{% url 'core:request_approval' %}" class="btn btn-primary">
-                        Request Additional Access
-                    </a>
+                    <p class="text-muted mt-2">No recent activity</p>
                 </div>
                 {% endif %}
             </div>
@@ -184,7 +180,10 @@
         <div class="card">
             <div class="card-header">
                 <h5 class="mb-0">
-                    <i class="bi bi-bell me-2"></i>Recent Notifications
+                    <i class="bi bi-bell me-2"></i>Notifications
+                    {% if notifications %}
+                    <span class="badge bg-primary">{{ notifications|length }}</span>
+                    {% endif %}
                 </h5>
             </div>
             <div class="card-body">
@@ -192,29 +191,18 @@
                 <div class="list-group list-group-flush">
                     {% for notification in notifications %}
                     <div class="list-group-item border-0 px-0">
-                        <div class="d-flex align-items-start">
-                            <div class="flex-shrink-0 me-2">
-                                {% if notification.type == 'success' %}
-                                    <i class="bi bi-check-circle text-success"></i>
-                                {% elif notification.type == 'warning' %}
-                                    <i class="bi bi-exclamation-triangle text-warning"></i>
-                                {% elif notification.type == 'error' %}
-                                    <i class="bi bi-x-circle text-danger"></i>
-                                {% else %}
-                                    <i class="bi bi-info-circle text-info"></i>
-                                {% endif %}
-                            </div>
-                            <div class="flex-grow-1">
-                                <h6 class="mb-1">{{ notification.title }}</h6>
-                                <p class="mb-1 small">{{ notification.message|truncatewords:10 }}</p>
-                                <small class="text-muted">{{ notification.created_at|naturaltime }}</small>
-                            </div>
+                        <div class="d-flex w-100 justify-content-between">
+                            <h6 class="mb-1">{{ notification.title }}</h6>
+                            <small>{{ notification.created_at|naturaltime }}</small>
                         </div>
+                        <p class="mb-1 small">{{ notification.message|truncatechars:100 }}</p>
                     </div>
                     {% endfor %}
                 </div>
                 <div class="text-center mt-3">
-                    <a href="{% url 'core:notifications' %}" class="btn btn-outline-primary btn-sm">View All</a>
+                    <a href="{% url 'core:notifications' %}" class="btn btn-outline-primary btn-sm">
+                        View All Notifications
+                    </a>
                 </div>
                 {% else %}
                 <div class="text-center py-3">
@@ -226,4 +214,5 @@
         </div>
     </div>
 </div>
+
 {% endblock %}

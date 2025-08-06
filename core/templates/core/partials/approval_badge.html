@@ -1,0 +1,5 @@
+<!-- core/templates/core/partials/approval_badge.html -->
+{% load core_extras %}
+<span class="badge {{ approval_request.status|approval_status_badge }}">
+    {{ approval_request.get_status_display }}
+</span>

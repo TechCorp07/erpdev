@@ -15,3 +15,17 @@ INFO 2025-08-06 20:19:15,624 utils 33872 6568 Security event: profile_update for
 INFO 2025-08-06 20:19:16,111 models 33872 6568 User newcustomer approved for crm by admin
 WARNING 2025-08-06 20:19:19,037 utils 33872 6568 Security event: login_failure for user testuser from IP 192.168.1.100
 INFO 2025-08-06 20:19:19,039 utils 33872 6568 Security event: login_success for user testuser
+INFO 2025-08-06 22:06:21,272 models 34016 37352 User testuser approved for crm by admin
+WARNING 2025-08-06 22:06:25,101 views 34016 37352 Failed login attempt for username: testuser
+WARNING 2025-08-06 22:06:29,198 views 34016 37352 Failed login attempt for username: testuser
+INFO 2025-08-06 22:06:29,627 utils 34016 37352 Security event: login_success for user testuser
+INFO 2025-08-06 22:06:31,332 models 34016 37352 User testuser approved for crm by admin
+ERROR 2025-08-06 22:06:35,829 utils 34016 37352 Failed to send approval notification: core/emails/approval_notification.txt
+INFO 2025-08-06 22:06:37,558 views 34016 37352 New user registered: newcustomer
+INFO 2025-08-06 22:06:38,415 utils 34016 37352 Security event: login_success for user newcustomer
+INFO 2025-08-06 22:06:38,417 utils 34016 37352 Successful login for newcustomer from 127.0.0.1
+INFO 2025-08-06 22:06:38,418 views 34016 37352 User newcustomer logged in successfully
+INFO 2025-08-06 22:06:38,440 utils 34016 37352 Security event: profile_update for user newcustomer
+INFO 2025-08-06 22:06:38,909 models 34016 37352 User newcustomer approved for crm by admin
+WARNING 2025-08-06 22:06:41,792 utils 34016 37352 Security event: login_failure for user testuser from IP 192.168.1.100
+INFO 2025-08-06 22:06:41,794 utils 34016 37352 Security event: login_success for user testuser

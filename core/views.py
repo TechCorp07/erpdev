@@ -470,157 +470,158 @@ def bulk_approve_requests(request):
 # =====================================
 
 @login_required
-@password_expiration_check
+@password_expiration_check  
 def dashboard_view(request):
     """
-    Enhanced main dashboard that intelligently adapts to user roles and includes
-    quote management capabilities for authorized users.
-    
-    This dashboard acts as mission control for your business operations, showing
-    each user exactly what they need to see based on their role and permissions.
-    The quote integration makes it a comprehensive business management hub.
+    Enhanced dashboard with comprehensive ERP integration and optimized queries.
     """
     user = request.user
+    profile = user.profile
     
-    # Redirect non-employees to appropriate areas based on their role
-    if hasattr(user, 'profile'):
-        if user.profile.user_type == 'customer':
-            # Customers should use the public website
-            return redirect('website:home')
-        elif user.profile.user_type == 'blogger':
-            # Bloggers go to blog management (when implemented)
-            return redirect('website:blog')
+    # Check if user should be in customer dashboard instead
+    if profile.user_type not in ['employee', 'sales_rep', 'sales_manager']:
+        return redirect('core:customer_dashboard')
     
-    # Get user profile and determine what dashboard content to show
-    user_profile = user.profile if hasattr(user, 'profile') else None
+    cache_key = f"user_permissions:{user.id}"
+    user_permissions = cache.get(cache_key)
     
-    # Get comprehensive user permissions for conditional display
-    user_permissions = get_user_permissions_dict(user)
+    if user_permissions is None:
+        # Get all user permissions in one query
+        permissions = AppPermission.objects.filter(user=user).select_related()
+        user_permissions = {perm.app: perm.permission_level for perm in permissions}
+        cache.set(cache_key, user_permissions, 3600)  # Cache for 1 hour
     
-    # Get navigation context for dynamic menu building
-    navigation_context = get_navigation_context(user)
-    
-    # Core dashboard metrics that everyone sees
+    # Get dashboard context with optimized queries
     dashboard_context = {
-        'user_profile': user_profile,
-        'user_permissions': user_permissions,
-        'navigation': navigation_context,
-        'is_employee': user_profile.is_employee if user_profile else False,
-        'is_manager': user_profile.is_manager if user_profile else False,
-        'is_admin': user_profile.is_admin if user_profile else False,
-        'is_it_admin': user_profile.is_it_admin if user_profile else False,
+        'user': user,
+        'profile': profile,
+        'app_permissions': user_permissions,
+        'is_manager': check_app_permission(user, 'employee_management', 'view'),
+        'is_admin': user.is_superuser or profile.user_type in ['it_admin', 'general_manager'],
     }
     
-    # Recent login activity for security awareness
-    recent_logins = LoginActivity.objects.filter(user=user).order_by('-login_datetime')[:5]
-    dashboard_context['recent_logins'] = recent_logins
+    # Use single query for user statistics with aggregation
+    if user_permissions:
+        try:
+            from django.db.models import Count, Sum, Avg
+            
+            # Get all counts in a single query using aggregation
+            stats_query = User.objects.aggregate(
+                total_users=Count('id'),
+                total_customers=Count('profile', filter=Q(profile__user_type='customer')),
+                total_bloggers=Count('profile', filter=Q(profile__user_type='blogger')),
+                total_employees=Count('profile', filter=Q(profile__user_type__in=['employee', 'sales_rep', 'sales_manager'])),
+                pending_approvals=Count('profile', filter=Q(profile__is_approved=False)),
+                social_users=Count('profile', filter=Q(profile__is_social_account=True))
+            )
+            
+            dashboard_context.update(stats_query)
+            
+        except Exception as e:
+            logger.error(f"Error getting user statistics: {str(e)}")
+            # Fallback to defaults
+            dashboard_context.update({
+                'total_users': 0,
+                'total_customers': 0, 
+                'total_bloggers': 0,
+                'total_employees': 0,
+                'pending_approvals': 0,
+                'social_users': 0
+            })
     
-    # Recent notifications with intelligent filtering
-    notifications = Notification.objects.filter(user=user, is_read=False).order_by('-created_at')[:5]
-    dashboard_context['notifications'] = notifications
-    dashboard_context['unread_notification_count'] = get_unread_notifications_count(user)
-    
-    # User's app permissions for feature toggles
-    permissions = AppPermission.objects.filter(user=user)
-    dashboard_context['permissions'] = permissions
-    dashboard_context['app_permissions'] = {perm.app: perm.permission_level for perm in permissions}
-    
-    # ===== QUOTE SYSTEM INTEGRATION =====
-    # Add quote-specific dashboard widgets for users with quote access
+    # ===== QUOTES INTEGRATION (optimized) =====
     if user_permissions.get('quotes'):
-        quote_stats = get_quote_dashboard_stats(user)
-        dashboard_context.update({
-            'quote_stats': quote_stats,
-            'has_quote_access': True,
-        })
+        dashboard_context['has_quote_access'] = True
         
-        # Get recent quotes for quick access
-        if quote_stats:  # Only if user has quotes to show
-            try:
-                from quotes.models import Quote
-                
-                # Build appropriate filter based on user role
-                if user_profile.is_admin:
-                    user_filter = Q()  # Admins see all quotes
-                else:
-                    user_filter = Q(assigned_to=user) | Q(created_by=user)
-                
-                recent_quotes = Quote.objects.filter(user_filter).select_related(
-                    'client', 'assigned_to'
-                ).order_by('-created_at')[:5]
-                
-                dashboard_context['recent_quotes'] = recent_quotes
-                
-                # Quotes requiring attention (different criteria for different roles)
-                if user_profile.user_type in ['sales_manager', 'blitzhub_admin', 'it_admin']:
-                    # Managers see quotes needing approval or follow-up
-                    attention_quotes = Quote.objects.filter(
-                        Q(status='draft', total_amount__gte=Decimal('10000.00')) |  # High-value drafts
-                        Q(status__in=['sent', 'viewed'], 
-                          sent_date__lte=timezone.now() - timezone.timedelta(days=7))  # Old sent quotes
-                    ).select_related('client', 'assigned_to')[:3]
-                else:
-                    # Sales reps see their own quotes needing work
-                    attention_quotes = Quote.objects.filter(
-                        user_filter,
-                        Q(status='draft') |  # Their drafts
-                        Q(status__in=['sent', 'viewed'], 
-                          sent_date__lte=timezone.now() - timezone.timedelta(days=3))  # Recent sends
-                    ).select_related('client', 'assigned_to')[:3]
-                
-                dashboard_context['attention_quotes'] = attention_quotes
-                
-            except ImportError:
-                # Quote system not installed yet - gracefully handle
-                logger.info("Quote system not yet available for dashboard integration")
+        try:
+            from quotes.models import Quote
+            
+            # Single query with aggregation for quote statistics
+            quote_stats = Quote.objects.filter(
+                Q(assigned_to=user) | Q(created_by=user)
+            ).aggregate(
+                total_quotes=Count('id'),
+                draft_quotes=Count('id', filter=Q(status='draft')),
+                active_quotes=Count('id', filter=Q(status__in=['sent', 'viewed', 'under_review'])),
+                overdue_quotes=Count('id', filter=Q(
+                    sent_date__lte=timezone.now() - timedelta(days=3),
+                    status__in=['sent', 'viewed']
+                ))
+            )
+            
+            dashboard_context.update({
+                'quote_stats': quote_stats,
+                'total_my_quotes': quote_stats['total_quotes'],
+                'draft_quotes': quote_stats['draft_quotes'],
+                'active_quotes': quote_stats['active_quotes'],
+                'overdue_quotes': quote_stats['overdue_quotes']
+            })
+            
+        except ImportError:
+            # Quotes app not available
+            pass
     
-    # ===== CRM INTEGRATION =====
-    # Add CRM widgets for users with CRM access
+    # ===== CRM INTEGRATION (optimized) =====
     if user_permissions.get('crm'):
         dashboard_context['has_crm_access'] = True
         
         try:
-            from crm.models import Client, CustomerInteraction
+            from crm.models import CustomerInteraction
             
-            # Recent client activity
-            recent_interactions = CustomerInteraction.objects.select_related(
-                'client'
-            ).order_by('-created_at')[:5]
-            dashboard_context['recent_interactions'] = recent_interactions
-            
-            # Clients needing follow-up
+            # Get recent interactions with select_related in single query
             followup_interactions = CustomerInteraction.objects.filter(
                 next_followup__lte=timezone.now(),
                 is_completed=False
             ).select_related('client')[:3]
+            
             dashboard_context['followup_needed'] = followup_interactions
             
         except ImportError:
             # CRM not available
             pass
     
-    # ===== INVENTORY INTEGRATION =====
-    # Add inventory alerts for users with inventory access
+    # ===== INVENTORY INTEGRATION (optimized) =====
     if user_permissions.get('inventory'):
         dashboard_context['has_inventory_access'] = True
         
         try:
             from inventory.models import Product
             
-            # Low stock alerts
+            # Single query for low stock products
             low_stock_products = Product.objects.filter(
                 current_stock__lte=models.F('reorder_level')
             ).order_by('current_stock')[:5]
+            
             dashboard_context['low_stock_alerts'] = low_stock_products
             
         except ImportError:
             # Inventory not available
             pass
     
+    # Get recent users in a single optimized query
+    try:
+        recent_users = User.objects.select_related('profile').order_by('-date_joined')[:10]
+        dashboard_context['recent_users'] = recent_users
+    except Exception as e:
+        logger.error(f"Error fetching recent users: {str(e)}")
+        dashboard_context['recent_users'] = []
+    
+    # Get company info with caching
+    try:
+        from website.models import CompanyInfo
+        company_info = cache.get('company_info')
+        if company_info is None:
+            company_info = CompanyInfo.objects.first()
+            if company_info:
+                cache.set('company_info', company_info, 7200)  # Cache for 2 hours
+        dashboard_context['company_info'] = company_info
+    except ImportError:
+        pass
+    
     # Performance optimization: Cache dashboard data for a short time
     # This prevents expensive queries on every page load
-    cache_key = f"dashboard_data:{user.id}"
-    cache.set(cache_key, dashboard_context, 300)  # Cache for 5 minutes
+    user_cache_key = f"dashboard_data:{user.id}"
+    cache.set(user_cache_key, dashboard_context, 300)  # Cache for 5 minutes
     
     return render(request, 'core/dashboard.html', dashboard_context)
 
@@ -680,7 +681,7 @@ def profile_completion_view(request):
 
 @login_required
 def customer_dashboard_view(request):
-    """Dashboard for customers and bloggers"""
+    """Optimized dashboard for customers and bloggers"""
     user = request.user
     profile = user.profile
     
@@ -688,13 +689,15 @@ def customer_dashboard_view(request):
     if profile.user_type == 'employee':
         return redirect('core:dashboard')
     
-    # Get user's approval requests
-    approval_requests = ApprovalRequest.objects.filter(user=user).order_by('-requested_at')[:5]
+    # Get user's approval requests in single query
+    approval_requests = ApprovalRequest.objects.filter(
+        user=user
+    ).order_by('-requested_at')[:5]
     
-    # Get recent notifications
+    # Get recent notifications with single query
     notifications = user.notifications.filter(is_read=False)[:10]
     
-    # Check what features user can access
+    # Check access status
     access_status = {
         'shop': profile.can_access_shop(),
         'crm': profile.can_access_crm(),
