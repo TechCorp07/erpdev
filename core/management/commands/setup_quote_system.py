@@ -47,14 +47,14 @@ class Command(BaseCommand):
             ('COMPANY_NAME', 'BlitzTech Electronics', 'company'),
             ('COMPANY_ADDRESS', 'Harare, Zimbabwe', 'company'),
             ('COMPANY_PHONE', '+263 XX XXX XXXX', 'company'),
-            ('COMPANY_EMAIL', 'info@blitztech.co.zw', 'company'),
-            ('COMPANY_WEBSITE', 'www.blitztech.co.zw', 'company'),
+            ('COMPANY_EMAIL', 'info@blitztechelectronics.co.zw', 'company'),
+            ('COMPANY_WEBSITE', 'www.blitztechelectronics.co.zw', 'company'),
             ('DEFAULT_QUOTE_VALIDITY_DAYS', '30', 'quotes'),
             ('DEFAULT_PAYMENT_TERMS', '30', 'quotes'),
             ('DEFAULT_TAX_RATE', '15.00', 'quotes'),
             ('HIGH_VALUE_QUOTE_THRESHOLD', '10000.00', 'quotes'),
             ('HIGH_DISCOUNT_THRESHOLD', '20.00', 'quotes'),
-            ('QUOTE_EMAIL_FROM', 'quotes@blitztech.co.zw', 'email'),
+            ('QUOTE_EMAIL_FROM', 'quotes@blitztechelectronics.co.zw', 'email'),
         ]
         
         created_count = 0
@@ -109,7 +109,7 @@ class Command(BaseCommand):
         demo_users = [
             {
                 'username': 'sales_rep_demo',
-                'email': 'salesrep@blitztech.co.zw',
+                'email': 'salesrep@blitztechelectronics.co.zw',
                 'first_name': 'John',
                 'last_name': 'Sales',
                 'user_type': 'sales_rep',
@@ -117,7 +117,7 @@ class Command(BaseCommand):
             },
             {
                 'username': 'sales_manager_demo',
-                'email': 'salesmanager@blitztech.co.zw',
+                'email': 'salesmanager@blitztechelectronics.co.zw',
                 'first_name': 'Jane',
                 'last_name': 'Manager',
                 'user_type': 'sales_manager',

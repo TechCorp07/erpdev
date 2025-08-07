@@ -13,7 +13,7 @@ ACCOUNT STATUS:
 NEXT STEPS:
 1. Complete your profile: {{ profile_url }}
 2. Login to your dashboard: {{ login_url }}
-3. Contact support if you need help: support@blitztech.co.zw
+3. Contact support if you need help: support@blitztechelectronics.co.zw
 
 Best regards,
 {{ company_name }} Team

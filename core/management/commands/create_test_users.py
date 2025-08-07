@@ -42,7 +42,7 @@ class Command(BaseCommand):
             with transaction.atomic():
                 for i in range(count):
                     username = f"test_{user_type}_{i+1:03d}"
-                    email = f"{username}@test.blitztech.co.zw"
+                    email = f"{username}@test.blitztechelectronics.co.zw"
                     
                     # Check if user already exists
                     if User.objects.filter(username=username).exists():
@@ -108,7 +108,7 @@ class Command(BaseCommand):
                     self.stdout.write("\nTest credentials:")
                     self.stdout.write("Username: test_<type>_001, test_<type>_002, etc.")
                     self.stdout.write("Password: TestPassword123!")
-                    self.stdout.write("Email: <username>@test.blitztech.co.zw")
+                    self.stdout.write("Email: <username>@test.blitztechelectronics.co.zw")
                 
                 logger.info(f"Created {len(created_users)} test {user_type} users")
                 

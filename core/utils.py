@@ -921,12 +921,12 @@ def authenticate_user(request, username, password, remember_me=False):
     from django.contrib.auth import authenticate, login
     from .models import LoginActivity
     from django.core.cache import cache
+    from django.conf import settings
 
     # Rate limiting check
     ip_address = get_client_ip(request)
     cache_key = f"login_attempts:{ip_address}"
     user_agent = request.META.get('HTTP_USER_AGENT', '')
-    cache_key = f"login_attempts:{ip_address}"
     attempts = cache.get(cache_key, 0)
     
     max_attempts = getattr(settings, 'MAX_LOGIN_ATTEMPTS', 5)
@@ -957,7 +957,10 @@ def authenticate_user(request, username, password, remember_me=False):
             )
             
             # Optionally send security alert email
-            send_security_alert_email(user, ip_address, user_agent)
+            try:
+                send_security_alert_email(user, ip_address, user_agent)
+            except Exception as e:
+                logger.error(f"Failed to send security alert: {str(e)}")
             
         # Reset login attempts on successful login
         cache.delete(cache_key)

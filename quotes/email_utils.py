@@ -273,13 +273,13 @@ class QuoteEmailService:
             'name': getattr(settings, 'COMPANY_NAME', 'BlitzTech Electronics'),
             'address': getattr(settings, 'COMPANY_ADDRESS', 'Harare, Zimbabwe'),
             'phone': getattr(settings, 'COMPANY_PHONE', '+263 XX XXX XXXX'),
-            'email': getattr(settings, 'COMPANY_EMAIL', 'info@blitztech.co.zw'),
-            'website': getattr(settings, 'COMPANY_WEBSITE', 'www.blitztech.co.zw'),
+            'email': getattr(settings, 'COMPANY_EMAIL', 'info@blitztechelectronics.co.zw'),
+            'website': getattr(settings, 'COMPANY_WEBSITE', 'www.blitztechelectronics.co.zw'),
         }
     
     def _get_from_email(self):
         """Get the sender email address."""
-        return getattr(settings, 'DEFAULT_FROM_EMAIL', 'quotes@blitztech.co.zw')
+        return getattr(settings, 'DEFAULT_FROM_EMAIL', 'quotes@blitztechelectronics.co.zw')
     
     def _get_cc_emails(self, quote):
         """Get CC recipients for quote emails."""

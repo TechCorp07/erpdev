@@ -1251,8 +1251,8 @@ def get_company_info():
         'name': getattr(settings, 'COMPANY_NAME', 'BlitzTech Electronics'),
         'address': getattr(settings, 'COMPANY_ADDRESS', 'Harare, Zimbabwe'),
         'phone': getattr(settings, 'COMPANY_PHONE', '+263 XX XXX XXXX'),
-        'email': getattr(settings, 'COMPANY_EMAIL', 'info@blitztech.co.zw'),
-        'website': getattr(settings, 'COMPANY_WEBSITE', 'www.blitztech.co.zw'),
+        'email': getattr(settings, 'COMPANY_EMAIL', 'info@blitztechelectronics.co.zw'),
+        'website': getattr(settings, 'COMPANY_WEBSITE', 'www.blitztechelectronics.co.zw'),
         'logo_path': getattr(settings, 'COMPANY_LOGO_PATH', '/static/images/logo.png'),
         'tax_number': getattr(settings, 'COMPANY_TAX_NUMBER', 'TAX123456'),
     }

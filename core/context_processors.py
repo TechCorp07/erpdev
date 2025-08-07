@@ -233,8 +233,8 @@ def system_context_processor(request):
         context.update({
             'company_name': cached_settings.get('COMPANY_NAME', 'BlitzTech Electronics'),
             'company_phone': cached_settings.get('COMPANY_PHONE', '+263 XX XXX XXXX'),
-            'company_email': cached_settings.get('COMPANY_EMAIL', 'info@blitztech.co.zw'),
-            'company_website': cached_settings.get('COMPANY_WEBSITE', 'www.blitztech.co.zw'),
+            'company_email': cached_settings.get('COMPANY_EMAIL', 'info@blitztechelectronics.co.zw'),
+            'company_website': cached_settings.get('COMPANY_WEBSITE', 'www.blitztechelectronics.co.zw'),
             'company_address': cached_settings.get('COMPANY_ADDRESS', 'Harare, Zimbabwe'),
         })
         
@@ -244,8 +244,8 @@ def system_context_processor(request):
         context.update({
             'company_name': 'BlitzTech Electronics',
             'company_phone': '+263 XX XXX XXXX',
-            'company_email': 'info@blitztech.co.zw',
-            'company_website': 'www.blitztech.co.zw',
+            'company_email': 'info@blitztechelectronics.co.zw',
+            'company_website': 'www.blitztechelectronics.co.zw',
             'company_address': 'Harare, Zimbabwe',
         })
     

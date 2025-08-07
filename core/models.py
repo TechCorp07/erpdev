@@ -642,8 +642,8 @@ def initialize_quote_system_settings():
         ('COMPANY_NAME', 'BlitzTech Electronics', 'Company name for quotes and emails', 'company'),
         ('COMPANY_ADDRESS', 'Harare, Zimbabwe', 'Company address for quotes', 'company'),
         ('COMPANY_PHONE', '+263 XX XXX XXXX', 'Company phone number', 'company'),
-        ('COMPANY_EMAIL', 'info@blitztech.co.zw', 'Company email address', 'company'),
-        ('COMPANY_WEBSITE', 'www.blitztech.co.zw', 'Company website', 'company'),
+        ('COMPANY_EMAIL', 'info@blitztechelectronics.co.zw', 'Company email address', 'company'),
+        ('COMPANY_WEBSITE', 'www.blitztechelectronics.co.zw', 'Company website', 'company'),
         
         # Quote System Configuration
         ('DEFAULT_QUOTE_VALIDITY_DAYS', '30', 'Default validity period for quotes in days', 'quotes'),
@@ -653,7 +653,7 @@ def initialize_quote_system_settings():
         ('HIGH_DISCOUNT_THRESHOLD', '20.00', 'Discount percentage above which quotes require approval', 'quotes'),
         
         # Email Settings
-        ('QUOTE_EMAIL_FROM', 'quotes@blitztech.co.zw', 'From email for quote emails', 'email'),
+        ('QUOTE_EMAIL_FROM', 'quotes@blitztechelectronics.co.zw', 'From email for quote emails', 'email'),
         ('QUOTE_EMAIL_CC_MANAGEMENT', '', 'Email addresses to CC on high-value quotes (comma-separated)', 'email'),
         ('QUOTE_EMAIL_SIGNATURE', 'Best regards,\nBlitzTech Electronics Team', 'Email signature for quote emails', 'email'),
         

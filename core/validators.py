@@ -93,7 +93,7 @@ class EmailDomainValidator:
     
     # Add required domains for employees (optional)
     EMPLOYEE_REQUIRED_DOMAINS = [
-        'blitztech.co.zw',
+        'blitztechelectronics.co.zw',
         'blitztechelectronics.co.zw',
     ]
     

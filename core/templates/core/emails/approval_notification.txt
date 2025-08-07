@@ -1,0 +1,37 @@
+Access Request {{ action|title }} - {{ company_name }}
+
+Hello {{ user.first_name|default:user.username }},
+
+{% if action == 'approved' %}Your request for {{ approval_request.get_request_type_display }} has been APPROVED.
+
+✅ You now have access to:
+{% if approval_request.request_type == 'crm' %}- Customer relationship management system
+- Client data and interaction tracking
+- Sales pipeline management{% elif approval_request.request_type == 'blog' %}- Blog content management
+- Article creation and editing
+- Content publishing tools{% endif %}
+
+You can now login and access these features immediately.
+{% else %}We regret to inform you that your request for {{ approval_request.get_request_type_display }} has been REJECTED.
+
+❌ Rejection Reason:
+{{ approval_request.review_notes|default:"No specific reason provided. Please contact support for more information." }}
+
+If you believe this decision was made in error or if you have additional information to support your request, please contact our support team.
+{% endif %}
+
+Request Details:
+- Request Type: {{ approval_request.get_request_type_display }}
+- Requested Date: {{ approval_request.requested_at|date:"F d, Y" }}
+- Reviewed By: {{ reviewer.get_full_name|default:reviewer.username }}
+- Review Date: {{ approval_request.reviewed_at|date:"F d, Y" }}
+
+{% if action == 'approved' %}Login to your dashboard: {{ site_url }}/auth/customer-dashboard/{% endif %}
+
+Questions? Contact us at support@blitztechelectronics.co.zw
+
+Best regards,
+{{ company_name }} Team
+
+---
+© 2025 {{ company_name }}. All rights reserved.
