@@ -155,28 +155,37 @@ def is_employee(user):
     """Clean check for employee status"""
     return (user.is_authenticated and 
             hasattr(user, 'profile') and 
-            user.profile.is_employee)
+            user.profile.user_type == 'employee')
 
 def is_blogger(user):
     """Clean check for blogger status"""
     return (user.is_authenticated and 
             hasattr(user, 'profile') and 
-            user.profile.is_blogger)
+            user.profile.user_type == 'blogger')
 
 def is_customer(user):
     """Clean check for customer status"""
     return (user.is_authenticated and 
             hasattr(user, 'profile') and 
-            user.profile.is_customer)
+            user.profile.user_type == 'customer')
+
+def is_admin_user(user):
+    """Check if user has admin privileges"""
+    return (user.is_superuser or user.is_staff or
+            (hasattr(user, 'profile') and 
+             user.profile.department == 'admin' and 
+             user.profile.user_type == 'employee'))
+
+def is_manager_user(user):
+    """Check if user has manager privileges"""
+    return (user.is_superuser or user.is_staff or
+            (hasattr(user, 'profile') and 
+             user.profile.department in ['admin', 'sales'] and 
+             user.profile.user_type == 'employee'))
 
 def can_access_admin(user):
     """Check if user can access admin features"""
-    if not user.is_authenticated:
-        return False
-    
-    return (user.is_superuser or 
-            has_role(user, 'system_admin') or 
-            has_role(user, 'business_owner'))
+    return is_admin_user(user)
 
 def can_access_employee_areas(user):
     """Check if user can access employee-only areas"""

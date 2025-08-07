@@ -42,7 +42,23 @@ logger = logging.getLogger('core.authentication')
 
 def is_manager_or_admin(user):
     return (user.is_superuser or user.is_staff or
-            (hasattr(user, 'profile') and (user.profile.is_admin or user.profile.is_manager)))
+            (hasattr(user, 'profile') and 
+             ((user.profile.department in ['admin', 'sales'] and user.profile.user_type == 'employee') or
+              user.profile.department == 'admin')))
+
+def is_admin_user(user):
+    """Check if user has admin privileges"""
+    return (user.is_superuser or user.is_staff or
+            (hasattr(user, 'profile') and 
+             user.profile.department == 'admin' and 
+             user.profile.user_type == 'employee'))
+
+def is_manager_user(user):
+    """Check if user has manager privileges"""
+    return (user.is_superuser or user.is_staff or
+            (hasattr(user, 'profile') and 
+             user.profile.department in ['admin', 'sales'] and 
+             user.profile.user_type == 'employee'))
 
 class CustomLoginView(LoginView):
     """Custom login view using CoreLoginForm with enhanced security"""
@@ -838,7 +854,7 @@ def profile_view(request):
 # ENHANCED EMPLOYEE MANAGEMENT
 # =====================================
 
-@user_type_required(['blitzhub_admin', 'it_admin'])
+@user_passes_test(is_admin_user)
 @password_expiration_check
 def employee_list_view(request):
     """
@@ -846,8 +862,7 @@ def employee_list_view(request):
     """
     # Get all employee profiles with optimized queries
     employees = UserProfile.objects.filter(
-        user_type__in=['employee', 'sales_rep', 'sales_manager', 'blitzhub_admin', 'it_admin']
-    ).select_related('user').annotate(
+        user_type='employee').select_related('user').annotate(
         quote_count=Count('user__created_quotes', distinct=True),
         total_quote_value=Sum('user__created_quotes__total_amount')
     )
@@ -894,7 +909,7 @@ def employee_list_view(request):
     logger.info(f"Employee list viewed by {request.user.username}")
     return render(request, 'core/employee_list.html', context)
 
-@user_type_required(['blitzhub_admin', 'it_admin'])
+@user_passes_test(is_admin_user)
 @password_expiration_check
 def add_employee_view(request):
     """
@@ -942,7 +957,7 @@ def add_employee_view(request):
     context = {'form': form}
     return render(request, 'core/add_employee.html', context)
 
-@user_type_required(['blitzhub_admin', 'it_admin'])
+@user_passes_test(is_admin_user)
 @password_expiration_check
 def edit_employee_view(request, employee_id):
     """Edit employee details (admin only)"""
@@ -1623,12 +1638,6 @@ def system_reports(request):
     return render(request, 'core/system_reports.html', {})
 
 # Only admins (BlitzHub Admins or IT Admins) can view this
-def is_admin_user(user):
-    return hasattr(user, 'profile') and user.profile.is_admin
-
-def is_manager_user(user):
-    return hasattr(user, 'profile') and user.profile.is_manager
-
 @user_passes_test(is_admin_user)
 def permissions_overview_view(request):
     """
@@ -1659,8 +1668,7 @@ def employee_performance_report_view(request):
     search = request.GET.get('search')
     sort = request.GET.get('sort', 'user__first_name')  # Default sort
 
-    employees = UserProfile.objects.filter(
-    user_type__in=['employee', 'sales_rep', 'sales_manager', 'blitzhub_admin', 'it_admin'])
+    employees = UserProfile.objects.filter(user_type='employee')
 
     # Filtering
     if department:
@@ -1764,7 +1772,7 @@ def bulk_assign_permissions_view(request):
         return JsonResponse({'success': False, 'error': str(e)}, status=500)
 
 @login_required
-@password_expiration_check  # You use this for sensitive pages!
+@password_expiration_check
 def notification_settings_view(request):
     user = request.user
     profile = user.profile
@@ -1812,7 +1820,7 @@ def update_user_preference(request):
         return JsonResponse({"success": False, "error": str(e)}, status=500)
 
 @login_required
-@password_expiration_check  # Keep it consistent with other settings
+@password_expiration_check
 def privacy_settings_view(request):
     user = request.user
     profile = user.profile
