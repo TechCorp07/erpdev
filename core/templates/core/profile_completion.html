@@ -1,210 +1,334 @@
-{% extends 'auth_base.html' %}
+{% extends 'dashboard_base.html' %}
 {% load crispy_forms_tags %}
 
 {% block title %}Complete Your Profile{% endblock %}
+{% block page_title %}Complete Your Profile{% endblock %}
 
-{% block auth_content %}
-<div class="auth-card">
-  <div class="auth-header">
-    <img src="/static/website/img/blitztech-logo.png" alt="BlitzTech Electronics" class="mb-3" style="max-height: 60px;">
-    <h4 class="text-dark mb-0">Complete Your Profile</h4>
-    <p class="text-muted mb-0">Provide additional information to complete your account setup</p>
-  </div>
+{% block extra_dashboard_head %}
+<style>
+  .completion-card {
+    background: rgba(255, 255, 255, 0.95);
+    border-radius: 15px;
+    box-shadow: 0 10px 25px rgba(0, 0, 0, 0.1);
+    padding: 2rem;
+    margin-bottom: 2rem;
+  }
+  
+  .progress-wrapper {
+    background: #f8f9fa;
+    border-radius: 10px;
+    padding: 1.5rem;
+    margin-bottom: 2rem;
+  }
+  
+  .completion-badge {
+    font-size: 1.1rem;
+    padding: 0.75rem 1.5rem;
+    border-radius: 50px;
+  }
+  
+  .form-control:focus {
+    border-color: #667eea;
+    box-shadow: 0 0 0 0.2rem rgba(102, 126, 234, 0.25);
+  }
+  
+  .btn-primary {
+    background: linear-gradient(45deg, #667eea, #764ba2);
+    border: none;
+    padding: 0.75rem 2rem;
+    border-radius: 50px;
+    font-weight: 600;
+    transition: all 0.3s ease;
+  }
+  
+  .btn-primary:hover {
+    background: linear-gradient(45deg, #5a67d8, #6b46c1);
+    transform: translateY(-2px);
+    box-shadow: 0 8px 20px rgba(102, 126, 234, 0.3);
+  }
+  
+  .alert {
+    border: none;
+    border-radius: 12px;
+    padding: 1.25rem;
+  }
+  
+  .alert-info {
+    background: linear-gradient(135deg, #e3f2fd 0%, #bbdefb 100%);
+    color: #1565c0;
+  }
+  
+  .alert-warning {
+    background: linear-gradient(135deg, #fff3e0 0%, #ffcc02 100%);
+    color: #ef6c00;
+  }
+  
+  .field-group {
+    background: #f8f9fa;
+    border-radius: 10px;
+    padding: 1.5rem;
+    margin-bottom: 1.5rem;
+  }
+  
+  .field-group h6 {
+    color: #495057;
+    font-weight: 600;
+    margin-bottom: 1rem;
+  }
+  
+  @media (max-width: 768px) {
+    .completion-card {
+      padding: 1.5rem;
+    }
+    
+    .progress-wrapper {
+      padding: 1rem;
+    }
+  }
+</style>
+{% endblock %}
 
-  <div class="card-body p-4">
-    <!-- Progress Bar -->
-    <div class="mb-4">
-      <div class="d-flex justify-content-between align-items-center mb-2">
-        <span class="fw-bold">Profile Completion</span>
-        <span class="text-muted">{{ profile.get_completion_percentage }}%</span>
-      </div>
-      <div class="progress" style="height: 8px;">
-        <div class="progress-bar bg-success" role="progressbar" 
-             style="width: {{ profile.get_completion_percentage }}%"></div>
-      </div>
-    </div>
-
-    <!-- User Type Badge -->
-    <div class="alert alert-info d-flex align-items-center mb-4">
-      <i class="bi bi-info-circle me-2"></i>
-      <div>
-        <strong>Account Type:</strong> {{ user_type_display }}
-        {% if profile.user_type == 'customer' %}
-        <br><small class="text-muted">You can shop immediately and request CRM access after completing your profile.</small>
-        {% elif profile.user_type == 'blogger' %}
-        <br><small class="text-muted">You can shop immediately and request blog management access.</small>
-        {% endif %}
-      </div>
-    </div>
-
-    <!-- Incomplete Fields Alert -->
-    {% if incomplete_fields %}
-    <div class="alert alert-warning">
-      <h6><i class="bi bi-exclamation-triangle me-2"></i>Required Information Missing:</h6>
-      <ul class="mb-0">
-        {% for field in incomplete_fields %}
-        <li>{{ field }}</li>
-        {% endfor %}
-      </ul>
-    </div>
-    {% endif %}
-
-    <!-- Profile Completion Form -->
-    <form method="post" enctype="multipart/form-data">
-      {% csrf_token %}
-      
-      <div class="row">
-        <div class="col-md-6">
-          <h5 class="border-bottom pb-2 mb-3">
-            <i class="bi bi-person me-2 text-primary"></i>Personal Information
-          </h5>
-          
-          <div class="mb-3">
-            <label class="form-label fw-bold">First Name *</label>
-            {{ form.first_name }}
-          </div>
-          
-          <div class="mb-3">
-            <label class="form-label fw-bold">Last Name *</label>
-            {{ form.last_name }}
-          </div>
-          
-          <div class="mb-3">
-            <label class="form-label fw-bold">Email Address *</label>
-            {{ form.email }}
-          </div>
-          
-          <div class="mb-3">
-            <label class="form-label fw-bold">Phone Number *</label>
-            {{ form.phone }}
-          </div>
-          
-          <div class="mb-3">
-            <label class="form-label">Profile Image</label>
-            {{ form.profile_image }}
-            <small class="form-text text-muted">Optional: Upload a profile picture</small>
+{% block dashboard_content %}
+<div class="container-fluid">
+  <div class="row justify-content-center">
+    <div class="col-lg-8">
+      <!-- Progress Section -->
+      <div class="progress-wrapper">
+        <div class="d-flex justify-content-between align-items-center mb-3">
+          <h4 class="mb-0">
+            <i class="bi bi-person-check text-primary me-2"></i>
+            Profile Completion
+          </h4>
+          <div class="completion-badge badge {% if profile.get_completion_percentage >= 100 %}bg-success{% elif profile.get_completion_percentage >= 75 %}bg-info{% elif profile.get_completion_percentage >= 50 %}bg-warning{% else %}bg-danger{% endif %}">
+            {{ profile.get_completion_percentage }}% Complete
           </div>
         </div>
         
-        <div class="col-md-6">
-          <h5 class="border-bottom pb-2 mb-3">
-            <i class="bi bi-building me-2 text-primary"></i>Additional Information
-          </h5>
-          
-          {% if profile.user_type != 'employee' %}
-          <div class="mb-3">
-            <label class="form-label">Company Name</label>
-            {{ form.company_name }}
-            <small class="form-text text-muted">Your business or organization</small>
+        <div class="progress mb-2" style="height: 12px; border-radius: 10px;">
+          <div class="progress-bar bg-primary" role="progressbar" 
+               style="width: {{ profile.get_completion_percentage }}%; border-radius: 10px;"
+               aria-valuenow="{{ profile.get_completion_percentage }}" 
+               aria-valuemin="0" aria-valuemax="100">
           </div>
+        </div>
+        <small class="text-muted">
+          <i class="bi bi-info-circle me-1"></i>
+          Complete all required fields to unlock full system access
+        </small>
+      </div>
+
+      <!-- Account Type Information -->
+      <div class="alert alert-info d-flex align-items-start mb-4">
+        <i class="bi bi-person-badge fs-4 me-3 mt-1"></i>
+        <div class="flex-grow-1">
+          <h6 class="alert-heading mb-2">Account Type: {{ user_type_display }}</h6>
+          {% if profile.user_type == 'customer' %}
+            <p class="mb-0">As a customer, you can shop immediately and request additional access after completing your profile.</p>
+          {% elif profile.user_type == 'blogger' %}
+            <p class="mb-0">As a blogger, you can shop immediately and request blog management access.</p>
+          {% elif profile.user_type == 'employee' %}
+            <p class="mb-0">As an employee, complete your profile to access internal systems and tools.</p>
           {% endif %}
-          
-          <div class="mb-3">
-            <label class="form-label">Address</label>
-            {{ form.address }}
-            <small class="form-text text-muted">Complete physical address</small>
-          </div>
-          
-          {% if profile.user_type == 'employee' %}
-          <div class="mb-3">
-            <label class="form-label">Department</label>
-            {{ form.department }}
-          </div>
-          {% endif %}
         </div>
       </div>
 
-      <!-- Business Information (for business customers) -->
-      {% if profile.user_type == 'customer' %}
-      <div class="row mt-4">
-        <div class="col-12">
-          <h5 class="border-bottom pb-2 mb-3">
-            <i class="bi bi-briefcase me-2 text-primary"></i>Business Information
-            <small class="text-muted">(Optional)</small>
-          </h5>
-        </div>
-        
-        <div class="col-md-6">
-          <div class="mb-3">
-            <label class="form-label">Tax Number</label>
-            {{ form.tax_number }}
-            <small class="form-text text-muted">For business purchases</small>
-          </div>
-        </div>
-        
-        <div class="col-md-6">
-          <div class="mb-3">
-            <label class="form-label">Business Registration</label>
-            {{ form.business_registration }}
-            <small class="form-text text-muted">Company registration number</small>
-          </div>
-        </div>
+      <!-- Missing Fields Alert -->
+      {% if incomplete_fields %}
+      <div class="alert alert-warning mb-4">
+        <h6 class="alert-heading">
+          <i class="bi bi-exclamation-triangle me-2"></i>
+          Required Information Missing
+        </h6>
+        <ul class="mb-0">
+          {% for field in incomplete_fields %}
+            <li><strong>{{ field.name }}:</strong> {{ field.description }}</li>
+          {% endfor %}
+        </ul>
       </div>
       {% endif %}
 
-      <!-- Notification Preferences -->
-      <div class="row mt-4">
-        <div class="col-12">
-          <h5 class="border-bottom pb-2 mb-3">
-            <i class="bi bi-gear me-2 text-primary"></i>Notification Preferences
-          </h5>
+      <!-- Profile Completion Form -->
+      <div class="completion-card">
+        <form method="post" enctype="multipart/form-data" class="needs-validation" novalidate>
+          {% csrf_token %}
           
-          <div class="row">
-            <div class="col-md-6">
-              <div class="form-check mb-2">
-                {{ form.email_notifications }}
-                <label class="form-check-label" for="{{ form.email_notifications.id_for_label }}">
-                  Email Notifications
-                </label>
+          <!-- Personal Information -->
+          <div class="field-group">
+            <h6>
+              <i class="bi bi-person me-2 text-primary"></i>
+              Personal Information
+            </h6>
+            <div class="row">
+              <div class="col-md-6 mb-3">
+                {{ form.first_name|as_crispy_field }}
               </div>
-              
-              <div class="form-check mb-2">
-                {{ form.sms_notifications }}
-                <label class="form-check-label" for="{{ form.sms_notifications.id_for_label }}">
-                  SMS Notifications
-                </label>
+              <div class="col-md-6 mb-3">
+                {{ form.last_name|as_crispy_field }}
               </div>
             </div>
-            
-            <div class="col-md-6">
-              <div class="form-check mb-2">
-                {{ form.approval_notifications }}
-                <label class="form-check-label" for="{{ form.approval_notifications.id_for_label }}">
-                  Approval Updates
-                </label>
+            <div class="row">
+              <div class="col-md-6 mb-3">
+                {{ form.phone_number|as_crispy_field }}
               </div>
-              
-              <div class="form-check mb-2">
-                {{ form.marketing_emails }}
-                <label class="form-check-label" for="{{ form.marketing_emails.id_for_label }}">
-                  Marketing Emails
-                </label>
+              <div class="col-md-6 mb-3">
+                {{ form.date_of_birth|as_crispy_field }}
               </div>
+            </div>
+            {% if form.profile_image %}
+            <div class="mb-3">
+              {{ form.profile_image|as_crispy_field }}
+            </div>
+            {% endif %}
+          </div>
+
+          <!-- Address Information -->
+          <div class="field-group">
+            <h6>
+              <i class="bi bi-geo-alt me-2 text-primary"></i>
+              Address Information
+            </h6>
+            <div class="mb-3">
+              {{ form.address|as_crispy_field }}
+            </div>
+            <div class="row">
+              <div class="col-md-4 mb-3">
+                {{ form.city|as_crispy_field }}
+              </div>
+              <div class="col-md-4 mb-3">
+                {{ form.state|as_crispy_field }}
+              </div>
+              <div class="col-md-4 mb-3">
+                {{ form.postal_code|as_crispy_field }}
+              </div>
+            </div>
+            <div class="mb-3">
+              {{ form.country|as_crispy_field }}
             </div>
           </div>
-        </div>
-      </div>
 
-      <!-- Submit Button -->
-      <div class="row mt-4">
-        <div class="col-12">
-          <div class="d-flex justify-content-between align-items-center">
-            <div>
-              <small class="text-muted">
-                <i class="bi bi-info-circle me-1"></i>
-                Fields marked with * are required
-              </small>
+          <!-- Additional Information (if applicable) -->
+          {% if form.company_name or form.job_title or form.bio %}
+          <div class="field-group">
+            <h6>
+              <i class="bi bi-briefcase me-2 text-primary"></i>
+              Professional Information
+            </h6>
+            {% if form.company_name %}
+            <div class="row">
+              <div class="col-md-6 mb-3">
+                {{ form.company_name|as_crispy_field }}
+              </div>
+              {% if form.job_title %}
+              <div class="col-md-6 mb-3">
+                {{ form.job_title|as_crispy_field }}
+              </div>
+              {% endif %}
             </div>
-            <div>
-              <button type="submit" class="btn btn-primary btn-lg">
+            {% endif %}
+            {% if form.bio %}
+            <div class="mb-3">
+              {{ form.bio|as_crispy_field }}
+            </div>
+            {% endif %}
+          </div>
+          {% endif %}
+
+          <!-- Privacy Settings -->
+          {% if form.allow_marketing_emails or form.allow_profile_discovery %}
+          <div class="field-group">
+            <h6>
+              <i class="bi bi-shield-check me-2 text-primary"></i>
+              Privacy Preferences
+            </h6>
+            {% if form.allow_marketing_emails %}
+            <div class="mb-3">
+              {{ form.allow_marketing_emails|as_crispy_field }}
+            </div>
+            {% endif %}
+            {% if form.allow_profile_discovery %}
+            <div class="mb-3">
+              {{ form.allow_profile_discovery|as_crispy_field }}
+            </div>
+            {% endif %}
+          </div>
+          {% endif %}
+
+          <!-- Form Actions -->
+          <div class="d-flex justify-content-between align-items-center pt-4 border-top">
+            <a href="{% url 'core:dashboard' %}" class="btn btn-outline-secondary">
+              <i class="bi bi-arrow-left me-2"></i>
+              Back to Dashboard
+            </a>
+            
+            <div class="d-flex gap-2">
+              <button type="submit" name="save_draft" class="btn btn-outline-primary">
+                <i class="bi bi-save me-2"></i>
+                Save Draft
+              </button>
+              <button type="submit" name="complete_profile" class="btn btn-primary">
                 <i class="bi bi-check-circle me-2"></i>
                 Complete Profile
               </button>
             </div>
           </div>
+        </form>
+      </div>
+      
+      <!-- Help Section -->
+      <div class="card mt-4">
+        <div class="card-body text-center">
+          <h6 class="card-title">
+            <i class="bi bi-question-circle me-2"></i>
+            Need Help?
+          </h6>
+          <p class="card-text text-muted mb-0">
+            Contact our support team if you have any questions about completing your profile.
+          </p>
         </div>
       </div>
-    </form>
+    </div>
   </div>
 </div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // Form validation
+    const forms = document.querySelectorAll('.needs-validation');
+    
+    Array.from(forms).forEach(form => {
+        form.addEventListener('submit', event => {
+            if (!form.checkValidity()) {
+                event.preventDefault();
+                event.stopPropagation();
+            }
+            form.classList.add('was-validated');
+        }, false);
+    });
+    
+    // Auto-save functionality (optional)
+    const form = document.querySelector('form');
+    let autoSaveTimeout;
+    
+    form.addEventListener('input', function() {
+        clearTimeout(autoSaveTimeout);
+        autoSaveTimeout = setTimeout(() => {
+            // Auto-save draft logic could go here
+            console.log('Auto-saving draft...');
+        }, 30000); // Auto-save after 30 seconds of no activity
+    });
+    
+    // Progress animation
+    const progressBar = document.querySelector('.progress-bar');
+    if (progressBar) {
+        const targetWidth = progressBar.style.width;
+        progressBar.style.width = '0%';
+        setTimeout(() => {
+            progressBar.style.transition = 'width 1s ease-in-out';
+            progressBar.style.width = targetWidth;
+        }, 300);
+    }
+});
+</script>
 {% endblock %}
