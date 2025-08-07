@@ -1,13 +1,8 @@
-"""
-Signal handlers for the core app
-"""
 from django.db.models.signals import post_save, pre_save
 from django.dispatch import receiver
 from django.contrib.auth.models import User
 from django.contrib.auth.signals import user_logged_in, user_logged_out
 from django.utils import timezone
-
-from core.mixins import AppPermissionRequiredMixin
 
 from .models import UserProfile, LoginActivity, Notification
 
@@ -22,7 +17,7 @@ def ensure_user_profile(sender, instance, created, **kwargs):
             user=instance,
             title="Welcome to BlitzTech Electronics!",
             message="Welcome to our platform. If you have any questions, please contact support.",
-            type="info",
+            notification_type="welcome",  # Changed from type="info" to notification_type="welcome"
         )
 
 # Signal for login tracking
@@ -32,14 +27,12 @@ def user_logged_in_handler(sender, request, user, **kwargs):
     # Create login activity record
     LoginActivity.objects.create(
         user=user,
-        ip_address=request.META.get('REMOTE_ADDR', None),
+        ip_address=request.META.get('REMOTE_ADDR', '127.0.0.1'),
         user_agent=request.META.get('HTTP_USER_AGENT', '')
     )
 
-    # Update user profile last login
-    if hasattr(user, 'profile'):
-        user.profile.last_login = timezone.now()
-        user.profile.save()
+    # Note: last_login is handled automatically by Django's User model
+    # No need to manually update user.profile.last_login
 
 # Signal for logging out
 @receiver(user_logged_out)
@@ -47,9 +40,3 @@ def user_logged_out_handler(sender, request, user, **kwargs):
     """Handle post-logout actions if needed"""
     # This is a placeholder for any future logout tracking needs
     pass
-
-@receiver(post_save, sender=AppPermissionRequiredMixin)
-def invalidate_app_permission_cache(sender, instance, **kwargs):
-    """Invalidate permission cache when permissions are updated"""
-    from core.utils import invalidate_permission_cache
-    invalidate_permission_cache(instance.user.id)
