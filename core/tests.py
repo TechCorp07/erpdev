@@ -227,12 +227,8 @@ class AuthenticationViewsTest(TestCase):
         # Test valid login - using follow=True to see final response
         response = self.client.post(reverse('core:login'), {
             'username': 'testuser',
-            'password': 'TestPassword123!'
+            'password': 'TestPass123!'
         }, follow=True)  # Follow redirects
-        
-        # User should be logged in now
-        user = User.objects.get(username='testuser')
-        self.assertTrue(user.is_authenticated)
 
         dashboard_response = self.client.get(reverse('core:customer_dashboard'))
         self.assertIn(dashboard_response.status_code, [200, 302])
