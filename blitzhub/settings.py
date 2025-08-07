@@ -195,7 +195,7 @@ USE_I18N = True
 USE_TZ = True
 
 # Static files (CSS, JavaScript, Images)
-STATIC_URL = 'static/'
+STATIC_URL = '/static/'
 STATICFILES_DIRS = [
     BASE_DIR / 'static',
     BASE_DIR / 'core' / 'static',
@@ -384,7 +384,7 @@ APPROVAL_WORKFLOW = {
 }
 
 # =====================================
-# ENHANCED ACCESS_CONTROL_RULES WITH QUOTE INTEGRATION
+# ENHANCED ACCESS_CONTROL_RULES
 # =====================================
 ACCESS_CONTROL_RULES = {
     # Core application access rules
@@ -436,8 +436,10 @@ ACCESS_CONTROL_RULES = {
     # CRM integration rules
     'crm:*': {
         'login_required': True,
+        'user_types': ['employee', 'sales_rep', 'sales_manager', 'blitzhub_admin', 'it_admin'],
         'app_permission': {'app': 'crm', 'level': 'view'},
         'failure_url': 'core:dashboard',
+        'access_denied_message': 'CRM access required.',
     },
     
     # Inventory integration rules

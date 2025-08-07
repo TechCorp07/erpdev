@@ -1,4 +1,4 @@
-# core/context_processors.py - ENHANCED with Quote System Integration
+# core/context_processors.py
 
 """
 Enhanced context processors for seamless quote system integration.

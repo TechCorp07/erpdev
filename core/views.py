@@ -141,14 +141,21 @@ class CustomLoginView(LoginView):
         return reverse_lazy('website:home')
 
 
+@require_http_methods(["GET", "POST"])
 def logout_view(request):
-    """Custom logout view with proper cleanup"""
+    """Custom logout view with proper cleanup - supports both GET and POST"""
     if request.user.is_authenticated:
         username = request.user.username
+        
+        # Log security event
+        log_security_event(request, 'logout_success', username)
+        
+        # Perform logout
         logout(request)
         logger.info(f"User {username} logged out")
         messages.success(request, "You have been successfully logged out.")
     
+    # Redirect to home page
     return redirect('website:home')
 
 
@@ -2097,3 +2104,4 @@ def profile_completion_status(request):
 def user_stats_api(request):
     stats = get_user_dashboard_stats(request.user)
     return JsonResponse(stats)
+

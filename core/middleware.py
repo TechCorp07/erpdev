@@ -139,18 +139,42 @@ class EmployeeAccessMiddleware:
                 if isinstance(access_check, str):
                     try:
                         check_func = import_string(access_check)
-                        if not check_func(request, *view_args, **view_kwargs):
-                            logger.warning(f"User {request.user.username} failed custom access check for {app_name}:{url_name}")
-                            
-                            if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
-                                return JsonResponse({
-                                    'success': False,
-                                    'error': 'Access denied by custom check',
-                                    'redirect': reverse('core:dashboard')
-                                }, status=403)
-                            
-                            messages.warning(request, rule.get('access_denied_message', 'You do not have access to this area.'))
-                            return redirect(rule.get('failure_url', 'website:home'))
+                        
+                        # Get access_check_args if available
+                        access_check_args = rule.get('access_check_args', {})
+                        
+                        # Call the function with the appropriate arguments
+                        if hasattr(check_func, '__code__') and check_func.__code__.co_argcount == 3:
+                            # Function expects (user, app_name, required_level)
+                            app_name_arg = access_check_args.get('app_name', app_name)
+                            required_level = access_check_args.get('required_level', 'view')
+                            if not check_func(request.user, app_name_arg, required_level):
+                                logger.warning(f"User {request.user.username} failed custom access check for {app_name_arg}:{url_name}")
+                                
+                                if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+                                    return JsonResponse({
+                                        'success': False,
+                                        'error': 'Access denied by custom check',
+                                        'redirect': reverse('core:dashboard')
+                                    }, status=403)
+                                
+                                messages.warning(request, rule.get('access_denied_message', 'You do not have access to this area.'))
+                                return redirect(rule.get('failure_url', 'core:dashboard'))
+                        else:
+                            # Fallback for other function signatures
+                            if not check_func(request, *view_args, **view_kwargs):
+                                logger.warning(f"User {request.user.username} failed custom access check for {app_name}:{url_name}")
+                                
+                                if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+                                    return JsonResponse({
+                                        'success': False,
+                                        'error': 'Access denied by custom check',
+                                        'redirect': reverse('core:dashboard')
+                                    }, status=403)
+                                
+                                messages.warning(request, rule.get('access_denied_message', 'You do not have access to this area.'))
+                                return redirect(rule.get('failure_url', 'core:dashboard'))
+                                
                     except (ImportError, AttributeError) as e:
                         logger.error(f"Error loading access check function {access_check}: {str(e)}")
                         raise ImproperlyConfigured(f"Could not load access check function: {access_check}")

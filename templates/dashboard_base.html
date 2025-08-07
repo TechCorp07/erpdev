@@ -259,6 +259,71 @@
       display: none;
     }
   }
+  /* Sidebar dividers and section titles */
+.sidebar-divider {
+  border-color: rgba(255, 255, 255, 0.2);
+  margin: 0.5rem 0;
+}
+
+.nav-section-title {
+  color: rgba(255, 255, 255, 0.6);
+  font-size: 0.75rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  padding: 0 16px;
+  display: block;
+  margin-bottom: 0.5rem;
+}
+
+/* Permission level badges */
+.nav-link .badge {
+  font-size: 0.6rem;
+  padding: 0.2em 0.5em;
+}
+
+/* External link indicator */
+.nav-link .bi-box-arrow-up-right {
+  opacity: 0.7;
+  transition: opacity 0.2s ease;
+}
+
+.nav-link:hover .bi-box-arrow-up-right {
+  opacity: 1;
+}
+
+/* Better spacing for management/admin sections */
+.nav-item.mt-3 {
+  margin-top: 1rem !important;
+}
+
+/* Improved dropdown in sidebar */
+.user-profile-section .dropdown-menu {
+  transform: translateY(-10px);
+}
+
+/* Make the sidebar more compact on smaller heights */
+@media (max-height: 700px) {
+  .nav-section-title {
+    font-size: 0.7rem;
+    margin-bottom: 0.25rem;
+  }
+  
+  .sidebar-divider {
+    margin: 0.25rem 0;
+  }
+  
+  .nav-item.mt-3 {
+    margin-top: 0.5rem !important;
+  }
+}
+
+/* Hide quick stats on very small screens to save space */
+@media (max-height: 600px) {
+  .quick-stats {
+    display: none;
+  }
+}
 </style>
 {% block extra_dashboard_head %}{% endblock %}
 {% endblock %}
@@ -294,18 +359,25 @@
               </a>
             </li>
             
-            <!-- CRM Section -->
-            {% if "crm" in app_permissions or is_admin %}
+            <!-- CRM Section - FIXED PERMISSION CHECK -->
+            {% if app_permissions.crm or is_admin %}
             <li class="nav-item">
               <a class="nav-link {% if 'crm:' in request.resolver_match.namespace %}active{% endif %}" href="{% url 'crm:dashboard' %}">
                 <i class="bi bi-people me-2"></i>
                 CRM
+                {% if app_permissions.crm == 'admin' %}
+                <span class="badge bg-success rounded-pill ms-auto">Admin</span>
+                {% elif app_permissions.crm == 'edit' %}
+                <span class="badge bg-primary rounded-pill ms-auto">Edit</span>
+                {% elif app_permissions.crm == 'view' %}
+                <span class="badge bg-secondary rounded-pill ms-auto">View</span>
+                {% endif %}
               </a>
             </li>
             {% endif %}
             
-            <!-- Quote System with Enhanced Submenu -->
-            {% if "quotes" in app_permissions or is_admin %}
+            <!-- Quote System - FIXED PERMISSION CHECK -->
+            {% if app_permissions.quotes or is_admin %}
             <li class="nav-item">
               <a class="nav-link {% if 'quotes:' in request.resolver_match.namespace %}active{% endif %}" href="{% url 'quotes:dashboard' %}">
                 <i class="bi bi-file-earmark-text me-2"></i>
@@ -314,7 +386,8 @@
                 <span class="badge bg-warning rounded-pill ms-auto quote-badge notification-indicator">{{ pending_quotes_count }}</span>
                 {% endif %}
               </a>
-              <!-- Enhanced Quote Submenu -->
+              
+              <!-- Enhanced Quote Submenu - Only show if user has quote access -->
               {% if 'quotes:' in request.resolver_match.namespace %}
               <ul class="nav flex-column submenu">
                 <li class="nav-item">
@@ -322,7 +395,7 @@
                     <i class="bi bi-list me-2"></i>All Quotes
                   </a>
                 </li>
-                {% if app_permissions.quotes == 'edit' or app_permissions.quotes == 'admin' %}
+                {% if app_permissions.quotes == 'edit' or app_permissions.quotes == 'admin' or is_admin %}
                 <li class="nav-item">
                   <a class="nav-link" href="{% url 'quotes:quote_create' %}">
                     <i class="bi bi-plus-circle me-2"></i>New Quote
@@ -330,193 +403,184 @@
                 </li>
                 {% endif %}
                 <li class="nav-item">
-                  <a class="nav-link" href="{% url 'quotes:quote_list' %}?status=draft">
-                    <i class="bi bi-pencil me-2"></i>Drafts
-                    {% if quote_stats.needs_attention %}
-                    <span class="badge bg-secondary rounded-pill ms-1">{{ quote_stats.needs_attention }}</span>
-                    {% endif %}
-                  </a>
-                </li>
-                <li class="nav-item">
-                  <a class="nav-link" href="{% url 'quotes:quote_list' %}?status=sent,viewed">
-                    <i class="bi bi-send me-2"></i>Pending
-                  </a>
-                </li>
-                <li class="nav-item">
-                  <a class="nav-link" href="{% url 'quotes:quote_analytics' %}">
+                  <a class="nav-link" href="{% url 'quotes:analytics' %}">
                     <i class="bi bi-graph-up me-2"></i>Analytics
                   </a>
                 </li>
+                {% if app_permissions.quotes == 'admin' or is_admin %}
+                <li class="nav-item">
+                  <a class="nav-link" href="{% url 'quotes:settings' %}">
+                    <i class="bi bi-gear me-2"></i>Quote Settings
+                  </a>
+                </li>
+                {% endif %}
               </ul>
               {% endif %}
             </li>
             {% endif %}
-
-            <!-- Inventory Section -->
-            {% if "inventory" in app_permissions or is_admin %}
+            
+            <!-- Inventory Section - FIXED PERMISSION CHECK -->
+            {% if app_permissions.inventory or is_admin %}
             <li class="nav-item">
               <a class="nav-link {% if 'inventory:' in request.resolver_match.namespace %}active{% endif %}" href="{% url 'inventory:dashboard' %}">
-                <i class="bi bi-box-seam me-2"></i>
+                <i class="bi bi-boxes me-2"></i>
                 Inventory
               </a>
             </li>
             {% endif %}
-
-            <!-- Sales Pipeline -->
-            {% if "crm" in app_permissions or is_admin %}
-            <li class="nav-item">
-              <a class="nav-link {% if 'deal' in request.resolver_match.url_name %}active{% endif %}" href="{% url 'crm:deal_list' %}">
-                <i class="bi bi-briefcase me-2"></i>
-                Sales Pipeline
-                {% if pipeline_stats.overdue_deals %}
-                <span class="badge bg-danger rounded-pill ms-auto notification-indicator">{{ pipeline_stats.overdue_deals }}</span>
-                {% endif %}
-              </a>
-            </li>
-            {% endif %}
             
-            <!-- Task Management -->
-            {% if "crm" in app_permissions or is_admin %}
+            <!-- Reports Section - FIXED PERMISSION CHECK -->
+            {% if app_permissions.reports or is_admin %}
             <li class="nav-item">
-              <a class="nav-link {% if 'task' in request.resolver_match.url_name %}active{% endif %}" href="{% url 'crm:task_list' %}">
-                <i class="bi bi-list-check me-2"></i>
-                My Tasks
-                {% if user_task_stats.overdue_count %}
-                <span class="badge bg-danger rounded-pill ms-auto notification-indicator">{{ user_task_stats.overdue_count }}</span>
-                {% elif user_task_stats.due_today %}
-                <span class="badge bg-warning rounded-pill ms-auto notification-indicator">{{ user_task_stats.due_today }}</span>
-                {% endif %}
-              </a>
-            </li>
-            {% endif %}
-
-            <!-- Shop Access -->
-            {% if "shop" in app_permissions or is_admin %}
-            <li class="nav-item">
-              <a class="nav-link" href="#">
-                <i class="bi bi-cart me-2"></i>
-                Shop
-                <small class="text-white-50 ms-2">(Soon)</small>
-              </a>
-            </li>
-            {% endif %}
-            
-            <!-- Website Management -->
-            {% if "website" in app_permissions or is_admin %}
-            <li class="nav-item">
-              <a class="nav-link {% if 'website:' in request.resolver_match.namespace %}active{% endif %}" href="{% url 'website:manage_dashboard' %}">
-                <i class="bi bi-globe me-2"></i>
-                Website
-              </a>
-            </li>
-            {% endif %}
-            
-            <!-- Reports Section -->
-            {% if is_manager or is_admin %}
-            <li class="nav-item">
-              <a class="nav-link" href="#" onclick="showReportsMenu()">
+              <a class="nav-link {% if 'reports:' in request.resolver_match.namespace %}active{% endif %}" href="{% url 'reports:dashboard' %}">
                 <i class="bi bi-graph-up me-2"></i>
                 Reports
-                <i class="bi bi-chevron-right ms-auto"></i>
               </a>
             </li>
             {% endif %}
             
-            <!-- User Management -->
-            {% if is_manager %}
+            <!-- Financial Section - FIXED PERMISSION CHECK -->
+            {% if app_permissions.financial or is_admin %}
             <li class="nav-item">
-              <a class="nav-link {% if 'employee' in request.resolver_match.url_name %}active{% endif %}" href="{% url 'core:employee_list' %}">
-                <i class="bi bi-person-badge me-2"></i>
+              <a class="nav-link {% if 'financial:' in request.resolver_match.namespace %}active{% endif %}" href="{% url 'financial:dashboard' %}">
+                <i class="bi bi-currency-dollar me-2"></i>
+                Financial
+              </a>
+            </li>
+            {% endif %}
+            
+            <!-- Divider for Management Section -->
+            {% if is_manager or is_admin %}
+            <li class="nav-item mt-3">
+              <hr class="sidebar-divider">
+              <span class="nav-section-title">Management</span>
+            </li>
+            
+            <!-- Employee Management -->
+            <li class="nav-item">
+              <a class="nav-link" href="{% url 'core:employee_list' %}">
+                <i class="bi bi-people-fill me-2"></i>
                 Employees
               </a>
             </li>
+            
+            <!-- User Management -->
+            <li class="nav-item">
+              <a class="nav-link" href="{% url 'core:user_management' %}">
+                <i class="bi bi-person-gear me-2"></i>
+                User Management
+              </a>
+            </li>
             {% endif %}
             
-            <!-- Profile -->
+            <!-- Admin Section -->
+            {% if is_admin %}
+            <li class="nav-item mt-3">
+              <hr class="sidebar-divider">
+              <span class="nav-section-title">Administration</span>
+            </li>
+            
             <li class="nav-item">
-              <a class="nav-link {% if request.resolver_match.url_name == 'profile' %}active{% endif %}" href="{% url 'core:profile' %}">
-                <i class="bi bi-person-circle me-2"></i>
-                Profile
+              <a class="nav-link" href="{% url 'core:system_settings' %}">
+                <i class="bi bi-gear-fill me-2"></i>
+                System Settings
               </a>
             </li>
             
-            <!-- Notifications -->
             <li class="nav-item">
-              <a class="nav-link {% if request.resolver_match.url_name == 'notifications' %}active{% endif %}" href="{% url 'core:notifications' %}">
-                <i class="bi bi-bell me-2"></i>
-                Notifications
-                {% if unread_notification_count > 0 %}
-                <span class="badge bg-danger rounded-pill ms-auto notification-indicator">{{ unread_notification_count }}</span>
-                {% endif %}
+              <a class="nav-link" href="{% url 'core:audit_logs' %}">
+                <i class="bi bi-clipboard-data me-2"></i>
+                Audit Logs
               </a>
             </li>
+            
+            <li class="nav-item">
+              <a class="nav-link" href="{% url 'admin:index' %}" target="_blank">
+                <i class="bi bi-shield-lock me-2"></i>
+                Django Admin
+                <i class="bi bi-box-arrow-up-right ms-1" style="font-size: 0.75em;"></i>
+              </a>
+            </li>
+            {% endif %}
           </ul>
         </div>
         
-        <!-- Bottom Section -->
-        <div class="sidebar-bottom">
-          <!-- Enhanced Quick Stats Section -->
-          {% if app_permissions.quotes and quote_dashboard_stats %}
-          <div class="quick-stats">
-            <small class="text-white-50 fw-bold d-block mb-2">QUICK STATS</small>
-            <div class="stat-item">
-              <span class="text-white-75">Active</span>
-              <span class="badge bg-primary">{{ quote_dashboard_stats.active_quotes }}</span>
-            </div>
-            <div class="stat-item">
-              <span class="text-white-75">Month</span>
-              <span class="badge bg-success">${{ quote_dashboard_stats.month_value|floatformat:0 }}</span>
-            </div>
-            <div class="stat-item">
-              <span class="text-white-75">Rate</span>
-              <span class="badge bg-info">{{ quote_dashboard_stats.conversion_rate|floatformat:1 }}%</span>
-            </div>
+        <!-- Quick Stats Section (Only for users with relevant permissions) -->
+        {% if app_permissions.quotes or app_permissions.crm %}
+        <div class="quick-stats">
+          <h6 class="text-white-50 mb-2">
+            <i class="bi bi-speedometer2 me-2"></i>Quick Stats
+          </h6>
+          
+          {% if app_permissions.quotes %}
+          <div class="stat-item">
+            <span class="text-white-50">Active Quotes:</span>
+            <span class="text-white" data-stat="active-quotes">{{ quote_stats.active_quotes|default:0 }}</span>
+          </div>
+          <div class="stat-item">
+            <span class="text-white-50">Month Value:</span>
+            <span class="text-white" data-stat="month-value">${{ quote_stats.month_value|default:0|floatformat:0 }}</span>
+          </div>
+          <div class="stat-item">
+            <span class="text-white-50">Conversion:</span>
+            <span class="text-white" data-stat="conversion-rate">{{ quote_stats.conversion_rate|default:0 }}%</span>
           </div>
           {% endif %}
           
-          <!-- Enhanced User Profile Section -->
+          {% if app_permissions.crm %}
+          <div class="stat-item">
+            <span class="text-white-50">Total Customers:</span>
+            <span class="text-white">{{ crm_stats.total_customers|default:0 }}</span>
+          </div>
+          {% endif %}
+        </div>
+        {% endif %}
+        
+        <!-- Bottom Section -->
+        <div class="sidebar-bottom">
+          <!-- User Profile Section -->
           <div class="user-profile-section">
-            <div class="dropdown">
-              <a href="#" class="d-flex align-items-center text-white text-decoration-none dropdown-toggle" id="dropdownUser1" data-bs-toggle="dropdown" aria-expanded="false">
-                {% if user.profile.profile_image %}
-                  <img src="{{ user.profile.profile_image.url }}" alt="{{ user.username }}" width="28" height="28" class="rounded-circle me-2">
-                {% else %}
-                  <div class="rounded-circle bg-secondary me-2 d-flex align-items-center justify-content-center" style="width: 28px; height: 28px;">
-                    <span class="text-white" style="font-size: 0.75rem;">{{ user.first_name|first }}{{ user.last_name|first }}</span>
-                  </div>
-                {% endif %}
-                <div class="flex-grow-1 min-w-0">
-                  <div class="fw-bold small text-truncate">{{ user.first_name }} {{ user.last_name }}</div>
-                  <div class="text-white-50" style="font-size: 0.7rem;">{{ user.profile.get_user_type_display }}</div>
-                </div>
-              </a>
-              <ul class="dropdown-menu dropdown-menu-dark text-small shadow" aria-labelledby="dropdownUser1">
-                <li><a class="dropdown-item" href="{% url 'core:profile' %}">
-                  <i class="bi bi-person me-2"></i>Profile
-                </a></li>
-                <li><a class="dropdown-item" href="{% url 'core:notifications' %}">
-                  <i class="bi bi-bell me-2"></i>Notifications
-                  {% if unread_notification_count > 0 %}
-                  <span class="badge bg-danger ms-1">{{ unread_notification_count }}</span>
-                  {% endif %}
-                </a></li>
-                <li><a class="dropdown-item" href="{% url 'core:password_change' %}">
-                  <i class="bi bi-shield-lock me-2"></i>Change Password
-                </a></li>
-                <li><hr class="dropdown-divider"></li>
-                {% if app_permissions.quotes %}
-                <li><a class="dropdown-item" href="{% url 'quotes:dashboard' %}">
-                  <i class="bi bi-file-earmark-text me-2"></i>Quote Dashboard
-                </a></li>
-                {% endif %}
-                <li><a class="dropdown-item" href="{% url 'website:home' %}">
-                  <i class="bi bi-house me-2"></i>Visit Website
-                </a></li>
-                <li><hr class="dropdown-divider"></li>
-                <li><a class="dropdown-item" href="{% url 'core:logout' %}">
-                  <i class="bi bi-box-arrow-right me-2"></i>Sign out
-                </a></li>
-              </ul>
+            <div class="d-flex align-items-center">
+              {% if user.profile.profile_image %}
+              <img src="{{ user.profile.profile_image.url }}" alt="{{ user.username }}" class="rounded-circle me-2" style="width: 32px; height: 32px; object-fit: cover;">
+              {% else %}
+              <div class="rounded-circle bg-secondary me-2 d-flex align-items-center justify-content-center" style="width: 32px; height: 32px;">
+                <span class="text-white small">{{ user.first_name|first|default:user.username|first }}</span>
+              </div>
+              {% endif %}
+              <div class="flex-grow-1">
+                <div class="text-white small">{{ user.get_full_name|default:user.username }}</div>
+                <div class="text-white-50" style="font-size: 0.75rem;">{{ user.profile.get_user_type_display }}</div>
+              </div>
+              
+              <!-- User dropdown in sidebar -->
+              <div class="dropdown">
+                <button class="btn btn-link text-white-50 p-1" type="button" data-bs-toggle="dropdown" aria-expanded="false">
+                  <i class="bi bi-three-dots-vertical"></i>
+                </button>
+                <ul class="dropdown-menu dropdown-menu-end" aria-labelledby="dropdownUser1">
+                  <li><a class="dropdown-item" href="{% url 'core:profile' %}">
+                    <i class="bi bi-person me-2"></i>Profile
+                  </a></li>
+                  <li><a class="dropdown-item" href="{% url 'core:notifications' %}">
+                    <i class="bi bi-bell me-2"></i>Notifications
+                    {% if unread_notification_count > 0 %}
+                    <span class="badge bg-danger ms-1">{{ unread_notification_count }}</span>
+                    {% endif %}
+                  </a></li>
+                  <li><a class="dropdown-item" href="{% url 'core:password_change' %}">
+                    <i class="bi bi-shield-lock me-2"></i>Change Password
+                  </a></li>
+                  <li><hr class="dropdown-divider"></li>
+                  <li><a class="dropdown-item" href="{% url 'website:home' %}">
+                    <i class="bi bi-house me-2"></i>Visit Website
+                  </a></li>
+                  <li><hr class="dropdown-divider"></li>
+                  <li><a class="dropdown-item" href="{% url 'core:logout' %}">
+                    <i class="bi bi-box-arrow-right me-2"></i>Sign out
+                  </a></li>
+                </ul>
+              </div>
             </div>
           </div>
         </div>
