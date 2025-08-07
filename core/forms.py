@@ -39,8 +39,7 @@ class ProfileCompletionForm(forms.ModelForm):
     class Meta:
         model = UserProfile
         fields = [
-            'phone', 'address', 'company_name', 'tax_number', 
-            'billing_address', 'shipping_address', 'same_as_billing'
+            'phone', 'address', 'company_name', 'tax_number'
         ]
         widgets = {
             'phone': forms.TextInput(attrs={
@@ -60,19 +59,6 @@ class ProfileCompletionForm(forms.ModelForm):
                 'class': 'form-control',
                 'placeholder': 'Tax Number (if applicable)'
             }),
-            'billing_address': forms.Textarea(attrs={
-                'class': 'form-control',
-                'rows': 3,
-                'placeholder': 'Billing address for invoices'
-            }),
-            'shipping_address': forms.Textarea(attrs={
-                'class': 'form-control',
-                'rows': 3,
-                'placeholder': 'Shipping address for deliveries'
-            }),
-            'same_as_billing': forms.CheckboxInput(attrs={
-                'class': 'form-check-input'
-            })
         }
     
     def __init__(self, *args, **kwargs):
@@ -323,9 +309,7 @@ class UserProfileForm(forms.ModelForm):
         model = UserProfile
         fields = [
             'phone', 'address', 'profile_image', 'company_name', 'tax_number', 'business_registration',
-            'billing_address', 'shipping_address', 'same_as_billing',
-            'email_notifications', 'sms_notifications', 'marketing_emails',
-            'theme_preference'
+            'email_notifications', 'sms_notifications'
         ]
         widgets = {
             'phone': forms.TextInput(attrs={'class': 'form-control'}),
@@ -334,13 +318,8 @@ class UserProfileForm(forms.ModelForm):
             'company_name': forms.TextInput(attrs={'class': 'form-control'}),
             'tax_number': forms.TextInput(attrs={'class': 'form-control'}),
             'business_registration': forms.TextInput(attrs={'class': 'form-control'}),
-            'billing_address': forms.Textarea(attrs={'class': 'form-control', 'rows': 3}),
-            'shipping_address': forms.Textarea(attrs={'class': 'form-control', 'rows': 3}),
-            'same_as_billing': forms.CheckboxInput(attrs={'class': 'form-check-input'}),
             'email_notifications': forms.CheckboxInput(attrs={'class': 'form-check-input'}),
             'sms_notifications': forms.CheckboxInput(attrs={'class': 'form-check-input'}),
-            'marketing_emails': forms.CheckboxInput(attrs={'class': 'form-check-input'}),
-            'theme_preference': forms.Select(attrs={'class': 'form-control'}),
         }
 
     def __init__(self, *args, **kwargs):

@@ -1,6 +1,7 @@
 """
 Enhanced utility functions for the core app core/utils.py
 """
+from datetime import timedelta
 import os
 import uuid
 import logging
@@ -21,42 +22,484 @@ from django.template.loader import render_to_string
 
 logger = logging.getLogger('core.authentication')
 
-def create_notification(user, title, message, notification_type='info', action_url=None, action_text=None):
-    """
-    Enhanced notification creation with quote system support.        
-    Example:
-        create_notification(
-            user=sales_rep,
-            title="Quote Requires Follow-up",
-            message="Quote #QUO-2024-0123 has been viewed by client",
-            notification_type="quote",
-            action_url="/quotes/123/",
-            action_text="View Quote"
+# =====================================
+# ROLE & PERMISSION UTILITIES
+# =====================================
+
+def get_user_roles(user):
+    """Get all active roles for a user with caching"""
+    if not user.is_authenticated or not hasattr(user, 'profile'):
+        return []
+    
+    if not user.profile.is_employee:
+        return []
+    
+    cache_key = f'user_roles:{user.id}'
+    roles = cache.get(cache_key)
+    
+    if roles is None:
+        from .models import UserRole, EmployeeRole
+        roles = list(
+            EmployeeRole.objects.filter(
+                users__user=user,
+                users__is_active=True
+            ).values_list('name', flat=True)
         )
-    """
+        cache.set(cache_key, roles, timeout=300)  # 5 minutes
+    
+    return roles
+
+def get_user_permissions(user):
+    """Get all app permissions for a user based on their roles"""
+    if not user.is_authenticated:
+        return {}
+    
+    cache_key = f'user_permissions:{user.id}'
+    permissions = cache.get(cache_key)
+    
+    if permissions is None:
+        from .models import AppPermission
+        
+        permissions = {}
+        user_roles = get_user_roles(user)
+        
+        if user_roles:
+            # Get permissions from all user's roles
+            role_permissions = AppPermission.objects.filter(
+                role__name__in=user_roles
+            ).select_related('role')
+            
+            for perm in role_permissions:
+                app = perm.app
+                level = perm.permission_level
+                
+                # Use highest permission level if multiple roles grant access
+                current_level = permissions.get(app)
+                if not current_level or _permission_level_value(level) > _permission_level_value(current_level):
+                    permissions[app] = level
+        
+        cache.set(cache_key, permissions, timeout=300)  # 5 minutes
+    
+    return permissions
+
+def _permission_level_value(level):
+    """Get numeric value for permission level comparison"""
+    levels = {'view': 1, 'edit': 2, 'admin': 3}
+    return levels.get(level, 0)
+
+def has_app_permission(user, app_name, required_level='view'):
+    """Check if user has specific app permission"""
+    if not user.is_authenticated:
+        return False
+    
+    # Superusers have all permissions
+    if user.is_superuser:
+        return True
+    
+    permissions = get_user_permissions(user)
+    user_level = permissions.get(app_name)
+    
+    if not user_level:
+        return False
+    
+    return _permission_level_value(user_level) >= _permission_level_value(required_level)
+
+def has_role(user, role_name):
+    """Check if user has specific role"""
+    if not user.is_authenticated:
+        return False
+    
+    user_roles = get_user_roles(user)
+    return role_name in user_roles
+
+def can_user_manage_roles(user):
+    """Check if user can assign/manage roles"""
+    if not user.is_authenticated:
+        return False
+    
+    if user.is_superuser:
+        return True
+    
+    from .models import EmployeeRole
+    user_roles = get_user_roles(user)
+    
+    # Check if any of user's roles allow role management
+    return EmployeeRole.objects.filter(
+        name__in=user_roles,
+        can_assign_roles=True
+    ).exists()
+
+def requires_gm_approval(user, action_type='sensitive'):
+    """Check if user's actions require GM approval"""
+    if not user.is_authenticated:
+        return True  # Default to requiring approval
+    
+    from .models import EmployeeRole
+    user_roles = get_user_roles(user)
+    
+    # Business owners don't need approval
+    if 'business_owner' in user_roles:
+        return False
+    
+    # Check if any role requires GM approval
+    return EmployeeRole.objects.filter(
+        name__in=user_roles,
+        requires_gm_approval=True
+    ).exists()
+
+# =====================================
+# USER TYPE UTILITIES
+# =====================================
+
+def is_employee(user):
+    """Clean check for employee status"""
+    return (user.is_authenticated and 
+            hasattr(user, 'profile') and 
+            user.profile.is_employee)
+
+def is_blogger(user):
+    """Clean check for blogger status"""
+    return (user.is_authenticated and 
+            hasattr(user, 'profile') and 
+            user.profile.is_blogger)
+
+def is_customer(user):
+    """Clean check for customer status"""
+    return (user.is_authenticated and 
+            hasattr(user, 'profile') and 
+            user.profile.is_customer)
+
+def can_access_admin(user):
+    """Check if user can access admin features"""
+    if not user.is_authenticated:
+        return False
+    
+    return (user.is_superuser or 
+            has_role(user, 'system_admin') or 
+            has_role(user, 'business_owner'))
+
+def can_access_employee_areas(user):
+    """Check if user can access employee-only areas"""
+    return is_employee(user)
+
+# =====================================
+# PERMISSION CACHING UTILITIES
+# =====================================
+
+def invalidate_user_cache(user_id):
+    """Invalidate all cached data for a user"""
+    cache_keys = [
+        f'user_roles:{user_id}',
+        f'user_permissions:{user_id}',
+        f'user_notifications:{user_id}',
+        f'user_dashboard_stats:{user_id}',
+    ]
+    
+    cache.delete_many(cache_keys)
+    logger.info(f"Invalidated cache for user {user_id}")
+
+def invalidate_permission_cache():
+    """Invalidate permission cache for all users (use after role changes)"""
+    # This is a heavy operation, use sparingly
+    cache.clear()
+    logger.warning("Cleared entire permission cache")
+
+# =====================================
+# ROLE ASSIGNMENT UTILITIES
+# =====================================
+
+def assign_role_to_user(user, role_name, assigned_by=None):
+    """Safely assign a role to a user"""
+    from .models import EmployeeRole, UserRole
+    
+    if not user.profile.is_employee:
+        raise ValueError("Can only assign roles to employees")
+    
     try:
-        notification = Notification.objects.create(
+        role = EmployeeRole.objects.get(name=role_name)
+        user_role, created = UserRole.objects.get_or_create(
             user=user,
-            title=title,
-            message=message,
-            type=notification_type,
-            action_url=action_url,
-            action_text=action_text or ""
+            role=role,
+            defaults={
+                'assigned_by': assigned_by,
+                'is_active': True,
+            }
         )
         
-        # Update notification cache with the new count
-        cache_key = f"user_notifications:{user.id}"
-        cached_count = cache.get(cache_key, 0)
-        cache.set(cache_key, cached_count + 1, 3600)  # Cache for 1 hour
+        if not created and not user_role.is_active:
+            user_role.is_active = True
+            user_role.assigned_by = assigned_by
+            user_role.assigned_at = timezone.now()
+            user_role.save()
         
-        # Log quote-specific notifications for audit trail
-        if notification_type == 'quote':
-            logger.info(f"Quote notification created for user {user.username}: {title}")
+        # Invalidate user's cached permissions
+        invalidate_user_cache(user.id)
         
-        return notification
-    except Exception as e:
-        logger.error(f"Error creating notification for user {user.username}: {str(e)}")
-        return None
+        # Log the role assignment
+        log_security_event(
+            user=user,
+            event_type='role_assigned',
+            description=f'Role {role.display_name} assigned to {user.get_full_name()}',
+            additional_data={'role': role_name, 'assigned_by': assigned_by.username if assigned_by else None}
+        )
+        
+        return user_role
+        
+    except EmployeeRole.DoesNotExist:
+        raise ValueError(f"Role {role_name} does not exist")
+
+def remove_role_from_user(user, role_name, removed_by=None):
+    """Safely remove a role from a user"""
+    from .models import UserRole
+    
+    try:
+        user_role = UserRole.objects.get(user=user, role__name=role_name, is_active=True)
+        user_role.is_active = False
+        user_role.save()
+        
+        # Invalidate user's cached permissions
+        invalidate_user_cache(user.id)
+        
+        # Log the role removal
+        log_security_event(
+            user=user,
+            event_type='role_removed',
+            description=f'Role {role_name} removed from {user.get_full_name()}',
+            additional_data={'role': role_name, 'removed_by': removed_by.username if removed_by else None}
+        )
+        
+        return True
+        
+    except UserRole.DoesNotExist:
+        return False
+
+def get_assignable_roles(user):
+    """Get roles that a user can assign to others"""
+    if not can_user_manage_roles(user):
+        return []
+    
+    from .models import EmployeeRole
+    
+    # Business owners can assign any role
+    if has_role(user, 'business_owner'):
+        return EmployeeRole.objects.all()
+    
+    # System admins can assign most roles (but might have restrictions)
+    if has_role(user, 'system_admin'):
+        return EmployeeRole.objects.exclude(name='business_owner')
+    
+    return []
+
+# =====================================
+# SECURITY UTILITIES
+# =====================================
+
+def log_security_event(user=None, event_type='general', description='', ip_address=None, user_agent='', additional_data=None):
+    """Log security events for audit trail"""
+    from .models import SecurityLog
+    
+    SecurityLog.objects.create(
+        user=user,
+        event_type=event_type,
+        description=description,
+        ip_address=ip_address,
+        user_agent=user_agent,
+        additional_data=additional_data or {}
+    )
+
+def check_password_strength(password):
+    """Check password strength"""
+    if len(password) < 8:
+        return False, "Password must be at least 8 characters long"
+    
+    if not any(c.isupper() for c in password):
+        return False, "Password must contain at least one uppercase letter"
+    
+    if not any(c.islower() for c in password):
+        return False, "Password must contain at least one lowercase letter"
+    
+    if not any(c.isdigit() for c in password):
+        return False, "Password must contain at least one number"
+    
+    return True, "Password meets requirements"
+
+def is_account_locked(user):
+    """Check if user account is currently locked"""
+    if not hasattr(user, 'profile'):
+        return False
+    
+    if not user.profile.account_locked_until:
+        return False
+    
+    return timezone.now() < user.profile.account_locked_until
+
+def lock_account(user, duration_minutes=30):
+    """Lock user account for specified duration"""
+    if hasattr(user, 'profile'):
+        user.profile.account_locked_until = timezone.now() + timedelta(minutes=duration_minutes)
+        user.profile.save(update_fields=['account_locked_until'])
+        
+        log_security_event(
+            user=user,
+            event_type='account_locked',
+            description=f'Account locked for {duration_minutes} minutes due to security concerns'
+        )
+
+# =====================================
+# NOTIFICATION UTILITIES
+# =====================================
+
+def create_notification(user, notification_type, title, message):
+    """Create a notification for a user"""
+    from .models import Notification
+    
+    notification = Notification.objects.create(
+        user=user,
+        notification_type=notification_type,
+        title=title,
+        message=message
+    )
+    
+    # Invalidate notification cache
+    cache.delete(f'user_notifications:{user.id}')
+    
+    return notification
+
+def get_unread_notifications_count(user):
+    """Get count of unread notifications with caching"""
+    if not user.is_authenticated:
+        return 0
+    
+    cache_key = f'user_notifications:{user.id}'
+    count = cache.get(cache_key)
+    
+    if count is None:
+        from .models import Notification
+        count = Notification.objects.filter(user=user, is_read=False).count()
+        cache.set(cache_key, count, timeout=300)  # 5 minutes
+    
+    return count
+
+# =====================================
+# DASHBOARD UTILITIES
+# =====================================
+
+def get_user_dashboard_context(user):
+    """Get comprehensive dashboard context for a user"""
+    if not user.is_authenticated:
+        return {}
+    
+    context = {
+        'user_type': user.profile.user_type if hasattr(user, 'profile') else 'customer',
+        'user_roles': get_user_roles(user),
+        'app_permissions': get_user_permissions(user),
+        'unread_notifications': get_unread_notifications_count(user),
+        'can_manage_roles': can_user_manage_roles(user),
+        'requires_gm_approval': requires_gm_approval(user),
+    }
+    
+    # Add employee-specific context
+    if is_employee(user):
+        context.update({
+            'department': user.profile.department,
+            'can_access_admin': can_access_admin(user),
+        })
+    
+    return context
+
+def get_navigation_context(user):
+    """Get navigation menu context based on user permissions"""
+    if not user.is_authenticated:
+        return {'nav_items': []}
+    
+    nav_items = []
+    permissions = get_user_permissions(user)
+    
+    # Build navigation based on permissions
+    if 'crm' in permissions:
+        nav_items.append({
+            'name': 'CRM',
+            'url': 'crm:dashboard',
+            'icon': 'bi-people',
+            'permission_level': permissions['crm']
+        })
+    
+    if 'inventory' in permissions:
+        nav_items.append({
+            'name': 'Inventory',
+            'url': 'inventory:dashboard',
+            'icon': 'bi-boxes',
+            'permission_level': permissions['inventory']
+        })
+    
+    if 'shop' in permissions:
+        nav_items.append({
+            'name': 'Shop Management',
+            'url': 'shop:admin_dashboard',
+            'icon': 'bi-shop',
+            'permission_level': permissions['shop']
+        })
+    
+    if can_access_admin(user):
+        nav_items.append({
+            'name': 'Admin',
+            'url': 'admin:index',
+            'icon': 'bi-gear',
+            'permission_level': 'admin'
+        })
+    
+    return {'nav_items': nav_items}
+
+# =====================================
+# INITIALIZATION UTILITIES
+# =====================================
+
+def setup_default_permissions():
+    """Setup default permissions for roles"""
+    from .models import EmployeeRole, AppPermission
+    
+    # Default permission mappings
+    role_permissions = {
+        'business_owner': {
+            'crm': 'admin', 'inventory': 'admin', 'shop': 'admin',
+            'website': 'admin', 'blog': 'admin', 'hr': 'admin',
+            'admin': 'admin', 'quotes': 'admin', 'financial': 'admin',
+            'reports': 'admin'
+        },
+        'system_admin': {
+            'crm': 'admin', 'inventory': 'admin', 'shop': 'admin',
+            'website': 'admin', 'hr': 'admin', 'admin': 'admin',
+            'quotes': 'admin', 'financial': 'view', 'reports': 'admin'
+        },
+        'sales_manager': {
+            'crm': 'admin', 'quotes': 'admin', 'reports': 'view',
+            'website': 'edit', 'shop': 'view'
+        },
+        'procurement_officer': {
+            'inventory': 'admin', 'crm': 'view', 'reports': 'view'
+        },
+        'service_tech': {
+            'inventory': 'admin', 'crm': 'edit', 'reports': 'view'
+        },
+        'accounting': {
+            'financial': 'admin', 'reports': 'admin', 'crm': 'view',
+            'inventory': 'view', 'quotes': 'view'
+        }
+    }
+    
+    for role_name, permissions in role_permissions.items():
+        try:
+            role = EmployeeRole.objects.get(name=role_name)
+            for app, level in permissions.items():
+                AppPermission.objects.get_or_create(
+                    role=role,
+                    app=app,
+                    defaults={'permission_level': level}
+                )
+        except EmployeeRole.DoesNotExist:
+            logger.warning(f"Role {role_name} not found, skipping permission setup")
+    
+    logger.info("Default permissions setup completed")
 
 def create_bulk_notifications(users, title, message, notification_type='info', action_url=None, action_text=None):
     """
@@ -223,26 +666,6 @@ def check_app_permission(user, app_name, required_level='view'):
         # No specific permission found - cache negative result
         cache.set(cache_key, '', 3600)
         return False
-
-def log_security_event(user=None, event_type=None, ip_address=None, user_agent=None, details=None):
-    """Enhanced security event logging"""
-    try:
-        SecurityEvent.objects.create(
-            user=user,
-            event_type=event_type,
-            ip_address=ip_address or 'unknown',
-            user_agent=user_agent or '',
-            details=details or {}
-        )
-        
-        # Log critical events
-        if event_type in ['login_failure', 'suspicious_activity', 'account_lockout']:
-            logger.warning(f"Security event: {event_type} for user {user.username if user else 'unknown'} from IP {ip_address}")
-        else:
-            logger.info(f"Security event: {event_type} for user {user.username if user else 'unknown'}")
-            
-    except Exception as e:
-        logger.error(f"Failed to log security event: {str(e)}")
 
 def send_approval_notification_email(approval_request, action, reviewer):
     """Send email notification for approval actions"""
@@ -506,77 +929,6 @@ def auto_approve_old_requests():
         logger.error(f"Failed to auto-approve requests: {str(e)}")
         return 0
 
-def invalidate_permission_cache(user_id):
-    """
-    Enhanced cache invalidation that handles quote-specific permissions.
-    
-    When permissions change, this function ensures that all related caches
-    are properly cleared, including quote-specific permission caches.
-    """
-    try:
-        # Invalidate general permission cache
-        pattern = f"user_permissions:{user_id}:*"
-        
-        # Get all cache keys matching the pattern
-        # Note: This is a simplified version - in production you might use
-        # a more sophisticated cache invalidation strategy
-        for app in ['quotes', 'crm', 'inventory', 'financial', 'reports', 'admin']:
-            cache_key = f"user_permissions:{user_id}:{app}"
-            cache.delete(cache_key)
-        
-        # Also invalidate notification cache
-        notification_cache_key = f"user_notifications:{user_id}"
-        cache.delete(notification_cache_key)
-        
-        logger.debug(f"Permission cache invalidated for user {user_id}")
-    except Exception as e:
-        logger.error(f"Error invalidating permission cache for user {user_id}: {str(e)}")
-
-def get_user_permissions_dict(user):
-    """
-    Get a comprehensive dictionary of user permissions for template use.
-    
-    This function provides a complete overview of what a user can access,
-    which is particularly useful for building dynamic navigation menus
-    and conditional feature access in templates.
-    
-    Args:
-        user: User object
-        
-    Returns:
-        Dictionary with app names as keys and permission levels as values
-    """
-    if not user.is_authenticated or not hasattr(user, 'profile'):
-        return {}
-    
-    # Cache key for the complete permissions dictionary
-    cache_key = f"user_permissions_dict:{user.id}"
-    permissions_dict = cache.get(cache_key)
-    
-    if permissions_dict is not None:
-        return permissions_dict
-    
-    # Build permissions dictionary
-    permissions_dict = {}
-    
-    # Define all possible apps
-    all_apps = ['crm', 'inventory', 'shop', 'website', 'blog', 'hr', 'admin', 'quotes', 'financial', 'reports']
-    
-    for app in all_apps:
-        # Check permission level for each app
-        if check_app_permission(user, app, 'admin'):
-            permissions_dict[app] = 'admin'
-        elif check_app_permission(user, app, 'edit'):
-            permissions_dict[app] = 'edit'
-        elif check_app_permission(user, app, 'view'):
-            permissions_dict[app] = 'view'
-        else:
-            permissions_dict[app] = None
-    
-    # Cache the complete dictionary
-    cache.set(cache_key, permissions_dict, 3600)
-    return permissions_dict
-
 def get_quote_dashboard_stats(user):
     """
     Get quote-specific dashboard statistics for a user.
@@ -772,89 +1124,6 @@ def generate_quote_number():
         import uuid
         return f"QUO-{timezone.now().year}-{str(uuid.uuid4())[:8].upper()}"
 
-def get_navigation_context(user):
-    """
-    Get navigation context including quote system links.
-    
-    This function provides all the information needed to build dynamic
-    navigation menus that show only the apps and features a user has
-    access to, including new quote management sections.
-    
-    Args:
-        user: User object
-        
-    Returns:
-        Dictionary with navigation context
-    """
-    if not user.is_authenticated:
-        return {}
-    
-    permissions = get_user_permissions_dict(user)
-    
-    # Build navigation sections
-    navigation = {
-        'main_apps': [],
-        'management_apps': [],
-        'admin_apps': [],
-        'quote_stats': {},
-    }
-    
-    # Main business applications
-    if permissions.get('crm'):
-        navigation['main_apps'].append({
-            'name': 'CRM',
-            'url': 'crm:dashboard',
-            'icon': 'people',
-            'permission': permissions['crm']
-        })
-    
-    if permissions.get('quotes'):
-        quote_stats = get_quote_dashboard_stats(user)
-        navigation['main_apps'].append({
-            'name': 'Quotes',
-            'url': 'quotes:dashboard',
-            'icon': 'file-earmark-text',
-            'permission': permissions['quotes'],
-            'badge': quote_stats.get('needs_attention', 0)
-        })
-        navigation['quote_stats'] = quote_stats
-    
-    if permissions.get('inventory'):
-        navigation['main_apps'].append({
-            'name': 'Inventory',
-            'url': 'inventory:dashboard',
-            'icon': 'boxes',
-            'permission': permissions['inventory']
-        })
-    
-    # Management applications
-    if permissions.get('reports'):
-        navigation['management_apps'].append({
-            'name': 'Reports',
-            'url': 'reports:dashboard',
-            'icon': 'graph-up',
-            'permission': permissions['reports']
-        })
-    
-    if permissions.get('financial'):
-        navigation['management_apps'].append({
-            'name': 'Financial',
-            'url': 'financial:dashboard',
-            'icon': 'currency-dollar',
-            'permission': permissions['financial']
-        })
-    
-    # Admin applications
-    if permissions.get('admin'):
-        navigation['admin_apps'].append({
-            'name': 'Administration',
-            'url': 'admin:index',
-            'icon': 'gear',
-            'permission': permissions['admin']
-        })
-    
-    return navigation
-
 def get_profile_image_path(instance, filename):
     """
     Generate a unique filename for profile images
@@ -1037,20 +1306,6 @@ def is_suspicious_activity(user, ip_address, user_agent):
         return True
     
     return False
-
-def get_unread_notifications_count(user):
-    """
-    Get count of unread notifications with caching
-    """
-    cache_key = f"user_notifications:{user.id}"
-    count = cache.get(cache_key)
-    
-    if count is None:
-        # Cache miss, query the database
-        count = Notification.objects.filter(user=user, is_read=False).count()
-        cache.set(cache_key, count, 3600)  # Cache for 1 hour
-    
-    return count
 
 def is_password_expired(user):
     """

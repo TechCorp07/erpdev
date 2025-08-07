@@ -3,18 +3,22 @@ from django.contrib.auth.models import User
 from django.db.models.signals import post_save
 from django.dispatch import receiver
 from django.utils import timezone
-from django.forms import ValidationError
+from django.core.cache import cache
+from django.contrib.auth.hashers import make_password
+import json
+import logging
+
+
+logger = logging.getLogger('core.authentication')
 
 class UserProfile(models.Model):
-    """Enhanced user profile with quote management capabilities"""
+    """Clean user profile with clear user type separation"""
+    
+    # CLEAN: Only 3 main user types as requested
     USER_TYPES = (
-        ('customer', 'Customer'),  # For shopping cart
-        ('blogger', 'Blogger'),    # For blog management
-        ('employee', 'Employee'),  # General staff
-        ('sales_rep', 'Sales Representative'),  # NEW: For quote creation
-        ('sales_manager', 'Sales Manager'),     # NEW: For quote approval
-        ('blitzhub_admin', 'BlitzHub Admin'),  # Content/business admin
-        ('it_admin', 'IT Admin'),  # Technical admin
+        ('employee', 'Employee'),      # Internal staff
+        ('blogger', 'Blogger'),        # Content creators (can also be customers)
+        ('customer', 'Customer'),      # Shoppers (can also be bloggers)
     )
     
     DEPARTMENTS = (
@@ -23,301 +27,204 @@ class UserProfile(models.Model):
         ('technical', 'Technical'),
         ('admin', 'Administration'),
         ('procurement', 'Procurement'),
+        ('finance', 'Finance/Accounting'),
+        ('it', 'IT/Systems'),
         ('other', 'Other'),
     )
     
+    # Core Fields
     user = models.OneToOneField(User, on_delete=models.CASCADE, related_name='profile')
     user_type = models.CharField(max_length=20, choices=USER_TYPES, default='customer')
+    
+    # Employee-specific fields
     department = models.CharField(max_length=20, choices=DEPARTMENTS, blank=True, null=True)
+    
+    # Contact Information
     phone = models.CharField(max_length=20, blank=True, null=True)
     address = models.TextField(blank=True, null=True)
     profile_image = models.ImageField(upload_to='profile_images/', blank=True, null=True)
-    date_joined = models.DateTimeField(auto_now_add=True)
-    last_login = models.DateTimeField(blank=True, null=True)
     
-    # Approval workflow fields
-    is_approved = models.BooleanField(default=False, help_text="General account approval status")
-    crm_approved = models.BooleanField(default=False, help_text="Approved for CRM access")
-    blog_approved = models.BooleanField(default=False, help_text="Approved for blog management")
-    shop_approved = models.BooleanField(default=True, help_text="Approved for shopping cart (default true)")
-    
-    # Approval tracking
-    approved_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True,
-        related_name='approved_profiles', help_text="Admin who approved this profile"
-    )
-    approval_date = models.DateTimeField(null=True, blank=True)
-    approval_notes = models.TextField(blank=True, help_text="Notes from approver")
-    
-    # Profile completion tracking
-    profile_completed = models.BooleanField(default=False)
-    profile_completion_date = models.DateTimeField(null=True, blank=True)
-    required_fields_completed = models.JSONField(default=list, blank=True)
-    
-    # Enhanced security fields
-    two_factor_enabled = models.BooleanField(default=False)
-    backup_codes = models.JSONField(default=list, blank=True)
-    last_security_check = models.DateTimeField(null=True, blank=True)
-    
-    # Social login tracking
-    is_social_account = models.BooleanField(default=False)
-    social_provider = models.CharField( max_length=20, blank=True, 
-        choices=[('google', 'Google'), ('facebook', 'Facebook'), ('manual', 'Manual Registration')])
-    social_verified = models.BooleanField(default=False)
-    
-    # Business information (for customers and bloggers)
-    company_name = models.CharField(max_length=200, blank=True)
+    # Business Information (for customers)
+    company_name = models.CharField(max_length=100, blank=True)
     tax_number = models.CharField(max_length=50, blank=True)
     business_registration = models.CharField(max_length=100, blank=True)
     
-    # NEW: Enhanced notification preferences
+    # Approval Status (simplified)
+    is_approved = models.BooleanField(default=False, help_text='General account approval')
+    approved_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name='approved_profiles')
+    approved_at = models.DateTimeField(null=True, blank=True)
+    
+    # Profile Completion
+    profile_completed = models.BooleanField(default=False)
+    profile_completion_date = models.DateTimeField(null=True, blank=True)
+    
+    # Social Authentication
+    is_social_account = models.BooleanField(default=False)
+    social_provider = models.CharField(max_length=20, choices=[
+        ('google', 'Google'),
+        ('facebook', 'Facebook'),
+        ('manual', 'Manual Registration')
+    ], blank=True)
+    
+    # Security Fields
+    two_factor_enabled = models.BooleanField(default=False)
+    last_password_change = models.DateTimeField(auto_now_add=True)
+    requires_password_change = models.BooleanField(default=False)
+    failed_login_count = models.IntegerField(default=0)
+    account_locked_until = models.DateTimeField(null=True, blank=True)
+    password_history = models.JSONField(default=list, blank=True)
+    
+    # Notification Preferences
     email_notifications = models.BooleanField(default=True)
     sms_notifications = models.BooleanField(default=False)
-    approval_notifications = models.BooleanField(default=True)
-    marketing_emails = models.BooleanField(default=False)
-    theme_preference = models.CharField(max_length=10, default='light', choices=[('light', 'Light'), ('dark', 'Dark'), ('auto', 'Auto')])
-    allow_profile_discovery = models.BooleanField(default=True)
     
-    # Billing information
-    billing_address = models.TextField(blank=True)
-    shipping_address = models.TextField(blank=True)
-    same_as_billing = models.BooleanField(default=True)
-    
-    # Security enhancements
-    last_password_change = models.DateTimeField(blank=True, null=True)
-    login_attempts = models.PositiveSmallIntegerField(default=0)
-    account_locked_until = models.DateTimeField(blank=True, null=True)
-    requires_password_change = models.BooleanField(default=False)
-    failed_login_count = models.PositiveSmallIntegerField(default=0)
-    password_history = models.JSONField(default=list, blank=True)  # Store hashed passwords to prevent reuse
+    # Timestamps
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
     
     class Meta:
-        ordering = ['user__first_name', 'user__last_name']
+        ordering = ['-created_at']
         indexes = [
             models.Index(fields=['user_type', 'is_approved']),
-            models.Index(fields=['crm_approved']),
+            models.Index(fields=['department']),
             models.Index(fields=['profile_completed']),
         ]
     
     def __str__(self):
         return f"{self.user.get_full_name() or self.user.username} ({self.get_user_type_display()})"
     
-    def needs_approval_for(self, access_type):
-        """Check if user needs approval for specific access type"""
-        approval_mapping = {
-            'crm': not self.crm_approved,
-            'blog': not self.blog_approved and self.user_type == 'blogger',
-            'shop': not self.shop_approved,
-        }
-        return approval_mapping.get(access_type, False)
-
-    def approve_for_access(self, access_type, approved_by_user, notes=""):
-        """Approve user for specific access type"""
-        from django.utils import timezone
-        
-        if access_type == 'crm':
-            self.crm_approved = True
-        elif access_type == 'blog':
-            self.blog_approved = True
-        elif access_type == 'shop':
-            self.shop_approved = True
-        elif access_type == 'general':
-            self.is_approved = True
-            
-        self.approved_by = approved_by_user
-        self.approval_date = timezone.now()
-        self.approval_notes = notes
-        self.save()
-        
-        # Create notification
-        from .utils import create_notification
-        create_notification(
-            user=self.user,
-            title=f"Access Approved: {access_type.upper()}",
-            message=f"Your access to {access_type} has been approved. You can now use this feature.",
-            notification_type='success'
-        )
-        
-        # Log the approval
-        import logging
-        logger = logging.getLogger('core.authentication')
-        logger.info(f"User {self.user.username} approved for {access_type} by {approved_by_user.username}")
-
-    def check_profile_completion(self):
-        """Check if profile is complete based on required fields"""
-        from django.conf import settings
-        
-        required_fields = getattr(settings, 'PROFILE_COMPLETION_REQUIRED_FIELDS', [])
-        completed_fields = []
-        
-        for field in required_fields:
-            if hasattr(self.user, field):
-                if getattr(self.user, field):
-                    completed_fields.append(field)
-            elif hasattr(self, field):
-                if getattr(self, field):
-                    completed_fields.append(field)
-        
-        self.required_fields_completed = completed_fields
-        self.profile_completed = len(completed_fields) == len(required_fields)
-        
-        if self.profile_completed and not self.profile_completion_date:
-            from django.utils import timezone
-            self.profile_completion_date = timezone.now()
-        
-        self.save(update_fields=['required_fields_completed', 'profile_completed', 'profile_completion_date'])
-        return self.profile_completed
-
-    def get_incomplete_fields(self):
-        """Get list of incomplete required fields"""
-        from django.conf import settings
-        
-        required_fields = getattr(settings, 'PROFILE_COMPLETION_REQUIRED_FIELDS', [])
-        incomplete_fields = []
-        
-        for field in required_fields:
-            value = None
-            if hasattr(self.user, field):
-                value = getattr(self.user, field)
-            elif hasattr(self, field):
-                value = getattr(self, field)
-            
-            if not value:
-                incomplete_fields.append(field)
-        
-        return incomplete_fields
-
-    def can_access_crm(self):
-        """Check if user can access CRM"""
-        if self.user_type == 'employee':
-            return True  # Employees get access based on permissions
-        return self.crm_approved and self.profile_completed
-
-    def can_access_shop(self):
-        """Check if user can access shopping cart"""
-        return self.shop_approved  # Shopping is less restrictive
-
-    def can_access_blog(self):
-        """Check if blogger can manage blog content"""
-        return self.user_type == 'blogger' and self.blog_approved and self.profile_completed
-
-    @property
-    def approval_status_display(self):
-        """Human-readable approval status"""
-        if self.user_type == 'employee':
-            return "Employee Account"
-        
-        statuses = []
-        if self.crm_approved:
-            statuses.append("CRM")
-        if self.blog_approved and self.user_type == 'blogger':
-            statuses.append("Blog")
-        if self.shop_approved:
-            statuses.append("Shop")
-            
-        return f"Approved: {', '.join(statuses)}" if statuses else "Pending Approval"
-
-    @property
-    def has_shop_access(self):
-        """Check if user has access to shop management"""
-        return self.user_type in ['customer', 'blitzhub_admin', 'it_admin']
-    
-    @property
-    def has_blog_access(self):
-        """Check if user has access to blog management"""
-        return self.user_type in ['blogger', 'blitzhub_admin', 'it_admin']
-    
-    @property
-    def has_employee_dashboard_access(self):
-        """Check if user has access to employee dashboard"""
-        return self.user_type in ['employee', 'sales_rep', 'sales_manager', 'blitzhub_admin', 'it_admin']
-    
+    # CLEAN: Simple property methods
     @property
     def is_employee(self):
-        """Check if user is an employee (includes sales staff)"""
-        return self.user_type in ['employee', 'sales_rep', 'sales_manager', 'blitzhub_admin', 'it_admin']
+        return self.user_type == 'employee'
     
     @property
-    def is_manager(self):
-        """Check if user is a manager"""
-        return self.user_type in ['sales_manager', 'blitzhub_admin', 'it_admin']
+    def is_blogger(self):
+        return self.user_type == 'blogger'
     
     @property
-    def is_admin(self):
-        """Check if user is any type of admin"""
-        return self.user_type in ['blitzhub_admin', 'it_admin']
+    def is_customer(self):
+        return self.user_type == 'customer'
     
-    @property
-    def is_it_admin(self):
-        """Check if user is IT admin"""
-        return self.user_type == 'it_admin'
-    
-    @property
-    def can_manage_quotes(self):
-        """Check if user can manage quotes"""
-        return self.user_type in ['sales_rep', 'sales_manager', 'blitzhub_admin', 'it_admin']
-    
-    @property
-    def can_approve_quotes(self):
-        """Check if user can approve quotes"""
-        return self.user_type in ['sales_manager', 'blitzhub_admin', 'it_admin']
-    
-    @property
-    def is_account_locked(self):
-        """Check if the account is temporarily locked due to failed login attempts"""
-        if not self.account_locked_until:
-            return False
-        return timezone.now() < self.account_locked_until
-    
-    @property
-    def days_since_password_change(self):
-        """Calculate days since the last password change"""
-        if not self.last_password_change:
-            return (timezone.now() - self.date_joined).days
-        return (timezone.now() - self.last_password_change).days
-    
-    def lock_account(self, minutes=30):
-        """Lock the account for the specified time due to security concerns"""
-        self.account_locked_until = timezone.now() + timezone.timedelta(minutes=minutes)
-        self.save(update_fields=['account_locked_until'])
-    
-    def unlock_account(self):
-        """Manually unlock a locked account"""
-        self.account_locked_until = None
-        self.failed_login_count = 0
-        self.save(update_fields=['account_locked_until', 'failed_login_count'])
-    
-    def record_password_change(self, password_hash):
-        """Record a password change and store the hashed password in history"""
-        self.last_password_change = timezone.now()
-        self.requires_password_change = False
+    def check_profile_completion(self):
+        """Check if profile is complete based on user type"""
+        required_fields = ['user.first_name', 'user.last_name', 'user.email']
         
-        # Store password hash in history (limit to last 5)
-        history = self.password_history
-        history.append({
+        if self.is_employee:
+            required_fields.extend(['department', 'phone'])
+        elif self.is_customer:
+            required_fields.extend(['phone'])
+        
+        completed = all(self.get_field_value(field) for field in required_fields)
+        
+        if completed and not self.profile_completed:
+            self.profile_completed = True
+            self.profile_completion_date = timezone.now()
+            self.save(update_fields=['profile_completed', 'profile_completion_date'])
+        
+        return completed
+    
+    def get_field_value(self, field_path):
+        """Helper to get nested field values"""
+        obj = self
+        for field in field_path.split('.'):
+            obj = getattr(obj, field, None)
+            if obj is None:
+                return None
+        return obj
+    
+    def add_password_to_history(self, password_hash):
+        """Add password to history for reuse prevention"""
+        if not self.password_history:
+            self.password_history = []
+        
+        # Keep last 5 passwords
+        self.password_history.append({
             'hash': password_hash,
-            'date': self.last_password_change.isoformat()
+            'created_at': timezone.now().isoformat()
         })
         
-        # Keep only the last 5 passwords
-        if len(history) > 5:
-            history = history[-5:]
+        if len(self.password_history) > 5:
+            self.password_history = self.password_history[-5:]
         
-        self.password_history = history
+        self.last_password_change = timezone.now()
+        self.requires_password_change = False
         self.save(update_fields=['last_password_change', 'requires_password_change', 'password_history'])
     
     def has_used_password_before(self, password_hash):
-        """Check if a password has been used before"""
+        """Check if password has been used before"""
         if not self.password_history:
             return False
-        
-        for entry in self.password_history:
-            if entry.get('hash') == password_hash:
-                return True
-        return False
+        return any(entry.get('hash') == password_hash for entry in self.password_history)
+
+
+class EmployeeRole(models.Model):
+    """Clean employee roles system - separate from user types"""
+    
+    # The 6 distinct roles as requested
+    ROLE_TYPES = (
+        ('system_admin', 'System Administrator'),
+        ('business_owner', 'Business Owner/GM'), 
+        ('sales_manager', 'Sales Manager'),
+        ('procurement_officer', 'Procurement Officer'),
+        ('service_tech', 'Service Technician + Inventory Controller'),
+        ('accounting', 'Accounting/Finance'),
+    )
+    
+    # Role hierarchy levels for permission inheritance
+    HIERARCHY_LEVELS = (
+        ('level_1', 'System Administrator'),     # Highest
+        ('level_2', 'Business Owner/GM'),
+        ('level_3', 'Department Managers'),
+        ('level_4', 'Officers and Specialists'),
+        ('level_5', 'Technicians'),             # Lowest
+    )
+    
+    name = models.CharField(max_length=30, choices=ROLE_TYPES, unique=True)
+    display_name = models.CharField(max_length=100)
+    description = models.TextField()
+    hierarchy_level = models.CharField(max_length=10, choices=HIERARCHY_LEVELS)
+    
+    # Security settings
+    requires_gm_approval = models.BooleanField(default=False, help_text='Requires GM approval for sensitive operations')
+    can_assign_roles = models.BooleanField(default=False, help_text='Can assign/merge roles to other users')
+    
+    # Timestamps
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    
+    class Meta:
+        ordering = ['hierarchy_level', 'name']
+    
+    def __str__(self):
+        return self.get_name_display()
+
+
+class UserRole(models.Model):
+    """Many-to-many relationship for employee role assignments"""
+    
+    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='employee_roles')
+    role = models.ForeignKey(EmployeeRole, on_delete=models.CASCADE, related_name='users')
+    
+    # Assignment tracking
+    assigned_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name='role_assignments_made')
+    assigned_at = models.DateTimeField(auto_now_add=True)
+    is_active = models.BooleanField(default=True)
+    
+    # Optional: temporary role assignments
+    expires_at = models.DateTimeField(null=True, blank=True, help_text='Leave blank for permanent assignment')
+    
+    class Meta:
+        unique_together = ('user', 'role')
+        ordering = ['-assigned_at']
+    
+    def __str__(self):
+        return f"{self.user.get_full_name()} - {self.role.get_name_display()}"
 
 
 class AppPermission(models.Model):
-    """Enhanced user permissions for different applications including quotes"""
+    """Clean application permissions - role-based, not user-based"""
+    
     APP_CHOICES = (
         ('crm', 'CRM System'),
         ('inventory', 'Inventory Management'),
@@ -326,7 +233,6 @@ class AppPermission(models.Model):
         ('blog', 'Blog Management'),
         ('hr', 'HR Management'),
         ('admin', 'Admin Panel'),
-        # NEW: Quote-related permissions
         ('quotes', 'Quote Management'),
         ('financial', 'Financial Data'),
         ('reports', 'Reporting System'),
@@ -338,19 +244,171 @@ class AppPermission(models.Model):
         ('admin', 'Full Admin Access'),
     )
     
-    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='app_permissions')
+    # CLEAN: Permission assigned to role, not user directly
+    role = models.ForeignKey(EmployeeRole, on_delete=models.CASCADE, related_name='app_permissions')
     app = models.CharField(max_length=20, choices=APP_CHOICES)
     permission_level = models.CharField(max_length=10, choices=PERMISSION_LEVELS, default='view')
+    
+    # Optional: specific restrictions or exceptions
+    restrictions = models.JSONField(default=dict, blank=True, help_text='Specific restrictions within the app')
+    
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
     
     class Meta:
-        unique_together = ('user', 'app')
-        ordering = ['app', 'permission_level']
+        unique_together = ('role', 'app')
+        ordering = ['role', 'app', 'permission_level']
     
     def __str__(self):
-        return f"{self.user.username} - {self.get_app_display()} ({self.get_permission_level_display()})"
+        return f"{self.role.get_name_display()} - {self.get_app_display()} ({self.get_permission_level_display()})"
 
+
+class LoginActivity(models.Model):
+    """Track user login activity for security"""
+    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='login_activities')
+    ip_address = models.GenericIPAddressField()
+    user_agent = models.TextField()
+    success = models.BooleanField(default=True)
+    timestamp = models.DateTimeField(auto_now_add=True)
+    location = models.CharField(max_length=100, blank=True)
+    
+    class Meta:
+        ordering = ['-timestamp']
+        indexes = [
+            models.Index(fields=['user', '-timestamp']),
+            models.Index(fields=['ip_address', '-timestamp']),
+        ]
+
+
+class SecurityLog(models.Model):
+    """Security events and audit trail"""
+    EVENT_TYPES = (
+        ('login_success', 'Successful Login'),
+        ('login_failed', 'Failed Login'),
+        ('password_change', 'Password Changed'),
+        ('role_assigned', 'Role Assigned'),
+        ('permission_changed', 'Permission Modified'),
+        ('account_locked', 'Account Locked'),
+        ('suspicious_activity', 'Suspicious Activity'),
+    )
+    
+    user = models.ForeignKey(User, on_delete=models.CASCADE, null=True, blank=True, related_name='security_logs')
+    event_type = models.CharField(max_length=30, choices=EVENT_TYPES)
+    description = models.TextField()
+    ip_address = models.GenericIPAddressField(null=True, blank=True)
+    user_agent = models.TextField(blank=True)
+    additional_data = models.JSONField(default=dict, blank=True)
+    timestamp = models.DateTimeField(auto_now_add=True)
+    
+    class Meta:
+        ordering = ['-timestamp']
+        indexes = [
+            models.Index(fields=['user', '-timestamp']),
+            models.Index(fields=['event_type', '-timestamp']),
+        ]
+
+
+class Notification(models.Model):
+    """Clean notification system"""
+    NOTIFICATION_TYPES = (
+        ('security', 'Security Alert'),
+        ('role_change', 'Role Assignment'),
+        ('approval', 'Approval Request'),
+        ('system', 'System Notification'),
+        ('welcome', 'Welcome Message'),
+    )
+    
+    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='notifications')
+    notification_type = models.CharField(max_length=20, choices=NOTIFICATION_TYPES)
+    title = models.CharField(max_length=200)
+    message = models.TextField()
+    is_read = models.BooleanField(default=False)
+    created_at = models.DateTimeField(auto_now_add=True)
+    
+    class Meta:
+        ordering = ['-created_at']
+        indexes = [
+            models.Index(fields=['user', 'is_read', '-created_at']),
+        ]
+
+
+# SIGNALS
+@receiver(post_save, sender=User)
+def create_user_profile(sender, instance, created, **kwargs):
+    """Automatically create user profile when user is created"""
+    if created:
+        UserProfile.objects.create(user=instance)
+        logger.info(f"Created profile for user: {instance.username}")
+
+@receiver(post_save, sender=User)
+def save_user_profile(sender, instance, **kwargs):
+    """Save user profile when user is saved"""
+    if hasattr(instance, 'profile'):
+        instance.profile.save()
+        # Clear permission cache when user profile changes
+        cache.delete(f'user_permissions:{instance.id}')
+
+
+def initialize_default_roles():
+    """Initialize the 6 default employee roles"""
+    default_roles = [
+        {
+            'name': 'system_admin',
+            'display_name': 'System Administrator',
+            'description': 'Full system access with GM approval for sensitive operations',
+            'hierarchy_level': 'level_1',
+            'requires_gm_approval': True,
+            'can_assign_roles': True,
+        },
+        {
+            'name': 'business_owner',
+            'display_name': 'Business Owner/GM',
+            'description': 'Complete control over entire system',
+            'hierarchy_level': 'level_2',
+            'requires_gm_approval': False,
+            'can_assign_roles': True,
+        },
+        {
+            'name': 'sales_manager',
+            'display_name': 'Sales Manager',
+            'description': 'Sales and marketing management',
+            'hierarchy_level': 'level_3',
+            'requires_gm_approval': False,
+            'can_assign_roles': False,
+        },
+        {
+            'name': 'procurement_officer',
+            'display_name': 'Procurement Officer',
+            'description': 'Procurement and purchasing management',
+            'hierarchy_level': 'level_4',
+            'requires_gm_approval': False,
+            'can_assign_roles': False,
+        },
+        {
+            'name': 'service_tech',
+            'display_name': 'Service Technician + Inventory Controller',
+            'description': 'Technical services and inventory management',
+            'hierarchy_level': 'level_5',
+            'requires_gm_approval': False,
+            'can_assign_roles': False,
+        },
+        {
+            'name': 'accounting',
+            'display_name': 'Accounting/Finance',
+            'description': 'Financial management and accounting',
+            'hierarchy_level': 'level_4',
+            'requires_gm_approval': False,
+            'can_assign_roles': False,
+        },
+    ]
+    
+    for role_data in default_roles:
+        EmployeeRole.objects.get_or_create(
+            name=role_data['name'],
+            defaults=role_data
+        )
+    
+    logger.info("Default employee roles initialized")
 
 class ApprovalRequest(models.Model):
     """Track approval requests for users"""
@@ -428,22 +486,6 @@ class ApprovalRequest(models.Model):
         
         return True
 
-
-class LoginActivity(models.Model):
-    """Track user login activity for security monitoring"""
-    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='login_activities')
-    login_datetime = models.DateTimeField(auto_now_add=True)
-    ip_address = models.GenericIPAddressField(blank=True, null=True)
-    user_agent = models.TextField(blank=True, null=True)
-    
-    class Meta:
-        ordering = ['-login_datetime']
-        verbose_name_plural = "Login Activities"
-    
-    def __str__(self):
-        return f"{self.user.username} - {self.login_datetime.strftime('%Y-%m-%d %H:%M:%S')}"
-
-
 class SecurityEvent(models.Model):
     """Log security-related events"""
     
@@ -480,40 +522,6 @@ class SecurityEvent(models.Model):
         return f"{username} - {self.get_event_type_display()} at {self.timestamp}"
 
 
-class Notification(models.Model):
-    """Enhanced user notifications system with quote support"""
-    NOTIFICATION_TYPES = (
-        ('info', 'Information'),
-        ('success', 'Success'),
-        ('warning', 'Warning'),
-        ('error', 'Error'),
-        ('quote', 'Quote Update'),  # NEW: Quote-specific notifications
-    )
-    
-    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='notifications')
-    title = models.CharField(max_length=200)
-    message = models.TextField()
-    type = models.CharField(max_length=10, choices=NOTIFICATION_TYPES, default='info')
-    is_read = models.BooleanField(default=False)
-    created_at = models.DateTimeField(auto_now_add=True)
-    is_archived = models.BooleanField(default=False)
-    
-    # NEW: Optional action URL for interactive notifications
-    action_url = models.URLField(blank=True, null=True, help_text="Optional URL for notification action")
-    action_text = models.CharField(max_length=50, blank=True, help_text="Text for action button")
-    
-    class Meta:
-        ordering = ['-created_at']
-    
-    def __str__(self):
-        return f"{self.user.username} - {self.title}"
-    
-    def mark_as_read(self):
-        """Mark notification as read"""
-        self.is_read = True
-        self.save(update_fields=['is_read'])
-
-
 class SessionActivity(models.Model):
     """Track user session activity"""
     user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='session_activities')
@@ -529,34 +537,6 @@ class SessionActivity(models.Model):
     
     def __str__(self):
         return f"{self.user.username} - {self.session_key[:8]}..."
-
-
-class SecurityLog(models.Model):
-    """Log security-related events"""
-    EVENT_TYPES = (
-        ('login_success', 'Successful Login'),
-        ('login_failed', 'Failed Login'),
-        ('password_changed', 'Password Changed'),
-        ('account_locked', 'Account Locked'),
-        ('account_unlocked', 'Account Unlocked'),
-        ('permission_changed', 'Permission Changed'),
-        ('suspicious_activity', 'Suspicious Activity'),
-    )
-    
-    user = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True)
-    event_type = models.CharField(max_length=20, choices=EVENT_TYPES)
-    description = models.TextField()
-    ip_address = models.GenericIPAddressField(blank=True, null=True)
-    user_agent = models.TextField(blank=True, null=True)
-    timestamp = models.DateTimeField(auto_now_add=True)
-    
-    class Meta:
-        ordering = ['-timestamp']
-    
-    def __str__(self):
-        user_info = self.user.username if self.user else 'Anonymous'
-        return f"{user_info} - {self.get_event_type_display()} - {self.timestamp}"
-
 
 # Enhanced system settings for quote system integration
 class SystemSetting(models.Model):

@@ -46,7 +46,6 @@ class UserProfileInline(admin.StackedInline):
             'classes': ('collapse',)
         }),
         ('Addresses', {
-            'fields': ('billing_address', 'shipping_address', 'same_as_billing'),
             'classes': ('collapse',)
         }),
         ('Notifications', {
@@ -512,7 +511,6 @@ class UserProfileAdmin(admin.ModelAdmin):
             'fields': ('company_name', 'tax_number', 'business_registration')
         }),
         ('Addresses', {
-            'fields': ('billing_address', 'shipping_address', 'same_as_billing')
         }),
         ('Security', {
             'fields': ('two_factor_enabled', 'last_security_check', 'last_password_change')

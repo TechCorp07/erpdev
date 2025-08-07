@@ -28,10 +28,10 @@ from .forms import (
     ProfileCompletionForm, ApprovalRequestForm, AdminApprovalForm, 
 )
 from .models import UserProfile, AppPermission, LoginActivity, Notification, AuditLog, SecurityLog, ApprovalRequest, SecurityEvent
-from .decorators import user_type_required, permission_required, ajax_required, password_expiration_check
+from .decorators import user_type_required, ajax_required, password_expiration_check
 from .utils import (
-    authenticate_user, check_app_permission, create_bulk_notifications, get_unread_notifications_count, get_user_dashboard_stats, invalidate_permission_cache, 
-    create_notification, get_quote_dashboard_stats, get_user_permissions_dict, get_navigation_context, log_security_event
+    authenticate_user, check_app_permission, create_bulk_notifications, get_unread_notifications_count, get_user_dashboard_stats, get_user_permissions, invalidate_permission_cache, 
+    create_notification, get_quote_dashboard_stats, get_navigation_context, log_security_event
 )
 
 logger = logging.getLogger('core.authentication')
@@ -794,7 +794,6 @@ def profile_view(request):
     context = {
         'form': form,
         'user_profile': profile,
-        'user_permissions': get_user_permissions_dict(user),
         'recent_logins': recent_logins,
         'recent_approvals': recent_approvals,
         'access_status': {
@@ -1046,7 +1045,6 @@ def get_notification_count(request):
 # ENHANCED PERMISSION MANAGEMENT
 # =====================================
 
-@permission_required('admin', 'admin')
 @password_expiration_check
 def manage_permissions_view(request, user_id):
     """
@@ -1269,7 +1267,7 @@ def get_dashboard_stats(request):
     """
     try:
         stats = {}
-        user_permissions = get_user_permissions_dict(request.user)
+        user_permissions = get_user_permissions(request.user)
         
         # Quote statistics for users with quote access
         if user_permissions.get('quotes'):
@@ -1482,7 +1480,7 @@ def get_user_permissions_api(request):
     # AJAX endpoint to get comprehensive user permissions.
 
     try:
-        permissions = get_user_permissions_dict(request.user)
+        permissions = get_user_permissions(request.user)
         return JsonResponse({'success': True, 'permissions': permissions})
     except Exception as e:
         logger.error(f"Error getting user permissions: {str(e)}")
@@ -1568,7 +1566,6 @@ def sales_team_lookup_api(request):
         return JsonResponse({'success': False, 'error': str(e)})
 
 @ajax_required
-@permission_required('quotes', 'edit')
 def notify_quote_team_api(request):
 
     # API endpoint for sending notifications to quote team members.
@@ -1807,10 +1804,6 @@ def update_user_preference(request):
         if key == "email_notifications":
             profile.email_notifications = bool(value) if isinstance(value, bool) else value == "true" or value is True
             profile.save(update_fields=["email_notifications"])
-        elif key == "theme_preference":
-            if value in ("light", "dark", "auto"):
-                profile.theme_preference = value
-                profile.save(update_fields=["theme_preference"])
         else:
             return JsonResponse({"success": False, "error": "Unknown preference"}, status=400)
 
@@ -1869,8 +1862,6 @@ def export_data_view(request):
         writer.writerow(['User Type', profile.get_user_type_display()])
         writer.writerow(['Phone', profile.phone])
         writer.writerow(['Address', profile.address])
-        writer.writerow(['Email Notifications', profile.email_notifications])
-        writer.writerow(['Theme Preference', profile.theme_preference])
         writer.writerow(['Allow Profile Discovery', getattr(profile, 'allow_profile_discovery', '')])
         # Add more as needed
 

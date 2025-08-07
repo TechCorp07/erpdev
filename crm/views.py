@@ -14,7 +14,7 @@ import logging
 from django.utils.timesince import timesince
 from django.contrib.auth.models import User
 from django.contrib.auth.decorators import login_required, user_passes_test
-from core.decorators import permission_required, ajax_required, password_expiration_check
+from core.decorators import ajax_required, password_expiration_check
 from core.utils import create_notification
 from .models import Client, CustomerInteraction, Deal, Task
 from .forms import ClientForm, CustomerInteractionForm, DealForm, TaskForm
@@ -25,7 +25,6 @@ logger = logging.getLogger(__name__)
 # CRM DASHBOARD
 # =====================================
 
-@permission_required('crm', 'view')
 @password_expiration_check
 def crm_dashboard(request):
     """Main CRM dashboard with analytics and overview"""
@@ -110,7 +109,6 @@ def crm_dashboard(request):
 # CLIENT MANAGEMENT
 # =====================================
 
-@permission_required('crm', 'view')
 @password_expiration_check
 def client_list(request):
     """Enhanced client list with filtering and search"""
@@ -172,7 +170,6 @@ def client_list(request):
     return render(request, 'crm/client_list.html', context)
 
 
-@permission_required('crm', 'view')
 @password_expiration_check
 def client_detail(request, client_id):
     """Detailed client view with 360° customer information"""
@@ -217,7 +214,6 @@ def client_detail(request, client_id):
     return render(request, 'crm/client_detail.html', context)
 
 
-@permission_required('crm', 'edit')
 @password_expiration_check
 def client_create(request):
     """Create new client with enhanced form"""
@@ -257,7 +253,6 @@ def client_create(request):
     return render(request, 'crm/client_form.html', context)
 
 
-@permission_required('crm', 'edit')
 @password_expiration_check
 def client_update(request, client_id):
     """Update client information"""
@@ -300,7 +295,6 @@ def client_update(request, client_id):
     return render(request, 'crm/client_form.html', context)
 
 
-@permission_required('crm', 'admin')
 @password_expiration_check
 def client_delete(request, client_id):
     """Delete client (admin only)"""
@@ -324,7 +318,6 @@ def client_delete(request, client_id):
 # CUSTOMER INTERACTIONS
 # =====================================
 
-@permission_required('crm', 'edit')
 @password_expiration_check
 def add_interaction(request, client_id):
     """Add new customer interaction"""
@@ -358,7 +351,6 @@ def add_interaction(request, client_id):
     return render(request, 'crm/add_interaction.html', context)
 
 
-@permission_required('crm', 'view')
 @password_expiration_check
 def interaction_list(request, client_id=None):
     """List all interactions, optionally filtered by client"""
@@ -404,7 +396,6 @@ def interaction_list(request, client_id=None):
 # FOLLOW-UP MANAGEMENT
 # =====================================
 
-@permission_required('crm', 'view')
 @password_expiration_check
 def followup_list(request):
     """List all follow-ups (upcoming and overdue)"""
@@ -431,7 +422,6 @@ def followup_list(request):
 
 
 @ajax_required
-@permission_required('crm', 'edit')
 def mark_followup_complete(request, interaction_id):
     """Mark a follow-up as complete (AJAX)"""
     
@@ -459,7 +449,6 @@ def mark_followup_complete(request, interaction_id):
 # ANALYTICS AND REPORTS
 # =====================================
 
-@permission_required('crm', 'view')
 @password_expiration_check
 def client_analytics(request):
     """Client analytics and reporting dashboard"""
@@ -685,7 +674,6 @@ def export_performance_excel(request):
 # =====================================
 
 @ajax_required
-@permission_required('crm', 'view')
 def search_clients(request):
     """AJAX client search for typeahead functionality"""
     
@@ -711,7 +699,6 @@ def search_clients(request):
 
 
 @ajax_required
-@permission_required('crm', 'view')
 def client_quick_stats(request, client_id):
     """Get quick stats for a client (AJAX)"""
     
@@ -734,7 +721,6 @@ def client_quick_stats(request, client_id):
 # DEAL MANAGEMENT VIEWS
 # =====================================
 
-@permission_required('crm', 'view')
 @password_expiration_check
 def deal_list(request):
     """
@@ -874,7 +860,6 @@ def deal_list(request):
     return render(request, 'crm/deal_list.html', context)
 
 
-@permission_required('crm', 'view')
 @password_expiration_check
 def deal_detail(request, deal_id):
     """
@@ -931,7 +916,6 @@ def deal_detail(request, deal_id):
     return render(request, 'crm/deal_detail.html', context)
 
 
-@permission_required('crm', 'edit')
 @password_expiration_check
 def deal_create(request):
     """
@@ -1011,7 +995,6 @@ def deal_create(request):
     return render(request, 'crm/deal_form.html', context)
 
 
-@permission_required('crm', 'edit')
 @password_expiration_check
 def deal_update(request, deal_id):
     """
@@ -1117,7 +1100,6 @@ def deal_update(request, deal_id):
     return render(request, 'crm/deal_form.html', context)
 
 
-@permission_required('crm', 'admin')
 @password_expiration_check
 def deal_delete(request, deal_id):
     """
@@ -1159,7 +1141,6 @@ def deal_delete(request, deal_id):
 # TASK MANAGEMENT VIEWS
 # =====================================
 
-@permission_required('crm', 'view')
 @password_expiration_check
 def task_list(request):
     """
@@ -1339,7 +1320,6 @@ def task_list(request):
     return render(request, 'crm/task_list.html', context)
 
 
-@permission_required('crm', 'view')
 @password_expiration_check
 def task_detail(request, task_id):
     """
@@ -1388,7 +1368,6 @@ def task_detail(request, task_id):
     return render(request, 'crm/task_detail.html', context)
 
 
-@permission_required('crm', 'edit')
 @password_expiration_check
 def task_create(request):
     """
@@ -1480,7 +1459,6 @@ def task_create(request):
     return render(request, 'crm/task_form.html', context)
 
 
-@permission_required('crm', 'edit')
 @password_expiration_check
 def task_update(request, task_id):
     """
@@ -1587,7 +1565,6 @@ def task_update(request, task_id):
 
 
 @ajax_required
-@permission_required('crm', 'edit')
 def task_complete(request, task_id):
     """
     Quick task completion endpoint for AJAX requests.
@@ -1634,7 +1611,6 @@ def task_complete(request, task_id):
     return JsonResponse({'success': False, 'error': 'Invalid request method'})
 
 
-@permission_required('crm', 'admin')
 @password_expiration_check
 def task_delete(request, task_id):
     """
@@ -1676,7 +1652,6 @@ def task_delete(request, task_id):
 # =====================================
 
 @ajax_required
-@permission_required('crm', 'view')
 def deal_quick_stats(request, deal_id):
     """Get quick statistics for a deal (AJAX endpoint)"""
     
@@ -1707,7 +1682,6 @@ def deal_quick_stats(request, deal_id):
 
 
 @ajax_required
-@permission_required('crm', 'view')
 def task_quick_stats(request, task_id):
     """Get quick statistics for a task (AJAX endpoint)"""
     

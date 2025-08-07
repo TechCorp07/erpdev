@@ -22,7 +22,7 @@ import logging
 
 from quotes import models
 from django.contrib.auth.decorators import login_required
-from core.decorators import permission_required, ajax_required, password_expiration_check
+from core.decorators import ajax_required, password_expiration_check
 from core.utils import create_notification
 from .models import Quote, QuoteItem, QuoteRevision, QuoteTemplate
 from .forms import (
@@ -39,7 +39,6 @@ logger = logging.getLogger(__name__)
 # QUOTE DASHBOARD & OVERVIEW
 # =====================================
 
-@permission_required('quotes', 'view')
 @password_expiration_check
 def quote_dashboard(request):
     """
@@ -130,7 +129,7 @@ def quote_dashboard(request):
     
     return render(request, 'quotes/dashboard.html', context)
 
-@permission_required('quotes', 'view')
+
 @password_expiration_check
 @login_required
 def quote_analytics(request):
@@ -291,7 +290,7 @@ def quote_analytics(request):
         'assignees': assignees,
     })
 
-@permission_required('quotes', 'view')
+
 def sales_report(request):
     start_date = request.GET.get('start_date')
     end_date = request.GET.get('end_date')
@@ -420,7 +419,7 @@ def generate_pdf_from_template(template_path, context, filename='report.pdf'):
 # QUOTE CRUD OPERATIONS
 # =====================================
 
-@permission_required('quotes', 'view')
+
 @password_expiration_check
 def quote_list(request):
     """
@@ -498,7 +497,7 @@ def quote_list(request):
     
     return render(request, 'quotes/quote_list.html', context)
 
-@permission_required('quotes', 'edit')
+
 @password_expiration_check
 def quote_create(request):
     """
@@ -562,7 +561,7 @@ def quote_create(request):
     
     return render(request, 'quotes/quote_form.html', context)
 
-@permission_required('quotes', 'view')
+
 @password_expiration_check
 def quote_detail(request, quote_id):
     """
@@ -615,7 +614,7 @@ def quote_detail(request, quote_id):
     
     return render(request, 'quotes/quote_detail.html', context)
 
-@permission_required('quotes', 'edit')
+
 @password_expiration_check
 def quote_builder(request, quote_id):
     """
@@ -684,7 +683,7 @@ def generate_quote_number():
     return f"{year_prefix}{new_number:04d}"
 
 @ajax_required
-@permission_required('quotes', 'edit')
+
 def add_quote_item(request, quote_id):
     """
     AJAX endpoint for adding items to quotes in real-time. This endpoint handles
@@ -791,7 +790,7 @@ def add_quote_item(request, quote_id):
         return JsonResponse({'success': False, 'error': 'An unexpected error occurred'})
 
 @ajax_required
-@permission_required('quotes', 'edit')
+
 def update_quote_item(request, quote_id, item_id):
     """
     AJAX endpoint for updating quote items in real-time. This handles quantity changes,
@@ -875,7 +874,7 @@ def update_quote_item(request, quote_id, item_id):
         return JsonResponse({'success': False, 'error': 'An unexpected error occurred'})
 
 @ajax_required
-@permission_required('quotes', 'edit')
+
 def remove_quote_item(request, quote_id, item_id):
     """
     AJAX endpoint for removing items from quotes. This includes safety checks
@@ -922,7 +921,7 @@ def remove_quote_item(request, quote_id, item_id):
         return JsonResponse({'success': False, 'error': 'An unexpected error occurred'})
 
 @ajax_required
-@permission_required('quotes', 'view')
+
 def search_products(request):
     """
     AJAX endpoint for real-time product search. This powers the dynamic product
@@ -971,7 +970,7 @@ def search_products(request):
     return JsonResponse({'products': product_data})
 
 @ajax_required
-@permission_required('quotes', 'view')
+
 def get_product_details(request, product_id):
     """
     AJAX endpoint to get detailed product information for quote building.
@@ -1142,7 +1141,7 @@ except ImportError:
     PDF_AVAILABLE = False
     logger.warning("WeasyPrint not available. PDF generation will be disabled.")
 
-@permission_required('quotes', 'view')
+
 def generate_quote_pdf(request, quote_id):
     """
     Generate a professional PDF version of the quote. This function creates
@@ -1270,7 +1269,7 @@ def get_pdf_settings():
         'color_scheme': getattr(settings, 'PDF_COLOR_SCHEME', 'blue'),
     }
 
-@permission_required('quotes', 'edit')
+
 def email_quote_to_client(request, quote_id):
     """
     Email the quote directly to the client with a professional message.
@@ -1420,7 +1419,7 @@ def send_quote_email(quote, pdf_buffer, sent_by_user):
         logger.error(f"Error sending quote email: {str(e)}")
         return False
 
-@permission_required('quotes', 'edit')
+
 @password_expiration_check
 def quote_edit(request, quote_id):
     """
@@ -1442,7 +1441,7 @@ def quote_edit(request, quote_id):
     
     return redirect('quotes:quote_builder', quote_id=quote.id)
 
-@permission_required('quotes', 'edit')
+
 @password_expiration_check
 def quote_duplicate(request, quote_id):
     """
@@ -1518,7 +1517,7 @@ def quote_duplicate(request, quote_id):
     return JsonResponse({'success': False, 'error': 'Invalid request method'})
 
 @ajax_required
-@permission_required('quotes', 'edit')
+
 def send_quote(request, quote_id):
     """
     Send quote to client via email with professional presentation.
@@ -1568,7 +1567,7 @@ def send_quote(request, quote_id):
     return JsonResponse(result)
 
 @ajax_required
-@permission_required('quotes', 'edit')
+
 def update_quote_status(request, quote_id):
     """
     Update quote status with proper workflow validation.
@@ -1639,7 +1638,7 @@ def update_quote_status(request, quote_id):
         return JsonResponse({'success': False, 'error': 'Failed to update status'})
 
 @ajax_required
-@permission_required('quotes', 'view')
+
 def quote_status_check(request, quote_id):
     """
     Check for quote status changes for real-time updates.
@@ -1658,7 +1657,6 @@ def quote_status_check(request, quote_id):
         'last_updated': quote.updated_at.isoformat()
     })
 
-@permission_required('quotes', 'admin')
 @password_expiration_check
 def approve_quote(request, quote_id):
     """
@@ -1703,7 +1701,7 @@ def approve_quote(request, quote_id):
 # =====================================
 
 @ajax_required
-@permission_required('quotes', 'view')
+
 def generate_quote_number_ajax(request):
     """
     Generate a new quote number via AJAX.
@@ -1715,7 +1713,7 @@ def generate_quote_number_ajax(request):
         return JsonResponse({'success': False, 'error': str(e)})
 
 @ajax_required
-@permission_required('quotes', 'view')
+
 def convert_currency(request):
     """
     Convert currency amounts for multi-currency quotes.
@@ -1746,7 +1744,7 @@ def convert_currency(request):
         return JsonResponse({'success': False, 'error': str(e)})
 
 @ajax_required
-@permission_required('quotes', 'view')
+
 def get_dashboard_stats(request):
     """
     Get real-time dashboard statistics for AJAX updates.

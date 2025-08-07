@@ -416,14 +416,7 @@
                     </label>
                   </div>
                 </div>
-                <div class="col-md-6 mb-3">
-                  <label class="form-label fw-bold">Theme Preference</label>
-                  <select class="form-select" id="themePreference">
-                    <option value="light" {% if user_profile.theme_preference == 'light' %}selected{% endif %}>Light</option>
-                    <option value="dark" {% if user_profile.theme_preference == 'dark' %}selected{% endif %}>Dark</option>
-                    <option value="auto" {% if user_profile.theme_preference == 'auto' %}selected{% endif %}>Auto</option>
-                  </select>
-                </div>
+
               </div>
             </div>
           </div>
@@ -667,15 +660,6 @@ document.addEventListener('DOMContentLoaded', function() {
     document.getElementById('emailNotifications').addEventListener('change', function() {
         updatePreference('email_notifications', this.checked);
     });
-
-    document.getElementById('themePreference').addEventListener('change', function() {
-        updatePreference('theme_preference', this.value);
-        applyTheme(this.value);
-    });
-
-    // Apply current theme
-    const currentTheme = '{{ user_profile.theme_preference|default:"light" }}';
-    applyTheme(currentTheme);
 });
 
 function updatePreference(key, value) {
