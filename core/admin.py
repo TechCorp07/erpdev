@@ -2,12 +2,14 @@ from django.contrib import admin
 from django.contrib.auth.admin import UserAdmin as BaseUserAdmin
 from django.contrib.auth.models import User
 from django.utils.html import format_html
+import logging
 from .models import (
     EmployeeRole, UserProfile, AppPermission, LoginActivity,
     SecurityLog, SystemSetting, GuestSession, Notification,
     ApprovalRequest, SecurityEvent, UserRole
 )
 
+logger = logging.getLogger(__name__)
 admin.site.unregister(User)
 
 @admin.register(AppPermission)
@@ -25,7 +27,6 @@ class AppPermissionAdmin(admin.ModelAdmin):
     def get_role_display(self, obj):
         return obj.role.display_name if obj.role else '-'
     get_role_display.short_description = 'Role Name'
-
 
 @admin.register(LoginActivity)
 class LoginActivityAdmin(admin.ModelAdmin):
@@ -76,7 +77,6 @@ class LoginActivityAdmin(admin.ModelAdmin):
         return 'Unknown'
     get_location.short_description = 'Location'
 
-
 @admin.register(Notification)
 class NotificationAdmin(admin.ModelAdmin):
     list_display = ('user', 'get_user_type', 'title', 'notification_type', 'is_read', 'created_at')
@@ -97,19 +97,25 @@ class NotificationAdmin(admin.ModelAdmin):
     def has_add_permission(self, request):
         return False
 
-
 class UserProfileInline(admin.StackedInline):
     model = UserProfile
     fk_name = 'user'
     can_delete = False
-    verbose_name_plural = 'Profile Information'
+    max_num = 1
+    extra = 0  # Don't show extra forms
     
-    fieldsets = (
-        ('Basic Information', {
-            'fields': ('user_type', 'department', 'phone', 'address', 'profile_image')
-        }),
-    )
-
+    fields = ('user_type', 'department', 'phone', 'address', 'profile_image')
+    
+    def get_queryset(self, request):
+        """Ensure we get the existing profile if it exists"""
+        qs = super().get_queryset(request)
+        return qs.select_related('user')
+    
+    def has_add_permission(self, request, obj=None):
+        """Only allow adding if no profile exists"""
+        if obj and hasattr(obj, 'profile'):
+            return False
+        return super().has_add_permission(request, obj)
 
 @admin.register(UserProfile)
 class UserProfileAdmin(admin.ModelAdmin):
@@ -189,6 +195,16 @@ class UserAdmin(BaseUserAdmin):
         return obj.last_login.strftime('%Y-%m-%d %H:%M') if obj.last_login else 'Never'
     get_last_login.short_description = 'Last Login'
     
+    def save_model(self, request, obj, form, change):
+        """Save user and ensure profile exists"""
+        super().save_model(request, obj, form, change)
+        
+        if not hasattr(obj, 'profile'):
+            try:
+                UserProfile.objects.get_or_create(user=obj)
+            except Exception as e:
+                logger.error(f"Error ensuring profile for user {obj.username}: {e}")
+                
     def get_account_status(self, obj):
         if not obj.is_active:
             return format_html('<span style="color: red;">Inactive</span>')
@@ -199,7 +215,6 @@ class UserAdmin(BaseUserAdmin):
     get_account_status.short_description = 'Status'
 
 
-# Add admin for EmployeeRole
 @admin.register(EmployeeRole)
 class EmployeeRoleAdmin(admin.ModelAdmin):
     list_display = ('display_name', 'name', 'hierarchy_level', 'requires_gm_approval', 'can_assign_roles')

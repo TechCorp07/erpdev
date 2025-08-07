@@ -333,22 +333,6 @@ class Notification(models.Model):
 
 
 # SIGNALS
-@receiver(post_save, sender=User)
-def create_user_profile(sender, instance, created, **kwargs):
-    """Automatically create user profile when user is created"""
-    if created:
-        UserProfile.objects.create(user=instance)
-        logger.info(f"Created profile for user: {instance.username}")
-
-@receiver(post_save, sender=User)
-def save_user_profile(sender, instance, **kwargs):
-    """Save user profile when user is saved"""
-    if hasattr(instance, 'profile'):
-        instance.profile.save()
-        # Clear permission cache when user profile changes
-        cache.delete(f'user_permissions:{instance.id}')
-
-
 def initialize_default_roles():
     """Initialize the 6 default employee roles"""
     default_roles = [

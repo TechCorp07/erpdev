@@ -3,22 +3,37 @@ from django.dispatch import receiver
 from django.contrib.auth.models import User
 from django.contrib.auth.signals import user_logged_in, user_logged_out
 from django.utils import timezone
-
+import logging
 from .models import UserProfile, LoginActivity, Notification
+
+logger = logging.getLogger(__name__)
 
 # Signal to create a user profile when a new user is created
 @receiver(post_save, sender=User)
 def ensure_user_profile(sender, instance, created, **kwargs):
-    profile, created_profile = UserProfile.objects.get_or_create(user=instance)
-
-    # Only send a notification for brand new users
-    if created:
-        Notification.objects.create(
+    """Ensure user profile exists - safe for multiple calls"""
+    try:
+        profile, profile_created = UserProfile.objects.get_or_create(
             user=instance,
-            title="Welcome to BlitzTech Electronics!",
-            message="Welcome to our platform. If you have any questions, please contact support.",
-            notification_type="welcome",  # Changed from type="info" to notification_type="welcome"
+            defaults={
+                'user_type': 'customer',  # Default type
+                'profile_completed': False,
+            }
         )
+        
+        if profile_created:
+            logger.info(f"Created profile for user: {instance.username}")
+            
+            # Only send notification for brand new users (not admin-created)
+            if created:
+                Notification.objects.create(
+                    user=instance,
+                    title="Welcome to BlitzTech Electronics!",
+                    message="Welcome to our platform. If you have any questions, please contact support.",
+                    notification_type="welcome",
+                )
+    except Exception as e:
+        logger.error(f"Error creating profile for user {instance.username}: {e}")
 
 # Signal for login tracking
 @receiver(user_logged_in)
