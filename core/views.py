@@ -30,7 +30,7 @@ from .forms import (
 from .models import UserProfile, AppPermission, LoginActivity, Notification, AuditLog, SecurityLog, ApprovalRequest, SecurityEvent
 from .decorators import user_type_required, ajax_required, password_expiration_check
 from .utils import (
-    authenticate_user, check_app_permission, create_bulk_notifications, get_unread_notifications_count, get_user_dashboard_stats, get_user_permissions, invalidate_permission_cache, 
+    authenticate_user, can_user_manage_roles, check_app_permission, create_bulk_notifications, get_recent_notifications, get_unread_notifications_count, get_user_dashboard_stats, get_user_permissions, get_user_roles, has_app_permission, invalidate_permission_cache, 
     create_notification, get_quote_dashboard_stats, get_navigation_context, log_security_event
 )
 
@@ -493,10 +493,10 @@ def bulk_approve_requests(request):
 # =====================================
 
 @login_required
-@password_expiration_check  
+@password_expiration_check
 def dashboard_view(request):
     """
-    Enhanced dashboard with comprehensive ERP integration and optimized queries.
+    Enhanced dashboard view with role-based permissions.
     """
     user = request.user
     profile = user.profile
@@ -510,9 +510,8 @@ def dashboard_view(request):
     dashboard_context = cache.get(cache_key)
     
     if dashboard_context is None:
-        # Performance optimization: Get all user permissions in one query
-        permissions = AppPermission.objects.filter(user=user).select_related()
-        user_permissions = {perm.app: perm.permission_level for perm in permissions}
+        # Use utility function to get user permissions properly
+        user_permissions = get_user_permissions(user)
         
         # Cache permissions separately for longer period
         perm_cache_key = f"user_permissions:{user.id}"
@@ -539,134 +538,31 @@ def dashboard_view(request):
                     total_bloggers=Count('profile', filter=Q(profile__user_type='blogger')),
                     total_employees=Count('profile', filter=Q(profile__user_type__in=['employee', 'sales_rep', 'sales_manager'])),
                     pending_approvals=Count('profile', filter=Q(profile__is_approved=False)),
-                    social_users=Count('profile', filter=Q(profile__is_social_account=True))
+                    social_users=Count('profile', filter=Q(profile__social_login=True)),
                 )
                 
-                dashboard_context.update(stats_query)
+                dashboard_context.update({
+                    'stats': stats_query,
+                    'has_crm_access': has_app_permission(user, 'crm'),
+                    'has_quotes_access': has_app_permission(user, 'quotes'),
+                    'has_inventory_access': has_app_permission(user, 'inventory'),
+                    'has_admin_access': has_app_permission(user, 'admin'),
+                })
                 
             except Exception as e:
-                logger.error(f"Error getting user statistics: {str(e)}")
-                # Fallback to defaults
-                dashboard_context.update({
-                    'total_users': 0,
-                    'total_customers': 0, 
-                    'total_bloggers': 0,
-                    'total_employees': 0,
-                    'pending_approvals': 0,
-                    'social_users': 0
-                })
+                logger.error(f"Error getting dashboard stats for user {user.username}: {e}")
+                dashboard_context['stats'] = {}
         
-        # ===== QUOTES INTEGRATION (with caching to prevent duplicate queries) =====
-        if user_permissions.get('quotes'):
-            dashboard_context['has_quote_access'] = True
-            
-            # Check if quote stats are already cached
-            quote_cache_key = f"quote_stats:{user.id}"
-            quote_stats = cache.get(quote_cache_key)
-            
-            if quote_stats is None:
-                try:
-                    from quotes.models import Quote
-                    from django.db.models import Sum
-                    
-                    # Calculate once and cache
-                    base_quotes = Quote.objects.filter(
-                        Q(assigned_to=user) | Q(created_by=user)
-                    )
-                    
-                    # Get all quote statistics in minimal queries
-                    quote_stats = {
-                        'total_quotes': base_quotes.count(),
-                        'active_quotes': base_quotes.filter(status__in=['draft', 'sent', 'viewed', 'under_review']).count(),
-                        'draft_quotes': base_quotes.filter(status='draft').count(),
-                        'month_total': base_quotes.filter(
-                            created_at__gte=timezone.now().replace(day=1),
-                            status__in=['accepted', 'converted']
-                        ).aggregate(total=Sum('total_amount'))['total'] or 0,
-                        'expiring_quotes': base_quotes.filter(
-                            status__in=['sent', 'viewed', 'under_review'],
-                            validity_date__lte=timezone.now().date() + timedelta(days=7)
-                        ).count(),
-                        'overdue_quotes': base_quotes.filter(
-                            sent_date__lte=timezone.now() - timedelta(days=3),
-                            status__in=['sent', 'viewed']
-                        ).count(),
-                    }
-                    
-                    # Cache for 5 minutes to prevent repeated calculations
-                    cache.set(quote_cache_key, quote_stats, 300)
-                    
-                except ImportError:
-                    # Quotes app not available
-                    quote_stats = {}
-            
-            dashboard_context.update({
-                'quote_stats': quote_stats,
-                'total_my_quotes': quote_stats.get('total_quotes', 0),
-                'draft_quotes': quote_stats.get('draft_quotes', 0),
-                'active_quotes': quote_stats.get('active_quotes', 0),
-                'overdue_quotes': quote_stats.get('overdue_quotes', 0)
-            })
-        
-        # ===== CRM INTEGRATION (optimized) =====
-        if user_permissions.get('crm'):
-            dashboard_context['has_crm_access'] = True
-            
-            try:
-                from crm.models import CustomerInteraction
-                
-                # Get recent interactions with select_related in single query
-                followup_interactions = CustomerInteraction.objects.filter(
-                    next_followup__lte=timezone.now(),
-                    is_completed=False
-                ).select_related('client')[:3]
-                
-                dashboard_context['followup_needed'] = followup_interactions
-                
-            except ImportError:
-                # CRM not available
-                pass
-        
-        # ===== INVENTORY INTEGRATION (optimized) =====
-        if user_permissions.get('inventory'):
-            dashboard_context['has_inventory_access'] = True
-            
-            try:
-                from inventory.models import Product
-                
-                # Single query for low stock products
-                low_stock_products = Product.objects.filter(
-                    current_stock__lte=models.F('reorder_level')
-                ).order_by('current_stock')[:5]
-                
-                dashboard_context['low_stock_alerts'] = low_stock_products
-                
-            except ImportError:
-                # Inventory not available
-                pass
-        
-        # Get recent users and company info
-        try:
-            recent_users = User.objects.select_related('profile').order_by('-date_joined')[:10]
-            dashboard_context['recent_users'] = recent_users
-        except Exception as e:
-            logger.error(f"Error fetching recent users: {str(e)}")
-            dashboard_context['recent_users'] = []
-        
-        # Get company info with longer caching
-        try:
-            from website.models import CompanyInfo
-            company_info = cache.get('company_info')
-            if company_info is None:
-                company_info = CompanyInfo.objects.first()
-                if company_info:
-                    cache.set('company_info', company_info, 7200)  # Cache for 2 hours
-            dashboard_context['company_info'] = company_info
-        except ImportError:
-            pass
-        
-        # Cache the entire dashboard context for 5 minutes
+        # Cache the dashboard context for 5 minutes
         cache.set(cache_key, dashboard_context, 300)
+    
+    # Get recent notifications (not cached for real-time updates)
+    notifications = get_recent_notifications(user, limit=5)
+    dashboard_context['notifications'] = notifications
+    
+    # Add navigation context
+    nav_context = get_navigation_context(user)
+    dashboard_context.update(nav_context)
     
     return render(request, 'core/dashboard.html', dashboard_context)
 
@@ -1060,102 +956,100 @@ def get_notification_count(request):
 # ENHANCED PERMISSION MANAGEMENT
 # =====================================
 
+@login_required
+@user_type_required(['admin', 'general_manager'])
 @password_expiration_check
 def manage_permissions_view(request, user_id):
     """
-    Enhanced permission management with quote system support.
+    Enhanced permission management with role-based system support.
     """
     target_user = get_object_or_404(User, id=user_id)
     
     if request.method == 'POST':
-        # Handle permission updates
+        # Handle role assignment/updates
         with transaction.atomic():
-            # Get all possible apps including quotes
-            app_choices = [
-                ('crm', 'CRM System'),
-                ('inventory', 'Inventory Management'),
-                ('shop', 'Shop Management'),
-                ('website', 'Website Management'),
-                ('blog', 'Blog Management'),
-                ('hr', 'HR Management'),
-                ('quotes', 'Quote Management'),
-                ('financial', 'Financial Data'),
-                ('reports', 'Reporting System'),
-            ]
+            from .models import EmployeeRole, UserRole
             
-            updated_permissions = []
+            # Get selected roles from the form
+            selected_role_ids = request.POST.getlist('roles')
             
-            for app_name, app_label in app_choices:
-                permission_level = request.POST.get(f'permission_{app_name}')
+            if selected_role_ids:
+                # Remove existing active roles
+                UserRole.objects.filter(user=target_user, is_active=True).update(is_active=False)
                 
-                if permission_level and permission_level in ['view', 'edit', 'admin']:
-                    # Create or update permission
-                    app_perm, created = AppPermission.objects.update_or_create(
-                        user=target_user,
-                        app=app_name,
-                        defaults={'permission_level': permission_level}
-                    )
-                    updated_permissions.append(f"{app_label}: {permission_level}")
-                    
-                    logger.info(
-                        f"User {request.user.username} set {permission_level} permission on {app_name} "
-                        f"for user {target_user.username}"
-                    )
-                else:
-                    # Remove permission if it exists
-                    deleted, _ = AppPermission.objects.filter(user=target_user, app=app_name).delete()
-                    if deleted:
-                        logger.info(
-                            f"User {request.user.username} removed permission on {app_name} "
-                            f"for user {target_user.username}"
+                # Add new roles
+                for role_id in selected_role_ids:
+                    try:
+                        role = EmployeeRole.objects.get(id=role_id)
+                        user_role, created = UserRole.objects.get_or_create(
+                            user=target_user,
+                            role=role,
+                            defaults={
+                                'assigned_by': request.user,
+                                'is_active': True
+                            }
                         )
+                        if not created and not user_role.is_active:
+                            user_role.is_active = True
+                            user_role.assigned_by = request.user
+                            user_role.assigned_at = timezone.now()
+                            user_role.save()
+                            
+                        logger.info(
+                            f"User {request.user.username} assigned role {role.name} "
+                            f"to user {target_user.username}"
+                        )
+                    except EmployeeRole.DoesNotExist:
+                        continue
+            else:
+                # Remove all roles if none selected
+                UserRole.objects.filter(user=target_user, is_active=True).update(is_active=False)
             
             # Invalidate permissions cache for this user
             invalidate_permission_cache(target_user.id)
             
-            # Create comprehensive notification for target user
-            if updated_permissions:
-                permission_list = ', '.join(updated_permissions)
+            # Create notification for target user
+            active_roles = get_user_roles(target_user)
+            if active_roles:
+                role_list = ', '.join(active_roles)
                 create_notification(
                     user=target_user,
-                    title="Permissions Updated",
-                    message=f"Your application permissions have been updated: {permission_list}",
+                    title="Roles Updated",
+                    message=f"Your roles have been updated: {role_list}",
                     notification_type="info"
                 )
+            else:
+                create_notification(
+                    user=target_user,
+                    title="Roles Removed",
+                    message="All your roles have been removed. Contact your administrator if this is incorrect.",
+                    notification_type="warning"
+                )
         
-        messages.success(request, f'Permissions for {target_user.username} have been updated.')
-        return redirect('core:employee_list')
+        messages.success(request, f'Roles for {target_user.username} have been updated.')
+        return redirect('core:manage_permissions', user_id=user_id)
     
-    # Get existing permissions
-    existing_permissions = {
-        perm.app: perm.permission_level 
-        for perm in AppPermission.objects.filter(user=target_user)
-    }
+    # GET request - show the permission management form
+    from .models import EmployeeRole
     
-    # Define app choices and permission levels with descriptions
-    app_choices = [
-        ('crm', 'CRM System', 'Customer relationship management'),
-        ('inventory', 'Inventory Management', 'Product and stock management'),
-        ('quotes', 'Quote Management', 'Create and manage client quotes'),
-        ('financial', 'Financial Data', 'Financial reports and analytics'),
-        ('reports', 'Reporting System', 'Business intelligence and reporting'),
-        ('shop', 'Shop Management', 'E-commerce platform management'),
-        ('website', 'Website Management', 'Public website content'),
-        ('blog', 'Blog Management', 'Blog content management'),
-        ('hr', 'HR Management', 'Human resources management'),
-    ]
+    # Get available roles and current user roles
+    available_roles = EmployeeRole.objects.filter(is_active=True).order_by('hierarchy_level', 'name')
+    current_roles = get_user_roles(target_user)
+    current_permissions = get_user_permissions(target_user)
     
-    permission_levels = [
-        ('view', 'View Only', 'Can view data but not make changes'),
-        ('edit', 'Create and Edit', 'Can create and modify records'),
-        ('admin', 'Full Admin Access', 'Complete control including user management'),
-    ]
+    # Get current active UserRole objects for form population
+    current_user_roles = UserRole.objects.filter(
+        user=target_user, 
+        is_active=True
+    ).select_related('role')
     
     context = {
         'target_user': target_user,
-        'app_choices': app_choices,
-        'permission_levels': permission_levels,
-        'existing_permissions': existing_permissions,
+        'available_roles': available_roles,
+        'current_roles': current_roles,
+        'current_permissions': current_permissions,
+        'current_user_roles': current_user_roles,
+        'can_manage_roles': can_user_manage_roles(request.user),
     }
     
     return render(request, 'core/manage_permissions.html', context)
@@ -1641,16 +1535,33 @@ def system_reports(request):
 @user_passes_test(is_admin_user)
 def permissions_overview_view(request):
     """
-    Shows a table of all users and their app permissions.
+    Shows a table of all users and their app permissions based on roles.
     """
-    users = User.objects.all().select_related('profile').order_by('username')
-    # Prefetch permissions for efficiency
-    permissions = AppPermission.objects.select_related('user').all()
-
-    # Build a map: user_id -> list of permissions
+    users = User.objects.filter(
+        profile__user_type__in=['employee', 'sales_rep', 'sales_manager']
+    ).select_related('profile').order_by('username')
+    
+    # Build a map: user_id -> list of permissions from roles
     permissions_map = {}
-    for perm in permissions:
-        permissions_map.setdefault(perm.user_id, []).append(perm)
+    
+    for user in users:
+        user_permissions = get_user_permissions(user)
+        user_roles = get_user_roles(user)
+        
+        # Convert permissions dict to list of objects for template compatibility
+        permission_objects = []
+        for app, level in user_permissions.items():
+            permission_objects.append({
+                'app': app,
+                'permission_level': level,
+                'get_app_display': dict(AppPermission.APP_CHOICES).get(app, app),
+                'get_permission_level_display': dict(AppPermission.PERMISSION_LEVELS).get(level, level)
+            })
+        
+        permissions_map[user.id] = {
+            'permissions': permission_objects,
+            'roles': user_roles
+        }
 
     context = {
         'users': users,
@@ -1739,36 +1650,100 @@ def employee_performance_report_view(request):
 @user_passes_test(is_manager_user)
 def bulk_assign_permissions_view(request):
     """
-    Assign app permissions to multiple users at once (AJAX endpoint).
-    Expects POST data: { user_ids: [id,...], app: 'quotes', level: 'view' }
+    Assign roles to multiple users at once (AJAX endpoint).
+    Expects POST data: { user_ids: [id,...], role_id: 123, action: 'assign'/'remove' }
     """
     if request.method != "POST":
         return JsonResponse({'success': False, 'error': 'POST required'}, status=405)
+    
     try:
         data = json.loads(request.body.decode())
         user_ids = data.get('user_ids', [])
-        app = data.get('app')
-        level = data.get('level')
+        role_id = data.get('role_id')
+        action = data.get('action', 'assign')  # 'assign' or 'remove'
 
-        if not user_ids or not app or not level:
+        if not user_ids or not role_id:
             return JsonResponse({'success': False, 'error': 'Missing required fields'}, status=400)
         
-        # Assign the permission to each user
         from django.contrib.auth.models import User
-        from .models import AppPermission
+        from .models import EmployeeRole, UserRole
 
-        for uid in user_ids:
-            try:
-                user = User.objects.get(pk=uid)
-                AppPermission.objects.update_or_create(
-                    user=user, app=app,
-                    defaults={'permission_level': level}
-                )
-            except User.DoesNotExist:
-                continue
+        try:
+            role = EmployeeRole.objects.get(pk=role_id, is_active=True)
+        except EmployeeRole.DoesNotExist:
+            return JsonResponse({'success': False, 'error': 'Invalid role'}, status=400)
 
-        return JsonResponse({'success': True})
+        updated_users = []
+        
+        with transaction.atomic():
+            for uid in user_ids:
+                try:
+                    user = User.objects.get(pk=uid)
+                    
+                    if action == 'assign':
+                        # Assign role to user
+                        user_role, created = UserRole.objects.get_or_create(
+                            user=user,
+                            role=role,
+                            defaults={
+                                'assigned_by': request.user,
+                                'is_active': True
+                            }
+                        )
+                        if not created and not user_role.is_active:
+                            user_role.is_active = True
+                            user_role.assigned_by = request.user
+                            user_role.assigned_at = timezone.now()
+                            user_role.save()
+                        
+                        updated_users.append(user.username)
+                        
+                        # Create notification
+                        create_notification(
+                            user=user,
+                            title="New Role Assigned",
+                            message=f"You have been assigned the role: {role.display_name}",
+                            notification_type="info"
+                        )
+                        
+                    elif action == 'remove':
+                        # Remove role from user
+                        updated_count = UserRole.objects.filter(
+                            user=user,
+                            role=role,
+                            is_active=True
+                        ).update(is_active=False)
+                        
+                        if updated_count > 0:
+                            updated_users.append(user.username)
+                            
+                            # Create notification
+                            create_notification(
+                                user=user,
+                                title="Role Removed",
+                                message=f"The role '{role.display_name}' has been removed from your account.",
+                                notification_type="warning"
+                            )
+                    
+                    # Invalidate user's permission cache
+                    invalidate_permission_cache(user.id)
+                    
+                except User.DoesNotExist:
+                    continue
+
+        action_past = 'assigned' if action == 'assign' else 'removed'
+        message = f"Role '{role.display_name}' {action_past} for {len(updated_users)} users"
+        
+        logger.info(f"Bulk role {action}: {message} by {request.user.username}")
+        
+        return JsonResponse({
+            'success': True, 
+            'message': message,
+            'updated_users': updated_users
+        })
+        
     except Exception as e:
+        logger.error(f"Error in bulk_assign_permissions_view: {e}")
         return JsonResponse({'success': False, 'error': str(e)}, status=500)
 
 @login_required

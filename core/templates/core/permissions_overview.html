@@ -1,37 +1,165 @@
 {% extends "dashboard_base.html" %}
 {% block page_title %}Permissions Overview{% endblock %}
-{% load dict_extras %}
 
 {% block dashboard_content %}
-<h2>Permissions Overview</h2>
-<table class="table table-bordered table-striped">
-  <thead>
-    <tr>
-      <th>User</th>
-      <th>Email</th>
-      <th>Role</th>
-      <th>Permissions</th>
-    </tr>
-  </thead>
-  <tbody>
-    {% for user in users %}
-      <tr>
-        <td>{{ user.get_full_name|default:user.username }}</td>
-        <td>{{ user.email }}</td>
-        <td>
-          {% if user.profile %}{{ user.profile.get_user_type_display }}{% else %}<em>n/a</em>{% endif %}
-        </td>
-        <td>
-          {% if permissions_map|get_item:user.id %}
-            {% for perm in permissions_map|get_item:user.id %}
-              <span class="badge bg-primary">{{ perm.get_app_display }}: {{ perm.get_permission_level_display }}</span>
-            {% endfor %}
-          {% else %}
-            <span class="text-muted">No specific permissions</span>
-          {% endif %}
-        </td>
-      </tr>
-    {% endfor %}
-  </tbody>
-</table>
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h2>Permissions Overview</h2>
+    <a href="{% url 'core:employee_list' %}" class="btn btn-outline-primary">
+        <i class="bi bi-arrow-left me-2"></i>Back to Employees
+    </a>
+</div>
+
+<div class="card">
+    <div class="card-body">
+        <div class="table-responsive">
+            <table class="table table-bordered table-striped">
+                <thead class="table-dark">
+                    <tr>
+                        <th>User</th>
+                        <th>Email</th>
+                        <th>User Type</th>
+                        <th>Roles</th>
+                        <th>App Permissions</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for user in users %}
+                        <tr>
+                            <td>
+                                <div class="d-flex align-items-center">
+                                    <div class="avatar-sm bg-primary text-white rounded-circle d-flex align-items-center justify-content-center me-2">
+                                        {{ user.first_name|first|default:user.username|first|upper }}
+                                    </div>
+                                    <div>
+                                        <div class="fw-bold">{{ user.get_full_name|default:user.username }}</div>
+                                        <small class="text-muted">{{ user.username }}</small>
+                                    </div>
+                                </div>
+                            </td>
+                            <td>{{ user.email }}</td>
+                            <td>
+                                {% if user.profile %}
+                                    <span class="badge bg-info">{{ user.profile.get_user_type_display }}</span>
+                                {% else %}
+                                    <em class="text-muted">No profile</em>
+                                {% endif %}
+                            </td>
+                            <td>
+                                {% with user_data=permissions_map|get_item:user.id %}
+                                    {% if user_data.roles %}
+                                        {% for role in user_data.roles %}
+                                            <span class="badge bg-secondary me-1">{{ role }}</span>
+                                        {% endfor %}
+                                    {% else %}
+                                        <span class="text-muted">No roles assigned</span>
+                                    {% endif %}
+                                {% endwith %}
+                            </td>
+                            <td>
+                                {% with user_data=permissions_map|get_item:user.id %}
+                                    {% if user_data.permissions %}
+                                        {% for perm in user_data.permissions %}
+                                            <span class="badge 
+                                                {% if perm.permission_level == 'admin' %}bg-danger
+                                                {% elif perm.permission_level == 'edit' %}bg-warning
+                                                {% else %}bg-success{% endif %} 
+                                                me-1 mb-1">
+                                                {{ perm.get_app_display }}: {{ perm.get_permission_level_display }}
+                                            </span>
+                                        {% endfor %}
+                                    {% else %}
+                                        <span class="text-muted">No permissions</span>
+                                    {% endif %}
+                                {% endwith %}
+                            </td>
+                            <td>
+                                <div class="btn-group btn-group-sm" role="group">
+                                    <a href="{% url 'core:manage_permissions' user.id %}" 
+                                       class="btn btn-outline-primary" 
+                                       title="Manage Permissions">
+                                        <i class="bi bi-shield-lock"></i>
+                                    </a>
+                                    <a href="{% url 'core:edit_employee' user.id %}" 
+                                       class="btn btn-outline-info" 
+                                       title="Edit User">
+                                        <i class="bi bi-pencil"></i>
+                                    </a>
+                                </div>
+                            </td>
+                        </tr>
+                    {% empty %}
+                        <tr>
+                            <td colspan="6" class="text-center text-muted py-4">
+                                No employees found.
+                            </td>
+                        </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<!-- Permission Legend -->
+<div class="row mt-4">
+    <div class="col-md-6">
+        <div class="card">
+            <div class="card-header">
+                <h6 class="card-title mb-0">Permission Levels</h6>
+            </div>
+            <div class="card-body">
+                <div class="d-flex flex-wrap gap-2">
+                    <span class="badge bg-success">View Only</span>
+                    <span class="badge bg-warning">Create & Edit</span>
+                    <span class="badge bg-danger">Full Admin</span>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-6">
+        <div class="card">
+            <div class="card-header">
+                <h6 class="card-title mb-0">Quick Stats</h6>
+            </div>
+            <div class="card-body">
+                <div class="row text-center">
+                    <div class="col">
+                        <div class="h4 text-primary">{{ users|length }}</div>
+                        <small class="text-muted">Total Users</small>
+                    </div>
+                    <div class="col">
+                        <div class="h4 text-success" id="users-with-permissions">0</div>
+                        <small class="text-muted">With Permissions</small>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<style>
+.avatar-sm {
+    width: 32px;
+    height: 32px;
+    font-size: 14px;
+}
+</style>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // Count users with permissions
+    const rows = document.querySelectorAll('tbody tr');
+    let usersWithPerms = 0;
+    
+    rows.forEach(row => {
+        const permCell = row.cells[4]; // Permissions column
+        if (permCell && !permCell.textContent.includes('No permissions')) {
+            usersWithPerms++;
+        }
+    });
+    
+    document.getElementById('users-with-permissions').textContent = usersWithPerms;
+});
+</script>
 {% endblock %}

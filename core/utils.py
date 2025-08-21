@@ -16,9 +16,12 @@ from django.core.files.base import ContentFile
 from django.core.cache import cache
 from django.urls import reverse
 from decimal import Decimal
-from .models import Notification, SecurityEvent, AuditLog, ApprovalRequest
 from django.core.mail import send_mail, EmailMultiAlternatives
 from django.template.loader import render_to_string
+from .models import (
+    Notification, SecurityEvent, AuditLog, ApprovalRequest,
+    AppPermission, EmployeeRole, UserRole
+)
 
 logger = logging.getLogger('core.authentication')
 
@@ -207,11 +210,18 @@ def invalidate_user_cache(user_id):
     cache.delete_many(cache_keys)
     logger.info(f"Invalidated cache for user {user_id}")
 
-def invalidate_permission_cache():
-    """Invalidate permission cache for all users (use after role changes)"""
-    # This is a heavy operation, use sparingly
-    cache.clear()
-    logger.warning("Cleared entire permission cache")
+def invalidate_permission_cache(user_id):
+    """Invalidate all permission-related cache entries for a user"""
+    cache_keys = [
+        f'user_roles:{user_id}',
+        f'user_permissions:{user_id}',
+        f'dashboard_data:{user_id}'
+    ]
+    
+    for key in cache_keys:
+        cache.delete(key)
+    
+    logger.info(f"Invalidated permission cache for user ID: {user_id}")
 
 # =====================================
 # ROLE ASSIGNMENT UTILITIES
@@ -417,47 +427,71 @@ def get_user_dashboard_context(user):
     return context
 
 def get_navigation_context(user):
-    """Get navigation menu context based on user permissions"""
+    """Get navigation context for dashboard"""
     if not user.is_authenticated:
-        return {'nav_items': []}
+        return {}
     
-    nav_items = []
     permissions = get_user_permissions(user)
     
-    # Build navigation based on permissions
-    if 'crm' in permissions:
+    nav_items = []
+    
+    # Add navigation items based on permissions
+    if permissions.get('crm'):
         nav_items.append({
             'name': 'CRM',
             'url': 'crm:dashboard',
-            'icon': 'bi-people',
+            'icon': 'users',
             'permission_level': permissions['crm']
         })
     
-    if 'inventory' in permissions:
+    if permissions.get('quotes'):
+        nav_items.append({
+            'name': 'Quotes',
+            'url': 'quotes:dashboard', 
+            'icon': 'file-text',
+            'permission_level': permissions['quotes']
+        })
+    
+    if permissions.get('inventory'):
         nav_items.append({
             'name': 'Inventory',
             'url': 'inventory:dashboard',
-            'icon': 'bi-boxes',
+            'icon': 'package',
             'permission_level': permissions['inventory']
         })
     
-    if 'shop' in permissions:
+    if permissions.get('shop'):
         nav_items.append({
             'name': 'Shop Management',
             'url': 'shop:admin_dashboard',
-            'icon': 'bi-shop',
+            'icon': 'shopping-cart',
             'permission_level': permissions['shop']
         })
     
-    if can_access_admin(user):
+    if permissions.get('reports'):
         nav_items.append({
-            'name': 'Admin',
-            'url': 'admin:index',
-            'icon': 'bi-gear',
+            'name': 'Reports',
+            'url': 'core:system_reports',
+            'icon': 'bar-chart',
+            'permission_level': permissions['reports']
+        })
+    
+    if permissions.get('admin') or user.is_superuser:
+        nav_items.append({
+            'name': 'Admin Panel',
+            'url': 'core:system_settings',
+            'icon': 'settings',
             'permission_level': 'admin'
         })
     
-    return {'nav_items': nav_items}
+    return {
+        'navigation_items': nav_items,
+        'has_admin_access': bool(permissions.get('admin')) or user.is_superuser,
+        'has_management_access': any(
+            permissions.get(app) in ['edit', 'admin'] 
+            for app in ['crm', 'quotes', 'inventory', 'hr']
+        )
+    }
 
 # =====================================
 # INITIALIZATION UTILITIES
@@ -591,90 +625,15 @@ def create_quote_notification(user, title, message, quote_id=None, notification_
         action_text=action_text
     )
 
-def check_app_permission(user, app_name, required_level='view'):
-    """
-    Enhanced permission checking with quote system support.
+def get_recent_notifications(user, limit=5):
+    """Get recent notifications for a user"""
+    if not user.is_authenticated:
+        return []
     
-    This function maintains your existing permission architecture while adding
-    intelligent defaults for quote-related permissions based on user roles.
-    
-    Args:
-        user: User object
-        app_name: Name of the app ('quotes', 'crm', 'inventory', etc.)
-        required_level: Minimum permission level ('view', 'edit', 'admin')
-        
-    Returns:
-        Boolean indicating if user has permission
-    """
-    # Permission level hierarchy for consistent evaluation
-    permission_levels = {
-        'view': 0,
-        'edit': 1,
-        'admin': 2
-    }
-    
-    # Cache key for permission checks
-    cache_key = f"user_permissions:{user.id}:{app_name}"
-    cached_level = cache.get(cache_key)
-    
-    if cached_level is not None:
-        # Return result from cache
-        user_level = permission_levels.get(cached_level, -1)
-        required_level_value = permission_levels.get(required_level, 0)
-        return user_level >= required_level_value
-    
-    # Super users always have access to everything
-    if user.is_superuser:
-        cache.set(cache_key, 'admin', 3600)
-        return True
-    
-    # Check if user has profile (required for role-based permissions)
-    if not hasattr(user, 'profile'):
-        cache.set(cache_key, '', 3600)
-        return False
-    
-    # Admins always have access to everything
-    if user.profile.is_admin:
-        cache.set(cache_key, 'admin', 3600)
-        return True
-    
-    # Special handling for quote permissions based on user roles
-    if app_name == 'quotes':
-        # Sales managers get admin access to quotes
-        if user.profile.user_type == 'sales_manager':
-            cache.set(cache_key, 'admin', 3600)
-            return True
-        
-        # Sales reps get edit access to quotes
-        if user.profile.user_type == 'sales_rep':
-            permission_level = 'edit'
-            user_level = permission_levels.get(permission_level, -1)
-            required_level_value = permission_levels.get(required_level, 0)
-            cache.set(cache_key, permission_level, 3600)
-            return user_level >= required_level_value
-        
-        # General employees get view access to quotes
-        if user.profile.is_employee:
-            permission_level = 'view'
-            user_level = permission_levels.get(permission_level, -1)
-            required_level_value = permission_levels.get(required_level, 0)
-            cache.set(cache_key, permission_level, 3600)
-            return user_level >= required_level_value
-    
-    # Check specific app permissions in database
-    try:
-        user_permission = user.app_permissions.get(app=app_name)
-        user_level = permission_levels.get(user_permission.permission_level, -1)
-        required_level_value = permission_levels.get(required_level, 0)
-        
-        # Cache the result
-        cache.set(cache_key, user_permission.permission_level, 3600)
-        
-        return user_level >= required_level_value
-    except Exception:
-        # No specific permission found - cache negative result
-        cache.set(cache_key, '', 3600)
-        return False
+    from .models import Notification
+    return Notification.objects.filter(
+        user=user
+    ).order_by('-created_at')[:limit]
 
 def send_approval_notification_email(approval_request, action, reviewer):
     """Send email notification for approval actions"""
