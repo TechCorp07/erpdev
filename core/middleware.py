@@ -107,8 +107,9 @@ class EmployeeAccessMiddleware:
                 app_name_perm = rule['app_permission'].get('app')
                 required_level = rule['app_permission'].get('level', 'view')
                 
-                from .utils import check_app_permission
-                if not check_app_permission(request.user, app_name_perm, required_level):
+                # Updated import and function call
+                from .utils import has_app_permission
+                if not has_app_permission(request.user, app_name_perm, required_level):
                     logger.warning(
                         f"User {request.user.username} lacks {required_level} permission for {app_name_perm} "
                         f"while accessing {app_name}:{url_name}"

@@ -30,8 +30,9 @@ from .forms import (
 from .models import UserProfile, AppPermission, LoginActivity, Notification, AuditLog, SecurityLog, ApprovalRequest, SecurityEvent
 from .decorators import user_type_required, ajax_required, password_expiration_check
 from .utils import (
-    authenticate_user, can_user_manage_roles, check_app_permission, create_bulk_notifications, get_recent_notifications, get_unread_notifications_count, get_user_dashboard_stats, get_user_permissions, get_user_roles, has_app_permission, invalidate_permission_cache, 
-    create_notification, get_quote_dashboard_stats, get_navigation_context, log_security_event
+    authenticate_user, can_user_manage_roles, has_app_permission, create_bulk_notifications, get_recent_notifications, 
+    get_unread_notifications_count, get_user_dashboard_stats, get_user_permissions, get_user_roles, has_app_permission,
+    invalidate_permission_cache, create_notification, get_quote_dashboard_stats, get_navigation_context, log_security_event
 )
 
 logger = logging.getLogger('core.authentication')
@@ -156,7 +157,6 @@ class CustomLoginView(LoginView):
         
         return reverse_lazy('website:home')
 
-
 @require_http_methods(["GET", "POST"])
 def logout_view(request):
     """Custom logout view with proper cleanup - supports both GET and POST"""
@@ -173,7 +173,6 @@ def logout_view(request):
     
     # Redirect to home page
     return redirect('website:home')
-
 
 def register_view(request):
     """User registration view for customers and bloggers"""
@@ -270,7 +269,6 @@ def user_management_view(request):
     
     return render(request, 'core/user_management.html', context)
 
-
 @user_passes_test(lambda u: u.is_superuser or (hasattr(u, 'profile') and u.profile.user_type in ['blitzhub_admin', 'it_admin']))
 def user_detail_view(request, user_id):
     """Detailed view of a specific user"""
@@ -349,7 +347,6 @@ def request_approval_view(request):
     
     return render(request, 'core/request_approval.html', context)
 
-
 @user_passes_test(lambda u: u.is_superuser or (hasattr(u, 'profile') and u.profile.user_type in ['blitzhub_admin', 'it_admin']))
 def manage_approvals_view(request):
     """Admin view to manage approval requests"""
@@ -400,7 +397,6 @@ def manage_approvals_view(request):
     
     return render(request, 'core/manage_approvals.html', context)
 
-
 @user_passes_test(lambda u: u.is_superuser or (hasattr(u, 'profile') and u.profile.user_type in ['blitzhub_admin', 'it_admin']))
 def process_approval_view(request, request_id):
     """Process individual approval request"""
@@ -439,7 +435,6 @@ def process_approval_view(request, request_id):
     }
     
     return render(request, 'core/process_approval.html', context)
-
 
 # =====================================
 # BULK APPROVAL VIEWS
@@ -522,7 +517,7 @@ def dashboard_view(request):
             'user': user,
             'profile': profile,
             'app_permissions': user_permissions,
-            'is_manager': check_app_permission(user, 'employee_management', 'view'),
+            'is_manager': has_app_permission(user, 'hr', 'view'),  # Updated function name
             'is_admin': user.is_superuser or profile.user_type in ['it_admin', 'general_manager'],
         }
         
@@ -1215,7 +1210,7 @@ def sales_team_dashboard(request):
         Provides comprehensive overview of sales team performance and quote metrics.
     """
     
-    if not check_app_permission(request.user, 'quotes', 'admin'):
+    if not has_app_permission(request.user, 'quotes', 'admin'):
         messages.error(request, 'You do not have permission to access sales team management.')
         return redirect('core:dashboard')
     
@@ -1263,7 +1258,7 @@ def get_quick_quote_stats(request):
 
     # AJAX endpoint for quick quote statistics for dashboard widgets.
 
-    if not check_app_permission(request.user, 'quotes', 'view'):
+    if not has_app_permission(request.user, 'quotes', 'view'):
         return JsonResponse({'success': False, 'error': 'No quote access'})
     
     try:
@@ -1279,7 +1274,7 @@ def get_recent_quotes_api(request):
 
     # AJAX endpoint to get recent quotes for dashboard display.
 
-    if not check_app_permission(request.user, 'quotes', 'view'):
+    if not has_app_permission(request.user, 'quotes', 'view'):
         return JsonResponse({'success': False, 'error': 'No quote access'})
     
     try:
@@ -1323,7 +1318,7 @@ def get_quotes_needing_attention(request):
 
     # AJAX endpoint to get quotes that need user attention.
 
-    if not check_app_permission(request.user, 'quotes', 'view'):
+    if not has_app_permission(request.user, 'quotes', 'view'):
         return JsonResponse({'success': False, 'error': 'No quote access'})
     
     try:

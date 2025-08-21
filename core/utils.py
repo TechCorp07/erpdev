@@ -18,6 +18,7 @@ from django.urls import reverse
 from decimal import Decimal
 from django.core.mail import send_mail, EmailMultiAlternatives
 from django.template.loader import render_to_string
+from django.db.models import Q, Count, Sum
 from .models import (
     Notification, SecurityEvent, AuditLog, ApprovalRequest,
     AppPermission, EmployeeRole, UserRole
@@ -313,18 +314,23 @@ def get_assignable_roles(user):
 # SECURITY UTILITIES
 # =====================================
 
-def log_security_event(user=None, event_type='general', description='', ip_address=None, user_agent='', additional_data=None):
-    """Log security events for audit trail"""
-    from .models import SecurityLog
-    
-    SecurityLog.objects.create(
-        user=user,
-        event_type=event_type,
-        description=description,
-        ip_address=ip_address,
-        user_agent=user_agent,
-        additional_data=additional_data or {}
-    )
+def log_security_event(user, event_type, description, ip_address=None, severity='info'):
+    """Log a security event"""
+    try:
+        from .models import SecurityEvent
+        
+        SecurityEvent.objects.create(
+            user=user,
+            event_type=event_type,
+            description=description,
+            ip_address=ip_address or 'unknown',
+            severity=severity
+        )
+        
+        logger.info(f"Security event logged: {event_type} for user {user.username if user else 'anonymous'}")
+        
+    except Exception as e:
+        logger.error(f"Failed to log security event: {e}")
 
 def check_password_strength(password):
     """Check password strength"""
@@ -385,19 +391,15 @@ def create_notification(user, notification_type, title, message):
     return notification
 
 def get_unread_notifications_count(user):
-    """Get count of unread notifications with caching"""
+    """Get count of unread notifications for a user"""
     if not user.is_authenticated:
         return 0
     
-    cache_key = f'user_notifications:{user.id}'
-    count = cache.get(cache_key)
-    
-    if count is None:
-        from .models import Notification
-        count = Notification.objects.filter(user=user, is_read=False).count()
-        cache.set(cache_key, count, timeout=300)  # 5 minutes
-    
-    return count
+    from .models import Notification
+    return Notification.objects.filter(
+        user=user,
+        is_read=False
+    ).count()
 
 # =====================================
 # DASHBOARD UTILITIES
@@ -812,7 +814,7 @@ def check_user_access_level(user, required_access):
     
     # Employee access is based on permissions
     if profile.user_type == 'employee':
-        return check_app_permission(user, required_access, 'view')
+        return has_app_permission(user, required_access, 'view')
     
     # Customer/blogger access based on approval status
     access_map = {
@@ -824,28 +826,25 @@ def check_user_access_level(user, required_access):
     return access_map.get(required_access, False)
 
 def get_user_dashboard_stats(user):
-    """Get dashboard statistics for user"""
-    if not hasattr(user, 'profile'):
+    """Get dashboard statistics for a user"""
+    if not user.is_authenticated:
         return {}
     
-    profile = user.profile
-    stats = {
-        'profile_completed': profile.profile_completed,
-        'approval_requests': {
-            'pending': user.approval_requests.filter(status='pending').count(),
-            'approved': user.approval_requests.filter(status='approved').count(),
-            'rejected': user.approval_requests.filter(status='rejected').count(),
-        },
-        'notifications': {
-            'unread': user.notifications.filter(is_read=False).count(),
-            'total': user.notifications.count(),
-        },
-        'access_status': {
-            'shop': profile.can_access_shop(),
-            'crm': profile.can_access_crm(),
-            'blog': profile.can_access_blog() if profile.user_type == 'blogger' else False,
-        }
-    }
+    from django.db.models import Count
+    from django.contrib.auth.models import User
+    
+    stats = {}
+    
+    # Only return stats if user has appropriate permissions
+    user_permissions = get_user_permissions(user)
+    
+    if user_permissions.get('admin') or user.is_superuser:
+        stats = User.objects.aggregate(
+            total_users=Count('id'),
+            total_customers=Count('profile', filter=Q(profile__user_type='customer')),
+            total_employees=Count('profile', filter=Q(profile__user_type__in=['employee', 'sales_rep', 'sales_manager'])),
+            pending_approvals=Count('profile', filter=Q(profile__is_approved=False)),
+        )
     
     return stats
 
@@ -911,12 +910,12 @@ def get_quote_dashboard_stats(user):
     Returns:
         Dictionary with quote statistics
     """
-    if not check_app_permission(user, 'quotes', 'view'):
+    if not has_app_permission(user, 'quotes'):
         return {}
     
     try:
         from quotes.models import Quote
-        from django.db.models import Q, Count, Sum
+        from django.db.models import Q, Sum
         
         # Build user filter based on role
         if user.profile.is_admin:
@@ -1213,9 +1212,8 @@ def authenticate_user(request, username, password, remember_me=False):
         log_security_event(
             user=user,
             event_type='login_success',
-            ip_address=ip_address,
-            user_agent=user_agent,
-            details={'social_login': False}
+            description=f'Successful login for user {username}',
+            severity='info'
         )
         
         # Update last login in profile
@@ -1232,10 +1230,9 @@ def authenticate_user(request, username, password, remember_me=False):
         # Log failed login
         log_security_event(
             user=None,
-            event_type='login_failure',
-            ip_address=ip_address,
-            user_agent=user_agent,
-            details={'username': username, 'attempts': attempts + 1}
+            event_type='login_failed',
+            description=f'Failed login attempt for username: {username}',
+            severity='warning'
         )
         
         logger.warning(f"Failed login attempt for {username} from {ip_address}")

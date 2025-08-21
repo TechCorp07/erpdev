@@ -386,23 +386,35 @@ APPROVAL_WORKFLOW = {
 # =====================================
 # ENHANCED ACCESS_CONTROL_RULES
 # =====================================
-ACCESS_CONTROL_RULES = {
-    # Core application access rules
+
+ACCESS_RULES = {
+    # Core auth views (allow everyone)
+    'core:login': {},
+    'core:logout': {},
+    'core:register': {},
+    'core:password_reset': {},
+    'core:password_reset_done': {},
+    'core:password_reset_confirm': {},
+    'core:password_reset_complete': {},
+    'core:password_change': {
+        'login_required': True,
+    },
+    'core:profile_edit': {
+        'login_required': True,
+    },
+    
+    # Dashboard access
     'core:dashboard': {
         'login_required': True,
         'user_types': ['employee', 'sales_rep', 'sales_manager', 'blitzhub_admin', 'it_admin'],
-        'failure_url': 'website:home',
-        'access_denied_message': 'Employee access required for dashboard.',
+        'failure_url': 'core:customer_dashboard',
+        'access_denied_message': 'You do not have access to the employee dashboard.',
     },
-    'core:employee_list': {
+    'core:customer_dashboard': {
         'login_required': True,
-        'user_types': ['blitzhub_admin', 'it_admin'],
-        'access_denied_message': 'Administrator access required.',
-    },
-    'core:add_employee': {
-        'login_required': True,
-        'user_types': ['blitzhub_admin', 'it_admin'],
-        'access_denied_message': 'Administrator access required.',
+        'user_types': ['customer', 'blogger'],
+        'failure_url': 'core:dashboard',
+        'access_denied_message': 'You do not have access to the customer dashboard.',
     },
     
     # Quote system access rules
@@ -449,19 +461,19 @@ ACCESS_CONTROL_RULES = {
         'failure_url': 'core:dashboard',
     },
     
-    # Shop management
+    # Shop management - Updated to use has_app_permission
     'shop:manage_*': {
         'login_required': True,
-        'access_check': 'core.utils.check_app_permission',
+        'access_check': 'core.utils.has_app_permission',
         'access_check_args': {'app_name': 'shop', 'required_level': 'edit'},
         'failure_url': 'website:home',
         'access_denied_message': 'You do not have access to shop management.'
     },
     
-    # Website management
+    # Website management - Updated to use has_app_permission
     'website:manage_*': {
         'login_required': True,
-        'access_check': 'core.utils.check_app_permission',
+        'access_check': 'core.utils.has_app_permission',
         'access_check_args': {'app_name': 'website', 'required_level': 'edit'},
         'failure_url': 'website:home',
         'access_denied_message': 'You do not have access to website management.'
@@ -481,7 +493,7 @@ ACCESS_CONTROL_RULES = {
         'user_types': ['it_admin'],
         'failure_url': 'core:dashboard',
         'access_denied_message': 'Only IT administrators can manage permissions.'
-    }
+    },
 }
 
 # List of authentication-related views that should be exempt from access controls
