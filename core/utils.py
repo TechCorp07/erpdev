@@ -1196,7 +1196,6 @@ def authenticate_user(request, username, password, remember_me=False):
             event_type='login_failure',
             description=f'Rate limited login attempt from {ip_address}',
             ip_address=ip_address,
-            severity='warning',
             details={'reason': 'rate_limited', 'attempts': attempts}
         )
         return None
@@ -1212,7 +1211,6 @@ def authenticate_user(request, username, password, remember_me=False):
                 event_type='login_failure',
                 description='Login attempt on locked account',
                 ip_address=ip_address,
-                severity='warning',
                 details={'reason': 'account_locked'}
             )
             return None
@@ -1224,7 +1222,6 @@ def authenticate_user(request, username, password, remember_me=False):
                 event_type='suspicious_activity',
                 description='Login from new location or device',
                 ip_address=ip_address,
-                severity='info',
                 details={'ip_address': ip_address, 'user_agent': user_agent[:100]}
             )
             
@@ -1244,11 +1241,11 @@ def authenticate_user(request, username, password, remember_me=False):
         # Log the user in
         login(request, user, backend='django.contrib.auth.backends.ModelBackend')
         
-        # Create login activity record
+        # Create successful login activity record (only for successful logins)
         try:
             from .models import LoginActivity
             LoginActivity.objects.create(
-                user=user,
+                user=user,  # We have a valid user for successful logins
                 ip_address=ip_address,
                 user_agent=user_agent,
                 success=True,
@@ -1257,7 +1254,7 @@ def authenticate_user(request, username, password, remember_me=False):
         except Exception as e:
             logger.error(f"Failed to create login activity record: {e}")
         
-        # Create security event with user_agent
+        # Create security event for successful login
         try:
             from .models import SecurityEvent
             SecurityEvent.objects.create(
@@ -1288,23 +1285,14 @@ def authenticate_user(request, username, password, remember_me=False):
         # Increment failed login attempts
         cache.set(cache_key, attempts + 1, block_time)
         
-        # Create failed login activity record
-        try:
-            from .models import LoginActivity
-            LoginActivity.objects.create(
-                ip_address=ip_address,
-                user_agent=user_agent,
-                success=False,
-                location=get_location_from_ip(ip_address)
-            )
-        except Exception as e:
-            logger.error(f"Failed to create failed login activity record: {e}")
+        # DON'T create LoginActivity for failed logins - the model requires a user
+        # Failed attempts are tracked in SecurityEvent instead
         
-        # Create security event for failed login
+        # Create security event for failed login (this works with user=None)
         try:
             from .models import SecurityEvent
             SecurityEvent.objects.create(
-                user=None,
+                user=None,  # SecurityEvent allows null user
                 event_type='login_failure',
                 ip_address=ip_address,
                 user_agent=user_agent,

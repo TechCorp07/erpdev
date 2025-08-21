@@ -1,10 +1,10 @@
-# core/management/commands/test_login.py
+# core/management/commands/test_login.py file
 
 from django.core.management.base import BaseCommand
 from django.contrib.auth.models import User
 from django.test import RequestFactory
 from core.utils import authenticate_user, log_security_event
-from core.models import SecurityEvent, LoginActivity
+from core.models import SecurityEvent, LoginActivity  # Add the missing imports
 
 class Command(BaseCommand):
     help = 'Test the login flow functionality'
@@ -93,8 +93,20 @@ class Command(BaseCommand):
                 self.stdout.write('✓ authenticate_user handles wrong password correctly')
             else:
                 self.stdout.write('⚠ authenticate_user returned user with wrong password')
+            
+            # Check that failed login was recorded in SecurityEvent (not LoginActivity)
+            failed_events = SecurityEvent.objects.filter(
+                event_type='login_failure',
+                details__username=username
+            ).order_by('-timestamp')[:1]
+            
+            if failed_events.exists():
+                self.stdout.write('✓ Failed login recorded in SecurityEvent')
+            else:
+                self.stdout.write('⚠ Failed login not found in SecurityEvent')
                 
         except Exception as e:
             self.stdout.write(self.style.ERROR(f'✗ authenticate_user test failed: {e}'))
         
         self.stdout.write(self.style.SUCCESS('Login system test completed!'))
+        
