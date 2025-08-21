@@ -93,7 +93,6 @@ class UserProfile(models.Model):
     def __str__(self):
         return f"{self.user.get_full_name() or self.user.username} ({self.get_user_type_display()})"
     
-    # CLEAN: Simple property methods
     @property
     def is_employee(self):
         return self.user_type == 'employee'
@@ -106,6 +105,13 @@ class UserProfile(models.Model):
     def is_customer(self):
         return self.user_type == 'customer'
     
+    @property
+    def is_account_locked(self):
+        """Check if account is currently locked"""
+        if not self.account_locked_until:
+            return False
+        return timezone.now() < self.account_locked_until
+
     def check_profile_completion(self):
         """Check if profile is complete based on user type"""
         required_fields = ['user.first_name', 'user.last_name', 'user.email']
@@ -157,7 +163,30 @@ class UserProfile(models.Model):
             return False
         return any(entry.get('hash') == password_hash for entry in self.password_history)
 
+    def lock_account(self, minutes=30):
+        """Lock this account for specified duration"""
+        from django.utils import timezone
+        from datetime import timedelta
+        
+        self.account_locked_until = timezone.now() + timedelta(minutes=minutes)
+        self.save(update_fields=['account_locked_until'])
+        
+        # Log the account lock
+        from .utils import log_security_event
+        log_security_event(
+            user=self.user,
+            event_type='account_lockout',
+            description=f'Account locked for {minutes} minutes',
+            ip_address='system',
+            details={'duration_minutes': minutes}
+        )
 
+    def unlock_account(self):
+        """Unlock this account"""
+        self.account_locked_until = None
+        self.failed_login_count = 0
+        self.save(update_fields=['account_locked_until', 'failed_login_count'])
+    
 class EmployeeRole(models.Model):
     """Clean employee roles system - separate from user types"""
     

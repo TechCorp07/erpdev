@@ -315,17 +315,26 @@ def get_assignable_roles(user):
 # SECURITY UTILITIES
 # =====================================
 
-def log_security_event(user, event_type, description, ip_address=None, severity='info'):
-    """Log a security event"""
+def log_security_event(user, event_type, description=None, ip_address=None, severity='info', details=None):
+    """
+    Log a security event using the correct SecurityEvent model fields
+    """
     try:
         from .models import SecurityEvent
+        
+        # Prepare details dict
+        event_details = details or {}
+        if description:
+            event_details['description'] = description
+        if severity:
+            event_details['severity'] = severity
         
         SecurityEvent.objects.create(
             user=user,
             event_type=event_type,
-            description=description,
             ip_address=ip_address or 'unknown',
-            severity=severity
+            user_agent='',  # Will be set by authenticate_user if available
+            details=event_details
         )
         
         logger.info(f"Security event logged: {event_type} for user {user.username if user else 'anonymous'}")
@@ -365,10 +374,13 @@ def lock_account(user, duration_minutes=30):
         user.profile.account_locked_until = timezone.now() + timedelta(minutes=duration_minutes)
         user.profile.save(update_fields=['account_locked_until'])
         
+        # Updated function call
         log_security_event(
             user=user,
-            event_type='account_locked',
-            description=f'Account locked for {duration_minutes} minutes due to security concerns'
+            event_type='account_lockout',  # Use valid event_type from model
+            description=f'Account locked for {duration_minutes} minutes due to security concerns',
+            ip_address='system',
+            details={'duration_minutes': duration_minutes}
         )
 
 # =====================================
@@ -1184,7 +1196,8 @@ def authenticate_user(request, username, password, remember_me=False):
             event_type='login_failure',
             description=f'Rate limited login attempt from {ip_address}',
             ip_address=ip_address,
-            severity='warning'
+            severity='warning',
+            details={'reason': 'rate_limited', 'attempts': attempts}
         )
         return None
     
@@ -1193,13 +1206,14 @@ def authenticate_user(request, username, password, remember_me=False):
     
     if user is not None:
         # Check if account is locked
-        if is_account_locked(user):
+        if hasattr(user, 'profile') and is_account_locked(user):
             log_security_event(
                 user=user,
                 event_type='login_failure',
                 description='Login attempt on locked account',
                 ip_address=ip_address,
-                severity='warning'
+                severity='warning',
+                details={'reason': 'account_locked'}
             )
             return None
         
@@ -1210,7 +1224,8 @@ def authenticate_user(request, username, password, remember_me=False):
                 event_type='suspicious_activity',
                 description='Login from new location or device',
                 ip_address=ip_address,
-                severity='info'
+                severity='info',
+                details={'ip_address': ip_address, 'user_agent': user_agent[:100]}
             )
             
             # Optionally send security alert email
@@ -1237,24 +1252,32 @@ def authenticate_user(request, username, password, remember_me=False):
                 ip_address=ip_address,
                 user_agent=user_agent,
                 success=True,
-                location=get_location_from_ip(ip_address)  # Optional: implement geo lookup
+                location=get_location_from_ip(ip_address)
             )
         except Exception as e:
             logger.error(f"Failed to create login activity record: {e}")
         
-        # Log successful login
-        log_security_event(
-            user=user,
-            event_type='login_success',
-            description=f'Successful login for user {username}',
-            ip_address=ip_address,
-            severity='info'
-        )
+        # Create security event with user_agent
+        try:
+            from .models import SecurityEvent
+            SecurityEvent.objects.create(
+                user=user,
+                event_type='login_success',
+                ip_address=ip_address,
+                user_agent=user_agent,
+                details={
+                    'description': f'Successful login for user {username}',
+                    'severity': 'info',
+                    'username': username
+                }
+            )
+        except Exception as e:
+            logger.error(f"Failed to create security event: {e}")
         
-        # Update last login in profile
-        if hasattr(user, 'profile'):
-            user.profile.last_login = timezone.now()
-            user.profile.save(update_fields=['last_login'])
+        # Reset failed login counter if exists
+        if hasattr(user, 'profile') and user.profile.failed_login_count > 0:
+            user.profile.failed_login_count = 0
+            user.profile.save(update_fields=['failed_login_count'])
         
         # Clear any cached permissions to force refresh
         invalidate_permission_cache(user.id)
@@ -1277,14 +1300,22 @@ def authenticate_user(request, username, password, remember_me=False):
         except Exception as e:
             logger.error(f"Failed to create failed login activity record: {e}")
         
-        # Log failed login
-        log_security_event(
-            user=None,
-            event_type='login_failed',
-            description=f'Failed login attempt for username: {username}',
-            ip_address=ip_address,
-            severity='warning'
-        )
+        # Create security event for failed login
+        try:
+            from .models import SecurityEvent
+            SecurityEvent.objects.create(
+                user=None,
+                event_type='login_failure',
+                ip_address=ip_address,
+                user_agent=user_agent,
+                details={
+                    'description': f'Failed login attempt for username: {username}',
+                    'severity': 'warning',
+                    'username': username
+                }
+            )
+        except Exception as e:
+            logger.error(f"Failed to create security event for failed login: {e}")
         
         logger.warning(f"Failed login attempt for {username} from {ip_address}")
         return None

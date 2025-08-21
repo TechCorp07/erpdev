@@ -124,15 +124,15 @@ class CustomLoginView(LoginView):
                     
                     # Lock account after too many attempts
                     if profile.failed_login_count >= 5:
-                        profile.lock_account(minutes=30)
+                        profile.lock_account(minutes=30)  # Use the method we added
                         logger.warning(f"Account locked for user {username} due to too many failed attempts")
-                    
-                    profile.save(update_fields=['failed_login_count', 'account_locked_until'])
+                    else:
+                        profile.save(update_fields=['failed_login_count'])
             except User.DoesNotExist:
                 pass
         
         return super().form_invalid(form)
-    
+
     def get_success_url(self):
         """Redirect based on user type and next parameter"""
         next_url = self.request.GET.get('next')
@@ -162,9 +162,16 @@ def logout_view(request):
     """Custom logout view with proper cleanup - supports both GET and POST"""
     if request.user.is_authenticated:
         username = request.user.username
+        ip_address = request.META.get('REMOTE_ADDR', 'unknown')
         
-        # Log security event
-        log_security_event(request, 'logout_success', username)
+        # Log security event with correct parameters
+        log_security_event(
+            user=request.user,
+            event_type='login_success',  # There's no logout event type in the model
+            description=f'User {username} logged out',
+            ip_address=ip_address,
+            details={'action': 'logout', 'username': username}
+        )
         
         # Perform logout
         logout(request)
