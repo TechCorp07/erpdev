@@ -1,0 +1,101 @@
+INFO 2025-08-21 13:15:13,374 autoreload 32668 12980 Watching for file changes with StatReloader
+INFO 2025-08-21 13:35:06,946 basehttp 32668 51968 "GET / HTTP/1.1" 200 34067
+INFO 2025-08-21 13:35:07,011 basehttp 32668 51968 "GET /static/website/img/blitztech-logo.png HTTP/1.1" 200 9495
+WARNING 2025-08-21 13:35:07,065 basehttp 32668 29772 "GET /static/website/img/portfolio-2.jpg HTTP/1.1" 404 2008
+WARNING 2025-08-21 13:35:07,065 basehttp 32668 38632 "GET /static/website/img/portfolio-3.jpg HTTP/1.1" 404 2008
+WARNING 2025-08-21 13:35:07,082 basehttp 32668 51968 "GET /static/website/img/portfolio-1.jpg HTTP/1.1" 404 2008
+WARNING 2025-08-21 13:35:07,082 basehttp 32668 18468 "GET /static/website/img/client-1.jpg HTTP/1.1" 404 1999
+WARNING 2025-08-21 13:35:07,082 basehttp 32668 45016 "GET /static/website/img/client-2.jpg HTTP/1.1" 404 1999
+WARNING 2025-08-21 13:35:07,094 basehttp 32668 49428 "GET /static/website/img/client-3.jpg HTTP/1.1" 404 1999
+WARNING 2025-08-21 13:35:07,094 basehttp 32668 9892 "GET /static/website/img/partner-1.png HTTP/1.1" 404 2002
+WARNING 2025-08-21 13:35:07,110 basehttp 32668 51096 "GET /static/website/img/partner-2.png HTTP/1.1" 404 2002
+WARNING 2025-08-21 13:35:07,115 basehttp 32668 14024 "GET /static/website/img/partner-3.png HTTP/1.1" 404 2002
+WARNING 2025-08-21 13:35:07,121 basehttp 32668 35848 "GET /static/website/img/partner-6.png HTTP/1.1" 404 2002
+WARNING 2025-08-21 13:35:07,121 basehttp 32668 11768 "GET /static/website/img/partner-5.png HTTP/1.1" 404 2002
+WARNING 2025-08-21 13:35:07,121 basehttp 32668 54268 "GET /static/website/img/partner-4.png HTTP/1.1" 404 2002
+INFO 2025-08-21 13:35:12,105 basehttp 32668 4432 "GET /auth/login/?type=employee HTTP/1.1" 200 12775
+INFO 2025-08-21 13:35:17,515 basehttp 32668 4432 "POST /auth/login/?type=employee HTTP/1.1" 200 12984
+ERROR 2025-08-21 13:35:24,433 log 32668 4432 Internal Server Error: /auth/login/
+Traceback (most recent call last):
+  File "C:\Local Disk E\BlitzTech Systems\erpdev\venv\lib\site-packages\django\core\handlers\exception.py", line 55, in inner
+    response = get_response(request)
+  File "C:\Local Disk E\BlitzTech Systems\erpdev\venv\lib\site-packages\django\core\handlers\base.py", line 197, in _get_response
+    response = wrapped_callback(request, *callback_args, **callback_kwargs)
+  File "C:\Local Disk E\BlitzTech Systems\erpdev\venv\lib\site-packages\django\views\generic\base.py", line 104, in view
+    return self.dispatch(request, *args, **kwargs)
+  File "C:\Local Disk E\BlitzTech Systems\erpdev\venv\lib\site-packages\django\utils\decorators.py", line 48, in _wrapper
+    return bound_method(*args, **kwargs)
+  File "C:\Local Disk E\BlitzTech Systems\erpdev\venv\lib\site-packages\django\utils\decorators.py", line 48, in _wrapper
+    return bound_method(*args, **kwargs)
+  File "C:\Local Disk E\BlitzTech Systems\erpdev\venv\lib\site-packages\django\views\decorators\debug.py", line 143, in sensitive_post_parameters_wrapper
+    return view(request, *args, **kwargs)
+  File "C:\Local Disk E\BlitzTech Systems\erpdev\venv\lib\site-packages\django\utils\decorators.py", line 48, in _wrapper
+    return bound_method(*args, **kwargs)
+  File "C:\Local Disk E\BlitzTech Systems\erpdev\venv\lib\site-packages\django\utils\decorators.py", line 188, in _view_wrapper
+    result = _process_exception(request, e)
+  File "C:\Local Disk E\BlitzTech Systems\erpdev\venv\lib\site-packages\django\utils\decorators.py", line 186, in _view_wrapper
+    response = view_func(request, *args, **kwargs)
+  File "C:\Local Disk E\BlitzTech Systems\erpdev\venv\lib\site-packages\django\utils\decorators.py", line 48, in _wrapper
+    return bound_method(*args, **kwargs)
+  File "C:\Local Disk E\BlitzTech Systems\erpdev\venv\lib\site-packages\django\views\decorators\cache.py", line 80, in _view_wrapper
+    response = view_func(request, *args, **kwargs)
+  File "C:\Local Disk E\BlitzTech Systems\erpdev\venv\lib\site-packages\django\contrib\auth\views.py", line 89, in dispatch
+    return super().dispatch(request, *args, **kwargs)
+  File "C:\Local Disk E\BlitzTech Systems\erpdev\venv\lib\site-packages\django\views\generic\base.py", line 143, in dispatch
+    return handler(request, *args, **kwargs)
+  File "C:\Local Disk E\BlitzTech Systems\erpdev\venv\lib\site-packages\django\views\generic\edit.py", line 151, in post
+    return self.form_valid(form)
+  File "C:\Local Disk E\BlitzTech Systems\erpdev\core\views.py", line 81, in form_valid
+    user = authenticate_user(self.request, username, password, remember_me)
+  File "C:\Local Disk E\BlitzTech Systems\erpdev\core\utils.py", line 1186, in authenticate_user
+    if is_suspicious_activity(user, ip_address, user_agent):
+  File "C:\Local Disk E\BlitzTech Systems\erpdev\core\utils.py", line 1258, in is_suspicious_activity
+    recent_ips = user.login_activities.filter(
+  File "C:\Local Disk E\BlitzTech Systems\erpdev\venv\lib\site-packages\django\db\models\manager.py", line 87, in manager_method
+    return getattr(self.get_queryset(), name)(*args, **kwargs)
+  File "C:\Local Disk E\BlitzTech Systems\erpdev\venv\lib\site-packages\django\db\models\query.py", line 1476, in filter
+    return self._filter_or_exclude(False, args, kwargs)
+  File "C:\Local Disk E\BlitzTech Systems\erpdev\venv\lib\site-packages\django\db\models\query.py", line 1494, in _filter_or_exclude
+    clone._filter_or_exclude_inplace(negate, args, kwargs)
+  File "C:\Local Disk E\BlitzTech Systems\erpdev\venv\lib\site-packages\django\db\models\query.py", line 1501, in _filter_or_exclude_inplace
+    self._query.add_q(Q(*args, **kwargs))
+  File "C:\Local Disk E\BlitzTech Systems\erpdev\venv\lib\site-packages\django\db\models\sql\query.py", line 1609, in add_q
+    clause, _ = self._add_q(q_object, self.used_aliases)
+  File "C:\Local Disk E\BlitzTech Systems\erpdev\venv\lib\site-packages\django\db\models\sql\query.py", line 1641, in _add_q
+    child_clause, needed_inner = self.build_filter(
+  File "C:\Local Disk E\BlitzTech Systems\erpdev\venv\lib\site-packages\django\db\models\sql\query.py", line 1491, in build_filter
+    lookups, parts, reffed_expression = self.solve_lookup_type(arg, summarize)
+  File "C:\Local Disk E\BlitzTech Systems\erpdev\venv\lib\site-packages\django\db\models\sql\query.py", line 1303, in solve_lookup_type
+    _, field, _, lookup_parts = self.names_to_path(lookup_splitted, self.get_meta())
+  File "C:\Local Disk E\BlitzTech Systems\erpdev\venv\lib\site-packages\django\db\models\sql\query.py", line 1768, in names_to_path
+    raise FieldError(
+django.core.exceptions.FieldError: Cannot resolve keyword 'login_datetime' into field. Choices are: id, ip_address, location, success, timestamp, user, user_agent, user_id
+ERROR 2025-08-21 13:35:24,438 basehttp 32668 4432 "POST /auth/login/?type=employee HTTP/1.1" 500 215330
+INFO 2025-08-21 21:54:52,810 basehttp 32668 52032 "GET / HTTP/1.1" 200 34067
+INFO 2025-08-21 21:54:56,988 basehttp 32668 52032 "GET /auth/login/?type=employee HTTP/1.1" 200 12775
+INFO 2025-08-21 22:47:03,727 autoreload 32668 12980 C:\Local Disk E\BlitzTech Systems\erpdev\core\utils.py changed, reloading.
+INFO 2025-08-21 22:47:05,365 autoreload 14108 37944 Watching for file changes with StatReloader
+INFO 2025-08-21 22:56:19,631 autoreload 14108 37944 C:\Local Disk E\BlitzTech Systems\erpdev\core\utils.py changed, reloading.
+INFO 2025-08-21 22:56:21,011 autoreload 3640 50344 Watching for file changes with StatReloader
+INFO 2025-08-21 22:58:22,816 autoreload 3640 50344 C:\Local Disk E\BlitzTech Systems\erpdev\core\decorators.py changed, reloading.
+INFO 2025-08-21 22:58:24,118 autoreload 35712 40472 Watching for file changes with StatReloader
+INFO 2025-08-21 22:59:23,169 autoreload 35712 40472 C:\Local Disk E\BlitzTech Systems\erpdev\core\decorators.py changed, reloading.
+INFO 2025-08-21 22:59:24,551 autoreload 6820 45380 Watching for file changes with StatReloader
+INFO 2025-08-21 22:59:43,612 autoreload 6820 45380 C:\Local Disk E\BlitzTech Systems\erpdev\core\decorators.py changed, reloading.
+INFO 2025-08-21 22:59:45,038 autoreload 57028 43152 Watching for file changes with StatReloader
+INFO 2025-08-21 23:01:22,498 autoreload 57028 43152 C:\Local Disk E\BlitzTech Systems\erpdev\core\utils.py changed, reloading.
+INFO 2025-08-21 23:01:23,866 autoreload 29788 14012 Watching for file changes with StatReloader
+INFO 2025-08-21 23:01:52,305 autoreload 29788 14012 C:\Local Disk E\BlitzTech Systems\erpdev\core\utils.py changed, reloading.
+INFO 2025-08-21 23:01:53,689 autoreload 29024 21592 Watching for file changes with StatReloader
+INFO 2025-08-21 23:03:21,373 autoreload 29024 21592 C:\Local Disk E\BlitzTech Systems\erpdev\core\views.py changed, reloading.
+INFO 2025-08-21 23:03:22,784 autoreload 35180 3624 Watching for file changes with StatReloader
+INFO 2025-08-21 23:03:45,904 autoreload 35180 3624 C:\Local Disk E\BlitzTech Systems\erpdev\core\views.py changed, reloading.
+INFO 2025-08-21 23:03:47,503 autoreload 16340 628 Watching for file changes with StatReloader
+INFO 2025-08-21 23:04:52,417 autoreload 16340 628 C:\Local Disk E\BlitzTech Systems\erpdev\core\utils.py changed, reloading.
+INFO 2025-08-21 23:04:53,964 autoreload 53756 12796 Watching for file changes with StatReloader
+INFO 2025-08-21 23:05:55,554 autoreload 53756 12796 C:\Local Disk E\BlitzTech Systems\erpdev\core\utils.py changed, reloading.
+INFO 2025-08-21 23:05:57,045 autoreload 11996 37424 Watching for file changes with StatReloader
+INFO 2025-08-21 23:07:39,883 autoreload 11996 37424 C:\Local Disk E\BlitzTech Systems\erpdev\core\utils.py changed, reloading.
+INFO 2025-08-21 23:07:42,167 autoreload 16424 37868 Watching for file changes with StatReloader
+INFO 2025-08-21 23:08:58,363 autoreload 16424 37868 C:\Local Disk E\BlitzTech Systems\erpdev\core\utils.py changed, reloading.
+INFO 2025-08-21 23:08:59,723 autoreload 55384 21188 Watching for file changes with StatReloader

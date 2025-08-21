@@ -30,7 +30,7 @@ from .forms import (
 from .models import UserProfile, AppPermission, LoginActivity, Notification, AuditLog, SecurityLog, ApprovalRequest, SecurityEvent
 from .decorators import user_type_required, ajax_required, password_expiration_check
 from .utils import (
-    authenticate_user, can_user_manage_roles, has_app_permission, create_bulk_notifications, get_recent_notifications, 
+    authenticate_user, can_user_manage_roles, create_bulk_notifications, get_recent_notifications, 
     get_unread_notifications_count, get_user_dashboard_stats, get_user_permissions, get_user_roles, has_app_permission,
     invalidate_permission_cache, create_notification, get_quote_dashboard_stats, get_navigation_context, log_security_event
 )

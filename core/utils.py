@@ -1,7 +1,8 @@
 """
 Enhanced utility functions for the core app core/utils.py
 """
-from datetime import timedelta
+from datetime import timedelta, datetime
+from django.contrib.auth import authenticate
 import os
 import uuid
 import logging
@@ -374,21 +375,29 @@ def lock_account(user, duration_minutes=30):
 # NOTIFICATION UTILITIES
 # =====================================
 
-def create_notification(user, notification_type, title, message):
-    """Create a notification for a user"""
+def create_notification(user, title, message, notification_type='info', action_url=None, action_text=None):
+    """Create a notification for a user with consistent parameters"""
     from .models import Notification
     
-    notification = Notification.objects.create(
-        user=user,
-        notification_type=notification_type,
-        title=title,
-        message=message
-    )
-    
-    # Invalidate notification cache
-    cache.delete(f'user_notifications:{user.id}')
-    
-    return notification
+    try:
+        notification = Notification.objects.create(
+            user=user,
+            title=title,
+            message=message,
+            notification_type=notification_type,
+            action_url=action_url or '',
+            action_text=action_text or ''
+        )
+        
+        # Invalidate notification cache
+        cache.delete(f'user_notifications:{user.id}')
+        
+        logger.info(f"Notification created for {user.username}: {title}")
+        return notification
+        
+    except Exception as e:
+        logger.error(f"Failed to create notification for {user.username}: {e}")
+        return None
 
 def get_unread_notifications_count(user):
     """Get count of unread notifications for a user"""
@@ -1152,17 +1161,18 @@ def resize_profile_image(image_field, max_width=300, max_height=300, quality=85)
 
 def authenticate_user(request, username, password, remember_me=False):
     """
-    Centralized authentication service with enhanced security
+    Enhanced authentication with security logging and role-based caching
     """
     from django.contrib.auth import authenticate, login
-    from .models import LoginActivity
     from django.core.cache import cache
-    from django.conf import settings
-
-    # Rate limiting check
+    from django.utils import timezone
+    
+    # Get client information
     ip_address = get_client_ip(request)
-    cache_key = f"login_attempts:{ip_address}"
     user_agent = request.META.get('HTTP_USER_AGENT', '')
+    
+    # Rate limiting
+    cache_key = f"login_attempts:{ip_address}"
     attempts = cache.get(cache_key, 0)
     
     max_attempts = getattr(settings, 'MAX_LOGIN_ATTEMPTS', 5)
@@ -1172,24 +1182,35 @@ def authenticate_user(request, username, password, remember_me=False):
         log_security_event(
             user=None,
             event_type='login_failure',
+            description=f'Rate limited login attempt from {ip_address}',
             ip_address=ip_address,
-            user_agent=user_agent,
-            details={'reason': 'rate_limited', 'attempts': attempts}
+            severity='warning'
         )
         return None
     
     # Authenticate user
-    user = authenticate(username=username, password=password)
+    user = authenticate(request, username=username, password=password)
     
     if user is not None:
+        # Check if account is locked
+        if is_account_locked(user):
+            log_security_event(
+                user=user,
+                event_type='login_failure',
+                description='Login attempt on locked account',
+                ip_address=ip_address,
+                severity='warning'
+            )
+            return None
+        
         # Check for suspicious activity
         if is_suspicious_activity(user, ip_address, user_agent):
             log_security_event(
                 user=user,
                 event_type='suspicious_activity',
+                description='Login from new location or device',
                 ip_address=ip_address,
-                user_agent=user_agent,
-                details={'reason': 'new_location_or_device'}
+                severity='info'
             )
             
             # Optionally send security alert email
@@ -1197,7 +1218,7 @@ def authenticate_user(request, username, password, remember_me=False):
                 send_security_alert_email(user, ip_address, user_agent)
             except Exception as e:
                 logger.error(f"Failed to send security alert: {str(e)}")
-            
+        
         # Reset login attempts on successful login
         cache.delete(cache_key)
         
@@ -1208,11 +1229,25 @@ def authenticate_user(request, username, password, remember_me=False):
         # Log the user in
         login(request, user, backend='django.contrib.auth.backends.ModelBackend')
         
+        # Create login activity record
+        try:
+            from .models import LoginActivity
+            LoginActivity.objects.create(
+                user=user,
+                ip_address=ip_address,
+                user_agent=user_agent,
+                success=True,
+                location=get_location_from_ip(ip_address)  # Optional: implement geo lookup
+            )
+        except Exception as e:
+            logger.error(f"Failed to create login activity record: {e}")
+        
         # Log successful login
         log_security_event(
             user=user,
             event_type='login_success',
             description=f'Successful login for user {username}',
+            ip_address=ip_address,
             severity='info'
         )
         
@@ -1221,22 +1256,50 @@ def authenticate_user(request, username, password, remember_me=False):
             user.profile.last_login = timezone.now()
             user.profile.save(update_fields=['last_login'])
         
+        # Clear any cached permissions to force refresh
+        invalidate_permission_cache(user.id)
+        
         logger.info(f"Successful login for {username} from {ip_address}")
         return user
     else:
         # Increment failed login attempts
         cache.set(cache_key, attempts + 1, block_time)
         
+        # Create failed login activity record
+        try:
+            from .models import LoginActivity
+            LoginActivity.objects.create(
+                ip_address=ip_address,
+                user_agent=user_agent,
+                success=False,
+                location=get_location_from_ip(ip_address)
+            )
+        except Exception as e:
+            logger.error(f"Failed to create failed login activity record: {e}")
+        
         # Log failed login
         log_security_event(
             user=None,
             event_type='login_failed',
             description=f'Failed login attempt for username: {username}',
+            ip_address=ip_address,
             severity='warning'
         )
         
         logger.warning(f"Failed login attempt for {username} from {ip_address}")
         return None
+
+def get_location_from_ip(ip_address):
+    """
+    Get location from IP address - placeholder function
+    You can integrate with GeoIP2 or similar service later
+    """
+    try:
+        # Placeholder for geo lookup
+        # You can implement actual geolocation here
+        return "Unknown"
+    except Exception:
+        return "Unknown"
 
 def get_client_ip(request):
     """
@@ -1244,31 +1307,39 @@ def get_client_ip(request):
     """
     x_forwarded_for = request.META.get('HTTP_X_FORWARDED_FOR')
     if x_forwarded_for:
-        ip = x_forwarded_for.split(',')[0]
+        ip = x_forwarded_for.split(',')[0].strip()
     else:
         ip = request.META.get('REMOTE_ADDR')
     return ip
 
 def is_suspicious_activity(user, ip_address, user_agent):
-    """Detect suspicious login activity"""
+    """Detect suspicious login activity using correct field names"""
     if not user or not hasattr(user, 'login_activities'):
         return False
     
-    # Check for login from new location
-    recent_ips = user.login_activities.filter(
-        login_datetime__gte=timezone.now() - timezone.timedelta(days=30)
-    ).values_list('ip_address', flat=True).distinct()
-    
-    if ip_address not in recent_ips and len(recent_ips) > 0:
-        return True
-    
-    # Check for unusual user agent
-    recent_agents = user.login_activities.filter(
-        login_datetime__gte=timezone.now() - timezone.timedelta(days=7)
-    ).values_list('user_agent', flat=True).distinct()
-    
-    if user_agent not in recent_agents and len(recent_agents) > 0:
-        return True
+    try:
+        # Check for login from new location (using timestamp, not login_datetime)
+        recent_ips = user.login_activities.filter(
+            timestamp__gte=timezone.now() - timedelta(days=30),
+            success=True  # Only consider successful logins
+        ).values_list('ip_address', flat=True).distinct()
+        
+        if ip_address not in recent_ips and len(recent_ips) > 0:
+            return True
+        
+        # Check for unusual user agent (using timestamp, not login_datetime)
+        recent_agents = user.login_activities.filter(
+            timestamp__gte=timezone.now() - timedelta(days=7),
+            success=True  # Only consider successful logins
+        ).values_list('user_agent', flat=True).distinct()
+        
+        if user_agent not in recent_agents and len(recent_agents) > 0:
+            return True
+            
+    except Exception as e:
+        logger.error(f"Error checking suspicious activity for user {user.username}: {e}")
+        # Fail safe - don't block login if we can't check
+        return False
     
     return False
 
@@ -1287,33 +1358,55 @@ def is_password_expired(user):
     
     return days_since_change >= password_expiry_days
 
-def update_department_permissions(department, app_name, level):
+def update_department_permissions(department, role_name, app_permissions):
     """
-    Update permissions for all users in a department
+    Update permissions for all users in a department by assigning roles
+    app_permissions should be a dict like {'crm': 'edit', 'quotes': 'view'}
     """
     from django.db import transaction
-    from .models import UserProfile, AppPermission
+    from .models import UserProfile, EmployeeRole, UserRole, AppPermission
+
+    # Get the role to assign
+    try:
+        role = EmployeeRole.objects.get(name=role_name)
+    except EmployeeRole.DoesNotExist:
+        logger.error(f"Role {role_name} does not exist")
+        return 0
 
     # Get all users in the specified department
-    users = UserProfile.objects.filter(department=department).select_related('user')
+    users = User.objects.filter(
+        profile__department=department,
+        profile__user_type__in=['employee', 'sales_rep', 'sales_manager']
+    ).select_related('profile')
     
     count = 0
-    # Bulk update permissions
+    
     with transaction.atomic():
-        for profile in users:
-            user = profile.user
-            # Update or create the permission
-            app_perm, created = AppPermission.objects.update_or_create(
+        # Assign role to all users in department
+        for user in users:
+            user_role, created = UserRole.objects.get_or_create(
                 user=user,
-                app=app_name,
-                defaults={'permission_level': level}
+                role=role,
+                defaults={'is_active': True}
             )
+            if not created and not user_role.is_active:
+                user_role.is_active = True
+                user_role.save()
+            
             count += 1
             
             # Invalidate cache for this user
             invalidate_permission_cache(user.id)
+        
+        # Update role permissions
+        for app, level in app_permissions.items():
+            AppPermission.objects.update_or_create(
+                role=role,
+                app=app,
+                defaults={'permission_level': level}
+            )
     
-    logger.info(f"Updated {app_name} permissions to {level} for {count} users in {department} department")
+    logger.info(f"Assigned role {role_name} with permissions {app_permissions} to {count} users in {department} department")
     return count
 
 def log_audit_event(user, action, description, request=None, object_type='', object_id='', extra_data=None):
@@ -1334,33 +1427,59 @@ def log_audit_event(user, action, description, request=None, object_type='', obj
     )
 
 def send_security_alert_email(user, ip_address, user_agent):
-    """Send security alert email for suspicious activity"""
+    """
+    Send security alert email for suspicious login activity
+    """
     try:
-        subject = f"{settings.COMPANY_NAME} - Security Alert"
+        from django.core.mail import send_mail
+        from django.template.loader import render_to_string
+        from django.conf import settings
         
+        if not user.email:
+            logger.warning(f"Cannot send security alert to {user.username} - no email address")
+            return
+        
+        # Prepare email context
         context = {
             'user': user,
             'ip_address': ip_address,
             'user_agent': user_agent,
             'timestamp': timezone.now(),
-            'company_name': settings.COMPANY_NAME,
+            'site_name': getattr(settings, 'SITE_NAME', 'BlitzTech ERP'),
         }
+        
+        # Simple text email for now
+        subject = f'Security Alert: New login detected - {getattr(settings, "SITE_NAME", "BlitzTech ERP")}'
+        
+        message = f"""
+Hello {user.get_full_name() or user.username},
 
-        text_content = render_to_string('core/emails/security_alert.txt', context)
-        html_content = render_to_string('core/emails/security_alert.html', context)
+We detected a new login to your account:
 
-        msg = EmailMultiAlternatives(
+Time: {timezone.now().strftime('%Y-%m-%d %H:%M:%S')}
+IP Address: {ip_address}
+Device: {user_agent[:100]}...
+
+If this was you, no action is needed. If you don't recognize this activity, please contact your administrator immediately.
+
+Best regards,
+BlitzTech ERP Security Team
+        """
+        
+        # Send email
+        send_mail(
             subject=subject,
-            body=text_content,
-            from_email=settings.DEFAULT_FROM_EMAIL,
-            to=[user.email]
+            message=message,
+            from_email=getattr(settings, 'DEFAULT_FROM_EMAIL', 'noreply@blitztechelectronics.co.zw'),
+            recipient_list=[user.email],
+            fail_silently=False,
         )
-        msg.attach_alternative(html_content, "text/html")
-        msg.send()
-        send_mail(subject, text_content, settings.DEFAULT_FROM_EMAIL, [user.email])
-
+        
+        logger.info(f"Security alert email sent to {user.email}")
+        
     except Exception as e:
-        logger.error(f"Failed to send security alert: {str(e)}")
+        logger.error(f"Failed to send security alert email to {user.username}: {e}")
+        raise
 
 def validate_business_rules(user, action, **kwargs):
     """Validate business rules for various actions"""

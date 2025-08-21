@@ -134,12 +134,12 @@ def app_permission_required(app_name, required_level='view'):
         @wraps(view_func)
         @login_required
         def wrapper(request, *args, **kwargs):
-            if not has_app_permission(request.user, app_name, required_level):
+            if not has_app_permission(request.user, app_name, required_level):  # Updated function name
                 messages.error(request, f"Permission required: {app_name} ({required_level})")
                 log_security_event(
                     user=request.user,
                     event_type='access_denied',
-                    description=f'Insufficient permission for {app_name} ({required_level})',
+                    description=f'User lacks {required_level} permission for {app_name}',
                     ip_address=request.META.get('REMOTE_ADDR')
                 )
                 return redirect('core:dashboard')
