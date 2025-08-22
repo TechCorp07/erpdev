@@ -50,10 +50,10 @@ def inventory_permission_required(permission_level='view'):
         @wraps(view_func)
         @login_required
         def _wrapped_view(request, *args, **kwargs):
-            from core.utils import check_app_permission
+            from core.utils import has_app_permission
             
             # Check basic inventory permission
-            if not check_app_permission(request.user, 'inventory', permission_level):
+            if not has_app_permission(request.user, 'inventory', permission_level):
                 logger.warning(
                     f"Inventory permission denied: User {request.user.username} "
                     f"lacks {permission_level} permission for inventory"
@@ -548,9 +548,9 @@ def cost_data_access(view_func):
         # Only managers and above can view cost data
         if user_profile.user_type not in ['sales_manager', 'blitzhub_admin', 'it_admin']:
             # Check if user has specific financial permissions
-            from core.utils import check_app_permission
+            from core.utils import has_app_permission
             
-            if not check_app_permission(request.user, 'financial', 'view'):
+            if not has_app_permission(request.user, 'financial', 'view'):
                 logger.warning(
                     f"Cost data access denied: User {request.user.username} "
                     f"lacks authorization for financial data"
