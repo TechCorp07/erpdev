@@ -18,7 +18,7 @@ from core.decorators import ajax_required, password_expiration_check
 from core.utils import create_notification, has_app_permission
 from .models import Client, CustomerInteraction, Deal, Task
 from .forms import ClientForm, CustomerInteractionForm, DealForm, TaskForm
-from core.views import is_admin_user, is_manager_or_admin
+from core.utils import is_admin_user, is_manager_user, has_app_permission
 
 logger = logging.getLogger(__name__)
 
@@ -832,7 +832,7 @@ def deal_list(request):
     
     # Get team members for assignment filter (if user has permission)
     team_members = []
-    if is_manager_or_admin(request.user):
+    if is_admin_user(request.user) or is_manager_user(request.user):
         team_members = User.objects.filter(
             profile__user_type__in=['employee', 'sales_rep', 'sales_manager', 'blitzhub_admin']
         ).order_by('first_name', 'last_name')
@@ -1289,7 +1289,7 @@ def task_list(request):
     
     # Get team members for assignment filter (if user has permission)
     team_members = []
-    if is_manager_or_admin(request.user):
+    if is_admin_user(request.user) or is_manager_user(request.user):
         team_members = User.objects.filter(
             profile__user_type__in=['employee', 'sales_rep', 'sales_manager', 'blitzhub_admin']
         ).order_by('first_name', 'last_name')

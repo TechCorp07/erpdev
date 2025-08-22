@@ -31,35 +31,12 @@ from .models import UserProfile, AppPermission, LoginActivity, Notification, Aud
 from .decorators import user_type_required, ajax_required, password_expiration_check
 from .utils import (
     authenticate_user, can_user_manage_roles, create_bulk_notifications, get_recent_notifications, 
-    get_unread_notifications_count, get_user_dashboard_stats, get_user_permissions, get_user_roles, has_app_permission,
-    invalidate_permission_cache, create_notification, get_quote_dashboard_stats, get_navigation_context, log_security_event
+    get_unread_notifications_count, get_user_dashboard_stats, get_user_permissions, get_user_roles,
+    has_app_permission, invalidate_permission_cache, create_notification, get_quote_dashboard_stats,
+    get_navigation_context, log_security_event, is_admin_user, is_manager_user
 )
 
 logger = logging.getLogger('core.authentication')
-
-# =====================================
-# AUTHENTICATION VIEWS
-# =====================================
-
-def is_manager_or_admin(user):
-    return (user.is_superuser or user.is_staff or
-            (hasattr(user, 'profile') and 
-             ((user.profile.department in ['admin', 'sales'] and user.profile.user_type == 'employee') or
-              user.profile.department == 'admin')))
-
-def is_admin_user(user):
-    """Check if user has admin privileges"""
-    return (user.is_superuser or user.is_staff or
-            (hasattr(user, 'profile') and 
-             user.profile.department == 'admin' and 
-             user.profile.user_type == 'employee'))
-
-def is_manager_user(user):
-    """Check if user has manager privileges"""
-    return (user.is_superuser or user.is_staff or
-            (hasattr(user, 'profile') and 
-             user.profile.department in ['admin', 'sales'] and 
-             user.profile.user_type == 'employee'))
 
 class CustomLoginView(LoginView):
     """Custom login view using CoreLoginForm with enhanced security"""
@@ -221,7 +198,7 @@ def register_view(request):
 # USER MANAGEMENT VIEWS
 # =====================================
 
-@user_passes_test(lambda u: u.is_superuser or (hasattr(u, 'profile') and u.profile.user_type in ['blitzhub_admin', 'it_admin']))
+@user_passes_test(lambda u: u.is_superuser or is_admin_user(u))
 def user_management_view(request):
     """Enhanced user management view"""
     # Get filter parameters
@@ -276,7 +253,7 @@ def user_management_view(request):
     
     return render(request, 'core/user_management.html', context)
 
-@user_passes_test(lambda u: u.is_superuser or (hasattr(u, 'profile') and u.profile.user_type in ['blitzhub_admin', 'it_admin']))
+@user_passes_test(lambda u: u.is_superuser or is_admin_user(u))
 def user_detail_view(request, user_id):
     """Detailed view of a specific user"""
     target_user = get_object_or_404(User, id=user_id)
@@ -354,7 +331,7 @@ def request_approval_view(request):
     
     return render(request, 'core/request_approval.html', context)
 
-@user_passes_test(lambda u: u.is_superuser or (hasattr(u, 'profile') and u.profile.user_type in ['blitzhub_admin', 'it_admin']))
+@user_passes_test(lambda u: u.is_superuser or is_admin_user(u))
 def manage_approvals_view(request):
     """Admin view to manage approval requests"""
     # Get filter parameters
@@ -404,7 +381,7 @@ def manage_approvals_view(request):
     
     return render(request, 'core/manage_approvals.html', context)
 
-@user_passes_test(lambda u: u.is_superuser or (hasattr(u, 'profile') and u.profile.user_type in ['blitzhub_admin', 'it_admin']))
+@user_passes_test(lambda u: u.is_superuser or is_admin_user(u))
 def process_approval_view(request, request_id):
     """Process individual approval request"""
     approval_request = get_object_or_404(ApprovalRequest, id=request_id)
@@ -447,7 +424,7 @@ def process_approval_view(request, request_id):
 # BULK APPROVAL VIEWS
 # =====================================
 
-@user_passes_test(lambda u: u.is_superuser or (hasattr(u, 'profile') and u.profile.user_type in ['blitzhub_admin', 'it_admin']))
+@user_passes_test(lambda u: u.is_superuser or is_admin_user(u))
 @require_http_methods(["POST"])
 def bulk_approve_requests(request):
     """Bulk approve multiple requests"""
@@ -522,10 +499,10 @@ def dashboard_view(request):
         # Get dashboard context with optimized queries
         dashboard_context = {
             'user': user,
-            'profile': profile,
-            'app_permissions': user_permissions,
-            'is_manager': has_app_permission(user, 'hr', 'view'),
-            'is_admin': user.is_superuser or profile.user_type in ['it_admin', 'general_manager'],
+            'is_manager': is_manager_user(user),
+            'is_admin': is_admin_user(user),
+            'app_permissions': get_user_permissions(user),
+            'can_manage_users': can_user_manage_roles(user),
         }
         
         # Use single query for user statistics with aggregation
@@ -533,7 +510,6 @@ def dashboard_view(request):
             try:
                 from django.db.models import Count
                 
-                # FIXED: Use correct field name 'is_social_account' instead of 'social_login'
                 stats_query = User.objects.aggregate(
                     total_users=Count('id'),
                     total_customers=Count('profile', filter=Q(profile__user_type='customer')),
@@ -1521,13 +1497,13 @@ def notify_quote_team_api(request):
         return JsonResponse({'success': False, 'error': str(e)})
 
 @login_required
-@user_passes_test(lambda u: u.is_superuser or u.is_staff)  # or your preferred permission check
+@user_passes_test(lambda u: u.is_superuser or is_admin_user(u))
 def system_logs(request):
     logs = SecurityLog.objects.order_by('-timestamp')[:100]
     return render(request, 'core/system_logs.html', {'logs': logs})
 
 @login_required
-@user_passes_test(lambda u: u.is_superuser or u.is_staff)  # restrict as you need!
+@user_passes_test(lambda u: u.is_superuser or is_admin_user(u))
 def system_reports(request):
     # Add your stats/data logic here!
     return render(request, 'core/system_reports.html', {})
@@ -1952,7 +1928,7 @@ def get_notification_updates(request):
     })
 
 @login_required
-@user_passes_test(is_manager_or_admin)
+@user_passes_test(is_admin_user)
 def audit_log_view(request):
     logs = AuditLog.objects.select_related('user').all()
 
@@ -2019,7 +1995,7 @@ def audit_log_view(request):
 # SECURITY MONITORING VIEWS
 # =====================================
 
-@user_passes_test(lambda u: u.is_superuser or (hasattr(u, 'profile') and u.profile.user_type == 'it_admin'))
+@user_passes_test(lambda u: u.is_superuser or is_admin_user(u))
 def security_dashboard_view(request):
     """Security monitoring dashboard"""
     from datetime import timedelta

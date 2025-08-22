@@ -265,14 +265,30 @@
                   {{ employee_profile.user.get_full_name|default:employee_profile.user.username }}
                 </h5>
                 <p class="text-muted mb-2 small">{{ employee_profile.user.email }}</p>
-                <span class="role-badge 
-                    {% if employee_profile.user_type == 'sales_rep' %}bg-success text-white
-                    {% elif employee_profile.user_type == 'sales_manager' %}bg-info text-white
-                    {% elif employee_profile.user_type == 'blitzhub_admin' %}bg-danger text-white
-                    {% elif employee_profile.user_type == 'it_admin' %}bg-dark text-white
-                    {% else %}bg-secondary text-white{% endif %}">
-                    {{ employee_profile.get_user_type_display }}
-                </span>
+                  {% load core_extras %}
+                  <span class="role-badge 
+                      {% if employee_profile.user|is_system_admin %}bg-danger text-white
+                      {% elif employee_profile.user|is_manager %}bg-info text-white  
+                      {% elif employee_profile.user|is_employee_user %}bg-success text-white
+                      {% else %}bg-secondary text-white{% endif %}">
+                      {{ employee_profile.user|user_role_display }}
+                  </span>
+                  
+                  <!-- Optional: Add permission indicators below the role badge -->
+                  <div class="permission-indicators mt-1">
+                      {% if employee_profile.user|has_app_access:'crm' %}
+                          <small class="badge bg-outline-primary me-1">CRM</small>
+                      {% endif %}
+                      {% if employee_profile.user|has_app_access:'quotes' %}
+                          <small class="badge bg-outline-warning me-1">Quotes</small>
+                      {% endif %}
+                      {% if employee_profile.user|has_app_access:'inventory' %}
+                          <small class="badge bg-outline-success me-1">Inventory</small>
+                      {% endif %}
+                      {% if employee_profile.user|has_app_access:'admin' %}
+                          <small class="badge bg-outline-danger me-1">Admin</small>
+                      {% endif %}
+                  </div>
                 {% if employee_profile.user_type in 'sales_rep,sales_manager' and app_permissions.quotes|default:False %}
                 <span class="performance-indicator 
                   {% if employee_profile.quote_performance_level == 'high' %}performance-high
@@ -438,17 +454,23 @@
                 {% endif %}
               </td>
               <td>
-                {% if employee_profile.user_type == 'it_admin' %}
-                  <span class="badge bg-dark">IT Admin</span>
-                {% elif employee_profile.user_type == 'blitzhub_admin' %}
-                  <span class="badge bg-danger">Administrator</span>
-                {% elif employee_profile.user_type == 'sales_manager' %}
-                  <span class="badge bg-info">Sales Manager</span>
-                {% elif employee_profile.user_type == 'sales_rep' %}
-                  <span class="badge bg-success">Sales Rep</span>
-                {% else %}
-                  <span class="badge bg-secondary">Employee</span>
-                {% endif %}
+                {% load core_extras %}
+                <span class="badge bg-{% if employee_profile.user|is_system_admin %}danger{% elif employee_profile.user|is_manager %}info{% else %}secondary{% endif %}">
+                  {{ employee_profile.user|user_role_display }}
+                </span>
+                
+                <!-- Show primary permissions -->
+                <div class="mt-1">
+                  {% if employee_profile.user|has_app_access:'crm' %}
+                    <small class="badge bg-outline-primary">CRM</small>
+                  {% endif %}
+                  {% if employee_profile.user|has_app_access:'quotes' %}
+                    <small class="badge bg-outline-warning">Quotes</small>
+                  {% endif %}
+                  {% if employee_profile.user|has_app_access:'inventory' %}
+                    <small class="badge bg-outline-success">Inventory</small>
+                  {% endif %}
+                </div>
               </td>
               <td>
                 <small>

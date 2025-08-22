@@ -1539,22 +1539,13 @@ def validate_business_rules(user, action, **kwargs):
     if not hasattr(user, 'profile'):
         return False, "User profile not found"
     
-    profile = user.profile
-    
     if action == 'crm_access':
-        if profile.user_type == 'employee':
-            return True, "Employee access granted"
-        elif profile.crm_approved and profile.profile_completed:
-            return True, "CRM access approved"
-        else:
-            return False, "CRM access requires approval and completed profile"
-    
+        return has_app_permission(user, 'crm', 'view'), "CRM access status"
     elif action == 'shop_access':
-        return profile.shop_approved, "Shop access status"
+        return has_app_permission(user, 'shop', 'view'), "Shop access status"
+    elif action == 'admin_access':
+        return is_admin_user(user), "Admin access status"
     
     elif action == 'blog_access':
-        if profile.user_type != 'blogger':
-            return False, "Only bloggers can access blog management"
-        return profile.blog_approved and profile.profile_completed, "Blog access status"
-    
+        return has_app_permission(user, 'blog', 'view'), "Blog access status"
     return True, "Action allowed"

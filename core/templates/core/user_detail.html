@@ -36,15 +36,22 @@
         
         <!-- User Status Badges -->
         <div class="d-flex flex-wrap justify-content-center gap-2 mb-3">
-          {% if target_user.is_superuser %}
+          {% load core_extras %}
+          {% if target_user|is_system_admin %}
           <span class="badge bg-danger">
-            <i class="bi bi-shield-fill me-1"></i>Superuser
+            <i class="bi bi-shield-fill me-1"></i>Administrator
           </span>
           {% endif %}
-          
-          {% if target_user.is_staff %}
+
+          {% if target_user|is_manager %}
           <span class="badge bg-primary">
-            <i class="bi bi-gear-fill me-1"></i>Staff
+            <i class="bi bi-people-fill me-1"></i>Manager
+          </span>
+          {% endif %}
+
+          {% if target_user|is_employee_user %}
+          <span class="badge bg-info">
+            <i class="bi bi-briefcase me-1"></i>Employee
           </span>
           {% endif %}
           
@@ -236,27 +243,31 @@
         
         {% else %}
         <!-- Customer/Blogger permissions -->
-        <div class="row g-3">
+          {% load core_extras %}
           <div class="col-md-4 text-center">
             <div class="border rounded p-3">
-              <i class="bi bi-cart3 fs-1 mb-2 text-{% if profile.shop_approved %}success{% else %}muted{% endif %}"></i>
-              <h6>Shopping Cart</h6>
-              {% if profile.shop_approved %}
-              <span class="badge bg-success">Approved</span>
+              <i class="bi bi-cart3 fs-1 mb-2 text-{% if target_user|has_app_access:'shop' %}success{% else %}muted{% endif %}"></i>
+              <h6>Shop Access</h6>
+              {% if target_user|has_app_access:'shop' %}
+              <span class="badge bg-{% if target_user|get_app_permission:'shop' == 'admin' %}danger{% elif target_user|get_app_permission:'shop' == 'edit' %}warning{% else %}info{% endif %}">
+                {{ target_user|get_app_permission:'shop'|title }}
+              </span>
               {% else %}
-              <span class="badge bg-secondary">Not Approved</span>
+              <span class="badge bg-secondary">No Access</span>
               {% endif %}
             </div>
           </div>
-          
+
           <div class="col-md-4 text-center">
             <div class="border rounded p-3">
-              <i class="bi bi-people fs-1 mb-2 text-{% if profile.crm_approved %}success{% else %}muted{% endif %}"></i>
+              <i class="bi bi-people fs-1 mb-2 text-{% if target_user|has_app_access:'crm' %}success{% else %}muted{% endif %}"></i>
               <h6>CRM Access</h6>
-              {% if profile.crm_approved %}
-              <span class="badge bg-success">Approved</span>
+              {% if target_user|has_app_access:'crm' %}
+              <span class="badge bg-{% if target_user|get_app_permission:'crm' == 'admin' %}danger{% elif target_user|get_app_permission:'crm' == 'edit' %}warning{% else %}info{% endif %}">
+                {{ target_user|get_app_permission:'crm'|title }}
+              </span>
               {% else %}
-              <span class="badge bg-secondary">Not Approved</span>
+              <span class="badge bg-secondary">No Access</span>
               {% endif %}
             </div>
           </div>
