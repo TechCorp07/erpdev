@@ -438,7 +438,7 @@
                 <!-- Shop Management - FIXED PERMISSION CHECK -->
                 {% if user|has_app_access:'shop' %}
                 <li class="nav-item">
-                  <a class="nav-link {% if 'shop:' in request.resolver_match.namespace %}active{% endif %}" href="{% url 'shop:dashboard' %}">
+                  <a class="nav-link {% if 'shop:' in request.resolver_match.namespace %}active{% endif %}" href="">
                     <i class="bi bi-shop me-2"></i>
                     Shop Management
                     {% if user|get_app_permission:'shop' == 'admin' %}
@@ -453,7 +453,7 @@
                 <!-- Website Management - ADDED FOR ADMINS -->
                 {% if user|has_app_access:'website' %}
                 <li class="nav-item">
-                  <a class="nav-link {% if 'website:admin' in request.resolver_match.namespace %}active{% endif %}" href="{% url 'website:admin_dashboard' %}">
+                  <a class="nav-link {% if 'website:manage' in request.resolver_match.namespace %}active{% endif %}" href="{% url 'website:manage_dashboard' %}">
                     <i class="bi bi-globe me-2"></i>
                     Website Management
                     {% if user|get_app_permission:'website' == 'admin' %}

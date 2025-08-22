@@ -2,7 +2,7 @@
 from django import template
 from django.contrib.auth.models import User
 from core.utils import (
-    has_app_permission as utils_has_app_permission, get_user_permissions, can_user_manage_roles,
+    get_user_permissions, can_user_manage_roles,
     is_employee, is_admin_user, is_manager_user
 )
 
@@ -28,23 +28,29 @@ def has_app_access(user, app_name):
     """
     if not user or not user.is_authenticated:
         return False
-    return utils_has_app_permission(user, app_name, 'view')
+    
+    # Import the function here to avoid naming conflicts
+    from core.utils import has_app_permission
+    return has_app_permission(user, app_name, 'view')
 
 @register.filter
-def has_app_permission_level(user, app_and_level):
+def has_app_permission(user, app_and_level):
     """
     Template filter to check if user has specific permission level.
-    Usage: {% if user|has_app_permission_level:'crm:edit' %}
+    Usage: {% if user|has_app_permission:'crm:edit' %}
     """
     if not user or not user.is_authenticated:
         return False
     
+    # Import the function locally to avoid naming conflicts
+    from core.utils import has_app_permission as check_app_permission
+    
     if ':' in app_and_level:
         app_name, level = app_and_level.split(':')
-        return utils_has_app_permission(user, app_name, level)
+        return check_app_permission(user, app_name, level)
     else:
         # Default to view level if no level specified
-        return utils_has_app_permission(user, app_and_level, 'view')
+        return check_app_permission(user, app_and_level, 'view')
 
 @register.filter
 def get_app_permission(user, app_name):
