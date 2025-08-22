@@ -15,9 +15,10 @@ from django.utils.timesince import timesince
 from django.contrib.auth.models import User
 from django.contrib.auth.decorators import login_required, user_passes_test
 from core.decorators import ajax_required, password_expiration_check
-from core.utils import create_notification
+from core.utils import create_notification, has_app_permission
 from .models import Client, CustomerInteraction, Deal, Task
 from .forms import ClientForm, CustomerInteractionForm, DealForm, TaskForm
+from core.views import is_admin_user, is_manager_or_admin
 
 logger = logging.getLogger(__name__)
 
@@ -98,7 +99,7 @@ def crm_dashboard(request):
             assigned_to=request.user,
             expected_close_date__lt=timezone.now().date(),
             stage__in=['prospecting', 'qualification', 'proposal', 'negotiation']
-        ).count() if not request.user.profile.is_admin else 0,
+        ).count() if not is_admin_user(request.user) else 0,
         }
     })
     
@@ -735,7 +736,7 @@ def deal_list(request):
     deals = Deal.objects.select_related('client', 'assigned_to').order_by('-created_at')
     
     # Apply user-based filtering (non-admins see only their deals)
-    if not request.user.profile.is_admin:
+    if not is_admin_user(request.user):
         deals = deals.filter(
             Q(assigned_to=request.user) | Q(created_by=request.user)
         )
@@ -831,7 +832,7 @@ def deal_list(request):
     
     # Get team members for assignment filter (if user has permission)
     team_members = []
-    if request.user.profile.is_manager:
+    if is_manager_or_admin(request.user):
         team_members = User.objects.filter(
             profile__user_type__in=['employee', 'sales_rep', 'sales_manager', 'blitzhub_admin']
         ).order_by('first_name', 'last_name')
@@ -872,7 +873,7 @@ def deal_detail(request, deal_id):
     deal = get_object_or_404(Deal, id=deal_id)
     
     # Permission check: users can only view deals they're involved with
-    if not request.user.profile.is_admin:
+    if not is_admin_user(request.user):
         if deal.assigned_to != request.user and deal.created_by != request.user:
             messages.error(request, 'You do not have permission to view this deal.')
             return redirect('crm:deal_list')
@@ -1007,7 +1008,7 @@ def deal_update(request, deal_id):
     deal = get_object_or_404(Deal, id=deal_id)
     
     # Permission check
-    if not request.user.profile.is_admin:
+    if not is_admin_user(request.user):
         if deal.assigned_to != request.user and deal.created_by != request.user:
             messages.error(request, 'You do not have permission to edit this deal.')
             return redirect('crm:deal_detail', deal_id=deal.id)
@@ -1155,7 +1156,7 @@ def task_list(request):
     tasks = Task.objects.select_related('client', 'deal', 'assigned_to').order_by('due_date', '-priority')
     
     # Apply user-based filtering (users see tasks assigned to them or created by them)
-    if not request.user.profile.is_admin:
+    if not is_admin_user(request.user):
         tasks = tasks.filter(
             Q(assigned_to=request.user) | Q(created_by=request.user)
         )
@@ -1278,17 +1279,17 @@ def task_list(request):
     available_priorities = Task.PRIORITY_CHOICES
     
     # Get clients and deals for filtering
-    user_clients = Client.objects.all() if request.user.profile.is_admin else Client.objects.filter(
+    user_clients = Client.objects.all() if is_admin_user(request.user) else Client.objects.filter(
         Q(assigned_to=request.user) | Q(customerinteraction__created_by=request.user)
     ).distinct()
-    
-    user_deals = Deal.objects.all() if request.user.profile.is_admin else Deal.objects.filter(
+
+    user_deals = Deal.objects.all() if is_admin_user(request.user) else Deal.objects.filter(
         Q(assigned_to=request.user) | Q(created_by=request.user)
     )
     
     # Get team members for assignment filter (if user has permission)
     team_members = []
-    if request.user.profile.is_manager:
+    if is_manager_or_admin(request.user):
         team_members = User.objects.filter(
             profile__user_type__in=['employee', 'sales_rep', 'sales_manager', 'blitzhub_admin']
         ).order_by('first_name', 'last_name')
@@ -1332,7 +1333,7 @@ def task_detail(request, task_id):
     task = get_object_or_404(Task, id=task_id)
     
     # Permission check: users can only view tasks they're involved with
-    if not request.user.profile.is_admin:
+    if not is_admin_user(request.user):
         if task.assigned_to != request.user and task.created_by != request.user:
             messages.error(request, 'You do not have permission to view this task.')
             return redirect('crm:task_list')
@@ -1471,7 +1472,7 @@ def task_update(request, task_id):
     task = get_object_or_404(Task, id=task_id)
     
     # Permission check
-    if not request.user.profile.is_admin:
+    if not is_admin_user(request.user):
         if task.assigned_to != request.user and task.created_by != request.user:
             messages.error(request, 'You do not have permission to edit this task.')
             return redirect('crm:task_detail', task_id=task.id)
@@ -1577,7 +1578,7 @@ def task_complete(request, task_id):
         task = get_object_or_404(Task, id=task_id)
         
         # Permission check
-        if not request.user.profile.is_admin:
+        if not is_admin_user(request.user):
             if task.assigned_to != request.user and task.created_by != request.user:
                 return JsonResponse({'success': False, 'error': 'Permission denied'})
         
@@ -1658,7 +1659,7 @@ def deal_quick_stats(request, deal_id):
     deal = get_object_or_404(Deal, id=deal_id)
     
     # Permission check
-    if not request.user.profile.is_admin:
+    if not is_admin_user(request.user):
         if deal.assigned_to != request.user and deal.created_by != request.user:
             return JsonResponse({'success': False, 'error': 'Permission denied'})
     
@@ -1688,7 +1689,7 @@ def task_quick_stats(request, task_id):
     task = get_object_or_404(Task, id=task_id)
     
     # Permission check
-    if not request.user.profile.is_admin:
+    if not is_admin_user(request.user):
         if task.assigned_to != request.user and task.created_by != request.user:
             return JsonResponse({'success': False, 'error': 'Permission denied'})
     
