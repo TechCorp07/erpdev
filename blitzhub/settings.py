@@ -74,7 +74,10 @@ TEMPLATES = [
         'DIRS': [
             os.path.join(BASE_DIR, 'templates'),
             os.path.join(BASE_DIR, 'core', 'templates'),
-            os.path.join(BASE_DIR, 'quotes', 'templates'),  # NEW: Quote templates
+            os.path.join(BASE_DIR, 'crm', 'templates'),
+            os.path.join(BASE_DIR, 'inventory', 'templates'),
+            os.path.join(BASE_DIR, 'quotes', 'templates'),
+            os.path.join(BASE_DIR, 'website', 'templates'),
         ],
         'APP_DIRS': True,
         'OPTIONS': {
@@ -85,9 +88,10 @@ TEMPLATES = [
                 'django.contrib.messages.context_processors.messages',
                 'django.template.context_processors.static',
                 'core.context_processors.auth_context',
-                'core.context_processors.quote_context_processor',      # NEW
-                'core.context_processors.system_context_processor',     # NEW  
+                'core.context_processors.quote_context_processor',
+                'core.context_processors.system_context_processor',
                 'website.context_processors.website_context',
+                'core.context_processors.dashboard_context',
             ],
         },
     },
