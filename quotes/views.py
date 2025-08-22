@@ -23,7 +23,7 @@ import logging
 from quotes import models
 from django.contrib.auth.decorators import login_required
 from core.decorators import ajax_required, password_expiration_check
-from core.utils import create_notification
+from core.utils import create_notification, is_admin_user
 from .models import Quote, QuoteItem, QuoteRevision, QuoteTemplate
 from .forms import (
     QuoteForm, QuoteItemForm, QuickQuoteForm, 
@@ -49,7 +49,7 @@ def quote_dashboard(request):
     
     # Get current user's quotes if they're not an admin
     user_filter = Q()
-    if not request.user.profile.is_admin:
+    if not is_admin_user(request.user):
         user_filter = Q(assigned_to=request.user) | Q(created_by=request.user)
     
     # Core metrics that matter to business
@@ -152,7 +152,7 @@ def quote_analytics(request):
 
     # ------------- 2. BASE QUERY (user permissions respected) ---------
     quotes = Quote.objects.all().select_related('client', 'assigned_to')
-    if not request.user.profile.is_admin:
+    if not is_admin_user(request.user):
         quotes = quotes.filter(Q(created_by=request.user) | Q(assigned_to=request.user))
 
     # ------------- 3. APPLY FILTERS -----------------------------------
@@ -433,7 +433,7 @@ def quote_list(request):
     ).prefetch_related('items')
     
     # Apply permission filtering
-    if not request.user.profile.is_admin:
+    if not is_admin_user(request.user):
         quotes = quotes.filter(
             Q(assigned_to=request.user) | Q(created_by=request.user)
         )
@@ -572,7 +572,7 @@ def quote_detail(request, quote_id):
     quote = get_object_or_404(Quote, id=quote_id)
     
     # Permission check - users can only view quotes they're involved with
-    if not request.user.profile.is_admin:
+    if not is_admin_user(request.user):
         if quote.assigned_to != request.user and quote.created_by != request.user:
             messages.error(request, "You don't have permission to view this quote.")
             return redirect('quotes:quote_list')
@@ -626,7 +626,7 @@ def quote_builder(request, quote_id):
     quote = get_object_or_404(Quote, id=quote_id)
     
     # Permission check
-    if not request.user.profile.is_admin:
+    if not is_admin_user(request.user):
         if quote.assigned_to != request.user and quote.created_by != request.user:
             messages.error(request, "You don't have permission to edit this quote.")
             return redirect('quotes:quote_detail', quote_id=quote.id)
@@ -703,7 +703,7 @@ def add_quote_item(request, quote_id):
     quote = get_object_or_404(Quote, id=quote_id)
     
     # Security check - ensure user can edit this quote
-    if not request.user.profile.is_admin:
+    if not is_admin_user(request.user):
         if quote.assigned_to != request.user and quote.created_by != request.user:
             return JsonResponse({'success': False, 'error': 'Permission denied'})
     
@@ -807,7 +807,7 @@ def update_quote_item(request, quote_id, item_id):
     quote_item = get_object_or_404(QuoteItem, id=item_id, quote=quote)
     
     # Security check
-    if not request.user.profile.is_admin:
+    if not is_admin_user(request.user):
         if quote.assigned_to != request.user and quote.created_by != request.user:
             return JsonResponse({'success': False, 'error': 'Permission denied'})
     
@@ -888,7 +888,7 @@ def remove_quote_item(request, quote_id, item_id):
     quote_item = get_object_or_404(QuoteItem, id=item_id, quote=quote)
     
     # Security check
-    if not request.user.profile.is_admin:
+    if not is_admin_user(request.user):
         if quote.assigned_to != request.user and quote.created_by != request.user:
             return JsonResponse({'success': False, 'error': 'Permission denied'})
     
@@ -1161,7 +1161,7 @@ def generate_quote_pdf(request, quote_id):
     quote = get_object_or_404(Quote, id=quote_id)
     
     # Permission check - users can only view quotes they're involved with
-    if not request.user.profile.is_admin:
+    if not is_admin_user(request.user):
         if quote.assigned_to != request.user and quote.created_by != request.user:
             messages.error(request, "You don't have permission to view this quote.")
             return redirect('quotes:quote_list')
@@ -1283,7 +1283,7 @@ def email_quote_to_client(request, quote_id):
     quote = get_object_or_404(Quote, id=quote_id)
     
     # Permission check
-    if not request.user.profile.is_admin:
+    if not is_admin_user(request.user):
         if quote.assigned_to != request.user and quote.created_by != request.user:
             return JsonResponse({'success': False, 'error': 'Permission denied'})
     
@@ -1429,7 +1429,7 @@ def quote_edit(request, quote_id):
     quote = get_object_or_404(Quote, id=quote_id)
     
     # Permission check
-    if not request.user.profile.is_admin:
+    if not is_admin_user(request.user):
         if quote.assigned_to != request.user and quote.created_by != request.user:
             messages.error(request, "You don't have permission to edit this quote.")
             return redirect('quotes:quote_list')
@@ -1528,7 +1528,7 @@ def send_quote(request, quote_id):
     quote = get_object_or_404(Quote, id=quote_id)
     
     # Permission check
-    if not request.user.profile.is_admin:
+    if not is_admin_user(request.user):
         if quote.assigned_to != request.user and quote.created_by != request.user:
             return JsonResponse({'success': False, 'error': 'Permission denied'})
     
@@ -1752,7 +1752,7 @@ def get_dashboard_stats(request):
     try:
         # Filter by user permissions
         user_filter = Q()
-        if not request.user.profile.is_admin:
+        if not is_admin_user(request.user):
             user_filter = Q(assigned_to=request.user) | Q(created_by=request.user)
         
         # Calculate stats
