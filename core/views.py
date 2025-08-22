@@ -524,7 +524,7 @@ def dashboard_view(request):
             'user': user,
             'profile': profile,
             'app_permissions': user_permissions,
-            'is_manager': has_app_permission(user, 'hr', 'view'),  # Updated function name
+            'is_manager': has_app_permission(user, 'hr', 'view'),
             'is_admin': user.is_superuser or profile.user_type in ['it_admin', 'general_manager'],
         }
         
@@ -533,14 +533,14 @@ def dashboard_view(request):
             try:
                 from django.db.models import Count
                 
-                # Get all counts in a single query
+                # FIXED: Use correct field name 'is_social_account' instead of 'social_login'
                 stats_query = User.objects.aggregate(
                     total_users=Count('id'),
                     total_customers=Count('profile', filter=Q(profile__user_type='customer')),
                     total_bloggers=Count('profile', filter=Q(profile__user_type='blogger')),
                     total_employees=Count('profile', filter=Q(profile__user_type__in=['employee', 'sales_rep', 'sales_manager'])),
                     pending_approvals=Count('profile', filter=Q(profile__is_approved=False)),
-                    social_users=Count('profile', filter=Q(profile__social_login=True)),
+                    social_users=Count('profile', filter=Q(profile__is_social_account=True)),  # FIXED: correct field name
                 )
                 
                 dashboard_context.update({
@@ -562,7 +562,6 @@ def dashboard_view(request):
     notifications = get_recent_notifications(user, limit=5)
     dashboard_context['notifications'] = notifications
     
-    # Add navigation context
     nav_context = get_navigation_context(user)
     dashboard_context.update(nav_context)
     

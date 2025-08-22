@@ -450,16 +450,24 @@ def get_user_dashboard_context(user):
     return context
 
 def get_navigation_context(user):
-    """Get navigation context for dashboard"""
+    """Get navigation context for dashboard - only include existing URLs"""
     if not user.is_authenticated:
         return {}
     
     permissions = get_user_permissions(user)
-    
     nav_items = []
     
-    # Add navigation items based on permissions
-    if permissions.get('crm'):
+    # Helper function to safely check if URL exists
+    def url_exists(url_name):
+        try:
+            from django.urls import reverse
+            reverse(url_name)
+            return True
+        except:
+            return False
+    
+    # Add navigation items based on permissions - only if URLs exist
+    if permissions.get('crm') and url_exists('crm:dashboard'):
         nav_items.append({
             'name': 'CRM',
             'url': 'crm:dashboard',
@@ -468,14 +476,23 @@ def get_navigation_context(user):
         })
     
     if permissions.get('quotes'):
-        nav_items.append({
-            'name': 'Quotes',
-            'url': 'quotes:dashboard', 
-            'icon': 'file-text',
-            'permission_level': permissions['quotes']
-        })
+        # Check for quotes dashboard or fallback to core view
+        if url_exists('quotes:dashboard'):
+            nav_items.append({
+                'name': 'Quotes',
+                'url': 'quotes:dashboard', 
+                'icon': 'file-text',
+                'permission_level': permissions['quotes']
+            })
+        elif url_exists('core:quotes_placeholder'):
+            nav_items.append({
+                'name': 'Quotes',
+                'url': 'core:quotes_placeholder', 
+                'icon': 'file-text',
+                'permission_level': permissions['quotes']
+            })
     
-    if permissions.get('inventory'):
+    if permissions.get('inventory') and url_exists('inventory:dashboard'):
         nav_items.append({
             'name': 'Inventory',
             'url': 'inventory:dashboard',
@@ -483,7 +500,7 @@ def get_navigation_context(user):
             'permission_level': permissions['inventory']
         })
     
-    if permissions.get('shop'):
+    if permissions.get('shop') and url_exists('shop:admin_dashboard'):
         nav_items.append({
             'name': 'Shop Management',
             'url': 'shop:admin_dashboard',
@@ -491,21 +508,25 @@ def get_navigation_context(user):
             'permission_level': permissions['shop']
         })
     
+    # Reports - only add if namespace exists
     if permissions.get('reports'):
-        nav_items.append({
-            'name': 'Reports',
-            'url': 'core:system_reports',
-            'icon': 'bar-chart',
-            'permission_level': permissions['reports']
-        })
+        if url_exists('core:system_reports'):
+            nav_items.append({
+                'name': 'Reports',
+                'url': 'core:system_reports',
+                'icon': 'bar-chart',
+                'permission_level': permissions['reports']
+            })
     
+    # Admin panel - always safe since it's in core
     if permissions.get('admin') or user.is_superuser:
-        nav_items.append({
-            'name': 'Admin Panel',
-            'url': 'core:system_settings',
-            'icon': 'settings',
-            'permission_level': 'admin'
-        })
+        if url_exists('core:system_settings'):
+            nav_items.append({
+                'name': 'Admin Panel',
+                'url': 'core:system_settings',
+                'icon': 'settings',
+                'permission_level': 'admin'
+            })
     
     return {
         'navigation_items': nav_items,
