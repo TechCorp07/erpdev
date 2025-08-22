@@ -896,14 +896,14 @@ def edit_employee_view(request, employee_id):
 @password_expiration_check
 def notifications_view(request):
     """
-    Enhanced notifications view with filtering and quote-specific actions.
+    Enhanced notifications view with filtering and pagination.
     """
     notifications = Notification.objects.filter(user=request.user).order_by('-created_at')
     
     # Filter by notification type if requested
     filter_type = request.GET.get('type')
     if filter_type:
-        notifications = notifications.filter(type=filter_type)
+        notifications = notifications.filter(notification_type=filter_type)
     
     # Pagination for large notification lists
     from django.core.paginator import Paginator
@@ -912,9 +912,9 @@ def notifications_view(request):
     page_obj = paginator.get_page(page_number)
     
     # Get notification type statistics for filter interface
-    type_stats = Notification.objects.filter(user=request.user).values('type').annotate(
+    type_stats = Notification.objects.filter(user=request.user).values('notification_type').annotate(  # Changed from 'type' to 'notification_type'
         count=Count('id')
-    ).order_by('type')
+    ).order_by('notification_type')
     
     context = {
         'page_obj': page_obj,

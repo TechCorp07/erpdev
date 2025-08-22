@@ -247,28 +247,28 @@
           <div class="flex-shrink-0 me-3">
             <!-- Enhanced notification icon based on type and priority -->
             <div class="notification-icon
-                {% if notification.type == 'quote' %}bg-primary text-white
-                {% elif notification.type == 'crm' %}bg-success text-white
-                {% elif notification.type == 'system' %}bg-info text-white
-                {% elif notification.type == 'inventory' %}bg-warning text-dark
-                {% elif notification.type == 'error' %}bg-danger text-white
+                {% if notification.notification_type == 'quote' %}bg-primary text-white
+                {% elif notification.notification_type == 'crm' %}bg-success text-white
+                {% elif notification.notification_type == 'system' %}bg-info text-white
+                {% elif notification.notification_type == 'inventory' %}bg-warning text-dark
+                {% elif notification.notification_type == 'error' %}bg-danger text-white
                 {% else %}bg-secondary text-white{% endif %} shadow-sm">
-              {% if notification.type == 'quote' %}
+              {% if notification.notification_type == 'quote' %}
                 <i class="bi bi-file-earmark-text"></i>
-              {% elif notification.type == 'crm' %}
+              {% elif notification.notification_type == 'crm' %}
                 <i class="bi bi-people"></i>
-              {% elif notification.type == 'system' %}
-                <i class="bi bi-gear"></i>
-              {% elif notification.type == 'inventory' %}
-                <i class="bi bi-box-seam"></i>
-              {% elif notification.type == 'error' %}
-                <i class="bi bi-x-circle"></i>
-              {% elif notification.type == 'success' %}
-                <i class="bi bi-check-circle"></i>
-              {% elif notification.type == 'warning' %}
-                <i class="bi bi-exclamation-triangle"></i>
+              {% elif notification.notification_type == 'system' %}
+                  <i class="bi bi-gear"></i>
+              {% elif notification.notification_type == 'inventory' %}
+                  <i class="bi bi-box-seam"></i>
+              {% elif notification.notification_type == 'error' %}
+                  <i class="bi bi-x-circle"></i>
+              {% elif notification.notification_type == 'success' %}
+                  <i class="bi bi-check-circle"></i>
+              {% elif notification.notification_type == 'warning' %}
+                  <i class="bi bi-exclamation-triangle"></i>
               {% else %}
-                <i class="bi bi-info-circle"></i>
+                  <i class="bi bi-info-circle"></i>
               {% endif %}
             </div>
           </div>
@@ -293,7 +293,7 @@
             <p class="mb-3 text-muted">{{ notification.message }}</p>
             
             <!-- Enhanced metadata for different notification types -->
-            {% if notification.type == 'quote' and notification.related_quote %}
+            {% if notification.notification_type == 'quote' and notification.related_quote %}
             <div class="mb-3">
               <small class="text-info d-flex align-items-center">
                 <i class="bi bi-link-45deg me-1"></i>
@@ -303,7 +303,7 @@
                 <span class="ms-2 text-muted">{{ notification.related_quote.client.name }}</span>
               </small>
             </div>
-            {% elif notification.type == 'crm' and notification.related_client %}
+            {% elif notification.notification_type == 'crm' and notification.related_client %}
             <div class="mb-3">
               <small class="text-success d-flex align-items-center">
                 <i class="bi bi-link-45deg me-1"></i>
@@ -318,13 +318,13 @@
             <div class="d-flex justify-content-between align-items-center">
               <div>
                 <span class="badge 
-                    {% if notification.type == 'quote' %}bg-primary
-                    {% elif notification.type == 'crm' %}bg-success
-                    {% elif notification.type == 'system' %}bg-info
-                    {% elif notification.type == 'inventory' %}bg-warning text-dark
-                    {% elif notification.type == 'error' %}bg-danger
-                    {% elif notification.type == 'success' %}bg-success
-                    {% elif notification.type == 'warning' %}bg-warning text-dark
+                    {% if notification.notification_type == 'quote' %}bg-primary
+                    {% elif notification.notification_type == 'crm' %}bg-success
+                    {% elif notification.notification_type == 'system' %}bg-info
+                    {% elif notification.notification_type == 'inventory' %}bg-warning text-dark
+                    {% elif notification.notification_type == 'error' %}bg-danger
+                    {% elif notification.notification_type == 'success' %}bg-success
+                    {% elif notification.notification_type == 'warning' %}bg-warning text-dark
                     {% else %}bg-secondary{% endif %}">
                     {{ notification.get_type_display }}
                 </span>
@@ -566,10 +566,10 @@ function viewNotificationDetails(notificationId) {
         document.getElementById('notificationModalTitle').textContent = data.notification.title;
         document.getElementById('notificationModalBody').innerHTML = `
           <div class="mb-3">
-            <span class="badge bg-${data.notification.type === 'quote' ? 'primary' : 
-                                  data.notification.type === 'crm' ? 'success' : 
-                                  data.notification.type === 'system' ? 'info' : 'secondary'}">
-              ${data.notification.type.charAt(0).toUpperCase() + data.notification.type.slice(1)}
+            <span class="badge bg-${data.notification.notification_type === 'quote' ? 'primary' : 
+                                  data.notification.notification_type === 'crm' ? 'success' : 
+                                  data.notification.notification_type === 'system' ? 'info' : 'secondary'}">
+              ${data.notification.notification_type.charAt(0).toUpperCase() + data.notification.notification_type.slice(1)}
             </span>
             <small class="text-muted ms-2">${data.notification.created_at}</small>
             ${data.notification.priority === 'high' ? '<span class="badge bg-danger ms-2">High Priority</span>' : ''}
