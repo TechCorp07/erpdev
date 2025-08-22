@@ -396,7 +396,7 @@
                         <i class="bi bi-list me-2"></i>All Quotes
                       </a>
                     </li>
-                    {% if user|has_app_permission:'quotes':'edit' %}
+                    {% if user|has_app_permission:'quotes:edit' %}
                     <li class="nav-item">
                       <a class="nav-link" href="{% url 'quotes:quote_create' %}">
                         <i class="bi bi-plus-circle me-2"></i>New Quote
@@ -408,7 +408,7 @@
                         <i class="bi bi-graph-up me-2"></i>Analytics
                       </a>
                     </li>
-                    {% if user|has_app_permission:'quotes':'admin' %}
+                    {% if user|has_app_permission:'quotes:admin' %}
                     <li class="nav-item">
                       <a class="nav-link" href="{% url 'quotes:settings' %}">
                         <i class="bi bi-gear me-2"></i>Quote Settings
