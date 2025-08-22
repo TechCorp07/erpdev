@@ -641,9 +641,9 @@ def customer_dashboard_view(request):
     
     # Check access status
     access_status = {
-        'shop': profile.can_access_shop(),
-        'crm': profile.can_access_crm(),
-        'blog': profile.can_access_blog() if profile.user_type == 'blogger' else False,
+        'shop': has_app_permission(user, 'shop', 'view'),
+        'crm': has_app_permission(user, 'crm', 'view'),
+        'blog': has_app_permission(user, 'blog', 'view') if profile.user_type == 'blogger' else False,
     }
     
     context = {
@@ -710,14 +710,14 @@ def profile_view(request):
         'recent_logins': recent_logins,
         'recent_approvals': recent_approvals,
         'access_status': {
-            'shop': profile.can_access_shop(),
-            'crm': profile.can_access_crm(),
-            'blog': profile.can_access_blog() if profile.user_type == 'blogger' else False,
+            'shop': has_app_permission(user, 'shop', 'view'),
+            'crm': has_app_permission(user, 'crm', 'view'),
+            'blog': has_app_permission(user, 'blog', 'view') if profile.user_type == 'blogger' else False,
         }
     }
     
     # Add quote statistics for sales team members
-    if profile and profile.can_manage_quotes:
+    if profile and has_app_permission(user, 'quotes', 'view'):
         try:
             from quotes.models import Quote
             
