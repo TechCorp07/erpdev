@@ -177,10 +177,10 @@ class UserProfile(models.Model):
             user=self.user,
             event_type='account_lockout',
             description=f'Account locked for {minutes} minutes',
-            ip_address='system',
+            ip_address='127.0.0.1',  # Placeholder IP, replace with actual if available
             details={'duration_minutes': minutes}
         )
-
+    
     def unlock_account(self):
         """Unlock this account"""
         self.account_locked_until = None

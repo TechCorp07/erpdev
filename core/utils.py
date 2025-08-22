@@ -329,6 +329,10 @@ def log_security_event(user, event_type, description=None, ip_address=None, seve
         if severity:
             event_details['severity'] = severity
         
+        # Ensure we have a valid IP address
+        if not ip_address or not _is_valid_ip(ip_address):
+            ip_address = '127.0.0.1'  # Default to localhost for system events
+            
         SecurityEvent.objects.create(
             user=user,
             event_type=event_type,
@@ -341,6 +345,15 @@ def log_security_event(user, event_type, description=None, ip_address=None, seve
         
     except Exception as e:
         logger.error(f"Failed to log security event: {e}")
+
+def _is_valid_ip(ip_address):
+    """Check if the provided string is a valid IP address"""
+    import ipaddress
+    try:
+        ipaddress.ip_address(ip_address)
+        return True
+    except ValueError:
+        return False
 
 def check_password_strength(password):
     """Check password strength"""
