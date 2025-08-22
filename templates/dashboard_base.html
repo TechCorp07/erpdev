@@ -429,26 +429,6 @@
             </li>
             {% endif %}
             
-            <!-- Reports Section - FIXED PERMISSION CHECK -->
-            {% if app_permissions.reports or is_admin %}
-            <li class="nav-item">
-              <a class="nav-link {% if 'reports:' in request.resolver_match.namespace %}active{% endif %}" href="{% url 'reports:dashboard' %}">
-                <i class="bi bi-graph-up me-2"></i>
-                Reports
-              </a>
-            </li>
-            {% endif %}
-            
-            <!-- Financial Section - FIXED PERMISSION CHECK -->
-            {% if app_permissions.financial or is_admin %}
-            <li class="nav-item">
-              <a class="nav-link {% if 'financial:' in request.resolver_match.namespace %}active{% endif %}" href="{% url 'financial:dashboard' %}">
-                <i class="bi bi-currency-dollar me-2"></i>
-                Financial
-              </a>
-            </li>
-            {% endif %}
-            
             <!-- Divider for Management Section -->
             {% if is_manager or is_admin %}
             <li class="nav-item mt-3">
@@ -805,7 +785,7 @@
                     <i class="bi bi-gear me-2"></i>System Reports
                     <small class="text-muted d-block">User activity and performance</small>
                   </a>
-                  <a href="{% url 'core:audit_log' %}" class="list-group-item list-group-item-action border-0">
+                  <a href="{% url 'core:audit_logs' %}" class="list-group-item list-group-item-action border-0">
                     <i class="bi bi-shield-check me-2"></i>Audit Log
                     <small class="text-muted d-block">System security and access logs</small>
                   </a>
