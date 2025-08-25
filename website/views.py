@@ -2,6 +2,7 @@ import csv
 from django.shortcuts import render, redirect, get_object_or_404
 from django.contrib.auth.decorators import login_required, user_passes_test
 from django.contrib.admin.views.decorators import staff_member_required
+from core.decorators import website_permission_required
 from django.contrib import messages
 from django.core.mail import send_mail
 from django.core.paginator import Paginator
@@ -414,10 +415,9 @@ def search(request):
 # BLOG MANAGEMENT VIEWS
 # =============================================================================
 
-@login_required
-@user_passes_test(lambda u: u.is_staff or u.is_superuser)  # restrict as needed!
-def manage_dashboard(request):
-    """Management dashboard with statistics"""
+@website_permission_required('view')
+def admin_dashboard(request):
+    """Admin dashboard with ERP side panel integration"""
     stats = get_dashboard_stats(request)
     
     # Recent activity
@@ -431,14 +431,14 @@ def manage_dashboard(request):
         'recent_contacts': recent_contacts,
         'recent_portfolio': recent_portfolio,
     }
-    return render(request, 'website/manage_dashboard.html', context)
+    return render(request, 'website/admin_dashboard.html', context)
 
-@staff_member_required
+@website_permission_required('edit')
 def manage_blog(request):
     posts = BlogPost.objects.order_by('-created_at')
     return render(request, 'website/blog/manage_blog.html', {'posts': posts})
 
-@staff_member_required
+@website_permission_required('edit')
 def add_blog(request):
     if request.method == "POST":
         form = BlogPostForm(request.POST, request.FILES)
@@ -447,28 +447,31 @@ def add_blog(request):
             blog.author = request.user
             blog.save()
             form.save_m2m()
+            messages.success(request, 'Blog post created successfully!')
             return redirect('website:manage_blog')
     else:
         form = BlogPostForm()
     return render(request, 'website/blog/blog_form.html', {'form': form, 'title': "Add Blog Post"})
 
-@staff_member_required
+@website_permission_required('edit')
 def edit_blog(request, pk):
     post = BlogPost.objects.get(pk=pk)
     if request.method == "POST":
         form = BlogPostForm(request.POST, request.FILES, instance=post)
         if form.is_valid():
             form.save()
+            messages.success(request, 'Blog post updated successfully!')
             return redirect('website:manage_blog')
     else:
         form = BlogPostForm(instance=post)
     return render(request, 'website/blog/blog_form.html', {'form': form, 'title': "Edit Blog Post"})
 
-@staff_member_required
+@website_permission_required('admin')
 def delete_blog(request, pk):
     post = BlogPost.objects.get(pk=pk)
     if request.method == "POST":
         post.delete()
+        messages.success(request, 'Blog post deleted successfully!')
         return redirect('website:manage_blog')
     return render(request, 'website/blog/confirm_delete.html', {'object': post, 'type': 'Blog Post'})
 
@@ -476,22 +479,40 @@ def delete_blog(request, pk):
 # UTILITY FUNCTIONS
 # =============================================================================
 
+@website_permission_required('admin')
 def get_dashboard_stats(request):
-    """Get statistics for the dashboard"""
+    """Get complete statistics for the website admin dashboard"""
     stats = {
+        # Blog Statistics
         'total_blog_posts': BlogPost.objects.count(),
         'published_posts': BlogPost.objects.filter(is_published=True).count(),
+        
+        # Service Statistics  
         'total_services': Service.objects.count(),
+        
+        # Portfolio Statistics
         'total_portfolio': PortfolioItem.objects.count(),
         'featured_portfolio': PortfolioItem.objects.filter(featured=True).count(),
+        
+        # FAQ Statistics
         'total_faqs': FAQ.objects.count(),
+        
+        # Testimonial Statistics
         'total_testimonials': Testimonial.objects.count(),
         'active_testimonials': Testimonial.objects.filter(is_active=True).count(),
+        
+        # Team Statistics
         'total_team_members': TeamMember.objects.count(),
         'active_team_members': TeamMember.objects.filter(is_active=True).count(),
+        
+        # Partner Statistics
         'total_partners': Partner.objects.count(),
+        
+        # Contact Statistics
         'unread_contacts': Contact.objects.filter(is_read=False).count(),
         'total_contacts': Contact.objects.count(),
+        
+        # Category Statistics
         'total_categories': Category.objects.count(),
     }
     return stats
@@ -500,14 +521,14 @@ def get_dashboard_stats(request):
 # CATEGORY MANAGEMENT VIEWS
 # =============================================================================
 
-@staff_member_required
+@website_permission_required('edit')
 def manage_categories(request):
     """View to list all categories"""
     categories = Category.objects.order_by('name')
     context = {'categories': categories}
     return render(request, 'website/categories/manage_categories.html', context)
 
-@staff_member_required
+@website_permission_required('edit')
 def add_category(request):
     """View to add a new category"""
     if request.method == "POST":
@@ -522,7 +543,7 @@ def add_category(request):
     context = {'form': form, 'title': "Add Category"}
     return render(request, 'website/categories/category_form.html', context)
 
-@staff_member_required
+@website_permission_required('edit')
 def edit_category(request, pk):
     """View to edit an existing category"""
     category = get_object_or_404(Category, pk=pk)
@@ -538,7 +559,7 @@ def edit_category(request, pk):
     context = {'form': form, 'title': "Edit Category", 'object': category}
     return render(request, 'website/categories/category_form.html', context)
 
-@staff_member_required
+@website_permission_required('admin')
 def delete_category(request, pk):
     """View to delete a category"""
     category = get_object_or_404(Category, pk=pk)
@@ -546,22 +567,20 @@ def delete_category(request, pk):
         category.delete()
         messages.success(request, 'Category deleted successfully!')
         return redirect('website:manage_categories')
-    
-    context = {'object': category, 'type': 'Category'}
-    return render(request, 'website/confirm_delete.html', context)
+    return render(request, 'website/categories/confirm_delete.html', {'object': category, 'type': 'Category'})
 
 # =============================================================================
 # SERVICE MANAGEMENT VIEWS
 # =============================================================================
 
-@staff_member_required
+@website_permission_required('edit')
 def manage_services(request):
     """View to list all services"""
     services = Service.objects.order_by('category', 'order')
     context = {'services': services}
     return render(request, 'website/services/manage_services.html', context)
 
-@staff_member_required
+@website_permission_required('edit')
 def add_service(request):
     """View to add a new service"""
     if request.method == "POST":
@@ -576,7 +595,7 @@ def add_service(request):
     context = {'form': form, 'title': "Add Service"}
     return render(request, 'website/services/service_form.html', context)
 
-@staff_member_required
+@website_permission_required('edit')
 def edit_service(request, pk):
     """View to edit an existing service"""
     service = get_object_or_404(Service, pk=pk)
@@ -592,7 +611,7 @@ def edit_service(request, pk):
     context = {'form': form, 'title': "Edit Service", 'object': service}
     return render(request, 'website/services/service_form.html', context)
 
-@staff_member_required
+@website_permission_required('admin')
 def delete_service(request, pk):
     """View to delete a service"""
     service = get_object_or_404(Service, pk=pk)
@@ -608,14 +627,14 @@ def delete_service(request, pk):
 # PORTFOLIO MANAGEMENT VIEWS
 # =============================================================================
 
-@staff_member_required
+@website_permission_required('edit')
 def manage_portfolio(request):
     """View to list all portfolio items"""
     portfolio_items = PortfolioItem.objects.order_by('-featured', 'order', '-date_completed')
     context = {'portfolio_items': portfolio_items}
     return render(request, 'website/portfolio/manage_portfolio.html', context)
 
-@staff_member_required
+@website_permission_required('edit')
 def add_portfolio(request):
     """View to add a new portfolio item"""
     if request.method == "POST":
@@ -630,7 +649,7 @@ def add_portfolio(request):
     context = {'form': form, 'title': "Add Portfolio Item"}
     return render(request, 'website/portfolio/portfolio_form.html', context)
 
-@staff_member_required
+@website_permission_required('edit')
 def edit_portfolio(request, pk):
     """View to edit an existing portfolio item"""
     portfolio_item = get_object_or_404(PortfolioItem, pk=pk)
@@ -646,7 +665,7 @@ def edit_portfolio(request, pk):
     context = {'form': form, 'title': "Edit Portfolio Item", 'object': portfolio_item}
     return render(request, 'website/portfolio/portfolio_form.html', context)
 
-@staff_member_required
+@website_permission_required('admin')
 def delete_portfolio(request, pk):
     """View to delete a portfolio item"""
     portfolio_item = get_object_or_404(PortfolioItem, pk=pk)
@@ -662,14 +681,14 @@ def delete_portfolio(request, pk):
 # FAQ MANAGEMENT VIEWS
 # =============================================================================
 
-@staff_member_required
+@website_permission_required('edit')
 def manage_faqs(request):
     """View to list all FAQs"""
     faqs = FAQ.objects.order_by('category', 'order')
     context = {'faqs': faqs}
     return render(request, 'website/faqs/manage_faqs.html', context)
 
-@staff_member_required
+@website_permission_required('edit')
 def add_faq(request):
     """View to add a new FAQ"""
     if request.method == "POST":
@@ -684,7 +703,7 @@ def add_faq(request):
     context = {'form': form, 'title': "Add FAQ"}
     return render(request, 'website/faqs/faq_form.html', context)
 
-@staff_member_required
+@website_permission_required('edit')
 def edit_faq(request, pk):
     """View to edit an existing FAQ"""
     faq = get_object_or_404(FAQ, pk=pk)
@@ -700,7 +719,7 @@ def edit_faq(request, pk):
     context = {'form': form, 'title': "Edit FAQ", 'object': faq}
     return render(request, 'website/faqs/faq_form.html', context)
 
-@staff_member_required
+@website_permission_required('admin')
 def delete_faq(request, pk):
     """View to delete a FAQ"""
     faq = get_object_or_404(FAQ, pk=pk)
@@ -716,14 +735,14 @@ def delete_faq(request, pk):
 # TESTIMONIAL MANAGEMENT VIEWS
 # =============================================================================
 
-@staff_member_required
+@website_permission_required('edit')
 def manage_testimonials(request):
     """View to list all testimonials"""
     testimonials = Testimonial.objects.order_by('order')
     context = {'testimonials': testimonials}
     return render(request, 'website/testimonials/manage_testimonials.html', context)
 
-@staff_member_required
+@website_permission_required('edit')
 def add_testimonial(request):
     """View to add a new testimonial"""
     if request.method == "POST":
@@ -738,7 +757,7 @@ def add_testimonial(request):
     context = {'form': form, 'title': "Add Testimonial"}
     return render(request, 'website/testimonials/testimonial_form.html', context)
 
-@staff_member_required
+@website_permission_required('edit')
 def edit_testimonial(request, pk):
     """View to edit an existing testimonial"""
     testimonial = get_object_or_404(Testimonial, pk=pk)
@@ -754,7 +773,7 @@ def edit_testimonial(request, pk):
     context = {'form': form, 'title': "Edit Testimonial", 'object': testimonial}
     return render(request, 'website/testimonials/testimonial_form.html', context)
 
-@staff_member_required
+@website_permission_required('admin')
 def delete_testimonial(request, pk):
     """View to delete a testimonial"""
     testimonial = get_object_or_404(Testimonial, pk=pk)
@@ -770,14 +789,14 @@ def delete_testimonial(request, pk):
 # TEAM MEMBER MANAGEMENT VIEWS
 # =============================================================================
 
-@staff_member_required
+@website_permission_required('edit')
 def manage_team(request):
     """View to list all team members"""
     team_members = TeamMember.objects.order_by('order')
     context = {'team_members': team_members}
     return render(request, 'website/team/manage_team.html', context)
 
-@staff_member_required
+@website_permission_required('edit')
 def add_team_member(request):
     """View to add a new team member"""
     if request.method == "POST":
@@ -792,7 +811,7 @@ def add_team_member(request):
     context = {'form': form, 'title': "Add Team Member"}
     return render(request, 'website/team/team_form.html', context)
 
-@staff_member_required
+@website_permission_required('edit')
 def edit_team_member(request, pk):
     """View to edit an existing team member"""
     team_member = get_object_or_404(TeamMember, pk=pk)
@@ -808,7 +827,7 @@ def edit_team_member(request, pk):
     context = {'form': form, 'title': "Edit Team Member", 'object': team_member}
     return render(request, 'website/team/team_form.html', context)
 
-@staff_member_required
+@website_permission_required('admin')
 def delete_team_member(request, pk):
     """View to delete a team member"""
     team_member = get_object_or_404(TeamMember, pk=pk)
@@ -824,14 +843,14 @@ def delete_team_member(request, pk):
 # PARTNER MANAGEMENT VIEWS
 # =============================================================================
 
-@staff_member_required
+@website_permission_required('edit')
 def manage_partners(request):
     """View to list all partners"""
     partners = Partner.objects.order_by('order')
     context = {'partners': partners}
     return render(request, 'website/partners/manage_partners.html', context)
 
-@staff_member_required
+@website_permission_required('edit')
 def add_partner(request):
     """View to add a new partner"""
     if request.method == "POST":
@@ -846,7 +865,7 @@ def add_partner(request):
     context = {'form': form, 'title': "Add Partner"}
     return render(request, 'website/partners/partner_form.html', context)
 
-@staff_member_required
+@website_permission_required('edit')
 def edit_partner(request, pk):
     """View to edit an existing partner"""
     partner = get_object_or_404(Partner, pk=pk)
@@ -862,7 +881,7 @@ def edit_partner(request, pk):
     context = {'form': form, 'title': "Edit Partner", 'object': partner}
     return render(request, 'website/partners/partner_form.html', context)
 
-@staff_member_required
+@website_permission_required('admin')
 def delete_partner(request, pk):
     """View to delete a partner"""
     partner = get_object_or_404(Partner, pk=pk)
@@ -877,8 +896,18 @@ def delete_partner(request, pk):
 # =============================================================================
 # COMPANY INFO MANAGEMENT VIEW
 # =============================================================================
+@website_permission_required('edit')
+def manage_company_info(request):
+    """View company information"""
+    try:
+        company_info = CompanyInfo.objects.get()
+    except CompanyInfo.DoesNotExist:
+        company_info = CompanyInfo.objects.create()
+    
+    context = {'company_info': company_info}
+    return render(request, 'website/company/manage_company_info.html', context)
 
-@staff_member_required
+@website_permission_required('edit')
 def edit_company_info(request):
     """View to edit company information"""
     # Get or create the company info instance
@@ -892,7 +921,7 @@ def edit_company_info(request):
         if form.is_valid():
             form.save()
             messages.success(request, 'Company information updated successfully!')
-            return redirect('website:manage_dashboard')
+            return redirect('website:admin_dashboard')
     else:
         form = CompanyInfoForm(instance=company_info)
     
@@ -903,7 +932,7 @@ def edit_company_info(request):
 # CONTACT MANAGEMENT VIEWS (READ-ONLY)
 # =============================================================================
 
-@staff_member_required
+@website_permission_required('view')
 def manage_contacts(request):
     """View to list all contact form submissions"""
     contacts = Contact.objects.order_by('-created_at')
@@ -916,7 +945,7 @@ def manage_contacts(request):
     context = {'contacts': page_obj}
     return render(request, 'website/contacts/manage_contacts.html', context)
 
-@staff_member_required
+@website_permission_required('view')
 def view_contact(request, pk):
     """View to display a single contact form submission"""
     contact = get_object_or_404(Contact, pk=pk)
@@ -933,7 +962,7 @@ def view_contact(request, pk):
 # AJAX VIEWS (Optional for enhanced UX)
 # =============================================================================
 
-@staff_member_required
+@website_permission_required('edit')
 def toggle_blog_published(request, pk):
     """Toggle blog post published status via AJAX"""
     if request.method == 'POST':
@@ -947,52 +976,56 @@ def toggle_blog_published(request, pk):
         })
     return JsonResponse({'success': False, 'message': 'Invalid request'})
 
-@staff_member_required
+@website_permission_required('edit')
 def toggle_testimonial_active(request, pk):
     """Toggle testimonial active status via AJAX"""
     if request.method == 'POST':
         testimonial = get_object_or_404(Testimonial, pk=pk)
         testimonial.is_active = not testimonial.is_active
         testimonial.save()
+        
         return JsonResponse({
             'success': True,
             'is_active': testimonial.is_active,
-            'message': f'Testimonial {"activated" if testimonial.is_active else "deactivated"} successfully'
+            'status': 'Active' if testimonial.is_active else 'Inactive'
         })
-    return JsonResponse({'success': False, 'message': 'Invalid request'})
+    return JsonResponse({'success': False, 'status': 'Invalid request'})
 
-@staff_member_required
+@website_permission_required('edit')
 def toggle_portfolio_featured(request, pk):
     """Toggle portfolio item featured status via AJAX"""
     if request.method == 'POST':
         item = get_object_or_404(PortfolioItem, pk=pk)
         item.featured = not item.featured
         item.save()
+        
         return JsonResponse({
             'success': True,
             'featured': item.featured,
-            'message': f'Portfolio item {"featured" if item.featured else "unfeatured"} successfully'
+            'status': 'Featured' if item.featured else 'Unfeatured'
         })
-    return JsonResponse({'success': False, 'message': 'Invalid request'})
+    return JsonResponse({'success': False, 'status': 'Invalid request'})
 
-@staff_member_required
+@website_permission_required('view')
 def mark_contact_read(request, pk):
     """Mark contact as read via AJAX"""
     if request.method == 'POST':
         contact = get_object_or_404(Contact, pk=pk)
         contact.is_read = True
         contact.save()
+        
         return JsonResponse({
             'success': True,
-            'message': 'Contact marked as read'
+            'is_read': True,
+            'status': 'Read'
         })
-    return JsonResponse({'success': False, 'message': 'Invalid request'})
+    return JsonResponse({'success': False, 'status': 'Invalid request'})
 
 # =============================================================================
 # BULK OPERATIONS (Optional for efficiency)
 # =============================================================================
 
-@staff_member_required
+@website_permission_required('admin')
 def bulk_delete_contacts(request):
     """Delete multiple contacts at once"""
     if request.method == 'POST':
@@ -1006,7 +1039,7 @@ def bulk_delete_contacts(request):
     
     return redirect('website:manage_contacts')
 
-@staff_member_required
+@website_permission_required('edit')
 def bulk_publish_posts(request):
     """Publish multiple blog posts at once"""
     if request.method == 'POST':
@@ -1024,11 +1057,11 @@ def bulk_publish_posts(request):
 # EXPORT FUNCTIONALITY (Optional)
 # =============================================================================
 
-@staff_member_required
+@website_permission_required('admin')
 def export_contacts_csv(request):
     """Export contacts to CSV file"""
     response = HttpResponse(content_type='text/csv')
-    response['Content-Disposition'] = 'attachment; filename="contacts.csv"'
+    response['Content-Disposition'] = 'attachment; filename="website_contacts.csv"'
     
     writer = csv.writer(response)
     writer.writerow(['Name', 'Email', 'Subject', 'Message', 'Created', 'Read'])
@@ -1046,7 +1079,7 @@ def export_contacts_csv(request):
     
     return response
 
-@staff_member_required
+@website_permission_required('admin')
 def export_blog_posts_csv(request):
     """Export blog posts to CSV file"""
     response = HttpResponse(content_type='text/csv')

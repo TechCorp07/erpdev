@@ -167,6 +167,10 @@ def quotes_permission_required(level='view'):
     """Shortcut for quotes permissions"""
     return app_permission_required('quotes', level)
 
+def website_permission_required(level='view'):
+    """Shortcut for website management permissions"""
+    return app_permission_required('website', level)
+
 # =====================================
 # AJAX & API DECORATORS
 # =====================================

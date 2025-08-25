@@ -93,10 +93,7 @@ def _permission_level_value(level):
     return levels.get(level, 0)
 
 def has_app_permission(user, app_name, required_level='view'):
-    """Check if user has specific app permission"""
-    if not user.is_authenticated:
-        return False
-    
+    """Check if user has specific app permission""" 
     # Superusers have all permissions
     if user.is_superuser:
         return True

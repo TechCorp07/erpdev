@@ -1,0 +1,443 @@
+{% extends "dashboard_base.html" %}
+{% load static %}
+
+{% block page_title %}Website Management{% endblock %}
+
+{% block dashboard_content %}
+<div class="container-fluid">
+  <!-- Page Header -->
+  <div class="d-flex justify-content-between align-items-center mb-4">
+    <div>
+      <h1 class="h3 mb-1">Website Management Dashboard</h1>
+      <p class="text-muted mb-0">Manage all website content and settings</p>
+    </div>
+    <div class="d-flex gap-2">
+      <a href="{% url 'website:home' %}" class="btn btn-outline-primary" target="_blank">
+        <i class="bi bi-eye me-1"></i> View Website
+      </a>
+    </div>
+  </div>
+
+  <!-- Statistics Cards -->
+  <div class="row g-3 mb-4">
+    <div class="col-md-2">
+      <div class="card border-0 shadow-sm">
+        <div class="card-body">
+          <div class="d-flex align-items-center">
+            <div class="flex-shrink-0">
+              <div class="bg-primary bg-opacity-10 rounded-circle p-3">
+                <i class="bi bi-journal-richtext text-primary fs-4"></i>
+              </div>
+            </div>
+            <div class="flex-grow-1 ms-3">
+              <h6 class="mb-1">Blog Posts</h6>
+              <h4 class="mb-0">{{ stats.published_posts }}/{{ stats.total_blog_posts }}</h4>
+              <small class="text-muted">Published/Total</small>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    
+    <div class="col-md-2">
+      <div class="card border-0 shadow-sm">
+        <div class="card-body">
+          <div class="d-flex align-items-center">
+            <div class="flex-shrink-0">
+              <div class="bg-success bg-opacity-10 rounded-circle p-3">
+                <i class="bi bi-briefcase text-success fs-4"></i>
+              </div>
+            </div>
+            <div class="flex-grow-1 ms-3">
+              <h6 class="mb-1">Portfolio</h6>
+              <h4 class="mb-0">{{ stats.featured_portfolio }}/{{ stats.total_portfolio }}</h4>
+              <small class="text-muted">Featured/Total</small>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    
+    <div class="col-md-2">
+      <div class="card border-0 shadow-sm">
+        <div class="card-body">
+          <div class="d-flex align-items-center">
+            <div class="flex-shrink-0">
+              <div class="bg-info bg-opacity-10 rounded-circle p-3">
+                <i class="bi bi-envelope text-info fs-4"></i>
+              </div>
+            </div>
+            <div class="flex-grow-1 ms-3">
+              <h6 class="mb-1">Contacts</h6>
+              <h4 class="mb-0">{{ stats.unread_contacts }}</h4>
+              <small class="text-muted">Unread</small>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    
+    <div class="col-md-2">
+      <div class="card border-0 shadow-sm">
+        <div class="card-body">
+          <div class="d-flex align-items-center">
+            <div class="flex-shrink-0">
+              <div class="bg-warning bg-opacity-10 rounded-circle p-3">
+                <i class="bi bi-people text-warning fs-4"></i>
+              </div>
+            </div>
+            <div class="flex-grow-1 ms-3">
+              <h6 class="mb-1">Team</h6>
+              <h4 class="mb-0">{{ stats.active_team_members }}</h4>
+              <small class="text-muted">Active Members</small>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="col-md-2">
+      <div class="card border-0 shadow-sm">
+        <div class="card-body">
+          <div class="d-flex align-items-center">
+            <div class="flex-shrink-0">
+              <div class="bg-secondary bg-opacity-10 rounded-circle p-3">
+                <i class="bi bi-building text-secondary fs-4"></i>
+              </div>
+            </div>
+            <div class="flex-grow-1 ms-3">
+              <h6 class="mb-1">Partners</h6>
+              <h4 class="mb-0">{{ stats.total_partners }}</h4>
+              <small class="text-muted">Business Partners</small>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="col-md-2">
+      <div class="card border-0 shadow-sm">
+        <div class="card-body">
+          <div class="d-flex align-items-center">
+            <div class="flex-shrink-0">
+              <div class="bg-danger bg-opacity-10 rounded-circle p-3">
+                <i class="bi bi-chat-quote text-danger fs-4"></i>
+              </div>
+            </div>
+            <div class="flex-grow-1 ms-3">
+              <h6 class="mb-1">Reviews</h6>
+              <h4 class="mb-0">{{ stats.active_testimonials }}</h4>
+              <small class="text-muted">Active Testimonials</small>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Management Cards -->
+  <div class="row g-4">
+    <!-- Content Management Section -->
+    <div class="col-12">
+      <h5 class="mb-3">Content Management</h5>
+    </div>
+    
+    <!-- Blog Posts -->
+    <div class="col-lg-4 col-md-6">
+      <div class="card h-100 border-0 shadow-sm">
+        <div class="card-header bg-primary text-white d-flex justify-content-between align-items-center">
+          <span><i class="bi bi-journal-richtext me-2"></i>Blog Posts</span>
+          <span class="badge bg-light text-primary">{{ stats.total_blog_posts }}</span>
+        </div>
+        <div class="card-body">
+          <p class="card-text mb-3">Create, edit, and manage blog posts. Control publication status and organize content.</p>
+          <div class="d-flex gap-2">
+            <a href="{% url 'website:add_blog' %}" class="btn btn-primary btn-sm">
+              <i class="bi bi-plus-lg me-1"></i> New Post
+            </a>
+            <a href="{% url 'website:manage_blog' %}" class="btn btn-outline-primary btn-sm">
+              <i class="bi bi-list me-1"></i> Manage
+            </a>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Categories -->
+    <div class="col-lg-4 col-md-6">
+      <div class="card h-100 border-0 shadow-sm">
+        <div class="card-header bg-secondary text-white d-flex justify-content-between align-items-center">
+          <span><i class="bi bi-tags me-2"></i>Categories</span>
+          <span class="badge bg-light text-secondary">{{ stats.total_categories }}</span>
+        </div>
+        <div class="card-body">
+          <p class="card-text mb-3">Organize content with categories for blog posts and portfolio items.</p>
+          <div class="d-flex gap-2">
+            <a href="{% url 'website:add_category' %}" class="btn btn-secondary btn-sm">
+              <i class="bi bi-plus-lg me-1"></i> New Category
+            </a>
+            <a href="{% url 'website:manage_categories' %}" class="btn btn-outline-secondary btn-sm">
+              <i class="bi bi-list me-1"></i> Manage
+            </a>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Portfolio -->
+    <div class="col-lg-4 col-md-6">
+      <div class="card h-100 border-0 shadow-sm">
+        <div class="card-header bg-success text-white d-flex justify-content-between align-items-center">
+          <span><i class="bi bi-briefcase me-2"></i>Portfolio</span>
+          <span class="badge bg-light text-success">{{ stats.total_portfolio }}</span>
+        </div>
+        <div class="card-body">
+          <p class="card-text mb-3">Showcase your work with portfolio items. Feature best projects.</p>
+          <div class="d-flex gap-2">
+            <a href="{% url 'website:add_portfolio' %}" class="btn btn-success btn-sm">
+              <i class="bi bi-plus-lg me-1"></i> New Item
+            </a>
+            <a href="{% url 'website:manage_portfolio' %}" class="btn btn-outline-success btn-sm">
+              <i class="bi bi-list me-1"></i> Manage
+            </a>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Services -->
+    <div class="col-lg-4 col-md-6">
+      <div class="card h-100 border-0 shadow-sm">
+        <div class="card-header bg-info text-white d-flex justify-content-between align-items-center">
+          <span><i class="bi bi-gear me-2"></i>Services</span>
+          <span class="badge bg-light text-info">{{ stats.total_services }}</span>
+        </div>
+        <div class="card-body">
+          <p class="card-text mb-3">Define and manage services offered by your company.</p>
+          <div class="d-flex gap-2">
+            <a href="{% url 'website:add_service' %}" class="btn btn-info btn-sm">
+              <i class="bi bi-plus-lg me-1"></i> New Service
+            </a>
+            <a href="{% url 'website:manage_services' %}" class="btn btn-outline-info btn-sm">
+              <i class="bi bi-list me-1"></i> Manage
+            </a>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- FAQs -->
+    <div class="col-lg-4 col-md-6">
+      <div class="card h-100 border-0 shadow-sm">
+        <div class="card-header bg-warning text-white d-flex justify-content-between align-items-center">
+          <span><i class="bi bi-question-circle me-2"></i>FAQs</span>
+          <span class="badge bg-light text-warning">{{ stats.total_faqs }}</span>
+        </div>
+        <div class="card-body">
+          <p class="card-text mb-3">Manage frequently asked questions to help visitors.</p>
+          <div class="d-flex gap-2">
+            <a href="{% url 'website:add_faq' %}" class="btn btn-warning btn-sm">
+              <i class="bi bi-plus-lg me-1"></i> New FAQ
+            </a>
+            <a href="{% url 'website:manage_faqs' %}" class="btn btn-outline-warning btn-sm">
+              <i class="bi bi-list me-1"></i> Manage
+            </a>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Team Members -->
+    <div class="col-lg-4 col-md-6">
+      <div class="card h-100 border-0 shadow-sm">
+        <div class="card-header bg-danger text-white d-flex justify-content-between align-items-center">
+          <span><i class="bi bi-people me-2"></i>Team</span>
+          <span class="badge bg-light text-danger">{{ stats.total_team_members }}</span>
+        </div>
+        <div class="card-body">
+          <p class="card-text mb-3">Manage team member profiles and information displayed on website.</p>
+          <div class="d-flex gap-2">
+            <a href="{% url 'website:add_team_member' %}" class="btn btn-danger btn-sm">
+              <i class="bi bi-plus-lg me-1"></i> New Member
+            </a>
+            <a href="{% url 'website:manage_team' %}" class="btn btn-outline-danger btn-sm">
+              <i class="bi bi-list me-1"></i> Manage
+            </a>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Partners -->
+    <div class="col-lg-4 col-md-6">
+      <div class="card h-100 border-0 shadow-sm">
+        <div class="card-header bg-secondary text-white d-flex justify-content-between align-items-center">
+          <span><i class="bi bi-building me-2"></i>Partners</span>
+          <span class="badge bg-light text-secondary">{{ stats.total_partners }}</span>
+        </div>
+        <div class="card-body">
+          <p class="card-text mb-3">Manage partner logos and links displayed on the website.</p>
+          <div class="d-flex gap-2">
+            <a href="{% url 'website:add_partner' %}" class="btn btn-secondary btn-sm">
+              <i class="bi bi-plus-lg me-1"></i> New Partner
+            </a>
+            <a href="{% url 'website:manage_partners' %}" class="btn btn-outline-secondary btn-sm">
+              <i class="bi bi-list me-1"></i> Manage
+            </a>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Company Info -->
+    <div class="col-lg-4 col-md-6">
+      <div class="card h-100 border-0 shadow-sm">
+        <div class="card-header bg-info text-white d-flex justify-content-between align-items-center">
+          <span><i class="bi bi-building-check me-2"></i>Company Info</span>
+          <i class="bi bi-pencil-square text-white"></i>
+        </div>
+        <div class="card-body">
+          <p class="card-text mb-3">Update company name, address, contact info, mission, vision, and social links.</p>
+          <a href="{% url 'website:edit_company_info' %}" class="btn btn-info btn-sm">
+            <i class="bi bi-pencil me-1"></i> Edit Company Info
+          </a>
+        </div>
+      </div>
+    </div>
+
+    <!-- Communications Section -->
+    <div class="col-12 mt-4">
+      <h5 class="mb-3">Communications & Data</h5>
+    </div>
+    
+    <!-- Contact Submissions -->
+    <div class="col-lg-6 col-md-6">
+      <div class="card h-100 border-0 shadow-sm">
+        <div class="card-header bg-warning text-dark d-flex justify-content-between align-items-center">
+          <span><i class="bi bi-envelope-open me-2"></i>Contact Submissions</span>
+          {% if stats.unread_contacts > 0 %}
+          <span class="badge bg-danger">{{ stats.unread_contacts }} Unread</span>
+          {% else %}
+          <span class="badge bg-success">All Read</span>
+          {% endif %}
+        </div>
+        <div class="card-body">
+          <p class="card-text mb-3">Read messages submitted via the contact form.</p>
+          <a href="{% url 'website:manage_contacts' %}" class="btn btn-warning btn-sm">
+            <i class="bi bi-envelope-open me-1"></i> View Messages ({{ stats.total_contacts }})
+          </a>
+        </div>
+      </div>
+    </div>
+
+    <!-- Testimonials -->
+    <div class="col-lg-6 col-md-6">
+      <div class="card h-100 border-0 shadow-sm">
+        <div class="card-header bg-success text-white d-flex justify-content-between align-items-center">
+          <span><i class="bi bi-chat-quote me-2"></i>Testimonials</span>
+          <span class="badge bg-light text-success">{{ stats.active_testimonials }}</span>
+        </div>
+        <div class="card-body">
+          <p class="card-text mb-3">Manage customer testimonials and reviews displayed on the website.</p>
+          <div class="d-flex gap-2">
+            <a href="{% url 'website:add_testimonial' %}" class="btn btn-success btn-sm">
+              <i class="bi bi-plus-lg me-1"></i> Add Testimonial
+            </a>
+            <a href="{% url 'website:manage_testimonials' %}" class="btn btn-outline-success btn-sm">
+              <i class="bi bi-list me-1"></i> Manage
+            </a>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Recent Activity Section -->
+  {% if recent_posts or recent_contacts or recent_portfolio %}
+  <div class="row mt-4">
+    <div class="col-12">
+      <h5 class="mb-3">Recent Activity</h5>
+    </div>
+    
+    {% if recent_posts %}
+    <div class="col-lg-4">
+      <div class="card h-100 border-0 shadow-sm">
+        <div class="card-header">
+          <h6 class="mb-0"><i class="bi bi-journal-richtext me-2"></i>Recent Blog Posts</h6>
+        </div>
+        <div class="card-body p-0">
+          {% for post in recent_posts %}
+          <div class="d-flex align-items-center p-3 {% if not forloop.last %}border-bottom{% endif %}">
+            <div class="flex-grow-1">
+              <h6 class="mb-1">{{ post.title|truncatechars:40 }}</h6>
+              <small class="text-muted">{{ post.created_at|timesince }} ago</small>
+            </div>
+            <div class="flex-shrink-0">
+              {% if post.is_published %}
+              <span class="badge bg-success">Published</span>
+              {% else %}
+              <span class="badge bg-warning">Draft</span>
+              {% endif %}
+            </div>
+          </div>
+          {% endfor %}
+        </div>
+      </div>
+    </div>
+    {% endif %}
+    
+    {% if recent_contacts %}
+    <div class="col-lg-4">
+      <div class="card h-100 border-0 shadow-sm">
+        <div class="card-header">
+          <h6 class="mb-0"><i class="bi bi-envelope me-2"></i>Recent Contacts</h6>
+        </div>
+        <div class="card-body p-0">
+          {% for contact in recent_contacts %}
+          <div class="d-flex align-items-center p-3 {% if not forloop.last %}border-bottom{% endif %}">
+            <div class="flex-grow-1">
+              <h6 class="mb-1">{{ contact.name }}</h6>
+              <small class="text-muted">{{ contact.created_at|timesince }} ago</small>
+            </div>
+            <div class="flex-shrink-0">
+              {% if not contact.is_read %}
+              <span class="badge bg-warning">New</span>
+              {% else %}
+              <span class="badge bg-secondary">Read</span>
+              {% endif %}
+            </div>
+          </div>
+          {% endfor %}
+        </div>
+      </div>
+    </div>
+    {% endif %}
+    
+    {% if recent_portfolio %}
+    <div class="col-lg-4">
+      <div class="card h-100 border-0 shadow-sm">
+        <div class="card-header">
+          <h6 class="mb-0"><i class="bi bi-briefcase me-2"></i>Recent Portfolio</h6>
+        </div>
+        <div class="card-body p-0">
+          {% for item in recent_portfolio %}
+          <div class="d-flex align-items-center p-3 {% if not forloop.last %}border-bottom{% endif %}">
+            <div class="flex-grow-1">
+              <h6 class="mb-1">{{ item.title|truncatechars:40 }}</h6>
+              <small class="text-muted">{{ item.created_at|timesince }} ago</small>
+            </div>
+            <div class="flex-shrink-0">
+              {% if item.featured %}
+              <span class="badge bg-primary">Featured</span>
+              {% endif %}
+            </div>
+          </div>
+          {% endfor %}
+        </div>
+      </div>
+    </div>
+    {% endif %}
+  </div>
+  {% endif %}
+</div>
+{% endblock %}
