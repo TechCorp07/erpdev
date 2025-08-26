@@ -1525,6 +1525,75 @@ def reorder_alert_list(request):
     }
     return render(request, "inventory/alerts/reorder_alert_list.html", context)
 
+@login_required
+@inventory_permission_required('view')
+def inventory_analytics_view(request):
+    """Advanced analytics dashboard for inventory metrics"""
+    template_name = 'inventory/analytics/analytics_dashboard.html'
+    
+    # Calculate key analytics
+    context = {
+        'page_title': 'Inventory Analytics',
+        # Add analytics data here
+        'inventory_turnover': calculate_inventory_turnover(),
+        'abc_analysis': _get_abc_analysis(),
+        'stock_aging': _get_stock_aging_data(),
+        'supplier_performance': _get_supplier_performance(),
+    }
+    
+    return render(request, template_name, context)
+
+@login_required
+@inventory_permission_required('view') 
+def low_stock_report(request):
+    """Generate low stock report"""
+    products = Product.objects.filter(
+        is_active=True,
+        current_stock__lte=F('reorder_level')
+    ).select_related('category', 'supplier').order_by('current_stock')
+    
+    context = {
+        'page_title': 'Low Stock Report',
+        'products': products,
+        'total_products': products.count(),
+    }
+    
+    return render(request, 'inventory/reports/low_stock_report.html', context)
+
+@login_required
+@inventory_permission_required('view')
+def stock_valuation_report(request):
+    """Generate stock valuation report"""
+    products = Product.objects.filter(is_active=True).select_related(
+        'category', 'supplier'
+    )
+    
+    total_value = calculate_stock_value(products)
+    
+    context = {
+        'page_title': 'Stock Valuation Report',
+        'products': products,
+        'total_value': total_value,
+        'report_date': timezone.now().date(),
+    }
+    
+    return render(request, 'inventory/reports/valuation_report.html', context)
+
+def _get_abc_analysis():
+    """Helper function for ABC analysis"""
+    # Implementation for ABC analysis
+    return {}
+
+def _get_stock_aging_data():
+    """Helper function for stock aging analysis"""
+    # Implementation for stock aging
+    return {}
+
+def _get_supplier_performance():
+    """Helper function for supplier performance metrics"""
+    # Implementation for supplier performance
+    return {}
+
 # =====================================
 # API ENDPOINTS
 # =====================================

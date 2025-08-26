@@ -1,670 +1,689 @@
-{% extends "inventory_base.html" %}
-{% load static %}
+{% extends "dashboard_base.html" %}
+{% load static crispy_forms_tags %}
 
-<!-- This template handles stock transfers between locations, which is essential for
-     multi-location inventory management. The design emphasizes accuracy and provides
-     clear visual feedback about the transfer operation and its impact on both locations. -->
+{% block page_title %}Stock Transfer{% endblock %}
 
-{% block inventory_title %}Stock Transfer Between Locations{% endblock %}
-
-{% block inventory_breadcrumbs %}
-  {{ block.super }}
-  {% with inventory_breadcrumbs=breadcrumbs %}{% endwith %}
-{% endblock %}
-
-{% block inventory_actions %}
-  <!-- Action buttons provide context and related operations -->
-  <div class="btn-group me-2" role="group">
-    <a href="{% url 'inventory:stock_movements' %}?movement_type=transfer" class="btn btn-outline-primary btn-sm">
-      <i class="bi bi-clock-history me-1"></i>Transfer History
-    </a>
-    <a href="{% url 'inventory:stock_adjust' %}" class="btn btn-outline-warning btn-sm">
-      <i class="bi bi-plus-minus me-1"></i>Adjust Stock
-    </a>
+{% block dashboard_content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+  <div>
+    <nav aria-label="breadcrumb">
+      <ol class="breadcrumb mb-1">
+        <li class="breadcrumb-item"><a href="{% url 'inventory:dashboard' %}">Inventory</a></li>
+        <li class="breadcrumb-item"><a href="{% url 'inventory:stock_overview' %}">Stock Management</a></li>
+        <li class="breadcrumb-item active">Transfer</li>
+      </ol>
+    </nav>
+    <h1 class="h3 mb-0 text-gray-800">Stock Transfer</h1>
+    <p class="text-muted mb-0">Move inventory between locations with full tracking</p>
   </div>
   
   <div class="btn-group" role="group">
-    <a href="{% url 'inventory:location_list' %}" class="btn btn-outline-info btn-sm">
-      <i class="bi bi-geo-alt me-1"></i>View Locations
+    <a href="{% url 'inventory:stock_transfer_history' %}" class="btn btn-outline-secondary">
+      <i class="bi bi-clock-history me-2"></i>Transfer History
     </a>
-    <a href="{% url 'inventory:stock_overview' %}" class="btn btn-outline-secondary btn-sm">
-      <i class="bi bi-graph-up me-1"></i>Stock Overview
+    <a href="{% url 'inventory:bulk_stock_transfer' %}" class="btn btn-outline-info">
+      <i class="bi bi-layers me-2"></i>Bulk Transfer
     </a>
   </div>
-{% endblock %}
+</div>
 
-{% block inventory_content %}
-  <div class="row justify-content-center">
-    <div class="col-lg-10">
-      
-      <!-- Information card explains the transfer process and its implications -->
-      <div class="card border-info mb-4">
+<!-- Transfer Form -->
+<form method="post" id="stockTransferForm" class="needs-validation" novalidate>
+  {% csrf_token %}
+  
+  <div class="row">
+    <!-- Transfer Details -->
+    <div class="col-lg-8 mb-4">
+      <!-- Transfer Information Card -->
+      <div class="card shadow mb-4">
+        <div class="card-header py-3">
+          <h6 class="m-0 font-weight-bold text-primary">
+            <i class="bi bi-arrow-left-right me-2"></i>Transfer Information
+          </h6>
+        </div>
         <div class="card-body">
-          <div class="d-flex align-items-center">
-            <i class="bi bi-info-circle text-info fs-2 me-3"></i>
-            <div>
-              <h6 class="card-title mb-1 text-info">Stock Transfer Information</h6>
-              <p class="card-text mb-0">
-                Transfer inventory between locations to optimize distribution and meet demand. 
-                Transfers create detailed movement records and update stock levels in real-time at both locations.
-              </p>
-            </div>
-          </div>
-        </div>
-      </div>
-      
-      <!-- Main transfer form with visual flow indication -->
-      <div class="card inventory-card">
-        <div class="card-header">
-          <h5 class="card-title mb-0">
-            <i class="bi bi-arrow-left-right me-2"></i>Create Stock Transfer
-          </h5>
-          <small class="text-muted">
-            Move inventory between locations with full audit trail
-          </small>
-        </div>
-        
-        <form method="post" id="stockTransferForm" novalidate class="needs-validation">
-          {% csrf_token %}
-          
-          <div class="card-body">
-            <!-- Form errors with clear visibility -->
-            {% if form.errors %}
-              <div class="alert alert-danger">
-                <i class="bi bi-exclamation-triangle me-2"></i>
-                <strong>Please correct the following errors:</strong>
-                <ul class="mb-0 mt-2">
-                  {% for field, errors in form.errors.items %}
-                    {% for error in errors %}
-                      <li>{{ field|title }}: {{ error }}</li>
-                    {% endfor %}
+          <div class="row">
+            <div class="col-md-6">
+              <div class="mb-3">
+                <label class="form-label fw-bold">From Location *</label>
+                <select class="form-select" name="from_location" id="fromLocation" required>
+                  <option value="">Select source location...</option>
+                  {% for location in locations %}
+                    <option value="{{ location.id }}" data-stock-count="{{ location.product_count }}">
+                      {{ location.name }} ({{ location.product_count }} items)
+                    </option>
                   {% endfor %}
-                </ul>
-              </div>
-            {% endif %}
-            
-            <!-- Product selection with real-time availability checking -->
-            <div class="row mb-4">
-              <div class="col-12">
-                <h6 class="border-bottom pb-2 mb-3">
-                  <i class="bi bi-box me-2"></i>Product & Quantity
-                </h6>
-              </div>
-              
-              <div class="col-md-8 mb-3">
-                <label for="{{ form.product.id_for_label }}" class="form-label">
-                  Product <span class="text-danger">*</span>
-                </label>
-                {{ form.product }}
-                {% if form.product.errors %}
-                  <div class="invalid-feedback d-block">
-                    {% for error in form.product.errors %}{{ error }}{% endfor %}
-                  </div>
-                {% endif %}
-                <div class="form-text">Search by product name or SKU</div>
-              </div>
-              
-              <div class="col-md-4 mb-3">
-                <label for="{{ form.quantity.id_for_label }}" class="form-label">
-                  Transfer Quantity <span class="text-danger">*</span>
-                </label>
-                {{ form.quantity }}
-                {% if form.quantity.errors %}
-                  <div class="invalid-feedback d-block">
-                    {% for error in form.quantity.errors %}{{ error }}{% endfor %}
-                  </div>
-                {% endif %}
-                <div class="form-text">Units to transfer</div>
+                </select>
+                <div class="form-text">Location to transfer stock from</div>
               </div>
             </div>
-            
-            <!-- Location selection with visual transfer flow -->
-            <div class="row mb-4">
-              <div class="col-12">
-                <h6 class="border-bottom pb-2 mb-3">
-                  <i class="bi bi-geo-alt me-2"></i>Transfer Locations
-                </h6>
-              </div>
-              
-              <!-- From location with stock availability display -->
-              <div class="col-md-5 mb-3">
-                <label for="{{ form.from_location.id_for_label }}" class="form-label">
-                  From Location <span class="text-danger">*</span>
-                </label>
-                {{ form.from_location }}
-                {% if form.from_location.errors %}
-                  <div class="invalid-feedback d-block">
-                    {% for error in form.from_location.errors %}{{ error }}{% endfor %}
-                  </div>
-                {% endif %}
-                
-                <!-- Available stock at source location -->
-                <div class="mt-2">
-                  <div class="card border-warning" id="fromLocationStock" style="display: none;">
-                    <div class="card-body text-center py-2">
-                      <div class="small text-muted">Available Stock</div>
-                      <div id="fromStockAmount" class="fs-5 fw-bold text-warning">0</div>
-                      <div class="small text-muted">units available</div>
-                    </div>
-                  </div>
-                </div>
-              </div>
-              
-              <!-- Visual transfer indicator -->
-              <div class="col-md-2 mb-3 d-flex align-items-center justify-content-center">
-                <div class="text-center" id="transferIndicator" style="display: none;">
-                  <div class="border rounded-circle p-3 bg-primary text-white mb-2">
-                    <i class="bi bi-arrow-right fs-4"></i>
-                  </div>
-                  <small class="text-muted">Transfer</small>
-                </div>
-              </div>
-              
-              <!-- To location -->
-              <div class="col-md-5 mb-3">
-                <label for="{{ form.to_location.id_for_label }}" class="form-label">
-                  To Location <span class="text-danger">*</span>
-                </label>
-                {{ form.to_location }}
-                {% if form.to_location.errors %}
-                  <div class="invalid-feedback d-block">
-                    {% for error in form.to_location.errors %}{{ error }}{% endfor %}
-                  </div>
-                {% endif %}
-                
-                <!-- Current stock at destination location -->
-                <div class="mt-2">
-                  <div class="card border-success" id="toLocationStock" style="display: none;">
-                    <div class="card-body text-center py-2">
-                      <div class="small text-muted">Current Stock</div>
-                      <div id="toStockAmount" class="fs-5 fw-bold text-success">0</div>
-                      <div class="small text-muted">units on hand</div>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </div>
-            
-            <!-- Transfer impact preview shows before/after state -->
-            <div class="row mb-4" id="transferPreview" style="display: none;">
-              <div class="col-12">
-                <div class="card border-primary">
-                  <div class="card-header bg-primary text-white">
-                    <h6 class="card-title mb-0">
-                      <i class="bi bi-calculator me-2"></i>Transfer Impact Preview
-                    </h6>
-                  </div>
-                  <div class="card-body">
-                    <div class="row text-center">
-                      <!-- From location impact -->
-                      <div class="col-md-6">
-                        <h6 class="text-muted">From: <span id="fromLocationName">—</span></h6>
-                        <div class="row">
-                          <div class="col-6">
-                            <div class="small text-muted">Current</div>
-                            <div id="fromCurrentStock" class="fs-4 fw-bold">0</div>
-                          </div>
-                          <div class="col-6">
-                            <div class="small text-muted">After Transfer</div>
-                            <div id="fromAfterStock" class="fs-4 fw-bold text-warning">0</div>
-                          </div>
-                        </div>
-                      </div>
-                      
-                      <!-- To location impact -->
-                      <div class="col-md-6 border-start">
-                        <h6 class="text-muted">To: <span id="toLocationName">—</span></h6>
-                        <div class="row">
-                          <div class="col-6">
-                            <div class="small text-muted">Current</div>
-                            <div id="toCurrentStock" class="fs-4 fw-bold">0</div>
-                          </div>
-                          <div class="col-6">
-                            <div class="small text-muted">After Transfer</div>
-                            <div id="toAfterStock" class="fs-4 fw-bold text-success">0</div>
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-                    
-                    <!-- Transfer validation warnings -->
-                    <div id="transferWarnings" class="mt-3"></div>
-                  </div>
-                </div>
-              </div>
-            </div>
-            
-            <!-- Documentation and reference information -->
-            <div class="row mb-4">
-              <div class="col-12">
-                <h6 class="border-bottom pb-2 mb-3">
-                  <i class="bi bi-file-text me-2"></i>Transfer Documentation
-                </h6>
-              </div>
-              
-              <div class="col-md-6 mb-3">
-                <label for="{{ form.reference.id_for_label }}" class="form-label">
-                  Transfer Reference <span class="text-danger">*</span>
-                </label>
-                {{ form.reference }}
-                {% if form.reference.errors %}
-                  <div class="invalid-feedback d-block">
-                    {% for error in form.reference.errors %}{{ error }}{% endfor %}
-                  </div>
-                {% endif %}
-                <div class="form-text">
-                  Unique identifier for this transfer (e.g., "TR-2024-001")
-                </div>
-              </div>
-              
-              <div class="col-md-6 mb-3">
-                <label class="form-label">Transfer Date</label>
-                <input type="text" class="form-control" 
-                       value="{{ current_date|date:'M d, Y H:i' }}" 
-                       readonly>
-                <div class="form-text">Transfer will be processed immediately</div>
-              </div>
-              
-              <div class="col-12 mb-3">
-                <label for="{{ form.notes.id_for_label }}" class="form-label">
-                  Transfer Notes
-                </label>
-                {{ form.notes }}
-                {% if form.notes.errors %}
-                  <div class="invalid-feedback d-block">
-                    {% for error in form.notes.errors %}{{ error }}{% endfor %}
-                  </div>
-                {% endif %}
-                <div class="form-text">
-                  Additional information about this transfer (reason, special instructions, etc.)
-                </div>
+            <div class="col-md-6">
+              <div class="mb-3">
+                <label class="form-label fw-bold">To Location *</label>
+                <select class="form-select" name="to_location" id="toLocation" required>
+                  <option value="">Select destination location...</option>
+                  {% for location in locations %}
+                    <option value="{{ location.id }}">{{ location.name }}</option>
+                  {% endfor %}
+                </select>
+                <div class="form-text">Location to transfer stock to</div>
               </div>
             </div>
           </div>
           
-          <!-- Form actions with clear emphasis on the operation -->
-          <div class="card-footer bg-light">
-            <div class="d-flex justify-content-between align-items-center">
-              <div class="text-muted small">
-                <i class="bi bi-shield-check me-1"></i>
-                Transfer creates movement records at both locations
+          <div class="row">
+            <div class="col-md-6">
+              <div class="mb-3">
+                <label class="form-label fw-bold">Transfer Date</label>
+                <input type="date" class="form-control" name="transfer_date" 
+                       value="{{ today|date:'Y-m-d' }}" required>
               </div>
-              
-              <div class="btn-group">
-                <a href="{% url 'inventory:stock_overview' %}" class="btn btn-outline-secondary">
-                  <i class="bi bi-x-circle me-1"></i>Cancel
-                </a>
-                <button type="submit" class="btn btn-primary" id="submitTransfer">
-                  <i class="bi bi-arrow-left-right me-1"></i>Execute Transfer
-                </button>
+            </div>
+            <div class="col-md-6">
+              <div class="mb-3">
+                <label class="form-label fw-bold">Reference Number</label>
+                <input type="text" class="form-control" name="reference" 
+                       placeholder="Auto-generated" value="{{ transfer_reference }}">
+                <div class="form-text">Optional reference for tracking</div>
               </div>
             </div>
           </div>
-        </form>
+          
+          <div class="mb-3">
+            <label class="form-label fw-bold">Transfer Reason *</label>
+            <select class="form-select" name="reason" required>
+              <option value="">Select reason...</option>
+              <option value="rebalancing">Stock Rebalancing</option>
+              <option value="new_location">New Location Setup</option>
+              <option value="consolidation">Location Consolidation</option>
+              <option value="customer_request">Customer Request</option>
+              <option value="quality_issue">Quality Issue</option>
+              <option value="seasonal">Seasonal Movement</option>
+              <option value="maintenance">Maintenance/Renovation</option>
+              <option value="other">Other</option>
+            </select>
+          </div>
+          
+          <div class="mb-3">
+            <label class="form-label">Notes</label>
+            <textarea class="form-control" name="notes" rows="3" 
+                      placeholder="Additional notes about this transfer..."></textarea>
+          </div>
+        </div>
       </div>
-      
-      <!-- Recent transfers provide context and patterns -->
-      {% if recent_transfers %}
-        <div class="card inventory-card mt-4">
-          <div class="card-header">
-            <h6 class="card-title mb-0">
-              <i class="bi bi-clock-history me-2"></i>Recent Stock Transfers
-            </h6>
+
+      <!-- Product Selection Card -->
+      <div class="card shadow mb-4">
+        <div class="card-header py-3 d-flex justify-content-between align-items-center">
+          <h6 class="m-0 font-weight-bold text-success">
+            <i class="bi bi-box-seam me-2"></i>Products to Transfer
+          </h6>
+          <div class="btn-group btn-group-sm" role="group">
+            <button type="button" class="btn btn-outline-primary" onclick="addProductRow()">
+              <i class="bi bi-plus me-1"></i>Add Product
+            </button>
+            <button type="button" class="btn btn-outline-info" onclick="scanBarcode()">
+              <i class="bi bi-qr-code me-1"></i>Scan
+            </button>
           </div>
-          <div class="card-body">
-            <div class="table-responsive">
-              <table class="table table-sm">
-                <thead>
-                  <tr>
-                    <th>Date</th>
-                    <th>Product</th>
-                    <th>Quantity</th>
-                    <th>From → To</th>
-                    <th>Reference</th>
-                    <th>User</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {% for transfer in recent_transfers %}
-                    <tr>
-                      <td>{{ transfer.created_at|date:"M d, H:i" }}</td>
-                      <td>
-                        <a href="{% url 'inventory:product_detail' transfer.product.pk %}" class="text-decoration-none">
-                          {{ transfer.product.name|truncatechars:25 }}
-                        </a>
-                      </td>
-                      <td><span class="fw-bold">{{ transfer.quantity }}</span></td>
-                      <td>
-                        <small class="text-muted">
-                          {{ transfer.from_location.name }} → {{ transfer.to_location.name }}
-                        </small>
-                      </td>
-                      <td>{{ transfer.reference|truncatechars:20 }}</td>
-                      <td>{{ transfer.created_by.get_full_name|default:transfer.created_by.username }}</td>
-                    </tr>
-                  {% endfor %}
-                </tbody>
-              </table>
+        </div>
+        <div class="card-body p-0" id="productTableContainer">
+          <div class="table-responsive">
+            <table class="table table-hover mb-0" id="productsTable">
+              <thead class="table-light">
+                <tr>
+                  <th style="width: 35%;">Product</th>
+                  <th style="width: 15%;">Available Stock</th>
+                  <th style="width: 15%;">Transfer Quantity</th>
+                  <th style="width: 15%;">Unit Value</th>
+                  <th style="width: 15%;">Total Value</th>
+                  <th style="width: 5%;">Actions</th>
+                </tr>
+              </thead>
+              <tbody id="productsTableBody">
+                <tr id="noProductsRow">
+                  <td colspan="6" class="text-center py-4 text-muted">
+                    <i class="bi bi-box me-2"></i>
+                    No products added yet. Click "Add Product" to start.
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+        <div class="card-footer bg-light">
+          <div class="row">
+            <div class="col-md-6">
+              <strong>Total Items: <span id="totalItems">0</span></strong>
             </div>
-            <div class="text-center mt-3">
-              <a href="{% url 'inventory:stock_movements' %}?movement_type=transfer" class="btn btn-outline-primary btn-sm">
-                View All Transfers
-              </a>
+            <div class="col-md-6 text-end">
+              <strong>Total Value: $<span id="totalValue">0.00</span></strong>
             </div>
           </div>
         </div>
-      {% endif %}
+      </div>
+    </div>
+
+    <!-- Transfer Summary Sidebar -->
+    <div class="col-lg-4 mb-4">
+      <!-- Quick Stats Card -->
+      <div class="card shadow mb-4">
+        <div class="card-header py-3">
+          <h6 class="m-0 font-weight-bold text-info">
+            <i class="bi bi-speedometer2 me-2"></i>Transfer Summary
+          </h6>
+        </div>
+        <div class="card-body">
+          <div class="transfer-summary">
+            <div class="summary-item mb-3">
+              <div class="d-flex justify-content-between">
+                <span class="text-muted">From Location:</span>
+                <strong id="summaryFromLocation">Not selected</strong>
+              </div>
+            </div>
+            <div class="summary-item mb-3">
+              <div class="d-flex justify-content-between">
+                <span class="text-muted">To Location:</span>
+                <strong id="summaryToLocation">Not selected</strong>
+              </div>
+            </div>
+            <div class="summary-item mb-3">
+              <div class="d-flex justify-content-between">
+                <span class="text-muted">Products:</span>
+                <strong><span id="summaryProductCount">0</span> items</strong>
+              </div>
+            </div>
+            <div class="summary-item mb-3">
+              <div class="d-flex justify-content-between">
+                <span class="text-muted">Total Quantity:</span>
+                <strong><span id="summaryTotalQty">0</span> units</strong>
+              </div>
+            </div>
+            <div class="summary-item">
+              <div class="d-flex justify-content-between">
+                <span class="text-muted">Total Value:</span>
+                <strong class="text-success">$<span id="summaryTotalValue">0.00</span></strong>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Recent Transfers Card -->
+      <div class="card shadow mb-4">
+        <div class="card-header py-3">
+          <h6 class="m-0 font-weight-bold text-secondary">
+            <i class="bi bi-clock-history me-2"></i>Recent Transfers
+          </h6>
+        </div>
+        <div class="card-body p-0">
+          {% for transfer in recent_transfers %}
+          <div class="d-flex align-items-center p-3 border-bottom">
+            <div class="me-3">
+              <div class="icon-circle bg-info">
+                <i class="bi bi-arrow-right text-white"></i>
+              </div>
+            </div>
+            <div class="flex-grow-1">
+              <div class="small fw-bold">{{ transfer.from_location.name }} → {{ transfer.to_location.name }}</div>
+              <div class="small text-muted">
+                {{ transfer.products_count }} items • {{ transfer.created_at|timesince }} ago
+              </div>
+            </div>
+            <div class="text-end">
+              <div class="small fw-bold">${{ transfer.total_value|floatformat:0 }}</div>
+            </div>
+          </div>
+          {% empty %}
+          <div class="p-3 text-center text-muted">
+            <i class="bi bi-inbox"></i> No recent transfers
+          </div>
+          {% endfor %}
+        </div>
+      </div>
+
+      <!-- Validation Card -->
+      <div class="card shadow mb-4">
+        <div class="card-header py-3">
+          <h6 class="m-0 font-weight-bold text-warning">
+            <i class="bi bi-shield-check me-2"></i>Transfer Validation
+          </h6>
+        </div>
+        <div class="card-body">
+          <div id="validationMessages">
+            <div class="validation-item mb-2">
+              <i class="bi bi-circle text-muted me-2"></i>
+              <span class="text-muted">Select locations to validate transfer</span>
+            </div>
+          </div>
+        </div>
+      </div>
     </div>
   </div>
-{% endblock %}
 
-{% block extra_js %}
-{{ block.super }}
-<script>
-// Enhanced JavaScript for stock transfer interface
-// Provides real-time validation and visual feedback for transfer operations
-document.addEventListener('DOMContentLoaded', function() {
-  const form = document.getElementById('stockTransferForm');
-  const productField = document.getElementById('{{ form.product.id_for_label }}');
-  const fromLocationField = document.getElementById('{{ form.from_location.id_for_label }}');
-  const toLocationField = document.getElementById('{{ form.to_location.id_for_label }}');
-  const quantityField = document.getElementById('{{ form.quantity.id_for_label }}');
-  const referenceField = document.getElementById('{{ form.reference.id_for_label }}');
-  
-  // Auto-generate transfer reference when form loads
-  // This provides a consistent numbering system for transfers
-  if (!referenceField.value) {
-    generateTransferReference();
-  }
-  
-  // Product selection handler
-  // Loads stock levels at all locations for the selected product
-  productField.addEventListener('change', function() {
-    const productId = this.value;
-    if (productId) {
-      loadProductStockLevels(productId);
-    } else {
-      resetStockDisplays();
-    }
-  });
-  
-  // Location selection handlers
-  // Update stock displays when locations change
-  fromLocationField.addEventListener('change', updateStockDisplays);
-  toLocationField.addEventListener('change', updateStockDisplays);
-  
-  // Quantity input handler
-  // Provides real-time validation and preview updates
-  quantityField.addEventListener('input', function() {
-    validateTransferQuantity();
-    updateTransferPreview();
-  });
-  
-  // Load stock levels for selected product across all locations
-  function loadProductStockLevels(productId) {
-    fetch(`/inventory/api/products/${productId}/stock-levels/`)
-      .then(response => response.json())
-      .then(data => {
-        if (data.success) {
-          window.productStockLevels = data.stock_levels;
-          updateStockDisplays();
-        }
-      })
-      .catch(error => {
-        console.error('Error loading stock levels:', error);
-        showTransferMessage('error', 'Error loading product stock levels');
-      });
-  }
-  
-  // Update stock displays based on selected locations
-  function updateStockDisplays() {
-    const fromLocationId = fromLocationField.value;
-    const toLocationId = toLocationField.value;
-    
-    if (window.productStockLevels && fromLocationId) {
-      const fromStock = window.productStockLevels.find(sl => sl.location_id == fromLocationId);
-      const fromStockAmount = fromStock ? fromStock.available_quantity : 0;
-      
-      document.getElementById('fromStockAmount').textContent = fromStockAmount;
-      document.getElementById('fromLocationStock').style.display = 'block';
-      
-      // Update preview with location names
-      const fromLocationName = fromLocationField.options[fromLocationField.selectedIndex].text;
-      document.getElementById('fromLocationName').textContent = fromLocationName;
-      document.getElementById('fromCurrentStock').textContent = fromStockAmount;
-    }
-    
-    if (window.productStockLevels && toLocationId) {
-      const toStock = window.productStockLevels.find(sl => sl.location_id == toLocationId);
-      const toStockAmount = toStock ? toStock.quantity : 0;
-      
-      document.getElementById('toStockAmount').textContent = toStockAmount;
-      document.getElementById('toLocationStock').style.display = 'block';
-      
-      // Update preview with location names
-      const toLocationName = toLocationField.options[toLocationField.selectedIndex].text;
-      document.getElementById('toLocationName').textContent = toLocationName;
-      document.getElementById('toCurrentStock').textContent = toStockAmount;
-    }
-    
-    // Show transfer indicator when both locations are selected
-    if (fromLocationId && toLocationId) {
-      document.getElementById('transferIndicator').style.display = 'block';
-      updateTransferPreview();
-    }
-    
-    validateTransferQuantity();
-  }
-  
-  // Update the transfer impact preview
-  function updateTransferPreview() {
-    const fromLocationId = fromLocationField.value;
-    const toLocationId = toLocationField.value;
-    const quantity = parseInt(quantityField.value) || 0;
-    
-    if (fromLocationId && toLocationId && quantity > 0 && window.productStockLevels) {
-      const fromStock = window.productStockLevels.find(sl => sl.location_id == fromLocationId);
-      const toStock = window.productStockLevels.find(sl => sl.location_id == toLocationId);
-      
-      const fromCurrent = fromStock ? fromStock.available_quantity : 0;
-      const toCurrent = toStock ? toStock.quantity : 0;
-      
-      const fromAfter = fromCurrent - quantity;
-      const toAfter = toCurrent + quantity;
-      
-      // Update preview displays
-      document.getElementById('fromAfterStock').textContent = fromAfter;
-      document.getElementById('toAfterStock').textContent = toAfter;
-      
-      // Apply color coding for visual feedback
-      document.getElementById('fromAfterStock').className = 
-        'fs-4 fw-bold ' + (fromAfter < 0 ? 'text-danger' : 'text-warning');
-      
-      document.getElementById('transferPreview').style.display = 'block';
-      
-      // Show warnings for problematic transfers
-      updateTransferWarnings(fromAfter, toAfter, quantity);
-    } else {
-      document.getElementById('transferPreview').style.display = 'none';
-    }
-  }
-  
-  // Validate transfer quantity against available stock
-  function validateTransferQuantity() {
-    const fromLocationId = fromLocationField.value;
-    const quantity = parseInt(quantityField.value) || 0;
-    
-    if (fromLocationId && quantity > 0 && window.productStockLevels) {
-      const fromStock = window.productStockLevels.find(sl => sl.location_id == fromLocationId);
-      const availableStock = fromStock ? fromStock.available_quantity : 0;
-      
-      if (quantity > availableStock) {
-        quantityField.setCustomValidity(`Only ${availableStock} units available at source location`);
-        quantityField.classList.add('is-invalid');
-        return false;
-      } else {
-        quantityField.setCustomValidity('');
-        quantityField.classList.remove('is-invalid');
-        return true;
-      }
-    }
-    
-    return true;
-  }
-  
-  // Display transfer warnings for edge cases
-  function updateTransferWarnings(fromAfter, toAfter, quantity) {
-    const warningsContainer = document.getElementById('transferWarnings');
-    const warnings = [];
-    
-    if (fromAfter < 0) {
-      warnings.push({
-        type: 'danger',
-        message: `Insufficient stock: Transfer would require ${Math.abs(fromAfter)} more units than available`
-      });
-    } else if (fromAfter === 0) {
-      warnings.push({
-        type: 'warning',
-        message: 'This transfer will completely empty the source location'
-      });
-    } else if (fromAfter < 10) {
-      warnings.push({
-        type: 'info',
-        message: `Low remaining stock: Only ${fromAfter} units will remain at source location`
-      });
-    }
-    
-    if (quantity > 100) {
-      warnings.push({
-        type: 'info',
-        message: 'Large quantity transfer - please verify accuracy'
-      });
-    }
-    
-    // Render warnings
-    warningsContainer.innerHTML = warnings.map(warning => `
-      <div class="alert alert-${warning.type} py-2 mb-2">
-        <i class="bi bi-exclamation-triangle me-2"></i>
-        ${warning.message}
+  <!-- Form Actions -->
+  <div class="card shadow">
+    <div class="card-body">
+      <div class="d-flex justify-content-between align-items-center">
+        <div class="form-check">
+          <input class="form-check-input" type="checkbox" id="createMovements" checked>
+          <label class="form-check-label" for="createMovements">
+            Create stock movement records
+          </label>
+        </div>
+        <div class="btn-group" role="group">
+          <a href="{% url 'inventory:stock_overview' %}" class="btn btn-outline-secondary">
+            <i class="bi bi-x-lg me-2"></i>Cancel
+          </a>
+          <button type="button" class="btn btn-outline-info" onclick="previewTransfer()">
+            <i class="bi bi-eye me-2"></i>Preview
+          </button>
+          <button type="submit" class="btn btn-primary" id="submitTransfer" disabled>
+            <i class="bi bi-check-lg me-2"></i>Execute Transfer
+          </button>
+        </div>
       </div>
-    `).join('');
+    </div>
+  </div>
+</form>
+
+<!-- Add Product Modal -->
+<div class="modal fade" id="addProductModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-lg">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title">Add Product to Transfer</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <div class="mb-3">
+          <label class="form-label">Search Product</label>
+          <input type="text" class="form-control" id="productSearch" 
+                 placeholder="Search by SKU, name, or barcode...">
+        </div>
+        <div id="productSearchResults">
+          <div class="text-center text-muted py-3">
+            Start typing to search for products...
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Transfer Preview Modal -->
+<div class="modal fade" id="transferPreviewModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-xl">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title">Transfer Preview</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body" id="transferPreviewContent">
+        <!-- Preview content will be loaded here -->
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+        <button type="button" class="btn btn-primary" onclick="confirmTransfer()">
+          <i class="bi bi-check me-1"></i>Confirm Transfer
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+let productRows = [];
+let availableProducts = {};
+
+// Location change handlers
+document.getElementById('fromLocation').addEventListener('change', function() {
+  const selectedText = this.selectedOptions[0]?.text || 'Not selected';
+  document.getElementById('summaryFromLocation').textContent = selectedText.split(' (')[0];
+  loadLocationProducts(this.value);
+  validateTransfer();
+});
+
+document.getElementById('toLocation').addEventListener('change', function() {
+  const selectedText = this.selectedOptions[0]?.text || 'Not selected';
+  document.getElementById('summaryToLocation').textContent = selectedText;
+  validateTransfer();
+});
+
+function loadLocationProducts(locationId) {
+  if (!locationId) return;
+  
+  // This would make an AJAX call to load products for the selected location
+  // For demo purposes, we'll use dummy data
+  availableProducts = {
+    1: { sku: 'BT-001', name: 'Sample Product 1', stock: 100, value: 25.00 },
+    2: { sku: 'BT-002', name: 'Sample Product 2', stock: 50, value: 50.00 }
+  };
+}
+
+function addProductRow() {
+  const fromLocation = document.getElementById('fromLocation').value;
+  if (!fromLocation) {
+    alert('Please select a source location first.');
+    return;
   }
   
-  // Generate automatic transfer reference number
-  function generateTransferReference() {
-    const now = new Date();
-    const dateStr = now.getFullYear().toString() + 
-                   (now.getMonth() + 1).toString().padStart(2, '0') + 
-                   now.getDate().toString().padStart(2, '0');
-    const timeStr = now.getHours().toString().padStart(2, '0') + 
-                   now.getMinutes().toString().padStart(2, '0');
-    
-    referenceField.value = `TR-${dateStr}-${timeStr}`;
+  new bootstrap.Modal(document.getElementById('addProductModal')).show();
+}
+
+function scanBarcode() {
+  // This would integrate with barcode scanning functionality
+  alert('Barcode scanning feature would be integrated here.');
+}
+
+function addProduct(productId, productData) {
+  const tableBody = document.getElementById('productsTableBody');
+  const noProductsRow = document.getElementById('noProductsRow');
+  
+  // Remove "no products" row if it exists
+  if (noProductsRow) {
+    noProductsRow.remove();
   }
   
-  // Form validation before submission
-  form.addEventListener('submit', function(e) {
-    const fromLocationId = fromLocationField.value;
-    const toLocationId = toLocationField.value;
-    const quantity = parseInt(quantityField.value) || 0;
-    
-    // Validate all required fields
-    if (!productField.value) {
-      e.preventDefault();
-      showTransferMessage('error', 'Please select a product');
-      productField.focus();
-      return;
-    }
-    
-    if (!fromLocationId) {
-      e.preventDefault();
-      showTransferMessage('error', 'Please select a source location');
-      fromLocationField.focus();
-      return;
-    }
-    
-    if (!toLocationId) {
-      e.preventDefault();
-      showTransferMessage('error', 'Please select a destination location');
-      toLocationField.focus();
-      return;
-    }
-    
-    if (fromLocationId === toLocationId) {
-      e.preventDefault();
-      showTransferMessage('error', 'Source and destination locations must be different');
-      toLocationField.focus();
-      return;
-    }
-    
-    if (!quantity || quantity <= 0) {
-      e.preventDefault();
-      showTransferMessage('error', 'Please enter a valid transfer quantity');
-      quantityField.focus();
-      return;
-    }
-    
-    if (!validateTransferQuantity()) {
-      e.preventDefault();
-      quantityField.focus();
-      return;
-    }
-    
-    if (!referenceField.value.trim()) {
-      e.preventDefault();
-      showTransferMessage('error', 'Please provide a transfer reference');
-      referenceField.focus();
-      return;
-    }
-    
-    // Final confirmation
-    const productName = productField.options[productField.selectedIndex].text;
-    const fromName = fromLocationField.options[fromLocationField.selectedIndex].text;
-    const toName = toLocationField.options[toLocationField.selectedIndex].text;
-    
-    const confirmMessage = `Transfer ${quantity} units of ${productName} from ${fromName} to ${toName}?`;
-    if (!confirm(confirmMessage)) {
-      e.preventDefault();
-      return;
-    }
-    
-    // Show loading state
-    const submitButton = document.getElementById('submitTransfer');
-    submitButton.innerHTML = '<i class="spinner-border spinner-border-sm me-1"></i>Processing Transfer...';
-    submitButton.disabled = true;
+  const row = document.createElement('tr');
+  row.dataset.productId = productId;
+  row.innerHTML = `
+    <td>
+      <div class="d-flex align-items-center">
+        <div class="me-3">
+          <div class="bg-primary text-white rounded d-flex align-items-center justify-content-center" style="width: 30px; height: 30px;">
+            <i class="bi bi-box"></i>
+          </div>
+        </div>
+        <div>
+          <div class="fw-bold">${productData.name}</div>
+          <small class="text-muted">SKU: ${productData.sku}</small>
+        </div>
+      </div>
+    </td>
+    <td>
+      <span class="fw-bold text-info">${productData.stock}</span>
+    </td>
+    <td>
+      <input type="number" class="form-control transfer-quantity" min="1" max="${productData.stock}" 
+             value="1" onchange="updateRowTotal(this)">
+    </td>
+    <td>
+      <span class="unit-value">$${productData.value.toFixed(2)}</span>
+    </td>
+    <td>
+      <span class="fw-bold text-success row-total">$${productData.value.toFixed(2)}</span>
+    </td>
+    <td>
+      <button type="button" class="btn btn-outline-danger btn-sm" onclick="removeProduct(this)">
+        <i class="bi bi-trash"></i>
+      </button>
+    </td>
+  `;
+  
+  tableBody.appendChild(row);
+  productRows.push({
+    id: productId,
+    data: productData,
+    element: row
   });
   
-  // Helper functions
-  function resetStockDisplays() {
-    document.getElementById('fromLocationStock').style.display = 'none';
-    document.getElementById('toLocationStock').style.display = 'none';
-    document.getElementById('transferIndicator').style.display = 'none';
-    document.getElementById('transferPreview').style.display = 'none';
-    window.productStockLevels = null;
+  updateSummary();
+  validateTransfer();
+  
+  // Hide the modal
+  bootstrap.Modal.getInstance(document.getElementById('addProductModal')).hide();
+}
+
+function removeProduct(button) {
+  const row = button.closest('tr');
+  const productId = row.dataset.productId;
+  
+  row.remove();
+  productRows = productRows.filter(p => p.id != productId);
+  
+  // Add "no products" row if table is empty
+  if (productRows.length === 0) {
+    const tableBody = document.getElementById('productsTableBody');
+    tableBody.innerHTML = `
+      <tr id="noProductsRow">
+        <td colspan="6" class="text-center py-4 text-muted">
+          <i class="bi bi-box me-2"></i>
+          No products added yet. Click "Add Product" to start.
+        </td>
+      </tr>
+    `;
   }
   
-  function showTransferMessage(type, message) {
-    let messageDiv = document.getElementById('transferMessage');
-    if (!messageDiv) {
-      messageDiv = document.createElement('div');
-      messageDiv.id = 'transferMessage';
-      form.insertBefore(messageDiv, form.firstChild);
-    }
+  updateSummary();
+  validateTransfer();
+}
+
+function updateRowTotal(input) {
+  const row = input.closest('tr');
+  const quantity = parseInt(input.value) || 0;
+  const unitValue = parseFloat(row.querySelector('.unit-value').textContent.replace('$', ''));
+  const rowTotal = quantity * unitValue;
+  
+  row.querySelector('.row-total').textContent = `$${rowTotal.toFixed(2)}`;
+  
+  updateSummary();
+  validateTransfer();
+}
+
+function updateSummary() {
+  let totalItems = 0;
+  let totalQuantity = 0;
+  let totalValue = 0;
+  
+  productRows.forEach(product => {
+    const row = product.element;
+    const quantity = parseInt(row.querySelector('.transfer-quantity').value) || 0;
+    const rowTotal = parseFloat(row.querySelector('.row-total').textContent.replace('$', ''));
     
-    messageDiv.className = `alert alert-${type === 'error' ? 'danger' : 'warning'} alert-dismissible fade show`;
-    messageDiv.innerHTML = `
-      <i class="bi bi-exclamation-triangle me-2"></i>
-      ${message}
-      <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
-    `;
-    
-    // Auto-dismiss after 5 seconds
-    setTimeout(() => {
-      if (messageDiv.parentNode) {
-        messageDiv.remove();
-      }
-    }, 5000);
+    totalItems++;
+    totalQuantity += quantity;
+    totalValue += rowTotal;
+  });
+  
+  document.getElementById('totalItems').textContent = totalItems;
+  document.getElementById('totalValue').textContent = totalValue.toFixed(2);
+  document.getElementById('summaryProductCount').textContent = totalItems;
+  document.getElementById('summaryTotalQty').textContent = totalQuantity;
+  document.getElementById('summaryTotalValue').textContent = totalValue.toFixed(2);
+}
+
+function validateTransfer() {
+  const fromLocation = document.getElementById('fromLocation').value;
+  const toLocation = document.getElementById('toLocation').value;
+  const hasProducts = productRows.length > 0;
+  
+  const validationMessages = document.getElementById('validationMessages');
+  const submitButton = document.getElementById('submitTransfer');
+  
+  let isValid = true;
+  let messages = [];
+  
+  if (!fromLocation) {
+    isValid = false;
+    messages.push({ type: 'error', text: 'Select source location' });
   }
+  
+  if (!toLocation) {
+    isValid = false;
+    messages.push({ type: 'error', text: 'Select destination location' });
+  }
+  
+  if (fromLocation === toLocation && fromLocation) {
+    isValid = false;
+    messages.push({ type: 'error', text: 'Source and destination must be different' });
+  }
+  
+  if (!hasProducts) {
+    isValid = false;
+    messages.push({ type: 'error', text: 'Add at least one product' });
+  }
+  
+  // Check for quantity validation
+  productRows.forEach(product => {
+    const row = product.element;
+    const quantity = parseInt(row.querySelector('.transfer-quantity').value) || 0;
+    const available = product.data.stock;
+    
+    if (quantity > available) {
+      isValid = false;
+      messages.push({ type: 'error', text: `${product.data.sku}: Quantity exceeds available stock` });
+    }
+  });
+  
+  if (isValid) {
+    messages.push({ type: 'success', text: 'Transfer ready to execute' });
+  }
+  
+  // Update validation display
+  validationMessages.innerHTML = messages.map(msg => `
+    <div class="validation-item mb-2">
+      <i class="bi bi-${msg.type === 'success' ? 'check-circle text-success' : 'exclamation-circle text-danger'} me-2"></i>
+      <span class="${msg.type === 'success' ? 'text-success' : 'text-danger'}">${msg.text}</span>
+    </div>
+  `).join('');
+  
+  submitButton.disabled = !isValid;
+}
+
+function previewTransfer() {
+  // Generate preview content
+  const previewContent = document.getElementById('transferPreviewContent');
+  previewContent.innerHTML = `
+    <h6>Transfer Summary</h6>
+    <p>This will move ${productRows.length} products from ${document.getElementById('summaryFromLocation').textContent} to ${document.getElementById('summaryToLocation').textContent}</p>
+    <div class="table-responsive">
+      <table class="table table-sm">
+        <thead>
+          <tr>
+            <th>Product</th>
+            <th>Quantity</th>
+            <th>Value</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${productRows.map(product => {
+            const quantity = product.element.querySelector('.transfer-quantity').value;
+            const total = product.element.querySelector('.row-total').textContent;
+            return `
+              <tr>
+                <td>${product.data.sku} - ${product.data.name}</td>
+                <td>${quantity}</td>
+                <td>${total}</td>
+              </tr>
+            `;
+          }).join('')}
+        </tbody>
+      </table>
+    </div>
+  `;
+  
+  new bootstrap.Modal(document.getElementById('transferPreviewModal')).show();
+}
+
+function confirmTransfer() {
+  bootstrap.Modal.getInstance(document.getElementById('transferPreviewModal')).hide();
+  document.getElementById('stockTransferForm').submit();
+}
+
+// Product search functionality
+let searchTimeout;
+document.getElementById('productSearch')?.addEventListener('input', function() {
+  clearTimeout(searchTimeout);
+  searchTimeout = setTimeout(() => {
+    searchProducts(this.value);
+  }, 300);
 });
+
+function searchProducts(query) {
+  const resultsContainer = document.getElementById('productSearchResults');
+  
+  if (query.length < 2) {
+    resultsContainer.innerHTML = '<div class="text-center text-muted py-3">Start typing to search for products...</div>';
+    return;
+  }
+  
+  // This would make an AJAX call to search products
+  // For demo purposes, showing dummy results
+  resultsContainer.innerHTML = `
+    <div class="list-group">
+      <div class="list-group-item list-group-item-action" onclick="addProduct(1, {sku: 'BT-001', name: 'Sample Product 1', stock: 100, value: 25.00})">
+        <div class="d-flex w-100 justify-content-between">
+          <h6 class="mb-1">BT-001 - Sample Product 1</h6>
+          <small>Stock: 100</small>
+        </div>
+        <p class="mb-1">Electronics component</p>
+        <small>$25.00 per unit</small>
+      </div>
+      <div class="list-group-item list-group-item-action" onclick="addProduct(2, {sku: 'BT-002', name: 'Sample Product 2', stock: 50, value: 50.00})">
+        <div class="d-flex w-100 justify-content-between">
+          <h6 class="mb-1">BT-002 - Sample Product 2</h6>
+          <small>Stock: 50</small>
+        </div>
+        <p class="mb-1">Electronic device</p>
+        <small>$50.00 per unit</small>
+      </div>
+    </div>
+  `;
+}
+
+// Form validation
+(function() {
+    'use strict';
+    window.addEventListener('load', function() {
+        var forms = document.getElementsByClassName('needs-validation');
+        var validation = Array.prototype.filter.call(forms, function(form) {
+            form.addEventListener('submit', function(event) {
+                if (form.checkValidity() === false) {
+                    event.preventDefault();
+                    event.stopPropagation();
+                }
+                form.classList.add('was-validated');
+            }, false);
+        });
+    }, false);
+})();
 </script>
+
+<style>
+.icon-circle {
+  width: 2rem;
+  height: 2rem;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.transfer-summary .summary-item {
+  padding: 0.5rem 0;
+  border-bottom: 1px solid #e9ecef;
+}
+
+.transfer-summary .summary-item:last-child {
+  border-bottom: none;
+}
+
+.validation-item {
+  display: flex;
+  align-items-center;
+}
+
+.transfer-quantity {
+  max-width: 100px;
+}
+
+#productsTable .btn-sm {
+  padding: 0.25rem 0.4rem;
+}
+
+.list-group-item-action:hover {
+  cursor: pointer;
+}
+</style>
 {% endblock %}

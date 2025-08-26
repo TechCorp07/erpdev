@@ -1,114 +1,46 @@
-{% extends "inventory_base.html" %}
+{% extends "dashboard_base.html" %}
 {% load static %}
 
-{% block inventory_title %}
-  Stock Overview
-{% endblock %}
+{% block page_title %}Stock Overview{% endblock %}
 
-{% block inventory_actions %}
-<div class="btn-group me-2" role="group">
-  <a href="{% url 'inventory:dashboard' %}" class="btn btn-outline-primary btn-sm">
-    <i class="bi bi-house-door me-1"></i>Dashboard
-  </a>
-  <a href="{% url 'inventory:stock_movements' %}" class="btn btn-outline-secondary btn-sm">
-    <i class="bi bi-list-ul me-1"></i>Movement History
-  </a>
-  <a href="{% url 'inventory:stock_adjust' %}" class="btn btn-outline-warning btn-sm">
-    <i class="bi bi-plus-minus me-1"></i>Adjust Stock
-  </a>
-  <a href="{% url 'inventory:stock_transfer' %}" class="btn btn-outline-info btn-sm">
-    <i class="bi bi-arrow-left-right me-1"></i>Transfer
-  </a>
-</div>
-{% endblock %}
-
-{% block inventory_content %}
-
-<!-- Summary Cards -->
-<div class="row mb-4">
-  <div class="col-xl-3 col-md-6 mb-4">
-    <div class="card dashboard-metric info">
-      <div class="card-body">
-        <div class="d-flex align-items-center">
-          <div class="flex-grow-1">
-            <div class="text-xs font-weight-bold text-uppercase mb-1">Total Products</div>
-            <div class="h5 mb-0 font-weight-bold">{{ total_products|default:0 }}</div>
-          </div>
-          <div class="ms-2">
-            <i class="bi bi-box-seam fa-2x"></i>
-          </div>
-        </div>
-      </div>
-    </div>
-  </div>
-
-  <div class="col-xl-3 col-md-6 mb-4">
-    <div class="card dashboard-metric success">
-      <div class="card-body">
-        <div class="d-flex align-items-center">
-          <div class="flex-grow-1">
-            <div class="text-xs font-weight-bold text-uppercase mb-1">Total Stock Value</div>
-            <div class="h5 mb-0 font-weight-bold">${{ total_value|floatformat:2|default:"0.00" }}</div>
-          </div>
-          <div class="ms-2">
-            <i class="bi bi-currency-dollar fa-2x"></i>
-          </div>
-        </div>
-      </div>
-    </div>
-  </div>
-
-  <div class="col-xl-3 col-md-6 mb-4">
-    <div class="card dashboard-metric {% if low_stock_count > 10 %}critical{% elif low_stock_count > 5 %}warning{% else %}info{% endif %}">
-      <div class="card-body">
-        <div class="d-flex align-items-center">
-          <div class="flex-grow-1">
-            <div class="text-xs font-weight-bold text-uppercase mb-1">Low Stock</div>
-            <div class="h5 mb-0 font-weight-bold">{{ low_stock_count|default:0 }}</div>
-          </div>
-          <div class="ms-2">
-            <i class="bi bi-exclamation-triangle fa-2x"></i>
-          </div>
-        </div>
-        <div class="mt-2">
-          <a href="{% url 'inventory:low_stock' %}" class="text-white text-decoration-none">
-            <i class="bi bi-arrow-right-circle"></i> View Low Stock
-          </a>
-        </div>
-      </div>
-    </div>
-  </div>
-
-  <div class="col-xl-3 col-md-6 mb-4">
-    <div class="card dashboard-metric info">
-      <div class="card-body">
-        <div class="d-flex align-items-center">
-          <div class="flex-grow-1">
-            <div class="text-xs font-weight-bold text-uppercase mb-1">Total Quantity</div>
-            <div class="h5 mb-0 font-weight-bold">{{ total_quantity|default:0 }}</div>
-          </div>
-          <div class="ms-2">
-            <i class="bi bi-stack fa-2x"></i>
-          </div>
-        </div>
-      </div>
+{% block dashboard_content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+  <h1 class="h3 mb-0 text-gray-800">Stock Overview</h1>
+  <div class="btn-group" role="group">
+    <a href="{% url 'inventory:stock_adjustment' %}" class="btn btn-primary">
+      <i class="bi bi-plus-minus me-2"></i>Adjust Stock
+    </a>
+    <div class="btn-group" role="group">
+      <button class="btn btn-outline-secondary dropdown-toggle" type="button" data-bs-toggle="dropdown">
+        <i class="bi bi-three-dots"></i>
+      </button>
+      <ul class="dropdown-menu">
+        <li><a class="dropdown-item" href="{% url 'inventory:stock_transfer' %}">
+          <i class="bi bi-arrow-left-right me-2"></i>Transfer Stock
+        </a></li>
+        <li><a class="dropdown-item" href="{% url 'inventory:stock_take_create' %}">
+          <i class="bi bi-clipboard-check me-2"></i>New Stock Take
+        </a></li>
+        <li><hr class="dropdown-divider"></li>
+        <li><a class="dropdown-item" href="{% url 'inventory:stock_movements_export' %}">
+          <i class="bi bi-download me-2"></i>Export Movements
+        </a></li>
+      </ul>
     </div>
   </div>
 </div>
 
-<!-- Filter Row (optional, can be enhanced) -->
-<div class="card inventory-card mb-4">
-  <div class="card-header">
-    <h6 class="card-title mb-0">
-      <i class="bi bi-funnel me-2"></i>Filter & Search
-    </h6>
+<!-- Filter Card -->
+<div class="card shadow mb-4">
+  <div class="card-header py-3">
+    <h6 class="m-0 font-weight-bold text-primary">Filters</h6>
   </div>
   <div class="card-body">
     <form method="get" class="row g-3">
-      <div class="col-md-3">
+      <div class="col-md-2">
         <label class="form-label">Category</label>
         <select class="form-select" name="category">
-          <option value="">All</option>
+          <option value="">All Categories</option>
           {% for category in categories %}
             <option value="{{ category.id }}" {% if selected_category == category.id|stringformat:"s" %}selected{% endif %}>
               {{ category.name }}
@@ -116,10 +48,10 @@
           {% endfor %}
         </select>
       </div>
-      <div class="col-md-3">
+      <div class="col-md-2">
         <label class="form-label">Supplier</label>
         <select class="form-select" name="supplier">
-          <option value="">All</option>
+          <option value="">All Suppliers</option>
           {% for supplier in suppliers %}
             <option value="{{ supplier.id }}" {% if selected_supplier == supplier.id|stringformat:"s" %}selected{% endif %}>
               {{ supplier.name }}
@@ -127,99 +59,431 @@
           {% endfor %}
         </select>
       </div>
-      <div class="col-md-3 d-flex align-items-end">
-        <button type="submit" class="btn btn-primary w-100">
-          <i class="bi bi-search"></i> Apply
-        </button>
+      <div class="col-md-2">
+        <label class="form-label">Location</label>
+        <select class="form-select" name="location">
+          <option value="">All Locations</option>
+          {% for location in locations %}
+            <option value="{{ location.id }}" {% if selected_location == location.id|stringformat:"s" %}selected{% endif %}>
+              {{ location.name }}
+            </option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="col-md-2">
+        <label class="form-label">Stock Status</label>
+        <select class="form-select" name="stock_status">
+          <option value="">All Stock</option>
+          <option value="in_stock" {% if request.GET.stock_status == "in_stock" %}selected{% endif %}>In Stock</option>
+          <option value="low_stock" {% if request.GET.stock_status == "low_stock" %}selected{% endif %}>Low Stock</option>
+          <option value="out_of_stock" {% if request.GET.stock_status == "out_of_stock" %}selected{% endif %}>Out of Stock</option>
+          <option value="overstocked" {% if request.GET.stock_status == "overstocked" %}selected{% endif %}>Overstocked</option>
+        </select>
+      </div>
+      <div class="col-md-2">
+        <label class="form-label">Value Range</label>
+        <select class="form-select" name="value_range">
+          <option value="">All Values</option>
+          <option value="high" {% if request.GET.value_range == "high" %}selected{% endif %}>High Value (>$1000)</option>
+          <option value="medium" {% if request.GET.value_range == "medium" %}selected{% endif %}>Medium Value ($100-$1000)</option>
+          <option value="low" {% if request.GET.value_range == "low" %}selected{% endif %}>Low Value (<$100)</option>
+        </select>
+      </div>
+      <div class="col-md-2 d-flex align-items-end">
+        <button type="submit" class="btn btn-primary me-2">Filter</button>
+        <a href="{% url 'inventory:stock_overview' %}" class="btn btn-outline-secondary">Clear</a>
       </div>
     </form>
   </div>
 </div>
 
-<!-- Product Stock Table -->
-<div class="card inventory-card">
-  <div class="card-header d-flex justify-content-between align-items-center">
-    <h6 class="card-title mb-0">
-      <i class="bi bi-list-ul me-2"></i>Stock Overview Table
-    </h6>
-    <div>
-      <a href="{% url 'inventory:product_create' %}" class="btn btn-success btn-sm">
-        <i class="bi bi-plus-circle me-1"></i>Add Product
-      </a>
-      <a href="{% url 'inventory:product_export' %}?format=csv" class="btn btn-outline-secondary btn-sm">
-        <i class="bi bi-download me-1"></i>Export CSV
-      </a>
+<!-- Summary Cards -->
+<div class="row mb-4">
+  <div class="col-lg-3 col-md-6 mb-4">
+    <div class="card bg-primary text-white shadow h-100 py-2">
+      <div class="card-body">
+        <div class="row no-gutters align-items-center">
+          <div class="col mr-2">
+            <div class="text-xs font-weight-bold text-white-50 text-uppercase mb-1">
+              Total Products
+            </div>
+            <div class="h5 mb-0 font-weight-bold">{{ products.count|default:0 }}</div>
+          </div>
+          <div class="col-auto">
+            <i class="bi bi-box-seam fa-2x text-white-50"></i>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="col-lg-3 col-md-6 mb-4">
+    <div class="card bg-success text-white shadow h-100 py-2">
+      <div class="card-body">
+        <div class="row no-gutters align-items-center">
+          <div class="col mr-2">
+            <div class="text-xs font-weight-bold text-white-50 text-uppercase mb-1">
+              Total Stock Value
+            </div>
+            <div class="h5 mb-0 font-weight-bold">${{ total_value|floatformat:0|default:0 }}</div>
+          </div>
+          <div class="col-auto">
+            <i class="bi bi-currency-dollar fa-2x text-white-50"></i>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="col-lg-3 col-md-6 mb-4">
+    <div class="card bg-info text-white shadow h-100 py-2">
+      <div class="card-body">
+        <div class="row no-gutters align-items-center">
+          <div class="col mr-2">
+            <div class="text-xs font-weight-bold text-white-50 text-uppercase mb-1">
+              Total Quantity
+            </div>
+            <div class="h5 mb-0 font-weight-bold">{{ total_quantity|floatformat:0|default:0 }}</div>
+          </div>
+          <div class="col-auto">
+            <i class="bi bi-layers fa-2x text-white-50"></i>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="col-lg-3 col-md-6 mb-4">
+    <div class="card bg-warning text-white shadow h-100 py-2">
+      <div class="card-body">
+        <div class="row no-gutters align-items-center">
+          <div class="col mr-2">
+            <div class="text-xs font-weight-bold text-white-50 text-uppercase mb-1">
+              Low Stock Items
+            </div>
+            <div class="h5 mb-0 font-weight-bold">{{ low_stock_count|default:0 }}</div>
+          </div>
+          <div class="col-auto">
+            <i class="bi bi-exclamation-triangle fa-2x text-white-50"></i>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Stock Overview Table -->
+<div class="card shadow mb-4">
+  <div class="card-header py-3 d-flex justify-content-between align-items-center">
+    <h6 class="m-0 font-weight-bold text-primary">Stock Levels</h6>
+    <div class="btn-group btn-group-sm" role="group">
+      <input type="radio" class="btn-check" name="view" id="detailed-view" checked>
+      <label class="btn btn-outline-secondary" for="detailed-view">
+        <i class="bi bi-list-ul"></i> Detailed
+      </label>
+      <input type="radio" class="btn-check" name="view" id="summary-view">
+      <label class="btn btn-outline-secondary" for="summary-view">
+        <i class="bi bi-grid-3x3"></i> Summary
+      </label>
     </div>
   </div>
   <div class="card-body p-0">
     <div class="table-responsive">
-      <table class="table table-hover table-striped mb-0">
-        <thead class="table-dark">
+      <table class="table table-hover mb-0" id="stockTable">
+        <thead class="table-light">
           <tr>
-            <th>Name</th>
+            <th>
+              <input type="checkbox" class="form-check-input" id="select-all">
+            </th>
             <th>SKU</th>
+            <th>Product Name</th>
             <th>Category</th>
-            <th>Supplier</th>
             <th>Current Stock</th>
-            <th>Reserved</th>
             <th>Available</th>
+            <th>Reserved</th>
             <th>Reorder Level</th>
             <th>Status</th>
+            <th>Stock Value</th>
             <th>Actions</th>
           </tr>
         </thead>
         <tbody>
-        {% for product in products %}
-          <tr>
+          {% for product in products %}
+          <tr data-product-id="{{ product.id }}">
             <td>
-              <a href="{% url 'inventory:product_detail' product.pk %}" class="fw-bold text-decoration-none">
-                {{ product.name }}
+              <input type="checkbox" class="form-check-input product-checkbox" value="{{ product.id }}">
+            </td>
+            <td>
+              <code>{{ product.sku }}</code>
+            </td>
+            <td>
+              <a href="{% url 'inventory:product_detail' product.pk %}" class="text-decoration-none">
+                {{ product.name|truncatechars:40 }}
               </a>
-            </td>
-            <td>{{ product.sku }}</td>
-            <td>{{ product.category.name }}</td>
-            <td>{{ product.supplier.name }}</td>
-            <td>
-              <span class="badge bg-{% if product.current_stock <= product.reorder_level %}warning text-dark{% else %}success{% endif %}">
-                {{ product.current_stock }}
-              </span>
-            </td>
-            <td>{{ product.reserved_stock }}</td>
-            <td>{{ product.available_stock }}</td>
-            <td>{{ product.reorder_level }}</td>
-            <td>
-              {% if product.stock_status == 'low_stock' %}
-                <span class="badge bg-warning text-dark">Low Stock</span>
-              {% elif product.stock_status == 'out_of_stock' %}
-                <span class="badge bg-danger">Out of Stock</span>
-              {% elif product.stock_status == 'in_stock' %}
-                <span class="badge bg-success">In Stock</span>
-              {% elif product.stock_status == 'discontinued' %}
-                <span class="badge bg-secondary">Discontinued</span>
-              {% else %}
-                <span class="badge bg-info">Other</span>
+              {% if product.brand %}
+                <br><small class="text-muted">{{ product.brand.name }}</small>
               {% endif %}
             </td>
             <td>
-              <a href="{% url 'inventory:product_detail' product.pk %}" class="btn btn-sm btn-outline-primary" title="View">
-                <i class="bi bi-eye"></i>
-              </a>
-              <a href="{% url 'inventory:adjust_stock' product.pk %}" class="btn btn-sm btn-outline-warning" title="Adjust Stock">
-                <i class="bi bi-plus-minus"></i>
-              </a>
+              {% if product.category %}
+                <span class="badge bg-light text-dark">{{ product.category.name }}</span>
+              {% endif %}
+            </td>
+            <td>
+              <span class="fw-bold stock-quantity" data-current="{{ product.current_stock }}">
+                {{ product.current_stock|floatformat:0 }}
+              </span>
+            </td>
+            <td>
+              <span class="fw-bold 
+                {% if product.available_stock <= 0 %}text-danger
+                {% elif product.available_stock <= product.reorder_level %}text-warning
+                {% else %}text-success
+                {% endif %}">
+                {{ product.available_stock|floatformat:0 }}
+              </span>
+            </td>
+            <td>
+              {% if product.reserved_stock > 0 %}
+                <span class="badge bg-info">{{ product.reserved_stock|floatformat:0 }}</span>
+              {% else %}
+                <span class="text-muted">0</span>
+              {% endif %}
+            </td>
+            <td>{{ product.reorder_level|floatformat:0 }}</td>
+            <td>
+              {% if product.available_stock <= 0 %}
+                <span class="badge bg-danger">Out of Stock</span>
+              {% elif product.available_stock <= product.reorder_level %}
+                <span class="badge bg-warning">Low Stock</span>
+              {% elif product.current_stock > product.max_stock_level %}
+                <span class="badge bg-info">Overstocked</span>
+              {% else %}
+                <span class="badge bg-success">In Stock</span>
+              {% endif %}
+            </td>
+            <td>
+              <span class="fw-bold">${{ product.stock_value_usd|floatformat:2 }}</span>
+            </td>
+            <td>
+              <div class="btn-group btn-group-sm" role="group">
+                <button type="button" class="btn btn-outline-primary btn-sm" onclick="quickAdjust({{ product.pk }}, '{{ product.sku }}', {{ product.current_stock }})" title="Quick Adjust">
+                  <i class="bi bi-plus-minus"></i>
+                </button>
+                <a href="{% url 'inventory:product_detail' product.pk %}" class="btn btn-outline-info btn-sm" title="View Details">
+                  <i class="bi bi-eye"></i>
+                </a>
+                {% if product.available_stock <= product.reorder_level %}
+                <button type="button" class="btn btn-outline-warning btn-sm" onclick="addToReorder({{ product.pk }})" title="Add to Reorder">
+                  <i class="bi bi-cart-plus"></i>
+                </button>
+                {% endif %}
+              </div>
             </td>
           </tr>
-        {% empty %}
+          {% empty %}
           <tr>
-            <td colspan="10" class="text-center text-muted py-4">
-              <i class="bi bi-check-circle text-success"></i> No products found for your filters.
+            <td colspan="11" class="text-center py-4">
+              <div class="text-muted">
+                <i class="bi bi-inbox fa-3x mb-3"></i>
+                <h5>No products found</h5>
+                <p>Try adjusting your filters or <a href="{% url 'inventory:product_create' %}">add a new product</a>.</p>
+              </div>
             </td>
           </tr>
-        {% endfor %}
+          {% endfor %}
         </tbody>
       </table>
     </div>
   </div>
 </div>
 
+<!-- Bulk Actions Bar (Hidden by default) -->
+<div id="bulkActionsBar" class="card shadow mb-4" style="display: none;">
+  <div class="card-body py-2">
+    <div class="d-flex justify-content-between align-items-center">
+      <div>
+        <span id="selectedCount">0</span> products selected
+      </div>
+      <div class="btn-group" role="group">
+        <button type="button" class="btn btn-outline-primary btn-sm" onclick="bulkAdjustStock()">
+          <i class="bi bi-plus-minus me-1"></i>Bulk Adjust
+        </button>
+        <button type="button" class="btn btn-outline-warning btn-sm" onclick="bulkAddToReorder()">
+          <i class="bi bi-cart-plus me-1"></i>Add to Reorder
+        </button>
+        <button type="button" class="btn btn-outline-info btn-sm" onclick="bulkExport()">
+          <i class="bi bi-download me-1"></i>Export Selected
+        </button>
+        <button type="button" class="btn btn-outline-secondary btn-sm" onclick="clearSelection()">
+          <i class="bi bi-x me-1"></i>Clear
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Quick Adjust Modal -->
+<div class="modal fade" id="quickAdjustModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title">Quick Stock Adjustment</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <form id="quickAdjustForm">
+          <div class="mb-3">
+            <label class="form-label fw-bold">Product</label>
+            <p class="form-control-plaintext" id="adjustProductName"></p>
+          </div>
+          <div class="mb-3">
+            <label class="form-label fw-bold">Current Stock</label>
+            <p class="form-control-plaintext" id="adjustCurrentStock"></p>
+          </div>
+          <div class="mb-3">
+            <label for="adjustmentType" class="form-label fw-bold">Adjustment Type</label>
+            <select class="form-select" id="adjustmentType" required>
+              <option value="">Select type...</option>
+              <option value="add">Add Stock</option>
+              <option value="subtract">Remove Stock</option>
+              <option value="set">Set Stock Level</option>
+            </select>
+          </div>
+          <div class="mb-3">
+            <label for="adjustmentQuantity" class="form-label fw-bold">Quantity</label>
+            <input type="number" class="form-control" id="adjustmentQuantity" min="0" step="1" required>
+          </div>
+          <div class="mb-3">
+            <label for="adjustmentReason" class="form-label fw-bold">Reason</label>
+            <select class="form-select" id="adjustmentReason" required>
+              <option value="">Select reason...</option>
+              <option value="receipt">Stock Receipt</option>
+              <option value="sale">Sale/Usage</option>
+              <option value="damage">Damage/Loss</option>
+              <option value="transfer">Transfer</option>
+              <option value="correction">Stock Correction</option>
+              <option value="other">Other</option>
+            </select>
+          </div>
+          <div class="mb-3">
+            <label for="adjustmentNotes" class="form-label">Notes (Optional)</label>
+            <textarea class="form-control" id="adjustmentNotes" rows="2"></textarea>
+          </div>
+        </form>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+        <button type="button" class="btn btn-primary" onclick="submitQuickAdjust()">
+          <i class="bi bi-check me-1"></i>Apply Adjustment
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+let selectedProducts = new Set();
+let currentAdjustProductId = null;
+
+// Select all functionality
+document.getElementById('select-all').addEventListener('change', function() {
+  const checkboxes = document.querySelectorAll('.product-checkbox');
+  checkboxes.forEach(checkbox => {
+    checkbox.checked = this.checked;
+    if (this.checked) {
+      selectedProducts.add(parseInt(checkbox.value));
+    } else {
+      selectedProducts.delete(parseInt(checkbox.value));
+    }
+  });
+  updateBulkActionsBar();
+});
+
+// Individual checkbox handling
+document.querySelectorAll('.product-checkbox').forEach(checkbox => {
+  checkbox.addEventListener('change', function() {
+    const productId = parseInt(this.value);
+    if (this.checked) {
+      selectedProducts.add(productId);
+    } else {
+      selectedProducts.delete(productId);
+    }
+    updateBulkActionsBar();
+  });
+});
+
+function updateBulkActionsBar() {
+  const bar = document.getElementById('bulkActionsBar');
+  const count = document.getElementById('selectedCount');
+  
+  if (selectedProducts.size > 0) {
+    bar.style.display = 'block';
+    count.textContent = selectedProducts.size;
+  } else {
+    bar.style.display = 'none';
+  }
+}
+
+function clearSelection() {
+  selectedProducts.clear();
+  document.querySelectorAll('.product-checkbox').forEach(cb => cb.checked = false);
+  document.getElementById('select-all').checked = false;
+  updateBulkActionsBar();
+}
+
+function quickAdjust(productId, sku, currentStock) {
+  currentAdjustProductId = productId;
+  document.getElementById('adjustProductName').textContent = sku;
+  document.getElementById('adjustCurrentStock').textContent = currentStock + ' units';
+  
+  // Reset form
+  document.getElementById('quickAdjustForm').reset();
+  
+  new bootstrap.Modal(document.getElementById('quickAdjustModal')).show();
+}
+
+function submitQuickAdjust() {
+  const form = document.getElementById('quickAdjustForm');
+  const type = document.getElementById('adjustmentType').value;
+  const quantity = document.getElementById('adjustmentQuantity').value;
+  const reason = document.getElementById('adjustmentReason').value;
+  const notes = document.getElementById('adjustmentNotes').value;
+  
+  if (!type || !quantity || !reason) {
+    alert('Please fill in all required fields.');
+    return;
+  }
+  
+  // Here you would make an AJAX call to submit the adjustment
+  // For now, redirect to the adjustment page with parameters
+  window.location.href = `/inventory/products/${currentAdjustProductId}/adjust-stock/?type=${type}&quantity=${quantity}&reason=${reason}&notes=${encodeURIComponent(notes)}`;
+}
+
+function addToReorder(productId) {
+  // Add product to reorder list
+  window.location.href = `/inventory/reorder/add/${productId}/`;
+}
+
+function bulkAdjustStock() {
+  if (selectedProducts.size === 0) return;
+  
+  const productIds = Array.from(selectedProducts).join(',');
+  window.location.href = `/inventory/stock/bulk-adjust/?products=${productIds}`;
+}
+
+function bulkAddToReorder() {
+  if (selectedProducts.size === 0) return;
+  
+  const productIds = Array.from(selectedProducts).join(',');
+  window.location.href = `/inventory/reorder/bulk-add/?products=${productIds}`;
+}
+
+function bulkExport() {
+  if (selectedProducts.size === 0) return;
+  
+  const productIds = Array.from(selectedProducts).join(',');
+  window.location.href = `/inventory/export/products/?products=${productIds}`;
+}
+</script>
 {% endblock %}

@@ -1,0 +1,516 @@
+{% extends "dashboard_base.html" %}
+{% load static %}
+
+{% block page_title %}Stock Valuation Report{% endblock %}
+
+{% block dashboard_content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+  <div>
+    <h1 class="h3 mb-0 text-gray-800">Stock Valuation Report</h1>
+    <p class="text-muted mb-0">Current inventory value as of {{ report_date|date:"F d, Y" }}</p>
+  </div>
+  <div class="btn-group" role="group">
+    <div class="btn-group" role="group">
+      <button class="btn btn-outline-secondary dropdown-toggle" type="button" data-bs-toggle="dropdown">
+        <i class="bi bi-download"></i> Export
+      </button>
+      <ul class="dropdown-menu">
+        <li><a class="dropdown-item" href="?export=excel">
+          <i class="bi bi-file-spreadsheet me-2"></i>Download Excel
+        </a></li>
+        <li><a class="dropdown-item" href="?export=csv">
+          <i class="bi bi-file-text me-2"></i>Download CSV
+        </a></li>
+        <li><a class="dropdown-item" href="?export=pdf">
+          <i class="bi bi-file-pdf me-2"></i>Download PDF
+        </a></li>
+        <li><hr class="dropdown-divider"></li>
+        <li><a class="dropdown-item" href="javascript:window.print()">
+          <i class="bi bi-printer me-2"></i>Print Report
+        </a></li>
+      </ul>
+    </div>
+    <button class="btn btn-primary" onclick="refreshReport()">
+      <i class="bi bi-arrow-clockwise me-2"></i>Refresh
+    </button>
+  </div>
+</div>
+
+<!-- Summary Cards -->
+<div class="row mb-4">
+  <div class="col-lg-3 col-md-6 mb-4">
+    <div class="card bg-primary text-white shadow h-100 py-2">
+      <div class="card-body">
+        <div class="row no-gutters align-items-center">
+          <div class="col mr-2">
+            <div class="text-xs font-weight-bold text-white-50 text-uppercase mb-1">
+              Total Products
+            </div>
+            <div class="h5 mb-0 font-weight-bold">{{ total_products|default:0 }}</div>
+          </div>
+          <div class="col-auto">
+            <i class="bi bi-box-seam fa-2x text-white-50"></i>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="col-lg-3 col-md-6 mb-4">
+    <div class="card bg-success text-white shadow h-100 py-2">
+      <div class="card-body">
+        <div class="row no-gutters align-items-center">
+          <div class="col mr-2">
+            <div class="text-xs font-weight-bold text-white-50 text-uppercase mb-1">
+              Total Stock Value
+            </div>
+            <div class="h5 mb-0 font-weight-bold">${{ total_value|floatformat:0|default:0 }}</div>
+          </div>
+          <div class="col-auto">
+            <i class="bi bi-currency-dollar fa-2x text-white-50"></i>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="col-lg-3 col-md-6 mb-4">
+    <div class="card bg-info text-white shadow h-100 py-2">
+      <div class="card-body">
+        <div class="row no-gutters align-items-center">
+          <div class="col mr-2">
+            <div class="text-xs font-weight-bold text-white-50 text-uppercase mb-1">
+              Total Units
+            </div>
+            <div class="h5 mb-0 font-weight-bold">{{ total_units|floatformat:0|default:0 }}</div>
+          </div>
+          <div class="col-auto">
+            <i class="bi bi-layers fa-2x text-white-50"></i>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="col-lg-3 col-md-6 mb-4">
+    <div class="card bg-warning text-white shadow h-100 py-2">
+      <div class="card-body">
+        <div class="row no-gutters align-items-center">
+          <div class="col mr-2">
+            <div class="text-xs font-weight-bold text-white-50 text-uppercase mb-1">
+              Average Value/Unit
+            </div>
+            <div class="h5 mb-0 font-weight-bold">
+              ${% if total_units > 0 %}{{ total_value|div:total_units|floatformat:2 }}{% else %}0.00{% endif %}
+            </div>
+          </div>
+          <div class="col-auto">
+            <i class="bi bi-calculator fa-2x text-white-50"></i>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Filter Options -->
+<div class="card shadow mb-4">
+  <div class="card-header py-3">
+    <h6 class="m-0 font-weight-bold text-primary">Filter & Analysis Options</h6>
+  </div>
+  <div class="card-body">
+    <form method="get" class="row g-3">
+      <div class="col-md-2">
+        <label class="form-label">Valuation Method</label>
+        <select class="form-select" name="valuation_method">
+          <option value="cost" {% if request.GET.valuation_method == "cost" or not request.GET.valuation_method %}selected{% endif %}>Cost Price</option>
+          <option value="selling" {% if request.GET.valuation_method == "selling" %}selected{% endif %}>Selling Price</option>
+          <option value="average" {% if request.GET.valuation_method == "average" %}selected{% endif %}>Average Cost</option>
+        </select>
+      </div>
+      <div class="col-md-2">
+        <label class="form-label">Category</label>
+        <select class="form-select" name="category">
+          <option value="">All Categories</option>
+          {% for category in categories %}
+            <option value="{{ category.id }}" {% if request.GET.category == category.id|stringformat:"s" %}selected{% endif %}>
+              {{ category.name }}
+            </option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="col-md-2">
+        <label class="form-label">Supplier</label>
+        <select class="form-select" name="supplier">
+          <option value="">All Suppliers</option>
+          {% for supplier in suppliers %}
+            <option value="{{ supplier.id }}" {% if request.GET.supplier == supplier.id|stringformat:"s" %}selected{% endif %}>
+              {{ supplier.name }}
+            </option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="col-md-2">
+        <label class="form-label">Location</label>
+        <select class="form-select" name="location">
+          <option value="">All Locations</option>
+          {% for location in locations %}
+            <option value="{{ location.id }}" {% if request.GET.location == location.id|stringformat:"s" %}selected{% endif %}>
+              {{ location.name }}
+            </option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="col-md-2">
+        <label class="form-label">Value Threshold</label>
+        <select class="form-select" name="value_threshold">
+          <option value="">All Values</option>
+          <option value="1000" {% if request.GET.value_threshold == "1000" %}selected{% endif %}>Over $1,000</option>
+          <option value="500" {% if request.GET.value_threshold == "500" %}selected{% endif %}>Over $500</option>
+          <option value="100" {% if request.GET.value_threshold == "100" %}selected{% endif %}>Over $100</option>
+        </select>
+      </div>
+      <div class="col-md-2 d-flex align-items-end">
+        <button type="submit" class="btn btn-primary me-2">Apply</button>
+        <a href="{% url 'inventory:stock_valuation_report' %}" class="btn btn-outline-secondary">Clear</a>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- Category Breakdown -->
+{% if category_breakdown %}
+<div class="row mb-4">
+  <div class="col-lg-6">
+    <div class="card shadow h-100">
+      <div class="card-header py-3">
+        <h6 class="m-0 font-weight-bold text-primary">Valuation by Category</h6>
+      </div>
+      <div class="card-body">
+        <div class="table-responsive">
+          <table class="table table-sm table-hover">
+            <thead>
+              <tr>
+                <th>Category</th>
+                <th class="text-end">Products</th>
+                <th class="text-end">Value</th>
+                <th class="text-end">%</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for item in category_breakdown %}
+              <tr>
+                <td>
+                  <i class="bi bi-tag me-2 text-primary"></i>{{ item.category__name|default:"Uncategorized" }}
+                </td>
+                <td class="text-end">{{ item.product_count }}</td>
+                <td class="text-end fw-bold">${{ item.total_value|floatformat:0 }}</td>
+                <td class="text-end">
+                  <span class="badge bg-light text-dark">
+                    {{ item.percentage|floatformat:1 }}%
+                  </span>
+                </td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="col-lg-6">
+    <div class="card shadow h-100">
+      <div class="card-header py-3">
+        <h6 class="m-0 font-weight-bold text-primary">Top Suppliers by Value</h6>
+      </div>
+      <div class="card-body">
+        <div class="table-responsive">
+          <table class="table table-sm table-hover">
+            <thead>
+              <tr>
+                <th>Supplier</th>
+                <th class="text-end">Products</th>
+                <th class="text-end">Value</th>
+                <th class="text-end">%</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for item in supplier_breakdown %}
+              <tr>
+                <td>
+                  <i class="bi bi-building me-2 text-warning"></i>{{ item.supplier__name|default:"No Supplier" }}
+                </td>
+                <td class="text-end">{{ item.product_count }}</td>
+                <td class="text-end fw-bold">${{ item.total_value|floatformat:0 }}</td>
+                <td class="text-end">
+                  <span class="badge bg-light text-dark">
+                    {{ item.percentage|floatformat:1 }}%
+                  </span>
+                </td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+{% endif %}
+
+<!-- Detailed Product Valuation -->
+<div class="card shadow">
+  <div class="card-header py-3 d-flex justify-content-between align-items-center">
+    <h6 class="m-0 font-weight-bold text-primary">
+      Detailed Product Valuation ({{ products.count|default:0 }} items)
+    </h6>
+    <div class="btn-group btn-group-sm" role="group">
+      <button type="button" class="btn btn-outline-primary" onclick="toggleView()">
+        <i class="bi bi-list-ul"></i> Toggle View
+      </button>
+      <button type="button" class="btn btn-outline-info" onclick="expandAll()">
+        <i class="bi bi-arrows-expand"></i> Expand All
+      </button>
+    </div>
+  </div>
+  <div class="card-body p-0">
+    <div class="table-responsive">
+      <table class="table table-hover mb-0" id="valuationTable">
+        <thead class="table-light">
+          <tr>
+            <th>SKU</th>
+            <th>Product Name</th>
+            <th>Category</th>
+            <th>Supplier</th>
+            <th class="text-end">Stock Qty</th>
+            <th class="text-end">Unit Cost</th>
+            <th class="text-end">Unit Selling</th>
+            <th class="text-end">Total Value</th>
+            <th class="text-end">Potential Value</th>
+            <th class="text-end">Margin</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for product in products %}
+          <tr data-product-id="{{ product.id }}">
+            <td>
+              <code class="fw-bold">{{ product.sku }}</code>
+            </td>
+            <td>
+              <a href="{% url 'inventory:product_detail' product.pk %}" class="text-decoration-none">
+                {{ product.name|truncatechars:40 }}
+              </a>
+              {% if product.brand %}
+                <br><small class="text-muted">{{ product.brand.name }}</small>
+              {% endif %}
+            </td>
+            <td>
+              {% if product.category %}
+                <span class="badge bg-light text-dark">{{ product.category.name }}</span>
+              {% endif %}
+            </td>
+            <td>
+              {% if product.supplier %}
+                <a href="{% url 'inventory:supplier_detail' product.supplier.pk %}" class="text-decoration-none small">
+                  {{ product.supplier.name|truncatechars:20 }}
+                </a>
+              {% endif %}
+            </td>
+            <td class="text-end">
+              <span class="fw-bold">{{ product.current_stock|floatformat:0 }}</span>
+            </td>
+            <td class="text-end">
+              ${{ product.cost_price|floatformat:2 }}
+            </td>
+            <td class="text-end">
+              ${{ product.selling_price|floatformat:2 }}
+            </td>
+            <td class="text-end">
+              <span class="fw-bold text-success">
+                ${{ product.stock_value_cost|floatformat:2|default:0 }}
+              </span>
+            </td>
+            <td class="text-end">
+              <span class="fw-bold text-info">
+                ${{ product.stock_value_selling|floatformat:2|default:0 }}
+              </span>
+            </td>
+            <td class="text-end">
+              <span class="fw-bold 
+                {% if product.profit_margin_percentage > 50 %}text-success
+                {% elif product.profit_margin_percentage > 20 %}text-warning
+                {% else %}text-danger
+                {% endif %}">
+                {{ product.profit_margin_percentage|floatformat:1 }}%
+              </span>
+            </td>
+          </tr>
+          {% empty %}
+          <tr>
+            <td colspan="10" class="text-center py-5">
+              <div class="text-muted">
+                <i class="bi bi-inbox fa-3x mb-3"></i>
+                <h5>No products found</h5>
+                <p>Try adjusting your filters or <a href="{% url 'inventory:product_create' %}">add some products</a>.</p>
+              </div>
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+        {% if products %}
+        <tfoot class="table-light">
+          <tr class="fw-bold">
+            <td colspan="4" class="text-end">TOTALS:</td>
+            <td class="text-end">{{ total_units|floatformat:0 }}</td>
+            <td class="text-end">-</td>
+            <td class="text-end">-</td>
+            <td class="text-end text-success">${{ total_cost_value|floatformat:2|default:total_value|floatformat:2 }}</td>
+            <td class="text-end text-info">${{ total_selling_value|floatformat:2|default:0 }}</td>
+            <td class="text-end">
+              {% if total_cost_value > 0 %}
+                {{ total_selling_value|sub:total_cost_value|div:total_cost_value|mul:100|floatformat:1 }}%
+              {% else %}
+                0.0%
+              {% endif %}
+            </td>
+          </tr>
+        </tfoot>
+        {% endif %}
+      </table>
+    </div>
+  </div>
+  
+  {% if products %}
+  <div class="card-footer bg-light">
+    <div class="row">
+      <div class="col-md-6">
+        <small class="text-muted">
+          <i class="bi bi-info-circle me-1"></i>
+          Report generated on {{ report_date|date:"F d, Y at H:i" }} | 
+          Valuation method: {{ valuation_method|title|default:"Cost Price" }}
+        </small>
+      </div>
+      <div class="col-md-6 text-end">
+        <small class="text-muted">
+          Showing {{ products.count }} of {{ total_products }} products
+        </small>
+      </div>
+    </div>
+  </div>
+  {% endif %}
+</div>
+
+<!-- Analysis Insights -->
+{% if products %}
+<div class="row mt-4">
+  <div class="col-lg-6">
+    <div class="card shadow">
+      <div class="card-header py-3">
+        <h6 class="m-0 font-weight-bold text-success">
+          <i class="bi bi-graph-up me-2"></i>Key Insights
+        </h6>
+      </div>
+      <div class="card-body">
+        <ul class="list-unstyled mb-0">
+          <li class="mb-2">
+            <i class="bi bi-check-circle text-success me-2"></i>
+            <strong>Highest Value Category:</strong> 
+            {% if category_breakdown %}
+              {{ category_breakdown.0.category__name|default:"Uncategorized" }} 
+              (${{ category_breakdown.0.total_value|floatformat:0 }})
+            {% else %}
+              No data available
+            {% endif %}
+          </li>
+          <li class="mb-2">
+            <i class="bi bi-check-circle text-success me-2"></i>
+            <strong>Average Stock Value per Product:</strong> 
+            ${% if total_products > 0 %}{{ total_value|div:total_products|floatformat:2 }}{% else %}0.00{% endif %}
+          </li>
+          <li class="mb-2">
+            <i class="bi bi-check-circle text-success me-2"></i>
+            <strong>Potential Profit:</strong> 
+            ${{ total_selling_value|sub:total_cost_value|floatformat:0|default:0 }}
+          </li>
+          <li class="mb-0">
+            <i class="bi bi-check-circle text-success me-2"></i>
+            <strong>Overall Margin:</strong> 
+            {% if total_cost_value > 0 %}
+              {{ total_selling_value|sub:total_cost_value|div:total_cost_value|mul:100|floatformat:1 }}%
+            {% else %}
+              N/A
+            {% endif %}
+          </li>
+        </ul>
+      </div>
+    </div>
+  </div>
+
+  <div class="col-lg-6">
+    <div class="card shadow">
+      <div class="card-header py-3">
+        <h6 class="m-0 font-weight-bold text-warning">
+          <i class="bi bi-exclamation-triangle me-2"></i>Recommendations
+        </h6>
+      </div>
+      <div class="card-body">
+        <ul class="list-unstyled mb-0">
+          <li class="mb-2">
+            <i class="bi bi-arrow-right text-primary me-2"></i>
+            Review products with margins below 20% for pricing optimization
+          </li>
+          <li class="mb-2">
+            <i class="bi bi-arrow-right text-primary me-2"></i>
+            Consider reducing inventory for slow-moving high-value items
+          </li>
+          <li class="mb-2">
+            <i class="bi bi-arrow-right text-primary me-2"></i>
+            Focus on promoting categories with highest profit potential
+          </li>
+          <li class="mb-0">
+            <i class="bi bi-arrow-right text-primary me-2"></i>
+            Regular valuation reports help optimize cash flow management
+          </li>
+        </ul>
+      </div>
+    </div>
+  </div>
+</div>
+{% endif %}
+
+<script>
+let currentView = 'detailed';
+
+function refreshReport() {
+  window.location.reload();
+}
+
+function toggleView() {
+  const table = document.getElementById('valuationTable');
+  // This could toggle between detailed and summary views
+  // Implementation would depend on your specific requirements
+}
+
+function expandAll() {
+  // This could expand/collapse rows if you had expandable details
+  // Implementation would depend on your specific requirements
+}
+
+// Print styles
+const printStyles = `
+  @media print {
+    .btn, .card-header .btn-group, .dropdown { display: none !important; }
+    .card { border: 1px solid #dee2e6 !important; box-shadow: none !important; page-break-inside: avoid; }
+    .table th, .table td { border: 1px solid #dee2e6 !important; font-size: 12px; }
+    .badge { border: 1px solid !important; }
+    .table-responsive { overflow: visible !important; }
+    body { print-color-adjust: exact; }
+  }
+`;
+const styleSheet = document.createElement("style");
+styleSheet.type = "text/css";
+styleSheet.innerText = printStyles;
+document.head.appendChild(styleSheet);
+</script>
+{% endblock %}

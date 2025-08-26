@@ -1,0 +1,612 @@
+{% extends "dashboard_base.html" %}
+{% load static %}
+
+{% block page_title %}Storage Locations{% endblock %}
+
+{% block dashboard_content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+  <div>
+    <nav aria-label="breadcrumb">
+      <ol class="breadcrumb mb-1">
+        <li class="breadcrumb-item"><a href="{% url 'inventory:dashboard' %}">Inventory</a></li>
+        <li class="breadcrumb-item"><a href="{% url 'inventory:configuration' %}">Configuration</a></li>
+        <li class="breadcrumb-item active">Locations</li>
+      </ol>
+    </nav>
+    <h1 class="h3 mb-0 text-gray-800">Storage Locations</h1>
+    <p class="text-muted mb-0">Manage warehouses, storage areas, and inventory locations</p>
+  </div>
+  
+  <div class="btn-group" role="group">
+    <a href="{% url 'inventory:location_create' %}" class="btn btn-primary">
+      <i class="bi bi-plus me-2"></i>Add Location
+    </a>
+    <div class="btn-group" role="group">
+      <button class="btn btn-outline-secondary dropdown-toggle" type="button" data-bs-toggle="dropdown">
+        <i class="bi bi-three-dots"></i>
+      </button>
+      <ul class="dropdown-menu">
+        <li><a class="dropdown-item" href="{% url 'inventory:storage_bin_create' %}">
+          <i class="bi bi-box me-2"></i>Add Storage Bin
+        </a></li>
+        <li><hr class="dropdown-divider"></li>
+        <li><a class="dropdown-item" href="{% url 'inventory:location_bulk_import' %}">
+          <i class="bi bi-upload me-2"></i>Import Locations
+        </a></li>
+        <li><a class="dropdown-item" href="{% url 'inventory:location_export' %}">
+          <i class="bi bi-download me-2"></i>Export Locations
+        </a></li>
+        <li><hr class="dropdown-divider"></li>
+        <li><a class="dropdown-item" href="{% url 'inventory:location_utilization_report' %}">
+          <i class="bi bi-pie-chart me-2"></i>Utilization Report
+        </a></li>
+      </ul>
+    </div>
+  </div>
+</div>
+
+<!-- Summary Cards -->
+<div class="row mb-4">
+  <div class="col-lg-3 col-md-6 mb-4">
+    <div class="card bg-primary text-white shadow h-100 py-2">
+      <div class="card-body">
+        <div class="row no-gutters align-items-center">
+          <div class="col mr-2">
+            <div class="text-xs font-weight-bold text-white-50 text-uppercase mb-1">
+              Total Locations
+            </div>
+            <div class="h5 mb-0 font-weight-bold">{{ locations.count|default:0 }}</div>
+          </div>
+          <div class="col-auto">
+            <i class="bi bi-geo-alt fa-2x text-white-50"></i>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="col-lg-3 col-md-6 mb-4">
+    <div class="card bg-success text-white shadow h-100 py-2">
+      <div class="card-body">
+        <div class="row no-gutters align-items-center">
+          <div class="col mr-2">
+            <div class="text-xs font-weight-bold text-white-50 text-uppercase mb-1">
+              Active Locations
+            </div>
+            <div class="h5 mb-0 font-weight-bold">{{ active_locations_count|default:0 }}</div>
+          </div>
+          <div class="col-auto">
+            <i class="bi bi-check-circle fa-2x text-white-50"></i>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="col-lg-3 col-md-6 mb-4">
+    <div class="card bg-info text-white shadow h-100 py-2">
+      <div class="card-body">
+        <div class="row no-gutters align-items-center">
+          <div class="col mr-2">
+            <div class="text-xs font-weight-bold text-white-50 text-uppercase mb-1">
+              Total Storage Capacity
+            </div>
+            <div class="h5 mb-0 font-weight-bold">{{ total_capacity|floatformat:0|default:0 }} m³</div>
+          </div>
+          <div class="col-auto">
+            <i class="bi bi-boxes fa-2x text-white-50"></i>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="col-lg-3 col-md-6 mb-4">
+    <div class="card bg-warning text-white shadow h-100 py-2">
+      <div class="card-body">
+        <div class="row no-gutters align-items-center">
+          <div class="col mr-2">
+            <div class="text-xs font-weight-bold text-white-50 text-uppercase mb-1">
+              Average Utilization
+            </div>
+            <div class="h5 mb-0 font-weight-bold">{{ average_utilization|floatformat:0|default:0 }}%</div>
+          </div>
+          <div class="col-auto">
+            <i class="bi bi-speedometer fa-2x text-white-50"></i>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Filter Card -->
+<div class="card shadow mb-4">
+  <div class="card-header py-3">
+    <h6 class="m-0 font-weight-bold text-primary">Filter Locations</h6>
+  </div>
+  <div class="card-body">
+    <form method="get" class="row g-3">
+      <div class="col-md-3">
+        <label class="form-label">Search</label>
+        <input type="text" class="form-control" name="search" value="{{ request.GET.search }}" 
+               placeholder="Location name or code">
+      </div>
+      <div class="col-md-2">
+        <label class="form-label">Location Type</label>
+        <select class="form-select" name="location_type">
+          <option value="">All Types</option>
+          <option value="warehouse" {% if request.GET.location_type == "warehouse" %}selected{% endif %}>Warehouse</option>
+          <option value="store" {% if request.GET.location_type == "store" %}selected{% endif %}>Store</option>
+          <option value="distribution" {% if request.GET.location_type == "distribution" %}selected{% endif %}>Distribution Center</option>
+          <option value="virtual" {% if request.GET.location_type == "virtual" %}selected{% endif %}>Virtual/Digital</option>
+          <option value="other" {% if request.GET.location_type == "other" %}selected{% endif %}>Other</option>
+        </select>
+      </div>
+      <div class="col-md-2">
+        <label class="form-label">Status</label>
+        <select class="form-select" name="status">
+          <option value="">All Statuses</option>
+          <option value="active" {% if request.GET.status == "active" %}selected{% endif %}>Active Only</option>
+          <option value="inactive" {% if request.GET.status == "inactive" %}selected{% endif %}>Inactive Only</option>
+          <option value="maintenance" {% if request.GET.status == "maintenance" %}selected{% endif %}>Under Maintenance</option>
+        </select>
+      </div>
+      <div class="col-md-2">
+        <label class="form-label">Utilization</label>
+        <select class="form-select" name="utilization">
+          <option value="">All Utilization</option>
+          <option value="high" {% if request.GET.utilization == "high" %}selected{% endif %}>High (>80%)</option>
+          <option value="medium" {% if request.GET.utilization == "medium" %}selected{% endif %}>Medium (50-80%)</option>
+          <option value="low" {% if request.GET.utilization == "low" %}selected{% endif %}>Low (<50%)</option>
+          <option value="empty" {% if request.GET.utilization == "empty" %}selected{% endif %}>Empty (0%)</option>
+        </select>
+      </div>
+      <div class="col-md-2">
+        <label class="form-label">Sort By</label>
+        <select class="form-select" name="sort">
+          <option value="name" {% if request.GET.sort == "name" or not request.GET.sort %}selected{% endif %}>Name A-Z</option>
+          <option value="-name" {% if request.GET.sort == "-name" %}selected{% endif %}>Name Z-A</option>
+          <option value="-utilization" {% if request.GET.sort == "-utilization" %}selected{% endif %}>Highest Utilization</option>
+          <option value="-capacity" {% if request.GET.sort == "-capacity" %}selected{% endif %}>Largest Capacity</option>
+          <option value="-product_count" {% if request.GET.sort == "-product_count" %}selected{% endif %}>Most Products</option>
+        </select>
+      </div>
+      <div class="col-md-1 d-flex align-items-end">
+        <button type="submit" class="btn btn-primary me-2">Filter</button>
+        <a href="{% url 'inventory:location_list' %}" class="btn btn-outline-secondary">Clear</a>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- Locations Table -->
+<div class="card shadow">
+  <div class="card-header py-3 d-flex justify-content-between align-items-center">
+    <h6 class="m-0 font-weight-bold text-primary">
+      Storage Locations ({{ locations.count|default:0 }})
+    </h6>
+    <div class="btn-group btn-group-sm" role="group">
+      <input type="radio" class="btn-check" name="view" id="table-view" checked>
+      <label class="btn btn-outline-secondary" for="table-view">
+        <i class="bi bi-table"></i> Table
+      </label>
+      <input type="radio" class="btn-check" name="view" id="grid-view">
+      <label class="btn btn-outline-secondary" for="grid-view">
+        <i class="bi bi-grid-3x3"></i> Grid
+      </label>
+    </div>
+  </div>
+  <div class="card-body p-0">
+    <!-- Table View -->
+    <div id="tableView">
+      <div class="table-responsive">
+        <table class="table table-hover mb-0">
+          <thead class="table-light">
+            <tr>
+              <th>
+                <input type="checkbox" class="form-check-input" id="select-all">
+              </th>
+              <th>Location Name</th>
+              <th>Type</th>
+              <th>Address</th>
+              <th>Products</th>
+              <th>Capacity</th>
+              <th>Utilization</th>
+              <th>Storage Bins</th>
+              <th>Status</th>
+              <th>Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for location in locations %}
+            <tr data-location-id="{{ location.id }}">
+              <td>
+                <input type="checkbox" class="form-check-input location-checkbox" value="{{ location.id }}">
+              </td>
+              <td>
+                <div class="d-flex align-items-center">
+                  <div class="location-icon me-3">
+                    {% if location.location_type == 'warehouse' %}
+                      <i class="bi bi-building text-primary fa-lg"></i>
+                    {% elif location.location_type == 'store' %}
+                      <i class="bi bi-shop text-success fa-lg"></i>
+                    {% elif location.location_type == 'distribution' %}
+                      <i class="bi bi-truck text-warning fa-lg"></i>
+                    {% else %}
+                      <i class="bi bi-geo-alt text-secondary fa-lg"></i>
+                    {% endif %}
+                  </div>
+                  <div>
+                    <a href="{% url 'inventory:location_detail' location.pk %}" class="fw-bold text-decoration-none">
+                      {{ location.name }}
+                    </a>
+                    {% if location.location_code %}
+                      <br><small class="text-muted">Code: {{ location.location_code }}</small>
+                    {% endif %}
+                  </div>
+                </div>
+              </td>
+              <td>
+                <span class="badge 
+                  {% if location.location_type == 'warehouse' %}bg-primary
+                  {% elif location.location_type == 'store' %}bg-success
+                  {% elif location.location_type == 'distribution' %}bg-warning
+                  {% else %}bg-secondary
+                  {% endif %}">
+                  {{ location.get_location_type_display|default:"Other" }}
+                </span>
+              </td>
+              <td>
+                <div class="small">
+                  {% if location.address %}
+                    <div>{{ location.address|truncatechars:30 }}</div>
+                  {% endif %}
+                  {% if location.city %}
+                    <div class="text-muted">{{ location.city }}{% if location.country %}, {{ location.country }}{% endif %}</div>
+                  {% endif %}
+                </div>
+              </td>
+              <td>
+                <a href="{% url 'inventory:location_products' location.pk %}" class="text-decoration-none">
+                  <span class="badge bg-info">{{ location.product_count|default:0 }} items</span>
+                </a>
+              </td>
+              <td>
+                {% if location.capacity %}
+                  <span class="fw-bold">{{ location.capacity|floatformat:0 }} m³</span>
+                {% else %}
+                  <span class="text-muted">Unlimited</span>
+                {% endif %}
+              </td>
+              <td>
+                {% if location.utilization_percentage != None %}
+                  <div class="d-flex align-items-center">
+                    <div class="progress me-2" style="width: 60px; height: 8px;">
+                      <div class="progress-bar 
+                        {% if location.utilization_percentage >= 80 %}bg-danger
+                        {% elif location.utilization_percentage >= 60 %}bg-warning
+                        {% else %}bg-success
+                        {% endif %}" 
+                        style="width: {{ location.utilization_percentage }}%"></div>
+                    </div>
+                    <small>{{ location.utilization_percentage|floatformat:0 }}%</small>
+                  </div>
+                {% else %}
+                  <span class="text-muted">-</span>
+                {% endif %}
+              </td>
+              <td>
+                <a href="{% url 'inventory:storage_bin_list' %}?location={{ location.id }}" class="text-decoration-none">
+                  <span class="badge bg-light text-dark">{{ location.storage_bin_count|default:0 }} bins</span>
+                </a>
+              </td>
+              <td>
+                {% if location.is_active %}
+                  {% if location.under_maintenance %}
+                    <span class="badge bg-warning">Maintenance</span>
+                  {% else %}
+                    <span class="badge bg-success">Active</span>
+                  {% endif %}
+                {% else %}
+                  <span class="badge bg-danger">Inactive</span>
+                {% endif %}
+              </td>
+              <td>
+                <div class="btn-group btn-group-sm" role="group">
+                  <a href="{% url 'inventory:location_detail' location.pk %}" class="btn btn-outline-primary btn-sm" title="View Details">
+                    <i class="bi bi-eye"></i>
+                  </a>
+                  <a href="{% url 'inventory:location_edit' location.pk %}" class="btn btn-outline-secondary btn-sm" title="Edit">
+                    <i class="bi bi-pencil"></i>
+                  </a>
+                  <a href="{% url 'inventory:storage_bin_list' %}?location={{ location.id }}" class="btn btn-outline-info btn-sm" title="Storage Bins">
+                    <i class="bi bi-box"></i>
+                  </a>
+                  <a href="{% url 'inventory:location_stock_transfer' location.pk %}" class="btn btn-outline-warning btn-sm" title="Transfer Stock">
+                    <i class="bi bi-arrow-left-right"></i>
+                  </a>
+                </div>
+              </td>
+            </tr>
+            {% empty %}
+            <tr>
+              <td colspan="10" class="text-center py-5">
+                <div class="text-muted">
+                  <i class="bi bi-geo-alt fa-3x mb-3"></i>
+                  <h5>No locations found</h5>
+                  <p>Get started by <a href="{% url 'inventory:location_create' %}">creating your first storage location</a>.</p>
+                </div>
+              </td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- Grid View (Hidden by default) -->
+    <div id="gridView" style="display: none;">
+      <div class="row p-3">
+        {% for location in locations %}
+        <div class="col-lg-6 col-xl-4 mb-4">
+          <div class="card h-100 location-card" data-location-id="{{ location.id }}">
+            <div class="card-header d-flex align-items-center">
+              <div class="me-3">
+                {% if location.location_type == 'warehouse' %}
+                  <i class="bi bi-building text-primary fa-2x"></i>
+                {% elif location.location_type == 'store' %}
+                  <i class="bi bi-shop text-success fa-2x"></i>
+                {% elif location.location_type == 'distribution' %}
+                  <i class="bi bi-truck text-warning fa-2x"></i>
+                {% else %}
+                  <i class="bi bi-geo-alt text-secondary fa-2x"></i>
+                {% endif %}
+              </div>
+              <div class="flex-grow-1">
+                <h6 class="mb-0 fw-bold">{{ location.name }}</h6>
+                <small class="text-muted">
+                  {% if location.city %}{{ location.city }}{% if location.country %}, {{ location.country }}{% endif %}{% endif %}
+                </small>
+              </div>
+              {% if location.is_active %}
+                {% if location.under_maintenance %}
+                  <span class="badge bg-warning">Maintenance</span>
+                {% else %}
+                  <span class="badge bg-success">Active</span>
+                {% endif %}
+              {% else %}
+                <span class="badge bg-danger">Inactive</span>
+              {% endif %}
+            </div>
+            <div class="card-body">
+              <div class="row text-center mb-3">
+                <div class="col-4">
+                  <div class="h5 mb-0 text-info">{{ location.product_count|default:0 }}</div>
+                  <small class="text-muted">Products</small>
+                </div>
+                <div class="col-4">
+                  <div class="h5 mb-0 text-primary">{{ location.storage_bin_count|default:0 }}</div>
+                  <small class="text-muted">Bins</small>
+                </div>
+                <div class="col-4">
+                  {% if location.capacity %}
+                    <div class="h5 mb-0 text-success">{{ location.capacity|floatformat:0 }}</div>
+                    <small class="text-muted">m³</small>
+                  {% else %}
+                    <div class="h5 mb-0 text-muted">∞</div>
+                    <small class="text-muted">Unlimited</small>
+                  {% endif %}
+                </div>
+              </div>
+              
+              {% if location.utilization_percentage != None %}
+              <div class="mb-3">
+                <div class="d-flex justify-content-between align-items-center mb-1">
+                  <small class="fw-bold">Utilization</small>
+                  <small>{{ location.utilization_percentage|floatformat:0 }}%</small>
+                </div>
+                <div class="progress" style="height: 8px;">
+                  <div class="progress-bar 
+                    {% if location.utilization_percentage >= 80 %}bg-danger
+                    {% elif location.utilization_percentage >= 60 %}bg-warning
+                    {% else %}bg-success
+                    {% endif %}" 
+                    style="width: {{ location.utilization_percentage }}%"></div>
+                </div>
+              </div>
+              {% endif %}
+
+              {% if location.address %}
+              <div class="address-info">
+                <small class="d-block text-muted">
+                  <i class="bi bi-geo-alt me-1"></i> {{ location.address|truncatechars:50 }}
+                </small>
+              </div>
+              {% endif %}
+              
+              {% if location.location_code %}
+              <div class="mt-2">
+                <small class="text-muted">
+                  <strong>Code:</strong> {{ location.location_code }}
+                </small>
+              </div>
+              {% endif %}
+            </div>
+            <div class="card-footer">
+              <div class="btn-group w-100" role="group">
+                <a href="{% url 'inventory:location_detail' location.pk %}" class="btn btn-outline-primary btn-sm">
+                  <i class="bi bi-eye"></i> View
+                </a>
+                <a href="{% url 'inventory:location_edit' location.pk %}" class="btn btn-outline-secondary btn-sm">
+                  <i class="bi bi-pencil"></i> Edit
+                </a>
+                <a href="{% url 'inventory:storage_bin_list' %}?location={{ location.id }}" class="btn btn-outline-info btn-sm">
+                  <i class="bi bi-box"></i> Bins
+                </a>
+              </div>
+            </div>
+          </div>
+        </div>
+        {% endfor %}
+      </div>
+    </div>
+  </div>
+  
+  <!-- Bulk Actions Bar (Hidden by default) -->
+  <div id="bulkActionsBar" class="card-footer bg-light" style="display: none;">
+    <div class="d-flex justify-content-between align-items-center">
+      <div>
+        <span id="selectedCount">0</span> locations selected
+      </div>
+      <div class="btn-group" role="group">
+        <button type="button" class="btn btn-outline-success btn-sm" onclick="bulkActivate()">
+          <i class="bi bi-check-circle me-1"></i>Activate
+        </button>
+        <button type="button" class="btn btn-outline-warning btn-sm" onclick="bulkMaintenance()">
+          <i class="bi bi-gear me-1"></i>Maintenance Mode
+        </button>
+        <button type="button" class="btn btn-outline-info btn-sm" onclick="bulkStockTransfer()">
+          <i class="bi bi-arrow-left-right me-1"></i>Transfer Stock
+        </button>
+        <button type="button" class="btn btn-outline-primary btn-sm" onclick="bulkExport()">
+          <i class="bi bi-download me-1"></i>Export
+        </button>
+        <button type="button" class="btn btn-outline-secondary btn-sm" onclick="clearSelection()">
+          <i class="bi bi-x me-1"></i>Clear
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+let selectedLocations = new Set();
+
+// View toggle functionality
+document.getElementById('table-view').addEventListener('change', function() {
+  if (this.checked) {
+    document.getElementById('tableView').style.display = 'block';
+    document.getElementById('gridView').style.display = 'none';
+  }
+});
+
+document.getElementById('grid-view').addEventListener('change', function() {
+  if (this.checked) {
+    document.getElementById('tableView').style.display = 'none';
+    document.getElementById('gridView').style.display = 'block';
+  }
+});
+
+// Selection handling
+document.getElementById('select-all')?.addEventListener('change', function() {
+  const checkboxes = document.querySelectorAll('.location-checkbox');
+  checkboxes.forEach(checkbox => {
+    checkbox.checked = this.checked;
+    if (this.checked) {
+      selectedLocations.add(parseInt(checkbox.value));
+    } else {
+      selectedLocations.delete(parseInt(checkbox.value));
+    }
+  });
+  updateBulkActionsBar();
+});
+
+document.querySelectorAll('.location-checkbox').forEach(checkbox => {
+  checkbox.addEventListener('change', function() {
+    const locationId = parseInt(this.value);
+    if (this.checked) {
+      selectedLocations.add(locationId);
+    } else {
+      selectedLocations.delete(locationId);
+    }
+    updateBulkActionsBar();
+  });
+});
+
+function updateBulkActionsBar() {
+  const bar = document.getElementById('bulkActionsBar');
+  const count = document.getElementById('selectedCount');
+  
+  if (selectedLocations.size > 0) {
+    bar.style.display = 'flex';
+    count.textContent = selectedLocations.size;
+  } else {
+    bar.style.display = 'none';
+  }
+}
+
+function clearSelection() {
+  selectedLocations.clear();
+  document.querySelectorAll('.location-checkbox').forEach(cb => cb.checked = false);
+  document.getElementById('select-all').checked = false;
+  updateBulkActionsBar();
+}
+
+function bulkActivate() {
+  if (selectedLocations.size === 0) return;
+  
+  if (confirm(`Are you sure you want to activate ${selectedLocations.size} locations?`)) {
+    const locationIds = Array.from(selectedLocations).join(',');
+    window.location.href = `/inventory/locations/bulk-activate/?locations=${locationIds}`;
+  }
+}
+
+function bulkMaintenance() {
+  if (selectedLocations.size === 0) return;
+  
+  if (confirm(`Are you sure you want to put ${selectedLocations.size} locations into maintenance mode?`)) {
+    const locationIds = Array.from(selectedLocations).join(',');
+    window.location.href = `/inventory/locations/bulk-maintenance/?locations=${locationIds}`;
+  }
+}
+
+function bulkStockTransfer() {
+  if (selectedLocations.size === 0) return;
+  
+  const locationIds = Array.from(selectedLocations).join(',');
+  window.location.href = `/inventory/stock/bulk-transfer/?from_locations=${locationIds}`;
+}
+
+function bulkExport() {
+  if (selectedLocations.size === 0) return;
+  
+  const locationIds = Array.from(selectedLocations).join(',');
+  window.location.href = `/inventory/locations/export/?locations=${locationIds}`;
+}
+
+// Add hover effects for location cards
+document.querySelectorAll('.location-card').forEach(card => {
+  card.addEventListener('mouseenter', function() {
+    this.style.transform = 'translateY(-2px)';
+    this.style.boxShadow = '0 4px 8px rgba(0,0,0,0.1)';
+  });
+  
+  card.addEventListener('mouseleave', function() {
+    this.style.transform = 'translateY(0)';
+    this.style.boxShadow = '';
+  });
+});
+</script>
+
+<style>
+.location-card {
+  transition: all 0.2s ease-in-out;
+  cursor: pointer;
+}
+
+.progress {
+  background-color: #e9ecef;
+}
+
+.location-icon {
+  min-width: 40px;
+  text-align: center;
+}
+
+.address-info {
+  max-height: 40px;
+  overflow: hidden;
+}
+</style>
+{% endblock %}

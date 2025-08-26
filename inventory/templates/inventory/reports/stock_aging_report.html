@@ -1,0 +1,621 @@
+{% extends "dashboard_base.html" %}
+{% load static %}
+
+{% block page_title %}Stock Aging Report{% endblock %}
+
+{% block dashboard_content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+  <div>
+    <h1 class="h3 mb-0 text-gray-800">Stock Aging Report</h1>
+    <p class="text-muted mb-0">Identify slow-moving and obsolete inventory</p>
+  </div>
+  <div class="btn-group" role="group">
+    <div class="btn-group" role="group">
+      <button class="btn btn-outline-secondary dropdown-toggle" type="button" data-bs-toggle="dropdown">
+        <i class="bi bi-download"></i> Export
+      </button>
+      <ul class="dropdown-menu">
+        <li><a class="dropdown-item" href="?export=excel">
+          <i class="bi bi-file-spreadsheet me-2"></i>Download Excel
+        </a></li>
+        <li><a class="dropdown-item" href="?export=csv">
+          <i class="bi bi-file-text me-2"></i>Download CSV
+        </a></li>
+        <li><a class="dropdown-item" href="?export=pdf">
+          <i class="bi bi-file-pdf me-2"></i>Download PDF
+        </a></li>
+        <li><hr class="dropdown-divider"></li>
+        <li><a class="dropdown-item" href="javascript:window.print()">
+          <i class="bi bi-printer me-2"></i>Print Report
+        </a></li>
+      </ul>
+    </div>
+    <button class="btn btn-primary" onclick="refreshReport()">
+      <i class="bi bi-arrow-clockwise me-2"></i>Refresh
+    </button>
+  </div>
+</div>
+
+<!-- Alert for Dead Stock -->
+{% if dead_stock_count > 0 %}
+<div class="alert alert-danger d-flex align-items-center mb-4" role="alert">
+  <i class="bi bi-exclamation-triangle-fill fa-2x me-3"></i>
+  <div>
+    <h5 class="alert-heading mb-2">⚠️ Dead Stock Alert</h5>
+    <p class="mb-0">
+      <strong>{{ dead_stock_count }}</strong> products have not moved in over {{ dead_stock_threshold|default:365 }} days, 
+      representing <strong>${{ dead_stock_value|floatformat:0 }}</strong> in tied-up capital.
+    </p>
+  </div>
+</div>
+{% endif %}
+
+<!-- Summary Cards -->
+<div class="row mb-4">
+  <div class="col-lg-3 col-md-6 mb-4">
+    <div class="card bg-success text-white shadow h-100 py-2">
+      <div class="card-body">
+        <div class="row no-gutters align-items-center">
+          <div class="col mr-2">
+            <div class="text-xs font-weight-bold text-white-50 text-uppercase mb-1">
+              Fast Moving (0-30 days)
+            </div>
+            <div class="h5 mb-0 font-weight-bold">{{ fast_moving_count|default:0 }}</div>
+            <div class="small text-white-75">${{ fast_moving_value|floatformat:0|default:0 }}</div>
+          </div>
+          <div class="col-auto">
+            <i class="bi bi-arrow-up-circle fa-2x text-white-50"></i>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="col-lg-3 col-md-6 mb-4">
+    <div class="card bg-info text-white shadow h-100 py-2">
+      <div class="card-body">
+        <div class="row no-gutters align-items-center">
+          <div class="col mr-2">
+            <div class="text-xs font-weight-bold text-white-50 text-uppercase mb-1">
+              Medium Moving (31-90 days)
+            </div>
+            <div class="h5 mb-0 font-weight-bold">{{ medium_moving_count|default:0 }}</div>
+            <div class="small text-white-75">${{ medium_moving_value|floatformat:0|default:0 }}</div>
+          </div>
+          <div class="col-auto">
+            <i class="bi bi-arrow-right-circle fa-2x text-white-50"></i>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="col-lg-3 col-md-6 mb-4">
+    <div class="card bg-warning text-white shadow h-100 py-2">
+      <div class="card-body">
+        <div class="row no-gutters align-items-center">
+          <div class="col mr-2">
+            <div class="text-xs font-weight-bold text-white-50 text-uppercase mb-1">
+              Slow Moving (91-365 days)
+            </div>
+            <div class="h5 mb-0 font-weight-bold">{{ slow_moving_count|default:0 }}</div>
+            <div class="small text-white-75">${{ slow_moving_value|floatformat:0|default:0 }}</div>
+          </div>
+          <div class="col-auto">
+            <i class="bi bi-arrow-down-circle fa-2x text-white-50"></i>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="col-lg-3 col-md-6 mb-4">
+    <div class="card bg-danger text-white shadow h-100 py-2">
+      <div class="card-body">
+        <div class="row no-gutters align-items-center">
+          <div class="col mr-2">
+            <div class="text-xs font-weight-bold text-white-50 text-uppercase mb-1">
+              Dead Stock (365+ days)
+            </div>
+            <div class="h5 mb-0 font-weight-bold">{{ dead_stock_count|default:0 }}</div>
+            <div class="small text-white-75">${{ dead_stock_value|floatformat:0|default:0 }}</div>
+          </div>
+          <div class="col-auto">
+            <i class="bi bi-x-circle fa-2x text-white-50"></i>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Filter Options -->
+<div class="card shadow mb-4">
+  <div class="card-header py-3">
+    <h6 class="m-0 font-weight-bold text-primary">Filter & Analysis Options</h6>
+  </div>
+  <div class="card-body">
+    <form method="get" class="row g-3">
+      <div class="col-md-2">
+        <label class="form-label">Aging Period</label>
+        <select class="form-select" name="aging_period">
+          <option value="all" {% if request.GET.aging_period == "all" or not request.GET.aging_period %}selected{% endif %}>All Periods</option>
+          <option value="fast" {% if request.GET.aging_period == "fast" %}selected{% endif %}>Fast Moving (0-30d)</option>
+          <option value="medium" {% if request.GET.aging_period == "medium" %}selected{% endif %}>Medium Moving (31-90d)</option>
+          <option value="slow" {% if request.GET.aging_period == "slow" %}selected{% endif %}>Slow Moving (91-365d)</option>
+          <option value="dead" {% if request.GET.aging_period == "dead" %}selected{% endif %}>Dead Stock (365d+)</option>
+        </select>
+      </div>
+      <div class="col-md-2">
+        <label class="form-label">Category</label>
+        <select class="form-select" name="category">
+          <option value="">All Categories</option>
+          {% for category in categories %}
+            <option value="{{ category.id }}" {% if request.GET.category == category.id|stringformat:"s" %}selected{% endif %}>
+              {{ category.name }}
+            </option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="col-md-2">
+        <label class="form-label">Supplier</label>
+        <select class="form-select" name="supplier">
+          <option value="">All Suppliers</option>
+          {% for supplier in suppliers %}
+            <option value="{{ supplier.id }}" {% if request.GET.supplier == supplier.id|stringformat:"s" %}selected{% endif %}>
+              {{ supplier.name }}
+            </option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="col-md-2">
+        <label class="form-label">Value Threshold</label>
+        <select class="form-select" name="value_threshold">
+          <option value="">All Values</option>
+          <option value="1000" {% if request.GET.value_threshold == "1000" %}selected{% endif %}>Over $1,000</option>
+          <option value="500" {% if request.GET.value_threshold == "500" %}selected{% endif %}>Over $500</option>
+          <option value="100" {% if request.GET.value_threshold == "100" %}selected{% endif %}>Over $100</option>
+        </select>
+      </div>
+      <div class="col-md-2">
+        <label class="form-label">Sort By</label>
+        <select class="form-select" name="sort">
+          <option value="days_since_movement" {% if request.GET.sort == "days_since_movement" or not request.GET.sort %}selected{% endif %}>Oldest First</option>
+          <option value="-stock_value" {% if request.GET.sort == "-stock_value" %}selected{% endif %}>Highest Value</option>
+          <option value="-current_stock" {% if request.GET.sort == "-current_stock" %}selected{% endif %}>Highest Stock</option>
+          <option value="turnover_rate" {% if request.GET.sort == "turnover_rate" %}selected{% endif %}>Slowest Turnover</option>
+        </select>
+      </div>
+      <div class="col-md-2 d-flex align-items-end">
+        <button type="submit" class="btn btn-primary me-2">Apply</button>
+        <a href="{% url 'inventory:stock_aging_report' %}" class="btn btn-outline-secondary">Clear</a>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- Aging Analysis Chart -->
+<div class="row mb-4">
+  <div class="col-lg-8">
+    <div class="card shadow">
+      <div class="card-header py-3">
+        <h6 class="m-0 font-weight-bold text-primary">Stock Aging Distribution</h6>
+      </div>
+      <div class="card-body">
+        <canvas id="agingChart" width="400" height="200"></canvas>
+      </div>
+    </div>
+  </div>
+  <div class="col-lg-4">
+    <div class="card shadow">
+      <div class="card-header py-3">
+        <h6 class="m-0 font-weight-bold text-primary">Aging Summary</h6>
+      </div>
+      <div class="card-body">
+        <div class="aging-summary">
+          <div class="d-flex justify-content-between align-items-center mb-2">
+            <span class="badge bg-success">Fast Moving</span>
+            <strong>{{ fast_moving_percentage|floatformat:1 }}%</strong>
+          </div>
+          <div class="progress mb-3" style="height: 6px;">
+            <div class="progress-bar bg-success" style="width: {{ fast_moving_percentage }}%"></div>
+          </div>
+          
+          <div class="d-flex justify-content-between align-items-center mb-2">
+            <span class="badge bg-info">Medium Moving</span>
+            <strong>{{ medium_moving_percentage|floatformat:1 }}%</strong>
+          </div>
+          <div class="progress mb-3" style="height: 6px;">
+            <div class="progress-bar bg-info" style="width: {{ medium_moving_percentage }}%"></div>
+          </div>
+          
+          <div class="d-flex justify-content-between align-items-center mb-2">
+            <span class="badge bg-warning">Slow Moving</span>
+            <strong>{{ slow_moving_percentage|floatformat:1 }}%</strong>
+          </div>
+          <div class="progress mb-3" style="height: 6px;">
+            <div class="progress-bar bg-warning" style="width: {{ slow_moving_percentage }}%"></div>
+          </div>
+          
+          <div class="d-flex justify-content-between align-items-center mb-2">
+            <span class="badge bg-danger">Dead Stock</span>
+            <strong>{{ dead_stock_percentage|floatformat:1 }}%</strong>
+          </div>
+          <div class="progress mb-3" style="height: 6px;">
+            <div class="progress-bar bg-danger" style="width: {{ dead_stock_percentage }}%"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Detailed Stock Aging Table -->
+<div class="card shadow">
+  <div class="card-header py-3 d-flex justify-content-between align-items-center">
+    <h6 class="m-0 font-weight-bold text-primary">
+      Detailed Stock Aging Analysis ({{ products.count|default:0 }} items)
+    </h6>
+    <div class="btn-group btn-group-sm" role="group">
+      <button type="button" class="btn btn-outline-warning" onclick="selectSlowMoving()">
+        Select Slow Moving
+      </button>
+      <button type="button" class="btn btn-outline-danger" onclick="selectDeadStock()">
+        Select Dead Stock
+      </button>
+      <button type="button" class="btn btn-outline-primary" onclick="createClearanceAction()" id="clearanceBtn" disabled>
+        Create Clearance
+      </button>
+    </div>
+  </div>
+  <div class="card-body p-0">
+    <div class="table-responsive">
+      <table class="table table-hover mb-0">
+        <thead class="table-light">
+          <tr>
+            <th>
+              <input type="checkbox" class="form-check-input" id="select-all">
+            </th>
+            <th>SKU</th>
+            <th>Product Name</th>
+            <th>Category</th>
+            <th>Current Stock</th>
+            <th>Stock Value</th>
+            <th>Last Movement</th>
+            <th>Days Since Movement</th>
+            <th>Aging Category</th>
+            <th>Turnover Rate</th>
+            <th>Recommendation</th>
+            <th>Actions</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for product in products %}
+          <tr data-product-id="{{ product.id }}" data-aging="{{ product.aging_category }}">
+            <td>
+              <input type="checkbox" class="form-check-input product-checkbox" value="{{ product.id }}">
+            </td>
+            <td>
+              <code class="fw-bold">{{ product.sku }}</code>
+            </td>
+            <td>
+              <a href="{% url 'inventory:product_detail' product.pk %}" class="text-decoration-none">
+                {{ product.name|truncatechars:40 }}
+              </a>
+              {% if product.brand %}
+                <br><small class="text-muted">{{ product.brand.name }}</small>
+              {% endif %}
+            </td>
+            <td>
+              {% if product.category %}
+                <span class="badge bg-light text-dark">{{ product.category.name }}</span>
+              {% endif %}
+            </td>
+            <td>
+              <span class="fw-bold">{{ product.current_stock|floatformat:0 }}</span>
+            </td>
+            <td>
+              <span class="fw-bold text-success">${{ product.stock_value|floatformat:2|default:0 }}</span>
+            </td>
+            <td>
+              {% if product.last_movement_date %}
+                <small>{{ product.last_movement_date|date:"M d, Y" }}</small>
+              {% else %}
+                <small class="text-muted">No movement</small>
+              {% endif %}
+            </td>
+            <td>
+              <span class="fw-bold 
+                {% if product.days_since_movement >= 365 %}text-danger
+                {% elif product.days_since_movement >= 91 %}text-warning
+                {% elif product.days_since_movement >= 31 %}text-info
+                {% else %}text-success
+                {% endif %}">
+                {{ product.days_since_movement|default:0 }} days
+              </span>
+            </td>
+            <td>
+              {% if product.days_since_movement >= 365 %}
+                <span class="badge bg-danger">Dead Stock</span>
+              {% elif product.days_since_movement >= 91 %}
+                <span class="badge bg-warning">Slow Moving</span>
+              {% elif product.days_since_movement >= 31 %}
+                <span class="badge bg-info">Medium Moving</span>
+              {% else %}
+                <span class="badge bg-success">Fast Moving</span>
+              {% endif %}
+            </td>
+            <td>
+              {% if product.turnover_rate %}
+                <span class="small">{{ product.turnover_rate|floatformat:2 }}x/year</span>
+              {% else %}
+                <span class="text-muted small">No data</span>
+              {% endif %}
+            </td>
+            <td>
+              <small class="text-muted">
+                {% if product.days_since_movement >= 365 %}
+                  Consider liquidation or write-off
+                {% elif product.days_since_movement >= 180 %}
+                  Promotional pricing or bundle deals
+                {% elif product.days_since_movement >= 91 %}
+                  Review pricing and marketing
+                {% else %}
+                  Monitor and maintain stock
+                {% endif %}
+              </small>
+            </td>
+            <td>
+              <div class="btn-group btn-group-sm" role="group">
+                <a href="{% url 'inventory:product_detail' product.pk %}" class="btn btn-outline-primary btn-sm" title="View Details">
+                  <i class="bi bi-eye"></i>
+                </a>
+                <button type="button" class="btn btn-outline-warning btn-sm" onclick="createPromotion({{ product.pk }})" title="Create Promotion">
+                  <i class="bi bi-percent"></i>
+                </button>
+                <button type="button" class="btn btn-outline-info btn-sm" onclick="viewMovementHistory({{ product.pk }})" title="Movement History">
+                  <i class="bi bi-clock-history"></i>
+                </button>
+                {% if product.days_since_movement >= 365 %}
+                <button type="button" class="btn btn-outline-danger btn-sm" onclick="considerLiquidation({{ product.pk }})" title="Consider Liquidation">
+                  <i class="bi bi-trash"></i>
+                </button>
+                {% endif %}
+              </div>
+            </td>
+          </tr>
+          {% empty %}
+          <tr>
+            <td colspan="12" class="text-center py-5">
+              <div class="text-success">
+                <i class="bi bi-check-circle fa-3x mb-3"></i>
+                <h4>Excellent Inventory Management!</h4>
+                <p class="text-muted">All your inventory is moving at a healthy pace. No aging issues detected.</p>
+              </div>
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+  
+  {% if products %}
+  <div class="card-footer bg-light">
+    <div class="d-flex justify-content-between align-items-center">
+      <div class="text-muted small">
+        <i class="bi bi-info-circle me-1"></i>
+        Report generated on {{ report_date|date:"F d, Y at H:i" }}
+      </div>
+      <div>
+        <span id="selectedProductCount">0</span> products selected
+      </div>
+    </div>
+  </div>
+  {% endif %}
+</div>
+
+<!-- Recommendations Panel -->
+{% if products %}
+<div class="row mt-4">
+  <div class="col-lg-6">
+    <div class="card shadow">
+      <div class="card-header py-3">
+        <h6 class="m-0 font-weight-bold text-success">
+          <i class="bi bi-lightbulb me-2"></i>Optimization Recommendations
+        </h6>
+      </div>
+      <div class="card-body">
+        <ul class="list-unstyled mb-0">
+          <li class="mb-2">
+            <i class="bi bi-arrow-right text-primary me-2"></i>
+            <strong>{{ slow_moving_count|add:dead_stock_count }}</strong> items need attention 
+            ({{ slow_moving_percentage|add:dead_stock_percentage|floatformat:1 }}% of inventory)
+          </li>
+          <li class="mb-2">
+            <i class="bi bi-arrow-right text-primary me-2"></i>
+            Potential cash recovery: <strong>${{ slow_moving_value|add:dead_stock_value|floatformat:0 }}</strong>
+          </li>
+          <li class="mb-2">
+            <i class="bi bi-arrow-right text-primary me-2"></i>
+            Focus promotional efforts on slow-moving categories
+          </li>
+          <li class="mb-0">
+            <i class="bi bi-arrow-right text-primary me-2"></i>
+            Consider supplier negotiations for fast-moving items
+          </li>
+        </ul>
+      </div>
+    </div>
+  </div>
+
+  <div class="col-lg-6">
+    <div class="card shadow">
+      <div class="card-header py-3">
+        <h6 class="m-0 font-weight-bold text-warning">
+          <i class="bi bi-exclamation-triangle me-2"></i>Action Items
+        </h6>
+      </div>
+      <div class="card-body">
+        <ul class="list-unstyled mb-0">
+          {% if dead_stock_count > 0 %}
+          <li class="mb-2">
+            <i class="bi bi-circle-fill text-danger me-2" style="font-size: 8px;"></i>
+            <strong>High Priority:</strong> Address {{ dead_stock_count }} dead stock items
+          </li>
+          {% endif %}
+          {% if slow_moving_count > 0 %}
+          <li class="mb-2">
+            <i class="bi bi-circle-fill text-warning me-2" style="font-size: 8px;"></i>
+            <strong>Medium Priority:</strong> Create promotions for {{ slow_moving_count }} slow-moving items
+          </li>
+          {% endif %}
+          <li class="mb-2">
+            <i class="bi bi-circle-fill text-info me-2" style="font-size: 8px;"></i>
+            <strong>Low Priority:</strong> Review reorder levels for medium-moving items
+          </li>
+          <li class="mb-0">
+            <i class="bi bi-circle-fill text-success me-2" style="font-size: 8px;"></i>
+            <strong>Ongoing:</strong> Monitor fast-moving items for stock-out risk
+          </li>
+        </ul>
+      </div>
+    </div>
+  </div>
+</div>
+{% endif %}
+
+<script>
+let selectedProducts = new Set();
+
+// Selection handling
+document.getElementById('select-all')?.addEventListener('change', function() {
+  const checkboxes = document.querySelectorAll('.product-checkbox');
+  checkboxes.forEach(checkbox => {
+    checkbox.checked = this.checked;
+    updateSelection();
+  });
+});
+
+document.querySelectorAll('.product-checkbox').forEach(checkbox => {
+  checkbox.addEventListener('change', updateSelection);
+});
+
+function updateSelection() {
+  selectedProducts.clear();
+  document.querySelectorAll('.product-checkbox:checked').forEach(cb => {
+    selectedProducts.add(parseInt(cb.value));
+  });
+  
+  document.getElementById('selectedProductCount').textContent = selectedProducts.size;
+  document.getElementById('clearanceBtn').disabled = selectedProducts.size === 0;
+}
+
+function selectSlowMoving() {
+  document.querySelectorAll('tr[data-product-id]').forEach(row => {
+    const checkbox = row.querySelector('.product-checkbox');
+    const aging = row.dataset.aging;
+    checkbox.checked = aging === 'slow' || aging === 'dead';
+  });
+  updateSelection();
+}
+
+function selectDeadStock() {
+  document.querySelectorAll('tr[data-product-id]').forEach(row => {
+    const checkbox = row.querySelector('.product-checkbox');
+    const aging = row.dataset.aging;
+    checkbox.checked = aging === 'dead';
+  });
+  updateSelection();
+}
+
+function createClearanceAction() {
+  if (selectedProducts.size === 0) {
+    alert('Please select products for clearance.');
+    return;
+  }
+  
+  const productIds = Array.from(selectedProducts).join(',');
+  window.location.href = `/inventory/clearance/create/?products=${productIds}`;
+}
+
+function createPromotion(productId) {
+  window.location.href = `/inventory/promotions/create/?product=${productId}`;
+}
+
+function viewMovementHistory(productId) {
+  window.location.href = `/inventory/products/${productId}/movements/`;
+}
+
+function considerLiquidation(productId) {
+  if (confirm('This will mark the product for potential liquidation. Continue?')) {
+    window.location.href = `/inventory/liquidation/add/?product=${productId}`;
+  }
+}
+
+function refreshReport() {
+  window.location.reload();
+}
+
+// Initialize aging chart
+const ctx = document.getElementById('agingChart').getContext('2d');
+new Chart(ctx, {
+    type: 'doughnut',
+    data: {
+        labels: ['Fast Moving', 'Medium Moving', 'Slow Moving', 'Dead Stock'],
+        datasets: [{
+            data: [
+                {{ fast_moving_count|default:0 }},
+                {{ medium_moving_count|default:0 }},
+                {{ slow_moving_count|default:0 }},
+                {{ dead_stock_count|default:0 }}
+            ],
+            backgroundColor: [
+                '#28a745',
+                '#17a2b8',
+                '#ffc107',
+                '#dc3545'
+            ],
+            borderWidth: 2,
+            borderColor: '#fff'
+        }]
+    },
+    options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: {
+            legend: {
+                position: 'bottom'
+            },
+            tooltip: {
+                callbacks: {
+                    label: function(context) {
+                        const label = context.label || '';
+                        const value = context.parsed;
+                        const total = context.dataset.data.reduce((a, b) => a + b, 0);
+                        const percentage = total > 0 ? ((value / total) * 100).toFixed(1) : 0;
+                        return `${label}: ${value} items (${percentage}%)`;
+                    }
+                }
+            }
+        }
+    }
+});
+
+// Print styles
+const printStyles = `
+  @media print {
+    .btn, .card-header .btn-group, .dropdown { display: none !important; }
+    .card { border: 1px solid #dee2e6 !important; box-shadow: none !important; page-break-inside: avoid; }
+    .table th, .table td { border: 1px solid #dee2e6 !important; font-size: 12px; }
+    .badge { border: 1px solid !important; }
+    .table-responsive { overflow: visible !important; }
+    #agingChart { max-height: 300px; }
+  }
+`;
+const styleSheet = document.createElement("style");
+styleSheet.type = "text/css";
+styleSheet.innerText = printStyles;
+document.head.appendChild(styleSheet);
+</script>
+{% endblock %}

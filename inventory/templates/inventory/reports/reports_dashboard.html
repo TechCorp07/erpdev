@@ -1,263 +1,288 @@
-{% extends "inventory_base.html" %}
+{% extends "dashboard_base.html" %}
 {% load static %}
 
-{% block inventory_title %}
-  Reports Dashboard
-{% endblock %}
+{% block page_title %}Inventory Reports{% endblock %}
 
-{% block inventory_content %}
-<div class="container-fluid mt-3">
-  <h1 class="h3 mb-4 text-gray-800">Inventory Reports Dashboard</h1>
-
-  <!-- KPI Cards -->
-  <div class="row mb-4">
-    <div class="col-md-3 mb-3">
-      <div class="card dashboard-metric info">
-        <div class="card-body text-center">
-          <div class="h4 mb-1">{{ total_products }}</div>
-          <div class="text-xs">Total Products</div>
-        </div>
-      </div>
-    </div>
-    <div class="col-md-3 mb-3">
-      <div class="card dashboard-metric success">
-        <div class="card-body text-center">
-          <div class="h4 mb-1">${{ total_stock_value|floatformat:0 }}</div>
-          <div class="text-xs">Stock Value</div>
-        </div>
-      </div>
-    </div>
-    <div class="col-md-3 mb-3">
-      <div class="card dashboard-metric warning">
-        <div class="card-body text-center">
-          <div class="h4 mb-1">{{ low_stock_count }}</div>
-          <div class="text-xs">Low Stock</div>
-        </div>
-      </div>
-    </div>
-    <div class="col-md-3 mb-3">
-      <div class="card dashboard-metric critical">
-        <div class="card-body text-center">
-          <div class="h4 mb-1">{{ out_of_stock_count }}</div>
-          <div class="text-xs">Out of Stock</div>
-        </div>
-      </div>
-    </div>
+{% block dashboard_content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+  <h1 class="h3 mb-0 text-gray-800">Inventory Reports & Analytics</h1>
+  <div class="btn-group" role="group">
+    <button class="btn btn-primary dropdown-toggle" type="button" data-bs-toggle="dropdown">
+      <i class="bi bi-download me-2"></i>Export Data
+    </button>
+    <ul class="dropdown-menu">
+      <li><a class="dropdown-item" href="{% url 'inventory:product_export' %}">
+        <i class="bi bi-file-spreadsheet me-2"></i>Products (CSV)
+      </a></li>
+      <li><a class="dropdown-item" href="{% url 'inventory:stock_movements_export' %}">
+        <i class="bi bi-file-spreadsheet me-2"></i>Stock Movements (CSV)
+      </a></li>
+      <li><hr class="dropdown-divider"></li>
+      <li><a class="dropdown-item" href="{% url 'inventory:export_report' 'valuation' %}?format=excel">
+        <i class="bi bi-file-excel me-2"></i>Valuation Report (Excel)
+      </a></li>
+    </ul>
   </div>
+</div>
 
-  <!-- Advanced Analytics Section -->
-  <div class="row mb-4">
-    <div class="col-md-6 mb-3">
-      <div class="card shadow">
-        <div class="card-header py-3">
-          <h6 class="m-0 font-weight-bold text-primary">
-            <i class="bi bi-clipboard-data"></i> Reports & Actions
-          </h6>
-        </div>
-        <div class="card-body">
-          <ul class="list-unstyled mb-0">
-            <li><a href="{% url 'inventory:valuation_report' %}"><i class="bi bi-bar-chart me-1"></i> Stock Valuation Report</a></li>
-            <li><a href="{% url 'inventory:low_stock_report' %}"><i class="bi bi-exclamation-triangle me-1"></i> Low Stock Report</a></li>
-            <li><a href="{% url 'inventory:stock_movements_export' %}"><i class="bi bi-download me-1"></i> Export Stock Movements (CSV)</a></li>
-            <li><a href="{% url 'inventory:reorder_alert_list' %}"><i class="bi bi-bell me-1"></i> Reorder Alerts</a></li>
-            <li><a href="{% url 'inventory:stock_overview' %}"><i class="bi bi-graph-up me-1"></i> Stock Overview</a></li>
-            <!-- Add more report/analytics URLs as you implement them -->
-          </ul>
-        </div>
-      </div>
-    </div>
-
-    <div class="col-md-6 mb-3">
-      <div class="card shadow">
-        <div class="card-header py-3">
-          <h6 class="m-0 font-weight-bold text-primary">
-            <i class="bi bi-graph-up"></i> Last 30 Days Activity
-          </h6>
-        </div>
-        <div class="card-body">
-          <div>
-            <span class="fw-bold">{{ movements_last_30_days }}</span> stock movements recorded.<br>
-            Value moved: <span class="fw-bold">${{ total_value_last_30_days|floatformat:0 }}</span>
+<!-- KPI Cards -->
+<div class="row mb-4">
+  <div class="col-lg-3 col-md-6 mb-4">
+    <div class="card bg-info text-white shadow h-100 py-2">
+      <div class="card-body">
+        <div class="row no-gutters align-items-center">
+          <div class="col mr-2">
+            <div class="text-xs font-weight-bold text-white-50 text-uppercase mb-1">
+              Total Products
+            </div>
+            <div class="h5 mb-0 font-weight-bold">{{ total_products|default:0 }}</div>
           </div>
-          <hr>
-          <div class="small text-muted">
-            For full analytics, see <a href="{% url 'inventory:stock_movements' %}">Stock Movement History</a>.
+          <div class="col-auto">
+            <i class="bi bi-box-seam fa-2x text-white-50"></i>
           </div>
         </div>
       </div>
     </div>
   </div>
 
-  <!-- Top Categories and Top Suppliers -->
-  <div class="row mb-4">
-    <div class="col-md-6 mb-3">
-      <div class="card shadow">
-        <div class="card-header py-3">
-          <h6 class="m-0 font-weight-bold text-primary"><i class="bi bi-tags"></i> Top Categories by Value</h6>
-        </div>
-        <div class="card-body p-0">
-          <table class="table table-striped table-sm mb-0">
-            <thead>
-              <tr>
-                <th>Category</th>
-                <th>Products</th>
-                <th>Stock Value</th>
-              </tr>
-            </thead>
-            <tbody>
-              {% for category in top_categories %}
-                <tr>
-                  <td>
-                    <a href="{{ category.get_absolute_url }}">{{ category.name }}</a>
-                  </td>
-                  <td>{{ category.product_count }}</td>
-                  <td>${{ category.stock_value|floatformat:0|default:"0" }}</td>
-                </tr>
-              {% empty %}
-                <tr>
-                  <td colspan="3" class="text-muted text-center">No category data available.</td>
-                </tr>
-              {% endfor %}
-            </tbody>
-          </table>
-        </div>
-      </div>
-    </div>
-
-    <div class="col-md-6 mb-3">
-      <div class="card shadow">
-        <div class="card-header py-3">
-          <h6 class="m-0 font-weight-bold text-primary"><i class="bi bi-truck"></i> Top Suppliers by Value</h6>
-        </div>
-        <div class="card-body p-0">
-          <table class="table table-striped table-sm mb-0">
-            <thead>
-              <tr>
-                <th>Supplier</th>
-                <th>Products</th>
-                <th>Stock Value</th>
-              </tr>
-            </thead>
-            <tbody>
-              {% for supplier in top_suppliers %}
-                <tr>
-                  <td>
-                    <a href="{{ supplier.get_absolute_url }}">{{ supplier.name }}</a>
-                  </td>
-                  <td>{{ supplier.product_count }}</td>
-                  <td>${{ supplier.stock_value|floatformat:0|default:"0" }}</td>
-                </tr>
-              {% empty %}
-                <tr>
-                  <td colspan="3" class="text-muted text-center">No supplier data available.</td>
-                </tr>
-              {% endfor %}
-            </tbody>
-          </table>
+  <div class="col-lg-3 col-md-6 mb-4">
+    <div class="card bg-success text-white shadow h-100 py-2">
+      <div class="card-body">
+        <div class="row no-gutters align-items-center">
+          <div class="col mr-2">
+            <div class="text-xs font-weight-bold text-white-50 text-uppercase mb-1">
+              Total Stock Value
+            </div>
+            <div class="h5 mb-0 font-weight-bold">${{ total_stock_value|floatformat:0|default:0 }}</div>
+          </div>
+          <div class="col-auto">
+            <i class="bi bi-currency-dollar fa-2x text-white-50"></i>
+          </div>
         </div>
       </div>
     </div>
   </div>
 
-  <!-- Alerts & Recent Movements -->
-  <div class="row mb-4">
-    <div class="col-md-6 mb-3">
-      <div class="card shadow">
-        <div class="card-header py-3 d-flex justify-content-between align-items-center">
-          <h6 class="m-0 font-weight-bold text-primary">
-            <i class="bi bi-exclamation-triangle"></i> Active Alerts
-          </h6>
-          <a href="{% url 'inventory:reorder_alert_list' %}" class="btn btn-outline-secondary btn-sm">All Alerts</a>
-        </div>
-        <div class="card-body p-0">
-          <ul class="list-group list-group-flush">
-            {% for alert in active_alerts %}
-              <li class="list-group-item d-flex justify-content-between align-items-center">
-                <div>
-                  <strong>{{ alert.product.name }}</strong>
-                  <small class="text-muted">- {{ alert.get_priority_display }}</small>
-                  <br>
-                  <span class="text-xs">Current: {{ alert.current_stock }} | Reorder at: {{ alert.reorder_level }}</span>
-                </div>
-                <span class="badge bg-danger">{{ alert.priority|title }}</span>
-              </li>
-            {% empty %}
-              <li class="list-group-item text-muted text-center">No active alerts.</li>
-            {% endfor %}
-          </ul>
-        </div>
-      </div>
-    </div>
-
-    <div class="col-md-6 mb-3">
-      <div class="card shadow">
-        <div class="card-header py-3 d-flex justify-content-between align-items-center">
-          <h6 class="m-0 font-weight-bold text-primary">
-            <i class="bi bi-clock-history"></i> Recent Stock Movements
-          </h6>
-          <a href="{% url 'inventory:stock_movements' %}" class="btn btn-outline-secondary btn-sm">View All</a>
-        </div>
-        <div class="card-body p-0">
-          <ul class="list-group list-group-flush">
-            {% for movement in recent_movements %}
-              <li class="list-group-item">
-                <strong>{{ movement.product.name }}</strong>
-                <span class="ms-2">{{ movement.get_movement_type_display }}</span>
-                <span class="badge bg-{% if movement.quantity > 0 %}success{% else %}danger{% endif %} ms-2">
-                  {% if movement.quantity > 0 %}+{% endif %}{{ movement.quantity }}
-                </span>
-                <span class="ms-2 text-muted">{{ movement.created_at|date:"M d, H:i" }}</span>
-                <br>
-                <small>By {{ movement.created_by.get_full_name|default:movement.created_by.username }}</small>
-              </li>
-            {% empty %}
-              <li class="list-group-item text-muted text-center">No recent stock movements.</li>
-            {% endfor %}
-          </ul>
+  <div class="col-lg-3 col-md-6 mb-4">
+    <div class="card bg-warning text-white shadow h-100 py-2">
+      <div class="card-body">
+        <div class="row no-gutters align-items-center">
+          <div class="col mr-2">
+            <div class="text-xs font-weight-bold text-white-50 text-uppercase mb-1">
+              Low Stock Items
+            </div>
+            <div class="h5 mb-0 font-weight-bold">{{ low_stock_count|default:0 }}</div>
+          </div>
+          <div class="col-auto">
+            <i class="bi bi-exclamation-triangle fa-2x text-white-50"></i>
+          </div>
         </div>
       </div>
     </div>
   </div>
 
-  <!-- Stock Takes & Overdue Purchase Orders -->
-  <div class="row mb-4">
-    <div class="col-md-6 mb-3">
-      <div class="card shadow">
-        <div class="card-header py-3">
-          <h6 class="m-0 font-weight-bold text-primary"><i class="bi bi-list-check"></i> Pending Stock Takes</h6>
-        </div>
-        <div class="card-body">
-          {% for st in pending_stock_takes %}
-            <div>
-              <strong>{{ st.reference }}</strong> ({{ st.get_status_display }})<br>
-              Scheduled: {{ st.scheduled_date|date:"M d, Y H:i" }}
-              <hr>
+  <div class="col-lg-3 col-md-6 mb-4">
+    <div class="card bg-danger text-white shadow h-100 py-2">
+      <div class="card-body">
+        <div class="row no-gutters align-items-center">
+          <div class="col mr-2">
+            <div class="text-xs font-weight-bold text-white-50 text-uppercase mb-1">
+              Out of Stock
             </div>
-          {% empty %}
-            <span class="text-muted">No pending stock takes.</span>
-          {% endfor %}
-        </div>
-      </div>
-    </div>
-
-    <div class="col-md-6 mb-3">
-      <div class="card shadow">
-        <div class="card-header py-3">
-          <h6 class="m-0 font-weight-bold text-primary"><i class="bi bi-exclamation-circle"></i> Overdue Purchase Orders</h6>
-        </div>
-        <div class="card-body">
-          {% for po in overdue_pos %}
-            <div>
-              <strong>{{ po.supplier.name }}</strong> - PO#{{ po.id }}<br>
-              Expected: {{ po.expected_delivery_date|date:"M d, Y" }}
-              <hr>
-            </div>
-          {% empty %}
-            <span class="text-muted">No overdue purchase orders.</span>
-          {% endfor %}
+            <div class="h5 mb-0 font-weight-bold">{{ out_of_stock_count|default:0 }}</div>
+          </div>
+          <div class="col-auto">
+            <i class="bi bi-x-circle fa-2x text-white-50"></i>
+          </div>
         </div>
       </div>
     </div>
   </div>
 </div>
+
+<!-- Reports Grid -->
+<div class="row mb-4">
+  <!-- Standard Reports -->
+  <div class="col-lg-6 mb-4">
+    <div class="card shadow h-100">
+      <div class="card-header py-3">
+        <h6 class="m-0 font-weight-bold text-primary">
+          <i class="bi bi-bar-chart me-2"></i>Standard Reports
+        </h6>
+      </div>
+      <div class="card-body">
+        <div class="list-group list-group-flush">
+          <a href="{% url 'inventory:stock_valuation_report' %}" class="list-group-item list-group-item-action d-flex justify-content-between align-items-center">
+            <div>
+              <i class="bi bi-currency-dollar me-2 text-success"></i>
+              <strong>Stock Valuation Report</strong>
+              <br><small class="text-muted">Current inventory value by category and location</small>
+            </div>
+            <i class="bi bi-chevron-right"></i>
+          </a>
+          
+          <a href="{% url 'inventory:low_stock_report' %}" class="list-group-item list-group-item-action d-flex justify-content-between align-items-center">
+            <div>
+              <i class="bi bi-exclamation-triangle me-2 text-warning"></i>
+              <strong>Low Stock Report</strong>
+              <br><small class="text-muted">Products requiring reorder</small>
+            </div>
+            <i class="bi bi-chevron-right"></i>
+          </a>
+          
+          <a href="{% url 'inventory:stock_aging_report' %}" class="list-group-item list-group-item-action d-flex justify-content-between align-items-center">
+            <div>
+              <i class="bi bi-clock me-2 text-info"></i>
+              <strong>Stock Aging Report</strong>
+              <br><small class="text-muted">Slow-moving and dead stock analysis</small>
+            </div>
+            <i class="bi bi-chevron-right"></i>
+          </a>
+          
+          <a href="{% url 'inventory:inventory_turnover_report' %}" class="list-group-item list-group-item-action d-flex justify-content-between align-items-center">
+            <div>
+              <i class="bi bi-arrow-repeat me-2 text-primary"></i>
+              <strong>Inventory Turnover</strong>
+              <br><small class="text-muted">Stock movement and turnover analysis</small>
+            </div>
+            <i class="bi bi-chevron-right"></i>
+          </a>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Analytics & Advanced Reports -->
+  <div class="col-lg-6 mb-4">
+    <div class="card shadow h-100">
+      <div class="card-header py-3">
+        <h6 class="m-0 font-weight-bold text-primary">
+          <i class="bi bi-graph-up me-2"></i>Analytics & Insights
+        </h6>
+      </div>
+      <div class="card-body">
+        <div class="list-group list-group-flush">
+          <a href="{% url 'inventory:abc_analysis_report' %}" class="list-group-item list-group-item-action d-flex justify-content-between align-items-center">
+            <div>
+              <i class="bi bi-pie-chart me-2 text-success"></i>
+              <strong>ABC Analysis</strong>
+              <br><small class="text-muted">Product classification by value and volume</small>
+            </div>
+            <i class="bi bi-chevron-right"></i>
+          </a>
+          
+          <a href="{% url 'inventory:supplier_performance_report' %}" class="list-group-item list-group-item-action d-flex justify-content-between align-items-center">
+            <div>
+              <i class="bi bi-people me-2 text-warning"></i>
+              <strong>Supplier Performance</strong>
+              <br><small class="text-muted">Lead times, reliability, and cost analysis</small>
+            </div>
+            <i class="bi bi-chevron-right"></i>
+          </a>
+          
+          <a href="{% url 'inventory:category_analysis_report' %}" class="list-group-item list-group-item-action d-flex justify-content-between align-items-center">
+            <div>
+              <i class="bi bi-tags me-2 text-info"></i>
+              <strong>Category Analysis</strong>
+              <br><small class="text-muted">Performance metrics by product category</small>
+            </div>
+            <i class="bi bi-chevron-right"></i>
+          </a>
+          
+          <a href="{% url 'inventory:custom_report' %}" class="list-group-item list-group-item-action d-flex justify-content-between align-items-center">
+            <div>
+              <i class="bi bi-gear me-2 text-primary"></i>
+              <strong>Custom Report Builder</strong>
+              <br><small class="text-muted">Create custom reports with filters</small>
+            </div>
+            <i class="bi bi-chevron-right"></i>
+          </a>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Recent Activity Charts -->
+<div class="row">
+  <div class="col-lg-8 mb-4">
+    <div class="card shadow mb-4">
+      <div class="card-header py-3">
+        <h6 class="m-0 font-weight-bold text-primary">Stock Movements (Last 30 Days)</h6>
+      </div>
+      <div class="card-body">
+        <div class="chart-area">
+          <canvas id="stockMovementChart"></canvas>
+        </div>
+        <hr>
+        <p class="text-center">
+          <i class="bi bi-info-circle me-1"></i>
+          Total movements: {{ movements_last_30_days|default:0 }} 
+          | Value: ${{ total_value_last_30_days|floatformat:0|default:0 }}
+        </p>
+      </div>
+    </div>
+  </div>
+
+  <div class="col-lg-4 mb-4">
+    <div class="card shadow mb-4">
+      <div class="card-header py-3">
+        <h6 class="m-0 font-weight-bold text-primary">Top Categories by Value</h6>
+      </div>
+      <div class="card-body">
+        {% for category in top_categories %}
+        <div class="d-flex align-items-center mb-3">
+          <div class="me-3">
+            <div class="icon-circle bg-primary">
+              <i class="bi bi-tag text-white"></i>
+            </div>
+          </div>
+          <div class="flex-grow-1">
+            <div class="fw-bold">{{ category.name }}</div>
+            <div class="text-muted small">{{ category.product_count }} products</div>
+          </div>
+          <div class="text-end">
+            <div class="fw-bold">${{ category.total_value|floatformat:0|default:0 }}</div>
+          </div>
+        </div>
+        {% empty %}
+        <div class="text-center text-muted">
+          <i class="bi bi-inbox"></i> No category data available
+        </div>
+        {% endfor %}
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+// Stock Movement Chart
+const ctx = document.getElementById('stockMovementChart').getContext('2d');
+new Chart(ctx, {
+    type: 'line',
+    data: {
+        labels: [], // Add your date labels here
+        datasets: [{
+            label: 'Stock In',
+            data: [], // Add your stock in data
+            borderColor: 'rgb(75, 192, 192)',
+            tension: 0.1
+        }, {
+            label: 'Stock Out', 
+            data: [], // Add your stock out data
+            borderColor: 'rgb(255, 99, 132)',
+            tension: 0.1
+        }]
+    },
+    options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        scales: {
+            y: {
+                beginAtZero: true
+            }
+        }
+    }
+});
+</script>
 {% endblock %}
