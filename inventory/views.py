@@ -3,30 +3,27 @@
 """
 Django Views for Inventory Management System
 
-This module provides complete view controllers for all inventory management
-operations. The views are designed to work seamlessly with your existing
-core system while providing advanced inventory functionality.
-
-Key View Categories:
-- Dashboard and analytics views
-- Product management (CRUD and bulk operations)
-- Stock management (adjustments, transfers, tracking)
-- Supplier and category management
-- Purchase order workflow
-- Reporting and analytics
-- API endpoints for real-time operations
-- Integration endpoints for quote/CRM systems
-
-All views include proper permission checking, error handling, and integration
-with your existing notification and user management systems.
+Key Features:
+1. Dynamic attribute handling per component family
+2. Advanced cost calculation with overhead factors
+3. Multi-currency support with real-time conversion
+4. Automated low stock ordering lists
+5. Barcode/QR code support
+6. Advanced search with electronics-specific filters
+7. Business intelligence dashboards
+8. Integration with quote system
+9. Comprehensive reporting
 """
 
+import base64
+from io import BytesIO
 import json
 import csv
 import logging
 from datetime import datetime, timedelta
 from decimal import Decimal
 from django.template.loader import render_to_string
+import qrcode
 from weasyprint import HTML
 
 from django.utils.decorators import method_decorator
@@ -48,7 +45,7 @@ from django.utils.decorators import method_decorator
 from openpyxl import Workbook
 
 from .models import (
-    Category, Supplier, Location, Product, StockLevel, StockMovement,
+    Brand, Category, ComponentFamily, Currency, OverheadFactor, StorageLocation, Supplier, Location, Product, StockLevel, StockMovement,
     StockTake, StockTakeItem, PurchaseOrder, PurchaseOrderItem, ReorderAlert
 )
 from .forms import (
@@ -89,36 +86,84 @@ class InventoryDashboardView(LoginRequiredMixin, TemplateView):
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
         
-        try:
-            # Key metrics
-            context.update({
-                'total_products': Product.objects.filter(is_active=True).count(),
-                'total_stock_value': self._calculate_total_stock_value(),
-                'low_stock_count': self._get_low_stock_count(),
-                'out_of_stock_count': self._get_out_of_stock_count(),
-                'pending_po_count': self._get_pending_po_count(),
-                'active_alerts_count': self._get_active_alerts_count(),
-            })
-            
-            # Recent activities
-            context['recent_movements'] = self._get_recent_movements()
-            context['recent_alerts'] = self._get_recent_alerts()
-            context['pending_stock_takes'] = self._get_pending_stock_takes()
-            
-            # Quick stats for charts
-            context['category_stats'] = self._get_category_stats()
-            context['supplier_stats'] = self._get_supplier_stats()
-            context['location_stats'] = self._get_location_stats()
-            
-            # Performance indicators
-            context['performance_metrics'] = self._get_performance_metrics()
-            
-        except Exception as e:
-            logger.error(f"Error loading dashboard data: {str(e)}")
-            messages.error(self.request, "Error loading dashboard data.")
+        # Basic statistics
+        products = Product.objects.filter(is_active=True)
+        context.update({
+            'total_products': products.count(),
+            'total_categories': Category.objects.filter(is_active=True).count(),
+            'total_suppliers': Supplier.objects.filter(is_active=True).count(),
+            'total_brands': Brand.objects.filter(is_active=True).count(),
+            'total_locations': StorageLocation.objects.filter(is_active=True).count(),
+        })
+        
+        # Financial metrics
+        total_stock_value = products.aggregate(
+            total_cost=Sum(F('total_stock') * F('total_cost_price_usd')),
+            total_selling=Sum(F('total_stock') * F('selling_price'))
+        )
+        context.update({
+            'total_stock_value_cost': total_stock_value['total_cost'] or Decimal('0.00'),
+            'total_stock_value_selling': total_stock_value['total_selling'] or Decimal('0.00'),
+            'potential_profit': (total_stock_value['total_selling'] or Decimal('0.00')) - 
+                              (total_stock_value['total_cost'] or Decimal('0.00')),
+        })
+        
+        # Stock status breakdown
+        context['stock_status'] = {
+            'in_stock': products.filter(total_stock__gt=F('reorder_level')).count(),
+            'low_stock': products.filter(
+                total_stock__lte=F('reorder_level'),
+                total_stock__gt=0
+            ).count(),
+            'out_of_stock': products.filter(total_stock=0).count(),
+            'needs_reorder': products.filter(total_stock__lte=F('reorder_level')).count()
+        }
+        
+        # Component family analysis
+        context['component_families_stats'] = ComponentFamily.objects.filter(
+            products__is_active=True
+        ).annotate(
+            product_count=Count('products'),
+            total_value=Sum(F('products__total_stock') * F('products__total_cost_price_usd')),
+            avg_markup=Avg('products__markup_percentage')
+        ).order_by('-total_value')[:8]
+        
+        # Supplier performance
+        context['top_suppliers'] = Supplier.objects.filter(
+            products__is_active=True,
+            is_active=True
+        ).annotate(
+            product_count=Count('products'),
+            avg_rating=Avg('rating'),
+            total_inventory_value=Sum(F('products__total_stock') * F('products__total_cost_price_usd'))
+        ).order_by('-product_count')[:6]
+        
+        # Recent alerts and activities
+        context['recent_reorder_alerts'] = ReorderAlert.objects.filter(
+            status__in=['active', 'acknowledged']
+        ).select_related('product', 'product__supplier').order_by('-created_at')[:10]
+        
+        # Low stock products by category
+        context['low_stock_by_category'] = Category.objects.filter(
+            products__is_active=True,
+            products__total_stock__lte=F('products__reorder_level')
+        ).annotate(
+            low_stock_count=Count('products')
+        ).order_by('-low_stock_count')[:5]
+        
+        # Currency rates (for multi-currency awareness)
+        context['currencies'] = Currency.objects.filter(is_active=True).order_by('code')
+        
+        # Storage utilization
+        context['storage_locations'] = StorageLocation.objects.filter(
+            is_active=True
+        ).annotate(
+            product_count=Count('productstock level__product', distinct=True),
+            total_items=Sum('productstocklevel__quantity_on_hand')
+        )[:3]
         
         return context
-    
+
     def _calculate_total_stock_value(self):
         """Calculate total value of current stock"""
         try:
@@ -442,6 +487,74 @@ def inventory_alerts_view(request):
     
     return render(request, template_name, context)
 
+class LowStockOrderingView(LoginRequiredMixin, TemplateView):
+    """Automated low stock ordering panel"""
+    template_name = 'inventory/low_stock_ordering.html'
+    
+    @method_decorator(inventory_permission_required('view'))
+    def dispatch(self, *args, **kwargs):
+        return super().dispatch(*args, **kwargs)
+    
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        
+        # Get products needing reorder
+        products_needing_reorder = Product.objects.filter(
+            is_active=True,
+            total_stock__lte=F('reorder_level')
+        ).select_related(
+            'supplier', 'supplier__country', 'category', 'brand', 'supplier_currency'
+        ).order_by('supplier__name', 'category__name')
+        
+        # Group by supplier for easier ordering
+        supplier_groups = {}
+        total_order_value = Decimal('0.00')
+        
+        for product in products_needing_reorder:
+            supplier_key = product.supplier.id
+            if supplier_key not in supplier_groups:
+                supplier_groups[supplier_key] = {
+                    'supplier': product.supplier,
+                    'products': [],
+                    'total_value': Decimal('0.00'),
+                    'currency': product.supplier_currency
+                }
+            
+            # Calculate recommended order quantity
+            recommended_qty = max(
+                product.reorder_quantity,
+                product.supplier_minimum_order_quantity,
+                product.reorder_level - product.total_stock + 10  # Safety stock
+            )
+            
+            # Use price breaks if available
+            unit_cost = product.get_preferred_supplier_price(recommended_qty)
+            order_value = unit_cost * recommended_qty
+            
+            product_info = {
+                'product': product,
+                'current_stock': product.total_stock,
+                'recommended_quantity': recommended_qty,
+                'unit_cost': unit_cost,
+                'order_value': order_value,
+                'priority': 'critical' if product.total_stock == 0 else 
+                           'high' if product.total_stock <= (product.reorder_level * 0.5) else 'medium'
+            }
+            
+            supplier_groups[supplier_key]['products'].append(product_info)
+            supplier_groups[supplier_key]['total_value'] += order_value
+            total_order_value += order_value
+        
+        context.update({
+            'supplier_groups': supplier_groups,
+            'total_suppliers': len(supplier_groups),
+            'total_products': products_needing_reorder.count(),
+            'total_order_value': total_order_value,
+            'currencies': Currency.objects.filter(is_active=True)
+        })
+        
+        return context
+
 # =====================================
 # PRODUCT MANAGEMENT VIEWS
 # =====================================
@@ -462,63 +575,79 @@ class ProductListView(LoginRequiredMixin, ListView):
         return super().dispatch(*args, **kwargs)
     
     def get_queryset(self):
-        queryset = Product.objects.select_related(
-            'category', 'supplier'
-        ).order_by('name')
+        queryset = Product.objects.filter(is_active=True).select_related(
+            'category', 'supplier', 'brand', 'component_family', 'supplier_currency'
+        )
         
-        # Handle search and filters
-        search_form = ProductSearchForm(self.request.GET)
-        if search_form.is_valid():
-            search = search_form.cleaned_data.get('search')
-            if search:
-                queryset = queryset.filter(
-                    Q(name__icontains=search) |
-                    Q(sku__icontains=search) |
-                    Q(description__icontains=search) |
-                    Q(barcode__icontains=search)
-                )
-            
-            category = search_form.cleaned_data.get('category')
-            if category:
-                queryset = queryset.filter(category=category)
-            
-            supplier = search_form.cleaned_data.get('supplier')
-            if supplier:
-                queryset = queryset.filter(supplier=supplier)
-            
-            stock_status = search_form.cleaned_data.get('stock_status')
+        # Apply filters
+        search = self.request.GET.get('search')
+        if search:
+            queryset = queryset.filter(
+                Q(name__icontains=search) |
+                Q(sku__icontains=search) |
+                Q(manufacturer_part_number__icontains=search) |
+                Q(supplier_sku__icontains=search) |
+                Q(description__icontains=search)
+            )
+        
+        category = self.request.GET.get('category')
+        if category:
+            queryset = queryset.filter(category_id=category)
+        
+        component_family = self.request.GET.get('component_family')
+        if component_family:
+            queryset = queryset.filter(component_family_id=component_family)
+        
+        brand = self.request.GET.get('brand')
+        if brand:
+            queryset = queryset.filter(brand_id=brand)
+        
+        supplier = self.request.GET.get('supplier')
+        if supplier:
+            queryset = queryset.filter(supplier_id=supplier)
+        
+        stock_status = self.request.GET.get('stock_status')
+        if stock_status:
             if stock_status == 'in_stock':
-                queryset = queryset.filter(current_stock__gt=F('reorder_level'))
+                queryset = queryset.filter(total_stock__gt=F('reorder_level'))
             elif stock_status == 'low_stock':
                 queryset = queryset.filter(
-                    current_stock__lte=F('reorder_level'),
-                    current_stock__gt=0
+                    total_stock__lte=F('reorder_level'),
+                    total_stock__gt=0
                 )
             elif stock_status == 'out_of_stock':
-                queryset = queryset.filter(current_stock=0)
-            
-            is_active = search_form.cleaned_data.get('is_active')
-            if is_active == 'true':
-                queryset = queryset.filter(is_active=True)
-            elif is_active == 'false':
-                queryset = queryset.filter(is_active=False)
-            
-            min_price = search_form.cleaned_data.get('min_price')
-            if min_price:
-                queryset = queryset.filter(selling_price__gte=min_price)
-            
-            max_price = search_form.cleaned_data.get('max_price')
-            if max_price:
-                queryset = queryset.filter(selling_price__lte=max_price)
+                queryset = queryset.filter(total_stock=0)
+            elif stock_status == 'needs_reorder':
+                queryset = queryset.filter(total_stock__lte=F('reorder_level'))
+        
+        # Sorting
+        sort_by = self.request.GET.get('sort', 'name')
+        if sort_by in ['name', '-name', 'sku', '-sku', 'total_stock', '-total_stock', 
+                       'selling_price', '-selling_price', 'markup_percentage', '-markup_percentage']:
+            queryset = queryset.order_by(sort_by)
         
         return queryset
     
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
-        context['search_form'] = ProductSearchForm(self.request.GET)
-        context['can_edit'] = self.request.user.profile.user_type in [
-            'sales_manager', 'blitzhub_admin', 'it_admin'
-        ] if hasattr(self.request.user, 'profile') else False
+        
+        # Add filter options
+        context.update({
+            'categories': Category.objects.filter(is_active=True).order_by('name'),
+            'component_families': ComponentFamily.objects.filter(is_active=True).order_by('name'),
+            'brands': Brand.objects.filter(is_active=True).order_by('name'),
+            'suppliers': Supplier.objects.filter(is_active=True).order_by('name'),
+            'current_filters': {
+                'search': self.request.GET.get('search', ''),
+                'category': self.request.GET.get('category', ''),
+                'component_family': self.request.GET.get('component_family', ''),
+                'brand': self.request.GET.get('brand', ''),
+                'supplier': self.request.GET.get('supplier', ''),
+                'stock_status': self.request.GET.get('stock_status', ''),
+                'sort': self.request.GET.get('sort', 'name'),
+            }
+        })
+        
         return context
 
 class ProductDetailView(LoginRequiredMixin, DetailView):
@@ -538,43 +667,77 @@ class ProductDetailView(LoginRequiredMixin, DetailView):
     
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
-        product = self.get_object()
+        product = self.object
+        
+        # Get dynamic attributes for this product's component family
+        if product.component_family:
+            context['attribute_definitions'] = product.component_family.all_attributes
+        
+        # Cost breakdown analysis
+        cost_breakdown = {
+            'base_cost_original': product.cost_price,
+            'base_cost_usd': product.cost_price_usd,
+            'shipping_cost': product.shipping_cost_per_unit,
+            'insurance_cost': product.insurance_cost_per_unit,
+            'customs_duty': product.cost_price_usd * (product.customs_duty_percentage / 100),
+            'vat_cost': (product.cost_price_usd + product.cost_price_usd * (product.customs_duty_percentage / 100)) * (product.vat_percentage / 100),
+            'other_fees': product.other_fees_per_unit,
+            'overhead_cost': product.overhead_cost_per_unit,
+            'total_cost': product.total_cost_price_usd,
+        }
+        context['cost_breakdown'] = cost_breakdown
         
         # Stock levels by location
-        context['stock_levels'] = StockLevel.objects.filter(
-            product=product
-        ).select_related('location')
+        context['stock_levels'] = product.stock_levels.select_related(
+            'location', 'storage_bin'
+        ).filter(is_active=True)
         
         # Recent stock movements
         context['recent_movements'] = StockMovement.objects.filter(
             product=product
-        ).select_related('created_by', 'from_location', 'to_location').order_by('-created_at')[:20]
+        ).select_related('location', 'created_by').order_by('-created_at')[:10]
         
-        # Reorder alerts
-        context['active_alerts'] = ReorderAlert.objects.filter(
-            product=product,
-            status__in=['active', 'acknowledged']
-        )
+        # Competitive analysis
+        if product.competitor_min_price or product.competitor_max_price:
+            context['competitive_analysis'] = {
+                'our_price': product.selling_price,
+                'competitor_min': product.competitor_min_price,
+                'competitor_max': product.competitor_max_price,
+                'position': product.price_position,
+                'price_advantage': None
+            }
+            
+            if product.competitor_min_price:
+                diff = float(product.selling_price) - float(product.competitor_min_price)
+                context['competitive_analysis']['price_advantage'] = diff
         
-        # Performance metrics
-        context['performance'] = calculate_inventory_turnover(product, 365)
-        
-        # Stock adjustment form
-        context['stock_adjustment_form'] = StockAdjustmentForm(
-            initial={'product': product}
-        )
-        
-        # Permission checks
-        user_profile = getattr(self.request.user, 'profile', None)
-        if user_profile:
-            context['can_edit'] = user_profile.user_type in [
-                'sales_manager', 'blitzhub_admin', 'it_admin'
-            ]
-            context['can_view_costs'] = user_profile.user_type in [
-                'sales_manager', 'blitzhub_admin', 'it_admin'
-            ]
+        # Generate QR code
+        context['qr_code_data'] = self.generate_qr_code(product)
         
         return context
+    
+    def generate_qr_code(self, product):
+        """Generate QR code for product"""
+        qr_data = {
+            'sku': product.sku,
+            'name': product.name,
+            'price': float(product.selling_price),
+            'stock': product.total_stock,
+            'url': self.request.build_absolute_uri(
+                reverse('inventory:product_detail', args=[product.id])
+            )
+        }
+        
+        qr = qrcode.QRCode(version=1, box_size=10, border=5)
+        qr.add_data(json.dumps(qr_data))
+        qr.make(fit=True)
+        
+        img = qr.make_image(fill_color="black", back_color="white")
+        buffer = BytesIO()
+        img.save(buffer, format='PNG')
+        qr_code_data = base64.b64encode(buffer.getvalue()).decode()
+        
+        return qr_code_data
 
 class ProductCreateView(LoginRequiredMixin, CreateView):
     """Product creation view with intelligent defaults"""
@@ -1659,6 +1822,302 @@ def critical_alerts_api(request):
     }
     return JsonResponse(data)
 
+@login_required
+@inventory_permission_required('view')
+def component_family_attributes_api(request, family_id):
+    """Get dynamic attributes for a component family"""
+    try:
+        family = get_object_or_404(ComponentFamily, id=family_id, is_active=True)
+        attributes = family.all_attributes
+        
+        attribute_data = []
+        for attr in attributes:
+            attribute_data.append({
+                'id': attr.id,
+                'name': attr.name,
+                'field_type': attr.field_type,
+                'is_required': attr.is_required,
+                'default_value': attr.default_value,
+                'help_text': attr.help_text,
+                'choice_options': attr.choice_options,
+                'min_value': float(attr.min_value) if attr.min_value else None,
+                'max_value': float(attr.max_value) if attr.max_value else None,
+                'validation_pattern': attr.validation_pattern,
+            })
+        
+        return JsonResponse({
+            'success': True,
+            'family': family.name,
+            'attributes': attribute_data
+        })
+        
+    except ComponentFamily.DoesNotExist:
+        return JsonResponse({'success': False, 'error': 'Component family not found'})
+
+@login_required
+@inventory_permission_required('view')
+def calculate_product_cost_api(self, request):
+    """Calculate total product cost including all factors"""
+    try:
+        data = json.loads(request.body)
+        
+        # Base cost
+        cost_price = Decimal(str(data.get('cost_price', 0)))
+        currency_id = data.get('currency_id')
+        
+        # Get currency conversion
+        if currency_id:
+            currency = Currency.objects.get(id=currency_id)
+            cost_price_usd = cost_price * currency.exchange_rate_to_usd
+        else:
+            cost_price_usd = cost_price
+        
+        # Import costs
+        shipping_cost = Decimal(str(data.get('shipping_cost_per_unit', 0)))
+        insurance_cost = Decimal(str(data.get('insurance_cost_per_unit', 0)))
+        customs_duty_percent = Decimal(str(data.get('customs_duty_percentage', 0)))
+        vat_percent = Decimal(str(data.get('vat_percentage', 15)))
+        other_fees = Decimal(str(data.get('other_fees_per_unit', 0)))
+        
+        # Calculate duties and taxes
+        customs_duty = cost_price_usd * (customs_duty_percent / 100)
+        vat_base = cost_price_usd + customs_duty
+        vat_cost = vat_base * (vat_percent / 100)
+        
+        # Total import cost
+        total_import_cost = (
+            cost_price_usd + shipping_cost + insurance_cost + 
+            customs_duty + vat_cost + other_fees
+        )
+        
+        # Get overhead costs (simplified - would use actual overhead factors)
+        category_id = data.get('category_id')
+        supplier_id = data.get('supplier_id')
+        weight_grams = Decimal(str(data.get('weight_grams', 0))) if data.get('weight_grams') else None
+        
+        overhead_cost = self.calculate_overhead_for_product(
+            total_import_cost, category_id, supplier_id, weight_grams
+        )
+        
+        # Total cost
+        total_cost = total_import_cost + overhead_cost
+        
+        # Calculate markup options
+        markup_options = []
+        for markup_percent in [10, 20, 30, 40, 50]:
+            selling_price = total_cost * (1 + markup_percent / 100)
+            profit = selling_price - total_cost
+            
+            markup_options.append({
+                'markup_percentage': markup_percent,
+                'selling_price': float(selling_price),
+                'profit_per_unit': float(profit)
+            })
+        
+        return JsonResponse({
+            'success': True,
+            'calculation': {
+                'cost_price_original': float(cost_price),
+                'cost_price_usd': float(cost_price_usd),
+                'shipping_cost': float(shipping_cost),
+                'insurance_cost': float(insurance_cost),
+                'customs_duty': float(customs_duty),
+                'vat_cost': float(vat_cost),
+                'other_fees': float(other_fees),
+                'total_import_cost': float(total_import_cost),
+                'overhead_cost': float(overhead_cost),
+                'total_cost_usd': float(total_cost),
+                'markup_options': markup_options
+            }
+        })
+        
+    except Exception as e:
+        logger.error(f"Error calculating product cost: {str(e)}")
+        return JsonResponse({'success': False, 'error': str(e)})
+
+def calculate_overhead_for_product(self, import_cost, category_id, supplier_id, weight_grams):
+    """Calculate overhead costs for a product"""
+    overhead_factors = OverheadFactor.objects.filter(is_active=True)
+    total_overhead = Decimal('0.00')
+    
+    for factor in overhead_factors:
+        # Check if factor applies
+        applies = True
+        
+        if factor.applies_to_categories.exists() and category_id:
+            applies = applies and factor.applies_to_categories.filter(id=category_id).exists()
+        
+        if factor.applies_to_suppliers.exists() and supplier_id:
+            applies = applies and factor.applies_to_suppliers.filter(id=supplier_id).exists()
+        
+        if applies:
+            cost = factor.calculate_cost(
+                product_cost=import_cost,
+                order_value=import_cost,
+                weight_kg=weight_grams / 1000 if weight_grams else None
+            )
+            total_overhead += cost
+    
+    return total_overhead
+
+@login_required
+@inventory_permission_required('edit')
+@require_POST
+def generate_reorder_list_api(request):
+    """Generate and return reorder list for download"""
+    try:
+        # Get filter parameters
+        data = json.loads(request.body) if request.body else {}
+        supplier_id = data.get('supplier_id')
+        category_id = data.get('category_id')
+        priority = data.get('priority')  # 'critical', 'high', 'medium'
+        
+        # Base query
+        products = Product.objects.filter(
+            is_active=True,
+            total_stock__lte=F('reorder_level')
+        ).select_related('supplier', 'category', 'brand', 'supplier_currency')
+        
+        # Apply filters
+        if supplier_id:
+            products = products.filter(supplier_id=supplier_id)
+        if category_id:
+            products = products.filter(category_id=category_id)
+        
+        # Generate reorder list
+        reorder_data = []
+        total_order_value = Decimal('0.00')
+        
+        for product in products:
+            # Determine priority
+            if product.total_stock == 0:
+                item_priority = 'critical'
+            elif product.total_stock <= (product.reorder_level * 0.5):
+                item_priority = 'high'
+            else:
+                item_priority = 'medium'
+            
+            # Filter by priority if specified
+            if priority and item_priority != priority:
+                continue
+            
+            # Calculate order details
+            recommended_qty = max(
+                product.reorder_quantity,
+                product.supplier_minimum_order_quantity,
+                product.reorder_level - product.total_stock + 10
+            )
+            
+            unit_cost = product.get_preferred_supplier_price(recommended_qty)
+            order_value = unit_cost * recommended_qty
+            total_order_value += order_value
+            
+            reorder_data.append({
+                'supplier': product.supplier.name,
+                'supplier_email': product.supplier.email,
+                'sku': product.sku,
+                'supplier_sku': product.supplier_sku,
+                'name': product.name,
+                'current_stock': product.total_stock,
+                'reorder_level': product.reorder_level,
+                'recommended_quantity': recommended_qty,
+                'unit_cost': float(unit_cost),
+                'currency': product.supplier_currency.code,
+                'order_value': float(order_value),
+                'lead_time_days': product.supplier_lead_time_days,
+                'moq': product.supplier_minimum_order_quantity,
+                'priority': item_priority
+            })
+        
+        return JsonResponse({
+            'success': True,
+            'reorder_list': reorder_data,
+            'summary': {
+                'total_items': len(reorder_data),
+                'total_order_value': float(total_order_value),
+                'suppliers': len(set(item['supplier'] for item in reorder_data))
+            }
+        })
+        
+    except Exception as e:
+        logger.error(f"Error generating reorder list: {str(e)}")
+        return JsonResponse({'success': False, 'error': str(e)})
+
+@login_required
+@inventory_permission_required('edit')
+def download_reorder_csv(request):
+    """Download reorder list as CSV file"""
+    try:
+        # Get the same data as the API
+        supplier_id = request.GET.get('supplier_id')
+        category_id = request.GET.get('category_id')
+        priority = request.GET.get('priority')
+        
+        products = Product.objects.filter(
+            is_active=True,
+            total_stock__lte=F('reorder_level')
+        ).select_related('supplier', 'category', 'brand', 'supplier_currency')
+        
+        if supplier_id:
+            products = products.filter(supplier_id=supplier_id)
+        if category_id:
+            products = products.filter(category_id=category_id)
+        
+        # Create CSV response
+        response = HttpResponse(content_type='text/csv')
+        response['Content-Disposition'] = f'attachment; filename="reorder_list_{datetime.now().strftime("%Y%m%d_%H%M")}.csv"'
+        
+        writer = csv.writer(response)
+        writer.writerow([
+            'Supplier', 'Supplier Email', 'Our SKU', 'Supplier SKU', 'Product Name',
+            'Current Stock', 'Reorder Level', 'Recommended Qty', 'Unit Cost',
+            'Currency', 'Order Value', 'Lead Time (Days)', 'MOQ', 'Priority'
+        ])
+        
+        for product in products:
+            # Calculate values same as API
+            if product.total_stock == 0:
+                item_priority = 'critical'
+            elif product.total_stock <= (product.reorder_level * 0.5):
+                item_priority = 'high'
+            else:
+                item_priority = 'medium'
+            
+            if priority and item_priority != priority:
+                continue
+            
+            recommended_qty = max(
+                product.reorder_quantity,
+                product.supplier_minimum_order_quantity,
+                product.reorder_level - product.total_stock + 10
+            )
+            
+            unit_cost = product.get_preferred_supplier_price(recommended_qty)
+            order_value = unit_cost * recommended_qty
+            
+            writer.writerow([
+                product.supplier.name,
+                product.supplier.email,
+                product.sku,
+                product.supplier_sku,
+                product.name,
+                product.total_stock,
+                product.reorder_level,
+                recommended_qty,
+                unit_cost,
+                product.supplier_currency.code,
+                order_value,
+                product.supplier_lead_time_days,
+                product.supplier_minimum_order_quantity,
+                item_priority
+            ])
+        
+        return response
+        
+    except Exception as e:
+        logger.error(f"Error downloading reorder CSV: {str(e)}")
+        return JsonResponse({'success': False, 'error': str(e)})
+
 # =====================================
 # INTEGRATION ENDPOINTS FOR QUOTE SYSTEM
 # =====================================
@@ -1788,10 +2247,222 @@ def reserve_for_quote_api(request):
         return JsonResponse({'success': False, 'error': str(e)})
 
 # =====================================
-# PLACEHOLDER VIEWS FOR REMAINING FUNCTIONALITY
+# BARCODE/QR CODE VIEWS
 # =====================================
 
-# These views would be fully implemented based on the patterns above
+@login_required
+@inventory_permission_required('view')
+def product_qr_code_api(request, product_id):
+    """Generate QR code for a product"""
+    try:
+        product = get_object_or_404(Product, id=product_id, is_active=True)
+        
+        # Create QR code data
+        qr_data = {
+            'type': 'product',
+            'sku': product.sku,
+            'name': product.name,
+            'brand': product.brand.name,
+            'price': float(product.selling_price),
+            'stock': product.total_stock,
+            'url': request.build_absolute_uri(
+                reverse('inventory:product_detail', args=[product.id])
+            )
+        }
+        
+        # Generate QR code
+        qr = qrcode.QRCode(
+            version=1,
+            error_correction=qrcode.constants.ERROR_CORRECT_L,
+            box_size=10,
+            border=4,
+        )
+        qr.add_data(json.dumps(qr_data))
+        qr.make(fit=True)
+        
+        # Create image
+        img = qr.make_image(fill_color="black", back_color="white")
+        
+        # Convert to base64
+        buffer = BytesIO()
+        img.save(buffer, format='PNG')
+        img_data = base64.b64encode(buffer.getvalue()).decode()
+        
+        return JsonResponse({
+            'success': True,
+            'qr_code': img_data,
+            'qr_data': qr_data
+        })
+        
+    except Exception as e:
+        logger.error(f"Error generating QR code: {str(e)}")
+        return JsonResponse({'success': False, 'error': str(e)})
+
+@login_required
+@inventory_permission_required('view')
+def barcode_lookup_api(request, barcode):
+    """Look up product by barcode"""
+    try:
+        product = get_object_or_404(Product, barcode=barcode, is_active=True)
+        
+        return JsonResponse({
+            'success': True,
+            'product': {
+                'id': product.id,
+                'sku': product.sku,
+                'name': product.name,
+                'brand': product.brand.name,
+                'category': product.category.name,
+                'current_stock': product.total_stock,
+                'stock_status': product.stock_status,
+                'selling_price': float(product.selling_price),
+                'url': reverse('inventory:product_detail', args=[product.id])
+            }
+        })
+        
+    except Product.DoesNotExist:
+        return JsonResponse({
+            'success': False,
+            'error': 'Product not found',
+            'barcode': barcode
+        })
+
+# =====================================
+# BUSINESS INTELLIGENCE VIEWS
+# =====================================
+
+@login_required
+@inventory_permission_required('view')
+def inventory_analytics_view(request):
+    """Comprehensive inventory analytics dashboard"""
+    context = {}
+    
+    # Date range for analytics
+    end_date = timezone.now()
+    start_date = end_date - timedelta(days=30)
+    
+    # Stock value trends
+    categories = Category.objects.filter(is_active=True).annotate(
+        total_value=Sum(F('products__total_stock') * F('products__total_cost_price_usd')),
+        product_count=Count('products', filter=Q(products__is_active=True))
+    ).order_by('-total_value')
+    
+    context['category_analysis'] = categories[:10]
+    
+    # Supplier analysis
+    suppliers = Supplier.objects.filter(is_active=True).annotate(
+        inventory_value=Sum(F('products__total_stock') * F('products__total_cost_price_usd')),
+        product_count=Count('products', filter=Q(products__is_active=True)),
+        avg_markup=Avg('products__markup_percentage')
+    ).order_by('-inventory_value')
+    
+    context['supplier_analysis'] = suppliers[:10]
+    
+    # Brand performance
+    brands = Brand.objects.filter(is_active=True).annotate(
+        inventory_value=Sum(F('products__total_stock') * F('products__total_cost_price_usd')),
+        product_count=Count('products', filter=Q(products__is_active=True)),
+        avg_markup=Avg('products__markup_percentage')
+    ).order_by('-inventory_value')
+    
+    context['brand_analysis'] = brands[:10]
+    
+    # Stock status distribution
+    total_products = Product.objects.filter(is_active=True).count()
+    stock_distribution = {
+        'in_stock': Product.objects.filter(is_active=True, total_stock__gt=F('reorder_level')).count(),
+        'low_stock': Product.objects.filter(is_active=True, total_stock__lte=F('reorder_level'), total_stock__gt=0).count(),
+        'out_of_stock': Product.objects.filter(is_active=True, total_stock=0).count(),
+    }
+    
+    context['stock_distribution'] = stock_distribution
+    context['total_products'] = total_products
+    
+    # Markup analysis
+    markup_ranges = [
+        ('0-20%', 0, 20),
+        ('20-30%', 20, 30),
+        ('30-40%', 30, 40),
+        ('40-50%', 40, 50),
+        ('50%+', 50, 1000),
+    ]
+    
+    markup_analysis = []
+    for label, min_markup, max_markup in markup_ranges:
+        count = Product.objects.filter(
+            is_active=True,
+            markup_percentage__gte=min_markup,
+            markup_percentage__lt=max_markup
+        ).count()
+        markup_analysis.append({'range': label, 'count': count})
+    
+    context['markup_analysis'] = markup_analysis
+    
+    return render(request, 'inventory/analytics.html', context)
+
+# =====================================
+# REPORTS VIEWS
+# =====================================
+
+@login_required
+@inventory_permission_required('view')
+def inventory_reports_view(request):
+    """Inventory reports dashboard"""
+    return render(request, 'inventory/reports.html', {
+        'report_types': [
+            {'name': 'Stock Valuation Report', 'url': 'stock_valuation'},
+            {'name': 'Low Stock Report', 'url': 'low_stock'},
+            {'name': 'Supplier Performance', 'url': 'supplier_performance'},
+            {'name': 'Category Analysis', 'url': 'category_analysis'},
+            {'name': 'Markup Analysis', 'url': 'markup_analysis'},
+            {'name': 'ABC Analysis', 'url': 'abc_analysis'},
+        ]
+    })
+
+@login_required
+@inventory_permission_required('view')
+def stock_valuation_report(request):
+    """Generate stock valuation report"""
+    # Implementation for stock valuation report
+    products = Product.objects.filter(is_active=True).select_related(
+        'category', 'supplier', 'brand'
+    ).order_by('category__name', 'name')
+    
+    if request.GET.get('format') == 'csv':
+        response = HttpResponse(content_type='text/csv')
+        response['Content-Disposition'] = 'attachment; filename="stock_valuation_report.csv"'
+        
+        writer = csv.writer(response)
+        writer.writerow([
+            'Category', 'SKU', 'Product Name', 'Brand', 'Supplier',
+            'Stock Quantity', 'Unit Cost (USD)', 'Total Value (USD)',
+            'Unit Selling Price', 'Potential Revenue', 'Potential Profit'
+        ])
+        
+        for product in products:
+            writer.writerow([
+                product.category.name,
+                product.sku,
+                product.name,
+                product.brand.name,
+                product.supplier.name,
+                product.total_stock,
+                product.total_cost_price_usd,
+                product.stock_value_usd,
+                product.selling_price,
+                product.total_stock * product.selling_price,
+                product.total_stock * product.profit_per_unit_usd
+            ])
+        
+        return response
+    
+    # Return HTML version
+    context = {'products': products}
+    return render(request, 'inventory/reports/stock_valuation.html', context)
+
+# =====================================
+# PLACEHOLDER VIEWS FOR REMAINING FUNCTIONALITY
+# =====================================
 
 # Category Management Views
 class CategoryListView(LoginRequiredMixin, ListView):

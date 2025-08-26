@@ -1,720 +1,508 @@
-{% extends "inventory_base.html" %}
-{% load static %}
-
-{% block inventory_title %}Inventory Dashboard{% endblock %}
-
-{% block extra_head %}
-{{ block.super }}
-<!-- Chart.js for dashboard visualizations -->
-<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/3.9.1/chart.min.js"></script>
-<style>
-  .dashboard-metric {
-    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-    border-radius: 1rem;
-    color: white;
-    transition: all 0.3s ease;
-  }
-  
-  .dashboard-metric:hover {
-    transform: translateY(-5px);
-    box-shadow: 0 0.5rem 1rem rgba(0, 0, 0, 0.15);
-  }
-  
-  .dashboard-metric.critical { background: linear-gradient(135deg, #ff416c 0%, #ff4b2b 100%); }
-  .dashboard-metric.warning { background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%); }
-  .dashboard-metric.success { background: linear-gradient(135deg, #56ab2f 0%, #a8e6cf 100%); }
-  .dashboard-metric.info { background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%); }
-  
-  .chart-container {
-    background: white;
-    border-radius: 1rem;
-    box-shadow: 0 0.25rem 0.5rem rgba(0, 0, 0, 0.05);
-    padding: 1.5rem;
-    margin-bottom: 1.5rem;
-  }
-  
-  .activity-item {
-    border-left: 4px solid #e3e6f0;
-    padding: 1rem;
-    margin-bottom: 0.75rem;
-    border-radius: 0 0.5rem 0.5rem 0;
-    background: #f8f9fc;
-    transition: all 0.2s ease;
-  }
-  
-  .activity-item:hover {
-    border-left-color: #5a5c69;
-    background: #eaecf4;
-  }
-  
-  .activity-item.stock-in { border-left-color: #28a745; }
-  .activity-item.stock-out { border-left-color: #dc3545; }
-  .activity-item.adjustment { border-left-color: #ffc107; }
-  .activity-item.transfer { border-left-color: #17a2b8; }
-  
-  .alert-priority-critical { 
-    border-left: 4px solid #dc3545; 
-    background: linear-gradient(to right, rgba(220, 53, 69, 0.1), transparent);
-  }
-  .alert-priority-high { 
-    border-left: 4px solid #fd7e14; 
-    background: linear-gradient(to right, rgba(253, 126, 20, 0.1), transparent);
-  }
-  .alert-priority-medium { 
-    border-left: 4px solid #ffc107; 
-    background: linear-gradient(to right, rgba(255, 193, 7, 0.1), transparent);
-  }
-  .alert-priority-low { 
-    border-left: 4px solid #6c757d; 
-    background: linear-gradient(to right, rgba(108, 117, 125, 0.1), transparent);
-  }
-  
-  .quick-action-card {
-    border: 2px dashed #d1d3e2;
-    border-radius: 1rem;
-    padding: 1.5rem;
-    text-align: center;
-    transition: all 0.3s ease;
-    background: #f8f9fc;
-  }
-  
-  .quick-action-card:hover {
-    border-color: #5a5c69;
-    background: #eaecf4;
-    transform: translateY(-2px);
-  }
-  
-  .category-progress {
-    height: 8px;
-    border-radius: 4px;
-    background: linear-gradient(90deg, #667eea 0%, #764ba2 100%);
-  }
-  
-  @media (max-width: 768px) {
-    .chart-container {
-      padding: 1rem;
-    }
-    
-    .dashboard-metric {
-      margin-bottom: 1rem;
-    }
-  }
-</style>
-{% endblock %}
-
-{% block inventory_actions %}
-<div class="btn-group me-2" role="group">
-  {% if app_permissions.inventory == 'edit' or app_permissions.inventory == 'admin' %}
-    <a href="{% url 'inventory:product_create' %}" class="btn btn-success btn-sm">
-      <i class="bi bi-plus-circle me-1"></i>Add Product
-    </a>
-    <a href="{% url 'inventory:product_list' %}" class="btn btn-warning btn-sm">
-      <i class="bi bi-arrows-move me-1"></i>Adjust Stock
-    </a>
-    <a href="{% url 'inventory:stock_transfer' %}" class="btn btn-info btn-sm">
-      <i class="bi bi-arrow-left-right me-1"></i>Transfer
-    </a>
-  {% endif %}
-</div>
-
-<div class="btn-group" role="group">
-  <button type="button" class="btn btn-outline-primary btn-sm" data-bs-toggle="modal" data-bs-target="#quickSearchModal">
-    <i class="bi bi-search me-1"></i>Search
-  </button>
-  <div class="btn-group" role="group">
-    <button type="button" class="btn btn-outline-secondary btn-sm dropdown-toggle" data-bs-toggle="dropdown">
-      <i class="bi bi-download me-1"></i>Export
-    </button>
-    <ul class="dropdown-menu">
-      <li><a class="dropdown-item" href="{% url 'inventory:product_export' %}?format=csv">
-        <i class="bi bi-filetype-csv me-2"></i>Products (CSV)
-      </a></li>
-      <li><a class="dropdown-item" href="{% url 'inventory:stock_movements_export' %}?format=csv">
-        <i class="bi bi-arrow-repeat me-2"></i>Stock Movements
-      </a></li>
-      <li><hr class="dropdown-divider"></li>
-      <li><a class="dropdown-item" href="{% url 'inventory:reports_dashboard' %}">
-        <i class="bi bi-graph-up me-2"></i>All Reports
-      </a></li>
-    </ul>
-  </div>
-</div>
-{% endblock %}
-
-{% block inventory_content %}
-<!-- Key Metrics Dashboard -->
-<div class="row mb-4">
-  <div class="col-xl-3 col-md-6 mb-4">
-    <div class="card dashboard-metric info">
-      <div class="card-body">
-        <div class="row no-gutters align-items-center">
-          <div class="col mr-2">
-            <div class="text-xs font-weight-bold text-uppercase mb-1">Total Products</div>
-            <div class="h5 mb-0 font-weight-bold" data-metric="total_products">{{ total_products|default:0 }}</div>
-          </div>
-          <div class="col-auto">
-            <i class="bi bi-box-seam fa-2x"></i>
-          </div>
-        </div>
-        <div class="mt-2 text-xs">
-          <span class="mr-2">
-            <i class="bi bi-check-circle"></i> {{ active_products|default:0 }} Active
-          </span>
-        </div>
-      </div>
-    </div>
-  </div>
-
-  <div class="col-xl-3 col-md-6 mb-4">
-    <div class="card dashboard-metric success">
-      <div class="card-body">
-        <div class="row no-gutters align-items-center">
-          <div class="col mr-2">
-            <div class="text-xs font-weight-bold text-uppercase mb-1">Stock Value</div>
-            <div class="h5 mb-0 font-weight-bold" data-metric="total_stock_value">${{ total_stock_value|floatformat:0|default:0 }}</div>
-          </div>
-          <div class="col-auto">
-            <i class="bi bi-currency-dollar fa-2x"></i>
-          </div>
-        </div>
-        <div class="mt-2 text-xs">
-          <span class="mr-2">
-            <i class="bi bi-trending-up"></i> Total inventory value
-          </span>
-        </div>
-      </div>
-    </div>
-  </div>
-
-  <div class="col-xl-3 col-md-6 mb-4">
-    <div class="card dashboard-metric {% if low_stock_count > 10 %}critical{% elif low_stock_count > 5 %}warning{% else %}info{% endif %}">
-      <div class="card-body">
-        <div class="row no-gutters align-items-center">
-          <div class="col mr-2">
-            <div class="text-xs font-weight-bold text-uppercase mb-1">Low Stock</div>
-            <div class="h5 mb-0 font-weight-bold" data-metric="low_stock_count">{{ low_stock_count|default:0 }}</div>
-          </div>
-          <div class="col-auto">
-            <i class="bi bi-exclamation-triangle fa-2x"></i>
-          </div>
-        </div>
-        <div class="mt-2 text-xs">
-          <a href="{% url 'inventory:low_stock' %}" class="text-white text-decoration-none">
-            <i class="bi bi-arrow-right-circle"></i> View Details
-          </a>
-        </div>
-      </div>
-    </div>
-  </div>
-
-  <div class="col-xl-3 col-md-6 mb-4">
-    <div class="card dashboard-metric {% if active_alerts_count > 20 %}critical{% elif active_alerts_count > 10 %}warning{% else %}info{% endif %}">
-      <div class="card-body">
-        <div class="row no-gutters align-items-center">
-          <div class="col mr-2">
-            <div class="text-xs font-weight-bold text-uppercase mb-1">Active Alerts</div>
-            <div class="h5 mb-0 font-weight-bold" data-metric="active_alerts_count">{{ active_alerts_count|default:0 }}</div>
-          </div>
-          <div class="col-auto">
-            <i class="bi bi-bell fa-2x"></i>
-          </div>
-        </div>
-        <div class="mt-2 text-xs">
-          <a href="{% url 'inventory:reorder_alert_list' %}" class="text-white text-decoration-none">
-            <i class="bi bi-arrow-right-circle"></i> Manage Alerts
-          </a>
-        </div>
-      </div>
-    </div>
-  </div>
-</div>
-
-<!-- Charts and Analytics Row -->
-<div class="row">
-  <!-- Stock Movement Trends -->
-  <div class="col-xl-8 col-lg-7">
-    <div class="chart-container">
-      <div class="d-flex justify-content-between align-items-center mb-3">
-        <h6 class="m-0 font-weight-bold text-primary">
-          <i class="bi bi-graph-up me-2"></i>Stock Movement Trends (Last 30 Days)
-        </h6>
-        <div class="dropdown">
-          <button class="btn btn-sm btn-outline-secondary dropdown-toggle" type="button" data-bs-toggle="dropdown">
-            <i class="bi bi-three-dots"></i>
-          </button>
-          <ul class="dropdown-menu">
-            <li><a class="dropdown-item" href="#" onclick="updateChart('7')">Last 7 Days</a></li>
-            <li><a class="dropdown-item" href="#" onclick="updateChart('30')">Last 30 Days</a></li>
-            <li><a class="dropdown-item" href="#" onclick="updateChart('90')">Last 90 Days</a></li>
-          </ul>
-        </div>
-      </div>
-      <canvas id="stockMovementChart" height="300"></canvas>
-    </div>
-  </div>
-
-  <!-- Category Distribution -->
-  <div class="col-xl-4 col-lg-5">
-    <div class="chart-container">
-      <h6 class="m-0 font-weight-bold text-primary mb-3">
-        <i class="bi bi-pie-chart me-2"></i>Stock Value by Category
-      </h6>
-      <canvas id="categoryChart" height="300"></canvas>
-    </div>
-  </div>
-</div>
-
-<!-- Activity and Alerts Row -->
-<div class="row">
-  <!-- Recent Activity -->
-  <div class="col-xl-6 col-lg-6">
-    <div class="card shadow mb-4">
-      <div class="card-header py-3 d-flex justify-content-between align-items-center">
-        <h6 class="m-0 font-weight-bold text-primary">
-          <i class="bi bi-clock-history me-2"></i>Recent Stock Movements
-        </h6>
-        <a href="{% url 'inventory:stock_movements' %}" class="btn btn-sm btn-outline-primary">View All</a>
-      </div>
-      <div class="card-body" style="max-height: 400px; overflow-y: auto;">
-        {% for movement in recent_movements %}
-          <div class="activity-item {{ movement.movement_type }}">
-            <div class="d-flex justify-content-between align-items-start">
-              <div>
-                <h6 class="mb-1">
-                  {% if movement.movement_type == 'sale' %}
-                    <i class="bi bi-arrow-down-circle text-danger me-1"></i>Sale
-                  {% elif movement.movement_type == 'purchase' %}
-                    <i class="bi bi-arrow-up-circle text-success me-1"></i>Purchase
-                  {% elif movement.movement_type == 'adjustment' %}
-                    <i class="bi bi-gear text-warning me-1"></i>Adjustment
-                  {% elif movement.movement_type == 'transfer' %}
-                    <i class="bi bi-arrow-left-right text-info me-1"></i>Transfer
-                  {% else %}
-                    <i class="bi bi-circle text-secondary me-1"></i>{{ movement.get_movement_type_display }}
-                  {% endif %}
-                  {{ movement.product.name }}
-                </h6>
-                <p class="mb-1 text-sm">
-                  SKU: {{ movement.product.sku }} | 
-                  Quantity: {{ movement.quantity|floatformat:0 }} |
-                  {% if movement.reference %}Reference: {{ movement.reference }}{% endif %}
-                </p>
-                <small class="text-muted">
-                  <i class="bi bi-person me-1"></i>{{ movement.created_by.get_full_name|default:movement.created_by.username }}
-                  <span class="mx-2">•</span>
-                  <i class="bi bi-clock me-1"></i>{{ movement.created_at|timesince }} ago
-                </small>
-              </div>
-              <span class="badge bg-{% if movement.quantity > 0 %}success{% else %}danger{% endif %}">
-                {{ movement.quantity|floatformat:0 }}
-              </span>
+<!-- inventory/templates/inventory/dashboard.html -->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>BlitzTech Electronics - Inventory Dashboard</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <style>
+        .dashboard-card {
+            border: none;
+            box-shadow: 0 0.125rem 0.25rem rgba(0, 0, 0, 0.075);
+            transition: box-shadow 0.15s ease-in-out;
+        }
+        .dashboard-card:hover {
+            box-shadow: 0 0.5rem 1rem rgba(0, 0, 0, 0.15);
+        }
+        .status-indicator {
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            display: inline-block;
+            margin-right: 8px;
+        }
+        .status-in-stock { background-color: #28a745; }
+        .status-low-stock { background-color: #ffc107; }
+        .status-out-of-stock { background-color: #dc3545; }
+        .metric-card {
+            background: linear-gradient(45deg, #667eea 0%, #764ba2 100%);
+            color: white;
+        }
+        .chart-container {
+            height: 300px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container-fluid">
+        <!-- Header -->
+        <div class="row mb-4">
+            <div class="col-12">
+                <div class="d-flex justify-content-between align-items-center">
+                    <div>
+                        <h1 class="h3 mb-0">
+                            <i class="fas fa-boxes text-primary me-2"></i>
+                            Inventory Management Dashboard
+                        </h1>
+                        <p class="text-muted mb-0">BlitzTech Electronics - Complete stock overview</p>
+                    </div>
+                    <div>
+                        <button class="btn btn-outline-primary me-2" onclick="refreshDashboard()">
+                            <i class="fas fa-sync-alt"></i> Refresh
+                        </button>
+                        <button class="btn btn-success" data-bs-toggle="modal" data-bs-target="#quickAddModal">
+                            <i class="fas fa-plus"></i> Quick Add Product
+                        </button>
+                    </div>
+                </div>
             </div>
-          </div>
-        {% empty %}
-          <div class="text-center text-muted py-4">
-            <i class="bi bi-inbox fs-1 mb-3"></i>
-            <p>No recent stock movements</p>
-          </div>
-        {% endfor %}
-      </div>
-    </div>
-  </div>
+        </div>
 
-  <!-- Reorder Alerts -->
-  <div class="col-xl-6 col-lg-6">
-    <div class="card shadow mb-4">
-      <div class="card-header py-3 d-flex justify-content-between align-items-center">
-        <h6 class="m-0 font-weight-bold text-primary">
-          <i class="bi bi-exclamation-triangle me-2"></i>Reorder Alerts
-        </h6>
-        <a href="{% url 'inventory:reorder_alert_list' %}" class="btn btn-sm btn-outline-primary">Manage All</a>
-      </div>
-      <div class="card-body" style="max-height: 400px; overflow-y: auto;">
-        {% for alert in recent_alerts %}
-          <div class="alert-item alert-priority-{{ alert.priority }} p-3 mb-3 rounded">
-            <div class="d-flex justify-content-between align-items-start">
-              <div>
-                <h6 class="mb-1">
-                  {% if alert.priority == 'critical' %}
-                    <i class="bi bi-exclamation-triangle-fill text-danger me-1"></i>
-                  {% elif alert.priority == 'high' %}
-                    <i class="bi bi-exclamation-triangle text-warning me-1"></i>
-                  {% else %}
-                    <i class="bi bi-info-circle text-info me-1"></i>
-                  {% endif %}
-                  {{ alert.product.name }}
-                </h6>
-                <p class="mb-1 text-sm">
-                  Current Stock: <strong>{{ alert.current_stock }}</strong> | 
-                  Reorder Level: <strong>{{ alert.reorder_level }}</strong>
-                </p>
-                <small class="text-muted">
-                  Suggested Order: {{ alert.suggested_order_quantity }} units
-                  {% if alert.estimated_cost %}
-                    (Est. ${{ alert.estimated_cost|floatformat:2 }})
-                  {% endif %}
-                </small>
-              </div>
-              <div class="text-end">
-                <span class="badge bg-{{ alert.priority }} text-uppercase">{{ alert.priority }}</span>
-                {% if app_permissions.inventory == 'edit' or app_permissions.inventory == 'admin' %}
-                  <div class="mt-2">
-                    <a href="{% url 'inventory:create_po_from_alert' alert.id %}" 
-                       class="btn btn-sm btn-outline-success" 
-                       data-bs-toggle="tooltip" 
-                       title="Create Purchase Order">
-                      <i class="bi bi-plus-square"></i>
-                    </a>
-                  </div>
-                {% endif %}
-              </div>
+        <!-- Key Metrics -->
+        <div class="row mb-4">
+            <div class="col-xl-3 col-md-6 mb-3">
+                <div class="card dashboard-card metric-card">
+                    <div class="card-body">
+                        <div class="d-flex justify-content-between">
+                            <div>
+                                <h6 class="card-title">Total Products</h6>
+                                <h2 class="mb-0">{{ total_products|default:0 }}</h2>
+                                <small class="text-light">Active inventory items</small>
+                            </div>
+                            <div class="align-self-center">
+                                <i class="fas fa-cube fa-2x opacity-75"></i>
+                            </div>
+                        </div>
+                    </div>
+                </div>
             </div>
-          </div>
-        {% empty %}
-          <div class="text-center text-muted py-4">
-            <i class="bi bi-check-circle fs-1 mb-3 text-success"></i>
-            <p>No active reorder alerts</p>
-            <small>All products are adequately stocked</small>
-          </div>
-        {% endfor %}
-      </div>
-    </div>
-  </div>
-</div>
 
-<!-- Quick Actions Row -->
-<div class="row">
-  <div class="col-12">
-    <div class="card shadow mb-4">
-      <div class="card-header py-3">
-        <h6 class="m-0 font-weight-bold text-primary">
-          <i class="bi bi-lightning me-2"></i>Quick Actions
-        </h6>
-      </div>
-      <div class="card-body">
+            <div class="col-xl-3 col-md-6 mb-3">
+                <div class="card dashboard-card" style="background: linear-gradient(45deg, #11998e 0%, #38ef7d 100%); color: white;">
+                    <div class="card-body">
+                        <div class="d-flex justify-content-between">
+                            <div>
+                                <h6 class="card-title">Stock Value</h6>
+                                <h2 class="mb-0">${{ total_stock_value_cost|floatformat:0 }}</h2>
+                                <small class="text-light">Total inventory cost</small>
+                            </div>
+                            <div class="align-self-center">
+                                <i class="fas fa-dollar-sign fa-2x opacity-75"></i>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="col-xl-3 col-md-6 mb-3">
+                <div class="card dashboard-card" style="background: linear-gradient(45deg, #fc4a1a 0%, #f7b733 100%); color: white;">
+                    <div class="card-body">
+                        <div class="d-flex justify-content-between">
+                            <div>
+                                <h6 class="card-title">Potential Revenue</h6>
+                                <h2 class="mb-0">${{ total_stock_value_selling|floatformat:0 }}</h2>
+                                <small class="text-light">At current prices</small>
+                            </div>
+                            <div class="align-self-center">
+                                <i class="fas fa-chart-line fa-2x opacity-75"></i>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="col-xl-3 col-md-6 mb-3">
+                <div class="card dashboard-card" style="background: linear-gradient(45deg, #4b6cb7 0%, #182848 100%); color: white;">
+                    <div class="card-body">
+                        <div class="d-flex justify-content-between">
+                            <div>
+                                <h6 class="card-title">Potential Profit</h6>
+                                <h2 class="mb-0">${{ potential_profit|floatformat:0 }}</h2>
+                                <small class="text-light">Gross profit potential</small>
+                            </div>
+                            <div class="align-self-center">
+                                <i class="fas fa-coins fa-2x opacity-75"></i>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Stock Status and Alerts -->
+        <div class="row mb-4">
+            <div class="col-lg-6">
+                <div class="card dashboard-card">
+                    <div class="card-header d-flex justify-content-between align-items-center">
+                        <h5 class="card-title mb-0">
+                            <i class="fas fa-signal text-info me-2"></i>
+                            Stock Status Overview
+                        </h5>
+                        <a href="{% url 'inventory:low_stock_ordering' %}" class="btn btn-sm btn-outline-warning">
+                            View Low Stock
+                        </a>
+                    </div>
+                    <div class="card-body">
+                        <div class="row text-center">
+                            <div class="col-4">
+                                <div class="mb-3">
+                                    <span class="status-indicator status-in-stock"></span>
+                                    <strong>In Stock</strong>
+                                </div>
+                                <h3 class="text-success">{{ stock_status.in_stock|default:0 }}</h3>
+                                <small class="text-muted">products</small>
+                            </div>
+                            <div class="col-4">
+                                <div class="mb-3">
+                                    <span class="status-indicator status-low-stock"></span>
+                                    <strong>Low Stock</strong>
+                                </div>
+                                <h3 class="text-warning">{{ stock_status.low_stock|default:0 }}</h3>
+                                <small class="text-muted">products</small>
+                            </div>
+                            <div class="col-4">
+                                <div class="mb-3">
+                                    <span class="status-indicator status-out-of-stock"></span>
+                                    <strong>Out of Stock</strong>
+                                </div>
+                                <h3 class="text-danger">{{ stock_status.out_of_stock|default:0 }}</h3>
+                                <small class="text-muted">products</small>
+                            </div>
+                        </div>
+                        
+                        {% if stock_status.needs_reorder > 0 %}
+                        <div class="alert alert-warning mt-3">
+                            <i class="fas fa-exclamation-triangle me-2"></i>
+                            <strong>{{ stock_status.needs_reorder }}</strong> products need reordering.
+                            <a href="{% url 'inventory:download_reorder_csv' %}" class="btn btn-sm btn-warning ms-2">
+                                <i class="fas fa-download"></i> Download List
+                            </a>
+                        </div>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+
+            <div class="col-lg-6">
+                <div class="card dashboard-card">
+                    <div class="card-header">
+                        <h5 class="card-title mb-0">
+                            <i class="fas fa-bell text-warning me-2"></i>
+                            Recent Reorder Alerts
+                        </h5>
+                    </div>
+                    <div class="card-body">
+                        {% if recent_reorder_alerts %}
+                            <div class="list-group list-group-flush">
+                                {% for alert in recent_reorder_alerts|slice:":5" %}
+                                <div class="list-group-item d-flex justify-content-between align-items-center px-0">
+                                    <div>
+                                        <strong>{{ alert.product.sku }}</strong> - {{ alert.product.name|truncatechars:30 }}
+                                        <br>
+                                        <small class="text-muted">
+                                            Stock: {{ alert.product.total_stock }} | 
+                                            Supplier: {{ alert.product.supplier.name|truncatechars:20 }}
+                                        </small>
+                                    </div>
+                                    <div>
+                                        <span class="badge bg-{{ alert.priority == 'critical' and 'danger' or alert.priority == 'high' and 'warning' or 'info' }}">
+                                            {{ alert.get_priority_display }}
+                                        </span>
+                                    </div>
+                                </div>
+                                {% endfor %}
+                            </div>
+                            <div class="mt-3 text-center">
+                                <a href="{% url 'inventory:reorder_alert_list' %}" class="btn btn-outline-primary btn-sm">
+                                    View All Alerts
+                                </a>
+                            </div>
+                        {% else %}
+                            <div class="text-center text-muted">
+                                <i class="fas fa-check-circle fa-3x mb-3"></i>
+                                <p>No reorder alerts at this time!</p>
+                            </div>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Component Families and Supplier Analysis -->
+        <div class="row mb-4">
+            <div class="col-lg-8">
+                <div class="card dashboard-card">
+                    <div class="card-header">
+                        <h5 class="card-title mb-0">
+                            <i class="fas fa-layer-group text-primary me-2"></i>
+                            Component Families Performance
+                        </h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="table-responsive">
+                            <table class="table table-hover">
+                                <thead>
+                                    <tr>
+                                        <th>Component Family</th>
+                                        <th>Products</th>
+                                        <th>Stock Value</th>
+                                        <th>Avg Markup</th>
+                                        <th>Performance</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {% for family in component_families_stats %}
+                                    <tr>
+                                        <td>
+                                            <strong>{{ family.name }}</strong>
+                                            <br><small class="text-muted">{{ family.default_bin_prefix }} series</small>
+                                        </td>
+                                        <td>{{ family.product_count }}</td>
+                                        <td>${{ family.total_value|floatformat:0|default:"0" }}</td>
+                                        <td>{{ family.avg_markup|floatformat:1|default:"0" }}%</td>
+                                        <td>
+                                            <div class="progress" style="height: 6px;">
+                                                <div class="progress-bar bg-success" 
+                                                     style="width: {{ family.avg_markup|default:0 }}%"></div>
+                                            </div>
+                                        </td>
+                                    </tr>
+                                    {% empty %}
+                                    <tr>
+                                        <td colspan="5" class="text-center text-muted">No component families configured</td>
+                                    </tr>
+                                    {% endfor %}
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="col-lg-4">
+                <div class="card dashboard-card">
+                    <div class="card-header">
+                        <h5 class="card-title mb-0">
+                            <i class="fas fa-truck text-success me-2"></i>
+                            Top Suppliers
+                        </h5>
+                    </div>
+                    <div class="card-body">
+                        {% for supplier in top_suppliers %}
+                        <div class="d-flex justify-content-between align-items-center mb-3">
+                            <div>
+                                <strong>{{ supplier.name|truncatechars:20 }}</strong>
+                                <br>
+                                <small class="text-muted">
+                                    {{ supplier.product_count }} products
+                                    {% if supplier.avg_rating %}
+                                    | {{ supplier.avg_rating|floatformat:1 }}★
+                                    {% endif %}
+                                </small>
+                            </div>
+                            <div class="text-end">
+                                <small class="text-success">
+                                    ${{ supplier.total_inventory_value|floatformat:0|default:"0" }}
+                                </small>
+                            </div>
+                        </div>
+                        {% empty %}
+                        <div class="text-center text-muted">
+                            <p>No supplier data available</p>
+                        </div>
+                        {% endfor %}
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Quick Actions -->
         <div class="row">
-          {% if app_permissions.inventory == 'edit' or app_permissions.inventory == 'admin' %}
-            <div class="col-md-3 mb-3">
-              <a href="{% url 'inventory:product_create' %}" class="text-decoration-none">
-                <div class="quick-action-card">
-                  <i class="bi bi-plus-circle fs-1 text-success mb-2"></i>
-                  <h6>Add Product</h6>
-                  <small class="text-muted">Create new inventory item</small>
+            <div class="col-12">
+                <div class="card dashboard-card">
+                    <div class="card-header">
+                        <h5 class="card-title mb-0">
+                            <i class="fas fa-bolt text-warning me-2"></i>
+                            Quick Actions
+                        </h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="row">
+                            <div class="col-lg-2 col-md-4 col-6 mb-3">
+                                <a href="{% url 'inventory:product_create' %}" class="btn btn-outline-primary w-100">
+                                    <i class="fas fa-plus fa-2x mb-2"></i>
+                                    <br>Add Product
+                                </a>
+                            </div>
+                            <div class="col-lg-2 col-md-4 col-6 mb-3">
+                                <a href="{% url 'inventory:stock_adjustment' %}" class="btn btn-outline-info w-100">
+                                    <i class="fas fa-edit fa-2x mb-2"></i>
+                                    <br>Adjust Stock
+                                </a>
+                            </div>
+                            <div class="col-lg-2 col-md-4 col-6 mb-3">
+                                <a href="{% url 'inventory:barcode_scanner' %}" class="btn btn-outline-secondary w-100">
+                                    <i class="fas fa-qrcode fa-2x mb-2"></i>
+                                    <br>Scan Barcode
+                                </a>
+                            </div>
+                            <div class="col-lg-2 col-md-4 col-6 mb-3">
+                                <a href="{% url 'inventory:cost_calculator' %}" class="btn btn-outline-warning w-100">
+                                    <i class="fas fa-calculator fa-2x mb-2"></i>
+                                    <br>Cost Calculator
+                                </a>
+                            </div>
+                            <div class="col-lg-2 col-md-4 col-6 mb-3">
+                                <a href="{% url 'inventory:reports' %}" class="btn btn-outline-success w-100">
+                                    <i class="fas fa-chart-bar fa-2x mb-2"></i>
+                                    <br>Reports
+                                </a>
+                            </div>
+                            <div class="col-lg-2 col-md-4 col-6 mb-3">
+                                <a href="{% url 'inventory:data_export' %}" class="btn btn-outline-dark w-100">
+                                    <i class="fas fa-download fa-2x mb-2"></i>
+                                    <br>Export Data
+                                </a>
+                            </div>
+                        </div>
+                    </div>
                 </div>
-              </a>
             </div>
-            
-            <div class="col-md-3 mb-3">
-              <a href="{% url 'inventory:product_import' %}" class="text-decoration-none">
-                <div class="quick-action-card">
-                  <i class="bi bi-upload fs-1 text-info mb-2"></i>
-                  <h6>Bulk Import</h6>
-                  <small class="text-muted">Import from CSV/Excel</small>
-                </div>
-              </a>
-            </div>
-            
-            <div class="col-md-3 mb-3">
-              <a href="{% url 'inventory:stock_take_create' %}" class="text-decoration-none">
-                <div class="quick-action-card">
-                  <i class="bi bi-clipboard-check fs-1 text-warning mb-2"></i>
-                  <h6>Stock Take</h6>
-                  <small class="text-muted">Physical inventory count</small>
-                </div>
-              </a>
-            </div>
-          {% endif %}
-          
-          <div class="col-md-3 mb-3">
-            <a href="{% url 'inventory:reports_dashboard' %}" class="text-decoration-none">
-              <div class="quick-action-card">
-                <i class="bi bi-graph-up fs-1 text-primary mb-2"></i>
-                <h6>Reports</h6>
-                <small class="text-muted">Analytics & insights</small>
-              </div>
-            </a>
-          </div>
         </div>
-      </div>
     </div>
-  </div>
-</div>
 
-<!-- Top Categories by Value -->
-{% if category_stats %}
-<div class="row">
-  <div class="col-12">
-    <div class="card shadow mb-4">
-      <div class="card-header py-3">
-        <h6 class="m-0 font-weight-bold text-primary">
-          <i class="bi bi-grid-3x3-gap me-2"></i>Top Categories by Stock Value
-        </h6>
-      </div>
-      <div class="card-body">
-        <div class="row">
-          {% for category in category_stats %}
-            <div class="col-md-6 col-lg-4 mb-3">
-              <div class="border rounded p-3">
-                <div class="d-flex justify-content-between align-items-center mb-2">
-                  <h6 class="mb-0">{{ category.name }}</h6>
-                  <span class="badge bg-primary">{{ category.product_count }} items</span>
+    <!-- Quick Add Product Modal -->
+    <div class="modal fade" id="quickAddModal" tabindex="-1">
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">Quick Add Product</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
                 </div>
-                <div class="mb-2">
-                  <small class="text-muted">Stock Value:</small>
-                  <strong>${{ category.total_value|floatformat:0|default:0 }}</strong>
+                <div class="modal-body">
+                    <form id="quickAddForm" method="post" action="{% url 'inventory:quick_add_product' %}">
+                        {% csrf_token %}
+                        <div class="row">
+                            <div class="col-md-6">
+                                <div class="mb-3">
+                                    <label class="form-label">Product Name</label>
+                                    <input type="text" class="form-control" name="name" required>
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <div class="mb-3">
+                                    <label class="form-label">SKU</label>
+                                    <input type="text" class="form-control" name="sku" required>
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <div class="mb-3">
+                                    <label class="form-label">Category</label>
+                                    <select class="form-control" name="category" required onchange="updateComponentFamily(this.value)">
+                                        <option value="">Select Category</option>
+                                        {% for category in categories %}
+                                        <option value="{{ category.id }}">{{ category.name }}</option>
+                                        {% endfor %}
+                                    </select>
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <div class="mb-3">
+                                    <label class="form-label">Brand</label>
+                                    <select class="form-control" name="brand" required>
+                                        <option value="">Select Brand</option>
+                                        {% for brand in brands %}
+                                        <option value="{{ brand.id }}">{{ brand.name }}</option>
+                                        {% endfor %}
+                                    </select>
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <div class="mb-3">
+                                    <label class="form-label">Supplier</label>
+                                    <select class="form-control" name="supplier" required>
+                                        <option value="">Select Supplier</option>
+                                        {% for supplier in suppliers %}
+                                        <option value="{{ supplier.id }}">{{ supplier.name }}</option>
+                                        {% endfor %}
+                                    </select>
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <div class="mb-3">
+                                    <label class="form-label">Cost Price</label>
+                                    <input type="number" class="form-control" name="cost_price" step="0.0001" required>
+                                </div>
+                            </div>
+                            <div id="dynamicAttributes" class="col-12">
+                                <!-- Dynamic attributes will be loaded here -->
+                            </div>
+                        </div>
+                    </form>
                 </div>
-                <div class="progress" style="height: 6px;">
-                  <div class="category-progress" 
-                       style="width: {% widthratio category.total_value total_stock_value 100 %}%"></div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="submit" form="quickAddForm" class="btn btn-success">
+                        <i class="fas fa-save"></i> Save Product
+                    </button>
                 </div>
-                <div class="mt-2">
-                  <a href="{% url 'inventory:category_products' category.id %}" class="btn btn-sm btn-outline-primary">
-                    View Products
-                  </a>
-                </div>
-              </div>
             </div>
-          {% endfor %}
         </div>
-      </div>
     </div>
-  </div>
-</div>
-{% endif %}
-{% endblock %}
 
-{% block extra_js %}
-{{ block.super }}
-<script>
-  document.addEventListener('DOMContentLoaded', function() {
-      // Example: Fetch metrics for the last 30 days and update charts
-      fetch("{% url 'inventory:dashboard_metrics_api' %}?period=30")
-        .then(response => response.json())
-        .then(data => {
-          // Use the returned data to update your dashboard
-          // For example, update a Chart.js chart:
-          if (data.movement_chart) {
-              // Assuming you have a Chart.js chart initialized...
-              movementChart.data.labels = data.movement_chart.labels;
-              movementChart.data.datasets[0].data = data.movement_chart.stock_in;
-              movementChart.data.datasets[1].data = data.movement_chart.stock_out;
-              movementChart.update();
-          }
-          if (data.category_chart) {
-              categoryChart.data.labels = data.category_chart.labels;
-              categoryChart.data.datasets[0].data = data.category_chart.values;
-              categoryChart.update();
-          }
-        });
-  // Initialize stock movement chart
-  initStockMovementChart();
-  
-  // Initialize category distribution chart
-  initCategoryChart();
-  
-  // Set up real-time updates
-  setInterval(updateDashboardData, 300000); // Every 5 minutes
-});
-
-function initStockMovementChart() {
-  const ctx = document.getElementById('stockMovementChart').getContext('2d');
-  
-  // Sample data - in production, this would come from the backend
-  const chartData = {
-    labels: {{ movement_chart_labels|safe }},
-    datasets: [{
-      label: 'Stock In',
-      data: {{ movement_chart_in|safe }},
-      backgroundColor: 'rgba(75, 192, 192, 0.2)',
-      borderColor: 'rgba(75, 192, 192, 1)',
-      borderWidth: 2,
-      fill: true
-    }, {
-      label: 'Stock Out',
-      data: {{ movement_chart_out|safe }},
-      backgroundColor: 'rgba(255, 99, 132, 0.2)',
-      borderColor: 'rgba(255, 99, 132, 1)',
-      borderWidth: 2,
-      fill: true
-    }]
-  };
-
-  window.stockMovementChart = new Chart(ctx, {
-    type: 'line',
-    data: chartData,
-    options: {
-      responsive: true,
-      maintainAspectRatio: false,
-      plugins: {
-        legend: {
-          position: 'top',
-        },
-        title: {
-          display: false
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        function refreshDashboard() {
+            location.reload();
         }
-      },
-      scales: {
-        y: {
-          beginAtZero: true,
-          ticks: {
-            callback: function(value) {
-              return value.toLocaleString();
-            }
-          }
+
+        function updateComponentFamily(categoryId) {
+            if (!categoryId) return;
+            
+            fetch(`/inventory/api/component-families/${categoryId}/attributes/`)
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        const container = document.getElementById('dynamicAttributes');
+                        container.innerHTML = '';
+                        
+                        data.attributes.forEach(attr => {
+                            const div = document.createElement('div');
+                            div.className = 'col-md-6 mb-3';
+                            
+                            let input = '';
+                            if (attr.field_type === 'choice') {
+                                input = `<select class="form-control" name="attr_${attr.id}" ${attr.is_required ? 'required' : ''}>
+                                    <option value="">-- Select --</option>
+                                    ${attr.choice_options.map(opt => `<option value="${opt}">${opt}</option>`).join('')}
+                                </select>`;
+                            } else if (attr.field_type === 'boolean') {
+                                input = `<input type="checkbox" class="form-check-input" name="attr_${attr.id}">`;
+                            } else {
+                                input = `<input type="${attr.field_type === 'decimal' ? 'number' : 'text'}" 
+                                         class="form-control" name="attr_${attr.id}" 
+                                         ${attr.is_required ? 'required' : ''}
+                                         ${attr.field_type === 'decimal' ? 'step="0.000001"' : ''}
+                                         placeholder="${attr.default_value || ''}">`;
+                            }
+                            
+                            div.innerHTML = `
+                                <label class="form-label">${attr.name}</label>
+                                ${input}
+                                ${attr.help_text ? `<small class="form-text text-muted">${attr.help_text}</small>` : ''}
+                            `;
+                            
+                            container.appendChild(div);
+                        });
+                    }
+                })
+                .catch(error => console.error('Error loading attributes:', error));
         }
-      },
-      interaction: {
-        intersect: false,
-        mode: 'index'
-      }
-    }
-  });
-}
 
-function initCategoryChart() {
-  const ctx = document.getElementById('categoryChart').getContext('2d');
-  
-  const chartData = {
-    labels: {{ category_chart_labels|safe }},
-    datasets: [{
-      data: {{ category_chart_values|safe }},
-      backgroundColor: [
-        '#FF6384',
-        '#36A2EB',
-        '#FFCE56',
-        '#4BC0C0',
-        '#9966FF',
-        '#FF9F40',
-        '#FF6384',
-        '#C9CBCF'
-      ],
-      hoverBackgroundColor: [
-        '#FF6384',
-        '#36A2EB',
-        '#FFCE56',
-        '#4BC0C0',
-        '#9966FF',
-        '#FF9F40',
-        '#FF6384',
-        '#C9CBCF'
-      ]
-    }]
-  };
-
-  window.categoryChart = new Chart(ctx, {
-    type: 'doughnut',
-    data: chartData,
-    options: {
-      responsive: true,
-      maintainAspectRatio: false,
-      plugins: {
-        legend: {
-          position: 'bottom',
-        },
-        tooltip: {
-          callbacks: {
-            label: function(context) {
-              const label = context.label || '';
-              const value = context.parsed;
-              const total = context.dataset.data.reduce((a, b) => a + b, 0);
-              const percentage = ((value / total) * 100).toFixed(1);
-              return `${label}: $${value.toLocaleString()} (${percentage}%)`;
-            }
-          }
-        }
-      }
-    }
-  });
-}
-
-function updateChart(period) {
-  // Update chart data based on selected period
-  fetch(`{% url 'inventory:dashboard_metrics_api' %}?period=${period}`)
-    .then(response => response.json())
-    .then(data => {
-      if (data.success) {
-        // Update stock movement chart
-        window.stockMovementChart.data.labels = data.movement_chart.labels;
-        window.stockMovementChart.data.datasets[0].data = data.movement_chart.stock_in;
-        window.stockMovementChart.data.datasets[1].data = data.movement_chart.stock_out;
-        window.stockMovementChart.update();
-      }
-    })
-    .catch(error => console.error('Chart update error:', error));
-}
-
-function updateDashboardData() {
-  // Update key metrics
-  updateInventoryStats();
-  
-  // Update recent activities (simplified)
-  fetch('{% url "inventory:recent_activities_api" %}')
-    .then(response => response.json())
-    .then(data => {
-      if (data.success) {
-        // Update activity feed if needed
-        console.log('Activities updated');
-      }
-    })
-    .catch(error => console.log('Activity update error:', error));
-}
-
-// Add keyboard shortcuts for dashboard
-document.addEventListener('keydown', function(e) {
-  if (e.altKey) {
-    switch(e.key) {
-      case '1':
-        e.preventDefault();
-        window.location.href = '{% url "inventory:product_list" %}';
-        break;
-      case '2':
-        e.preventDefault();
-        window.location.href = '{% url "inventory:stock_movements" %}';
-        break;
-      case '3':
-        e.preventDefault();
-        window.location.href = '{% url "inventory:reorder_alert_list" %}';
-        break;
-      case 'r':
-        e.preventDefault();
-        window.location.href = '{% url "inventory:reports_dashboard" %}';
-        break;
-    }
-  }
-});
-
-// Auto-refresh alerts for critical stock levels
-function checkCriticalAlerts() {
-  fetch('{% url "inventory:critical_alerts_api" %}')
-    .then(response => response.json())
-    .then(data => {
-      if (data.success && data.alerts.length > 0) {
-        data.alerts.forEach(alert => {
-          showStockStatusUpdate(
-            `Critical: ${alert.product_name} is out of stock!`,
-            'danger'
-          );
-        });
-      }
-    })
-    .catch(error => console.log('Alert check error:', error));
-}
-
-// Check for critical alerts every 10 minutes
-setInterval(checkCriticalAlerts, 600000);
-
-// Smooth scrolling for dashboard sections
-document.querySelectorAll('a[href^="#"]').forEach(anchor => {
-  anchor.addEventListener('click', function (e) {
-    e.preventDefault();
-    const target = document.querySelector(this.getAttribute('href'));
-    if (target) {
-      target.scrollIntoView({
-        behavior: 'smooth',
-        block: 'start'
-      });
-    }
-  });
-});
-</script>
-{% endblock %}
+        // Auto-refresh dashboard every 5 minutes
+        setInterval(refreshDashboard, 300000);
+    </script>
+</body>
+</html>

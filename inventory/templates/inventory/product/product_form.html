@@ -1,1048 +1,643 @@
-{% extends "inventory_base.html" %}
-{% load static %}
-
-{% block inventory_title %}
-  {% if object %}Edit {{ object.name }}{% else %}Add New Product{% endif %}
-{% endblock %}
-
-{% block extra_head %}
-{{ block.super }}
-<style>
-  .form-card {
-    background: white;
-    border: 1px solid #e3e6f0;
-    border-radius: 1rem;
-    padding: 2rem;
-    margin-bottom: 1.5rem;
-    box-shadow: 0 0.25rem 0.5rem rgba(0, 0, 0, 0.05);
-  }
-  
-  .form-section-header {
-    color: #5a5c69;
-    font-weight: 600;
-    margin-bottom: 1.5rem;
-    padding-bottom: 0.75rem;
-    border-bottom: 2px solid #e3e6f0;
-    display: flex;
-    align-items: center;
-  }
-  
-  .form-section-header i {
-    font-size: 1.25rem;
-    margin-right: 0.75rem;
-    color: #667eea;
-  }
-  
-  .form-control:focus,
-  .form-select:focus {
-    border-color: #667eea;
-    box-shadow: 0 0 0 0.2rem rgba(102, 126, 234, 0.25);
-  }
-  
-  .required-field {
-    color: #dc3545;
-  }
-  
-  .field-help {
-    font-size: 0.8rem;
-    color: #6c757d;
-    margin-top: 0.25rem;
-  }
-  
-  .pricing-calculator {
-    background: #f8f9fc;
-    border: 1px solid #e3e6f0;
-    border-radius: 0.5rem;
-    padding: 1rem;
-    margin-top: 1rem;
-  }
-  
-  .calculated-field {
-    background: #e8f5e8;
-    border-color: #28a745;
-  }
-  
-  .image-upload-area {
-    border: 2px dashed #d1d3e2;
-    border-radius: 0.75rem;
-    padding: 2rem;
-    text-align: center;
-    transition: all 0.3s ease;
-    cursor: pointer;
-  }
-  
-  .image-upload-area:hover {
-    border-color: #667eea;
-    background: rgba(102, 126, 234, 0.05);
-  }
-  
-  .image-upload-area.dragover {
-    border-color: #28a745;
-    background: rgba(40, 167, 69, 0.05);
-  }
-  
-  .preview-image {
-    max-width: 200px;
-    max-height: 200px;
-    border-radius: 0.5rem;
-    box-shadow: 0 0.25rem 0.5rem rgba(0, 0, 0, 0.1);
-  }
-  
-  .validation-error {
-    border-color: #dc3545 !important;
-    background: rgba(220, 53, 69, 0.05);
-  }
-  
-  .validation-success {
-    border-color: #28a745 !important;
-    background: rgba(40, 167, 69, 0.05);
-  }
-  
-  .barcode-generator {
-    background: #fff3cd;
-    border: 1px solid #ffeaa7;
-    border-radius: 0.5rem;
-    padding: 1rem;
-    margin-top: 0.5rem;
-  }
-  
-  .supplier-info {
-    background: #f8f9fc;
-    border-radius: 0.5rem;
-    padding: 1rem;
-    margin-top: 0.5rem;
-  }
-  
-  @media (max-width: 768px) {
-    .form-card {
-      padding: 1.5rem;
-    }
-    
-    .form-section-header {
-      font-size: 1rem;
-    }
-  }
-</style>
-{% endblock %}
-
-{% block inventory_breadcrumbs %}
-  {% with inventory_breadcrumbs=breadcrumbs %}
-    {{ block.super }}
-  {% endwith %}
-{% endblock %}
-
-{% block inventory_actions %}
-<div class="btn-group" role="group">
-  <a href="{% if object %}{% url 'inventory:product_detail' object.pk %}{% else %}{% url 'inventory:product_list' %}{% endif %}" 
-     class="btn btn-outline-secondary btn-sm">
-    <i class="bi bi-arrow-left me-1"></i>Cancel
-  </a>
-  <button type="submit" form="productForm" class="btn btn-primary btn-sm">
-    <i class="bi bi-check me-1"></i>
-    {% if object %}Update Product{% else %}Create Product{% endif %}
-  </button>
-  {% if object %}
-    <a href="{% url 'inventory:product_duplicate' object.pk %}" 
-       class="btn btn-info btn-sm">
-      <i class="bi bi-files me-1"></i>Duplicate
-    </a>
-  {% endif %}
-</div>
-{% endblock %}
-
-{% block inventory_content %}
-<form method="post" enctype="multipart/form-data" id="productForm" novalidate>
-  {% csrf_token %}
-  
-  <!-- Progress Indicator -->
-  <div class="mb-4">
-    <div class="d-flex justify-content-between align-items-center">
-      <h6 class="text-muted mb-0">Form Progress</h6>
-      <span class="badge bg-primary" id="completionBadge">0% Complete</span>
-    </div>
-    <div class="progress mt-2" style="height: 6px;">
-      <div class="progress-bar" id="completionProgress" 
-           role="progressbar" style="width: 0%"></div>
-    </div>
-  </div>
-  
-  <!-- Basic Information Section -->
-  <div class="form-card">
-    <h5 class="form-section-header">
-      <i class="bi bi-info-circle"></i>
-      Basic Information
-    </h5>
-    
-    <div class="row">
-      <div class="col-md-8">
-        <div class="row">
-          <div class="col-md-8 mb-3">
-            <label for="{{ form.name.id_for_label }}" class="form-label">
-              Product Name <span class="required-field">*</span>
-            </label>
-            {{ form.name }}
-            {% if form.name.errors %}
-              <div class="text-danger small mt-1">{{ form.name.errors.0 }}</div>
-            {% endif %}
-            <div class="field-help">Enter a descriptive name for the product</div>
-          </div>
-          
-          <div class="col-md-4 mb-3">
-            <label for="{{ form.sku.id_for_label }}" class="form-label">
-              SKU <span class="required-field">*</span>
-              <button type="button" class="btn btn-sm btn-outline-secondary ms-1" 
-                      onclick="generateSKU()" data-bs-toggle="tooltip" title="Generate SKU">
-                <i class="bi bi-gear"></i>
-              </button>
-            </label>
-            {{ form.sku }}
-            {% if form.sku.errors %}
-              <div class="text-danger small mt-1">{{ form.sku.errors.0 }}</div>
-            {% endif %}
-            <div class="field-help">Unique product identifier</div>
-          </div>
-        </div>
-        
-        <div class="row">
-          <div class="col-md-6 mb-3">
-            <label for="{{ form.category.id_for_label }}" class="form-label">
-              Category <span class="required-field">*</span>
-            </label>
-            {{ form.category }}
-            {% if form.category.errors %}
-              <div class="text-danger small mt-1">{{ form.category.errors.0 }}</div>
-            {% endif %}
-          </div>
-          
-          <div class="col-md-6 mb-3">
-            <label for="{{ form.supplier.id_for_label }}" class="form-label">
-              Supplier <span class="required-field">*</span>
-            </label>
-            {{ form.supplier }}
-            {% if form.supplier.errors %}
-              <div class="text-danger small mt-1">{{ form.supplier.errors.0 }}</div>
-            {% endif %}
-            <div id="supplierInfo" class="supplier-info d-none">
-              <!-- Supplier details will be populated here -->
-            </div>
-          </div>
-        </div>
-        
-        <div class="row">
-          <div class="col-md-4 mb-3">
-            <label for="{{ form.product_type.id_for_label }}" class="form-label">Product Type</label>
-            {{ form.product_type }}
-          </div>
-          
-          <div class="col-md-4 mb-3">
-            <label for="{{ form.brand.id_for_label }}" class="form-label">Brand</label>
-            {{ form.brand }}
-          </div>
-          
-          <div class="col-md-4 mb-3">
-            <label for="{{ form.model_number.id_for_label }}" class="form-label">Model Number</label>
-            {{ form.model_number }}
-          </div>
-        </div>
-        
-        <div class="mb-3">
-          <label for="{{ form.short_description.id_for_label }}" class="form-label">Short Description</label>
-          {{ form.short_description }}
-          <div class="field-help">Brief description for listings and quotes</div>
-        </div>
-        
-        <div class="mb-3">
-          <label for="{{ form.description.id_for_label }}" class="form-label">
-            Full Description <span class="required-field">*</span>
-          </label>
-          {{ form.description }}
-          {% if form.description.errors %}
-            <div class="text-danger small mt-1">{{ form.description.errors.0 }}</div>
-          {% endif %}
-          <div class="field-help">Detailed product description</div>
-        </div>
-      </div>
-      
-      <div class="col-md-4">
-        <!-- Product Image Upload -->
-        <div class="mb-3">
-          <label class="form-label">Product Image</label>
-          <div class="image-upload-area" onclick="document.getElementById('id_image').click()">
-            <div id="imagePreview">
-              {% if object and object.image %}
-                <img src="{{ object.image.url }}" alt="Product Image" class="preview-image mb-2">
-                <br>
-              {% else %}
-                <i class="bi bi-cloud-upload fs-1 text-muted mb-2"></i>
-                <br>
-              {% endif %}
-              <p class="mb-1">Click to upload or drag image here</p>
-              <small class="text-muted">PNG, JPG up to 5MB</small>
-            </div>
-            <input type="file" id="id_image" name="image" accept="image/*" class="d-none">
-          </div>
-        </div>
-        
-        <!-- Barcode Section -->
-        <div class="mb-3">
-          <label for="{{ form.barcode.id_for_label }}" class="form-label">
-            Barcode
-            <button type="button" class="btn btn-sm btn-outline-warning ms-1" 
-                    onclick="generateBarcode()" data-bs-toggle="tooltip" title="Generate Barcode">
-              <i class="bi bi-upc-scan"></i>
-            </button>
-          </label>
-          {{ form.barcode }}
-          {% if form.barcode.errors %}
-            <div class="text-danger small mt-1">{{ form.barcode.errors.0 }}</div>
-          {% endif %}
-          <div class="field-help">Barcode for scanning</div>
-          
-          <div id="barcodeGenerator" class="barcode-generator d-none">
-            <small><strong>Auto-generate barcode?</strong></small>
-            <div class="mt-2">
-              <button type="button" class="btn btn-sm btn-warning me-2" onclick="generateEAN13()">EAN-13</button>
-              <button type="button" class="btn btn-sm btn-info" onclick="generateUPC()">UPC</button>
-            </div>
-          </div>
-        </div>
-      </div>
-    </div>
-  </div>
-  
-  <!-- Pricing Information Section -->
-  <div class="form-card">
-    <h5 class="form-section-header">
-      <i class="bi bi-currency-dollar"></i>
-      Pricing Information
-    </h5>
-    
-    <div class="row">
-      <div class="col-md-4 mb-3">
-        <label for="{{ form.cost_price.id_for_label }}" class="form-label">
-          Cost Price <span class="required-field">*</span>
-        </label>
-        <div class="input-group">
-          <span class="input-group-text">$</span>
-          {{ form.cost_price }}
-        </div>
-        {% if form.cost_price.errors %}
-          <div class="text-danger small mt-1">{{ form.cost_price.errors.0 }}</div>
-        {% endif %}
-        <div class="field-help">Your cost from supplier</div>
-      </div>
-      
-      <div class="col-md-4 mb-3">
-        <label for="{{ form.selling_price.id_for_label }}" class="form-label">
-          Selling Price <span class="required-field">*</span>
-        </label>
-        <div class="input-group">
-          <span class="input-group-text">$</span>
-          {{ form.selling_price }}
-        </div>
-        {% if form.selling_price.errors %}
-          <div class="text-danger small mt-1">{{ form.selling_price.errors.0 }}</div>
-        {% endif %}
-        <div class="field-help">Customer selling price</div>
-      </div>
-      
-      <div class="col-md-4 mb-3">
-        <label for="{{ form.currency.id_for_label }}" class="form-label">Currency</label>
-        {{ form.currency }}
-      </div>
-    </div>
-    
-    <!-- Pricing Calculator -->
-    <div class="pricing-calculator">
-      <h6 class="mb-3">
-        <i class="bi bi-calculator me-2"></i>Pricing Calculator
-      </h6>
-      
-      <div class="row">
-        <div class="col-md-3">
-          <label class="form-label">Markup %</label>
-          <div class="input-group">
-            <input type="number" class="form-control" id="markupPercent" 
-                   placeholder="30" step="0.1" min="0">
-            <span class="input-group-text">%</span>
-          </div>
-        </div>
-        <div class="col-md-3">
-          <label class="form-label">Profit Margin %</label>
-          <input type="text" class="form-control calculated-field" id="profitMargin" readonly>
-        </div>
-        <div class="col-md-3">
-          <label class="form-label">Profit Amount</label>
-          <div class="input-group">
-            <span class="input-group-text">$</span>
-            <input type="text" class="form-control calculated-field" id="profitAmount" readonly>
-          </div>
-        </div>
-        <div class="col-md-3 d-flex align-items-end">
-          <button type="button" class="btn btn-primary btn-sm w-100" onclick="applyMarkup()">
-            Apply Markup
-          </button>
-        </div>
-      </div>
-    </div>
-  </div>
-  
-  <!-- Stock Management Section -->
-  <div class="form-card">
-    <h5 class="form-section-header">
-      <i class="bi bi-box-seam"></i>
-      Stock Management
-    </h5>
-    
-    <div class="row">
-      <div class="col-md-3 mb-3">
-        <label for="{{ form.reorder_level.id_for_label }}" class="form-label">
-          Reorder Level <span class="required-field">*</span>
-        </label>
-        {{ form.reorder_level }}
-        {% if form.reorder_level.errors %}
-          <div class="text-danger small mt-1">{{ form.reorder_level.errors.0 }}</div>
-        {% endif %}
-        <div class="field-help">Minimum stock before reordering</div>
-      </div>
-      
-      <div class="col-md-3 mb-3">
-        <label for="{{ form.reorder_quantity.id_for_label }}" class="form-label">
-          Reorder Quantity <span class="required-field">*</span>
-        </label>
-        {{ form.reorder_quantity }}
-        {% if form.reorder_quantity.errors %}
-          <div class="text-danger small mt-1">{{ form.reorder_quantity.errors.0 }}</div>
-        {% endif %}
-        <div class="field-help">Quantity to order when restocking</div>
-      </div>
-      
-      <div class="col-md-3 mb-3">
-        <label for="{{ form.max_stock_level.id_for_label }}" class="form-label">Max Stock Level</label>
-        {{ form.max_stock_level }}
-        <div class="field-help">Maximum inventory to maintain</div>
-      </div>
-      
-      {% if object %}
-        <div class="col-md-3 mb-3">
-          <label class="form-label">Current Stock</label>
-          <input type="text" class="form-control" value="{{ object.current_stock }}" readonly>
-          <div class="field-help">Current inventory level</div>
-        </div>
-      {% endif %}
-    </div>
-  </div>
-  
-  <!-- Supplier Information Section -->
-  <div class="form-card">
-    <h5 class="form-section-header">
-      <i class="bi bi-building"></i>
-      Supplier Information
-    </h5>
-    
-    <div class="row">
-      <div class="col-md-4 mb-3">
-        <label for="{{ form.supplier_sku.id_for_label }}" class="form-label">Supplier SKU</label>
-        {{ form.supplier_sku }}
-        <div class="field-help">Supplier's product code</div>
-      </div>
-      
-      <div class="col-md-4 mb-3">
-        <label for="{{ form.supplier_lead_time_days.id_for_label }}" class="form-label">Lead Time (Days)</label>
-        {{ form.supplier_lead_time_days }}
-        <div class="field-help">Delivery time from supplier</div>
-      </div>
-      
-      <div class="col-md-4 mb-3">
-        <label for="{{ form.minimum_order_quantity.id_for_label }}" class="form-label">Minimum Order Qty</label>
-        {{ form.minimum_order_quantity }}
-        <div class="field-help">Minimum order from supplier</div>
-      </div>
-    </div>
-    
-    <div class="row">
-      <div class="col-md-6 mb-3">
-        <label for="{{ form.manufacturer_part_number.id_for_label }}" class="form-label">Manufacturer Part Number</label>
-        {{ form.manufacturer_part_number }}
-      </div>
-    </div>
-  </div>
-  
-  <!-- Physical Attributes Section -->
-  <div class="form-card">
-    <h5 class="form-section-header">
-      <i class="bi bi-rulers"></i>
-      Physical Attributes
-    </h5>
-    
-    <div class="row">
-      <div class="col-md-6 mb-3">
-        <label for="{{ form.weight.id_for_label }}" class="form-label">Weight (kg)</label>
-        <div class="input-group">
-          {{ form.weight }}
-          <span class="input-group-text">kg</span>
-        </div>
-        <div class="field-help">Product weight in kilograms</div>
-      </div>
-      
-      <div class="col-md-6 mb-3">
-        <label for="{{ form.dimensions.id_for_label }}" class="form-label">Dimensions</label>
-        {{ form.dimensions }}
-        <div class="field-help">Length × Width × Height in cm</div>
-      </div>
-    </div>
-  </div>
-  
-  <!-- Product Flags Section -->
-  <div class="form-card">
-    <h5 class="form-section-header">
-      <i class="bi bi-flag"></i>
-      Product Settings
-    </h5>
-    
-    <div class="row">
-      <div class="col-md-6">
-        <div class="form-check mb-3">
-          {{ form.is_active }}
-          <label class="form-check-label" for="{{ form.is_active.id_for_label }}">
-            Active Product
-          </label>
-          <div class="field-help">Available for sale and ordering</div>
-        </div>
-        
-        <div class="form-check mb-3">
-          {{ form.is_serialized }}
-          <label class="form-check-label" for="{{ form.is_serialized.id_for_label }}">
-            Serialized Product
-          </label>
-          <div class="field-help">Track individual serial numbers</div>
-        </div>
-        
-        <div class="form-check mb-3">
-          {{ form.is_perishable }}
-          <label class="form-check-label" for="{{ form.is_perishable.id_for_label }}">
-            Perishable Product
-          </label>
-          <div class="field-help">Has expiration date</div>
-        </div>
-      </div>
-      
-      <div class="col-md-6">
-        <div class="form-check mb-3">
-          {{ form.requires_quality_check }}
-          <label class="form-check-label" for="{{ form.requires_quality_check.id_for_label }}">
-            Requires Quality Check
-          </label>
-          <div class="field-help">QC before sale</div>
-        </div>
-        
-        <div class="form-check mb-3">
-          {{ form.is_quotable }}
-          <label class="form-check-label" for="{{ form.is_quotable.id_for_label }}">
-            Quotable Product
-          </label>
-          <div class="field-help">Can be included in quotes</div>
-        </div>
-      </div>
-    </div>
-  </div>
-  
-  <!-- Quote Settings Section -->
-  <div class="form-card">
-    <h5 class="form-section-header">
-      <i class="bi bi-file-earmark-text"></i>
-      Quote Settings
-    </h5>
-    
-    <div class="row">
-      <div class="col-md-12 mb-3">
-        <label for="{{ form.quote_description.id_for_label }}" class="form-label">Quote Description</label>
-        {{ form.quote_description }}
-        <div class="field-help">Description to use in quotes (if different from main description)</div>
-      </div>
-    </div>
-    
-    <div class="row">
-      <div class="col-md-4 mb-3">
-        <label for="{{ form.minimum_quote_quantity.id_for_label }}" class="form-label">Minimum Quote Quantity</label>
-        {{ form.minimum_quote_quantity }}
-        <div class="field-help">Minimum quantity for quotes</div>
-      </div>
-      
-      <div class="col-md-4 mb-3">
-        <label for="{{ form.bulk_discount_threshold.id_for_label }}" class="form-label">Bulk Discount Threshold</label>
-        {{ form.bulk_discount_threshold }}
-        <div class="field-help">Quantity threshold for bulk pricing</div>
-      </div>
-      
-      <div class="col-md-4 mb-3">
-        <label for="{{ form.bulk_discount_percentage.id_for_label }}" class="form-label">Bulk Discount %</label>
-        <div class="input-group">
-          {{ form.bulk_discount_percentage }}
-          <span class="input-group-text">%</span>
-        </div>
-        <div class="field-help">Discount percentage for bulk orders</div>
-      </div>
-    </div>
-  </div>
-  
-  <!-- SEO & Marketing Section -->
-  <div class="form-card">
-    <h5 class="form-section-header">
-      <i class="bi bi-search"></i>
-      SEO & Marketing
-    </h5>
-    
-    <div class="row">
-      <div class="col-md-6 mb-3">
-        <label for="{{ form.meta_title.id_for_label }}" class="form-label">Meta Title</label>
-        {{ form.meta_title }}
-        <div class="field-help">SEO title for web listings</div>
-      </div>
-      
-      <div class="col-md-6 mb-3">
-        <label for="{{ form.meta_description.id_for_label }}" class="form-label">Meta Description</label>
-        {{ form.meta_description }}
-        <div class="field-help">SEO description for search engines</div>
-      </div>
-    </div>
-  </div>
-  
-  <!-- Form Actions -->
-  <div class="form-card">
-    <div class="d-flex justify-content-between align-items-center">
-      <div>
-        <button type="button" class="btn btn-outline-secondary" onclick="validateForm()">
-          <i class="bi bi-check-circle me-1"></i>Validate Form
-        </button>
-        <button type="button" class="btn btn-outline-info ms-2" onclick="previewProduct()">
-          <i class="bi bi-eye me-1"></i>Preview
-        </button>
-      </div>
-      
-      <div>
-        <a href="{% if object %}{% url 'inventory:product_detail' object.pk %}{% else %}{% url 'inventory:product_list' %}{% endif %}" 
-           class="btn btn-secondary me-2">
-          Cancel
-        </a>
-        <button type="submit" class="btn btn-primary">
-          <i class="bi bi-check me-1"></i>
-          {% if object %}Update Product{% else %}Create Product{% endif %}
-        </button>
-      </div>
-    </div>
-  </div>
-</form>
-
-<!-- Product Preview Modal -->
-<div class="modal fade" id="productPreviewModal" tabindex="-1">
-  <div class="modal-dialog modal-lg">
-    <div class="modal-content">
-      <div class="modal-header">
-        <h5 class="modal-title">Product Preview</h5>
-        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
-      </div>
-      <div class="modal-body" id="previewContent">
-        <!-- Preview content will be populated here -->
-      </div>
-      <div class="modal-footer">
-        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
-        <button type="submit" form="productForm" class="btn btn-primary">Save Product</button>
-      </div>
-    </div>
-  </div>
-</div>
-{% endblock %}
-
-{% block extra_js %}
-{{ block.super }}
-<script>
-document.addEventListener('DOMContentLoaded', function() {
-  // Initialize form functionality
-  setupFormValidation();
-  setupImageUpload();
-  setupSupplierInfo();
-  setupPricingCalculator();
-  updateFormProgress();
-  
-  // Real-time validation
-  document.querySelectorAll('input, select, textarea').forEach(field => {
-    field.addEventListener('input', updateFormProgress);
-    field.addEventListener('blur', validateField);
-  });
-  
-  // Initialize tooltips
-  var tooltipTriggerList = [].slice.call(document.querySelectorAll('[data-bs-toggle="tooltip"]'));
-  tooltipTriggerList.map(function (tooltipTriggerEl) {
-    return new bootstrap.Tooltip(tooltipTriggerEl);
-  });
-});
-
-function setupFormValidation() {
-  const form = document.getElementById('productForm');
-  
-  form.addEventListener('submit', function(e) {
-    if (!validateForm()) {
-      e.preventDefault();
-      e.stopPropagation();
-    }
-  });
-}
-
-function validateForm() {
-  let isValid = true;
-  const requiredFields = document.querySelectorAll('input[required], select[required], textarea[required]');
-  
-  requiredFields.forEach(field => {
-    if (!field.value.trim()) {
-      field.classList.add('validation-error');
-      isValid = false;
-    } else {
-      field.classList.remove('validation-error');
-      field.classList.add('validation-success');
-    }
-  });
-  
-  // Custom validations
-  const costPrice = parseFloat(document.getElementById('{{ form.cost_price.id_for_label }}').value) || 0;
-  const sellingPrice = parseFloat(document.getElementById('{{ form.selling_price.id_for_label }}').value) || 0;
-  
-  if (sellingPrice < costPrice) {
-    showAlert('Selling price cannot be less than cost price', 'warning');
-    isValid = false;
-  }
-  
-  // SKU uniqueness check
-  const skuField = document.getElementById('{{ form.sku.id_for_label }}');
-  if (skuField.value) {
-    checkSKUAvailability(skuField.value);
-  }
-  
-  if (isValid) {
-    showAlert('Form validation passed!', 'success');
-  } else {
-    showAlert('Please fix the highlighted errors', 'danger');
-  }
-  
-  return isValid;
-}
-
-function validateField(event) {
-  const field = event.target;
-  
-  if (field.required && !field.value.trim()) {
-    field.classList.add('validation-error');
-    field.classList.remove('validation-success');
-  } else if (field.value.trim()) {
-    field.classList.remove('validation-error');
-    field.classList.add('validation-success');
-  }
-}
-
-function updateFormProgress() {
-  const allFields = document.querySelectorAll('input, select, textarea');
-  const filledFields = Array.from(allFields).filter(field => {
-    if (field.type === 'checkbox') return field.checked;
-    return field.value.trim() !== '';
-  });
-  
-  const progress = Math.round((filledFields.length / allFields.length) * 100);
-  
-  document.getElementById('completionProgress').style.width = progress + '%';
-  document.getElementById('completionBadge').textContent = progress + '% Complete';
-  
-  if (progress >= 80) {
-    document.getElementById('completionProgress').classList.add('bg-success');
-  } else if (progress >= 50) {
-    document.getElementById('completionProgress').classList.add('bg-warning');
-  }
-}
-
-function setupImageUpload() {
-  const uploadArea = document.querySelector('.image-upload-area');
-  const fileInput = document.getElementById('id_image');
-  
-  // Drag and drop functionality
-  uploadArea.addEventListener('dragover', function(e) {
-    e.preventDefault();
-    uploadArea.classList.add('dragover');
-  });
-  
-  uploadArea.addEventListener('dragleave', function(e) {
-    e.preventDefault();
-    uploadArea.classList.remove('dragover');
-  });
-  
-  uploadArea.addEventListener('drop', function(e) {
-    e.preventDefault();
-    uploadArea.classList.remove('dragover');
-    
-    const files = e.dataTransfer.files;
-    if (files.length > 0) {
-      fileInput.files = files;
-      handleImagePreview(files[0]);
-    }
-  });
-  
-  fileInput.addEventListener('change', function(e) {
-    if (e.target.files.length > 0) {
-      handleImagePreview(e.target.files[0]);
-    }
-  });
-}
-
-function handleImagePreview(file) {
-  if (file && file.type.startsWith('image/')) {
-    const reader = new FileReader();
-    reader.onload = function(e) {
-      document.getElementById('imagePreview').innerHTML = `
-        <img src="${e.target.result}" alt="Preview" class="preview-image mb-2">
-        <br>
-        <p class="mb-1">${file.name}</p>
-        <small class="text-muted">${(file.size / 1024 / 1024).toFixed(2)} MB</small>
-      `;
-    };
-    reader.readAsDataURL(file);
-  }
-}
-
-function setupSupplierInfo() {
-  const supplierSelect = document.getElementById('{{ form.supplier.id_for_label }}');
-  
-  supplierSelect.addEventListener('change', function() {
-    if (this.value) {
-      fetchSupplierInfo(this.value);
-    } else {
-      document.getElementById('supplierInfo').classList.add('d-none');
-    }
-  });
-}
-
-function fetchSupplierInfo(supplierId) {
-  fetch(`{% url 'inventory:supplier_details_api' 0 %}`.replace('0', supplierId))
-    .then(response => response.json())
-    .then(data => {
-      if (data.success) {
-        document.getElementById('supplierInfo').innerHTML = `
-          <small><strong>${data.supplier.name}</strong></small>
-          <br><small>Lead Time: ${data.supplier.average_lead_time_days} days</small>
-          <br><small>Currency: ${data.supplier.currency}</small>
-          <br><small>Country: ${data.supplier.country}</small>
-        `;
-        document.getElementById('supplierInfo').classList.remove('d-none');
-        
-        // Auto-populate lead time
-        document.getElementById('{{ form.supplier_lead_time_days.id_for_label }}').value = data.supplier.average_lead_time_days;
-      }
-    })
-    .catch(error => console.error('Error fetching supplier info:', error));
-}
-
-function setupPricingCalculator() {
-  const costPriceField = document.getElementById('{{ form.cost_price.id_for_label }}');
-  const sellingPriceField = document.getElementById('{{ form.selling_price.id_for_label }}');
-  
-  [costPriceField, sellingPriceField].forEach(field => {
-    field.addEventListener('input', calculateProfitMetrics);
-  });
-}
-
-function calculateProfitMetrics() {
-  const costPrice = parseFloat(document.getElementById('{{ form.cost_price.id_for_label }}').value) || 0;
-  const sellingPrice = parseFloat(document.getElementById('{{ form.selling_price.id_for_label }}').value) || 0;
-  
-  if (costPrice > 0) {
-    const profitAmount = sellingPrice - costPrice;
-    const profitMargin = (profitAmount / costPrice) * 100;
-    
-    document.getElementById('profitAmount').value = profitAmount.toFixed(2);
-    document.getElementById('profitMargin').value = profitMargin.toFixed(1) + '%';
-    
-    // Update markup percentage
-    const markup = (profitAmount / costPrice) * 100;
-    document.getElementById('markupPercent').value = markup.toFixed(1);
-  }
-}
-
-function applyMarkup() {
-  const costPrice = parseFloat(document.getElementById('{{ form.cost_price.id_for_label }}').value) || 0;
-  const markupPercent = parseFloat(document.getElementById('markupPercent').value) || 0;
-  
-  if (costPrice > 0 && markupPercent > 0) {
-    const sellingPrice = costPrice * (1 + markupPercent / 100);
-    document.getElementById('{{ form.selling_price.id_for_label }}').value = sellingPrice.toFixed(2);
-    calculateProfitMetrics();
-    
-    showAlert(`Selling price updated with ${markupPercent}% markup`, 'success');
-  } else {
-    showAlert('Please enter valid cost price and markup percentage', 'warning');
-  }
-}
-
-function generateSKU() {
-  const categorySelect = document.getElementById('{{ form.category.id_for_label }}');
-  const nameField = document.getElementById('{{ form.name.id_for_label }}');
-  
-  if (!categorySelect.value) {
-    showAlert('Please select a category first', 'warning');
-    return;
-  }
-  
-  // Get category name
-  const categoryName = categorySelect.options[categorySelect.selectedIndex].text;
-  const categoryPrefix = categoryName.substring(0, 3).toUpperCase();
-  
-  // Get current year
-  const year = new Date().getFullYear();
-  
-  // Generate random number
-  const randomNum = Math.floor(Math.random() * 1000).toString().padStart(3, '0');
-  
-  const generatedSKU = `${categoryPrefix}-${year}-${randomNum}`;
-  
-  document.getElementById('{{ form.sku.id_for_label }}').value = generatedSKU;
-  
-  // Check availability
-  checkSKUAvailability(generatedSKU);
-}
-
-function checkSKUAvailability(sku) {
-  const productId = {% if object %}{{ object.pk }}{% else %}null{% endif %};
-  
-  fetch(`{% url 'inventory:check_sku_availability' %}?sku=${encodeURIComponent(sku)}${productId ? '&product_id=' + productId : ''}`)
-    .then(response => response.json())
-    .then(data => {
-      const skuField = document.getElementById('{{ form.sku.id_for_label }}');
-      
-      if (data.available) {
-        skuField.classList.remove('validation-error');
-        skuField.classList.add('validation-success');
-      } else {
-        skuField.classList.add('validation-error');
-        skuField.classList.remove('validation-success');
-        showAlert('SKU already exists. Please choose a different SKU.', 'danger');
-      }
-    })
-    .catch(error => console.error('SKU check error:', error));
-}
-
-function generateBarcode() {
-  document.getElementById('barcodeGenerator').classList.toggle('d-none');
-}
-
-function generateEAN13() {
-  // Generate a random EAN-13 barcode
-  const countryCode = '123'; // Placeholder country code
-  const manufacturerCode = Math.floor(Math.random() * 100000).toString().padStart(5, '0');
-  const productCode = Math.floor(Math.random() * 100000).toString().padStart(5, '0');
-  
-  // Calculate check digit (simplified)
-  const digits = (countryCode + manufacturerCode + productCode).split('').map(Number);
-  let checkSum = 0;
-  for (let i = 0; i < digits.length; i++) {
-    checkSum += digits[i] * (i % 2 === 0 ? 1 : 3);
-  }
-  const checkDigit = (10 - (checkSum % 10)) % 10;
-  
-  const ean13 = countryCode + manufacturerCode + productCode + checkDigit;
-  document.getElementById('{{ form.barcode.id_for_label }}').value = ean13;
-  
-  showAlert('EAN-13 barcode generated', 'success');
-}
-
-function generateUPC() {
-  // Generate a random UPC barcode
-  const manufacturerCode = Math.floor(Math.random() * 1000000).toString().padStart(6, '0');
-  const productCode = Math.floor(Math.random() * 100000).toString().padStart(5, '0');
-  
-  // Calculate check digit (simplified)
-  const digits = (manufacturerCode + productCode).split('').map(Number);
-  let checkSum = 0;
-  for (let i = 0; i < digits.length; i++) {
-    checkSum += digits[i] * (i % 2 === 0 ? 3 : 1);
-  }
-  const checkDigit = (10 - (checkSum % 10)) % 10;
-  
-  const upc = manufacturerCode + productCode + checkDigit;
-  document.getElementById('{{ form.barcode.id_for_label }}').value = upc;
-  
-  showAlert('UPC barcode generated', 'success');
-}
-
-function previewProduct() {
-  const formData = new FormData(document.getElementById('productForm'));
-  const previewData = {};
-  
-  for (let [key, value] of formData.entries()) {
-    previewData[key] = value;
-  }
-  
-  // Create preview content
-  const previewContent = `
-    <div class="row">
-      <div class="col-md-4 text-center">
-        ${document.getElementById('imagePreview').innerHTML}
-      </div>
-      <div class="col-md-8">
-        <h4>${previewData.name || 'Product Name'}</h4>
-        <p class="text-muted">${previewData.short_description || previewData.description || 'No description'}</p>
-        <table class="table table-sm">
-          <tr><td><strong>SKU:</strong></td><td>${previewData.sku || 'Not set'}</td></tr>
-          <tr><td><strong>Category:</strong></td><td>${document.getElementById('{{ form.category.id_for_label }}').selectedOptions[0]?.text || 'Not selected'}</td></tr>
-          <tr><td><strong>Supplier:</strong></td><td>${document.getElementById('{{ form.supplier.id_for_label }}').selectedOptions[0]?.text || 'Not selected'}</td></tr>
-          <tr><td><strong>Cost Price:</strong></td><td>$${previewData.cost_price || '0.00'}</td></tr>
-          <tr><td><strong>Selling Price:</strong></td><td>$${previewData.selling_price || '0.00'}</td></tr>
-          <tr><td><strong>Reorder Level:</strong></td><td>${previewData.reorder_level || '0'}</td></tr>
-        </table>
-      </div>
-    </div>
-  `;
-  
-  document.getElementById('previewContent').innerHTML = previewContent;
-  
-  const modal = new bootstrap.Modal(document.getElementById('productPreviewModal'));
-  modal.show();
-}
-
-function showAlert(message, type) {
-  const alertDiv = document.createElement('div');
-  alertDiv.className = `alert alert-${type} alert-dismissible fade show position-fixed`;
-  alertDiv.style.cssText = 'top: 80px; right: 20px; z-index: 1060; min-width: 300px;';
-  alertDiv.innerHTML = `
-    ${message}
-    <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
-  `;
-  
-  document.body.appendChild(alertDiv);
-  
-  // Auto-remove after 5 seconds
-  setTimeout(() => {
-    if (alertDiv.parentNode) {
-      alertDiv.remove();
-    }
-  }, 5000);
-}
-
-// Auto-save functionality (optional)
-function setupAutoSave() {
-  let autoSaveTimeout;
-  
-  document.querySelectorAll('input, select, textarea').forEach(field => {
-    field.addEventListener('input', function() {
-      clearTimeout(autoSaveTimeout);
-      autoSaveTimeout = setTimeout(() => {
-        // Save draft to localStorage
-        const formData = new FormData(document.getElementById('productForm'));
-        const draftData = {};
-        for (let [key, value] of formData.entries()) {
-          draftData[key] = value;
+<!-- inventory/templates/inventory/product/product_form.html -->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% if product.pk %}Edit{% else %}Add{% endif %} Product - BlitzTech Electronics</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <style>
+        .form-section {
+            background: #f8f9fa;
+            border-left: 4px solid #007bff;
+            padding: 1.5rem;
+            margin-bottom: 2rem;
         }
-        localStorage.setItem('productFormDraft', JSON.stringify(draftData));
-      }, 2000);
-    });
-  });
-}
+        .cost-calculator {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border-radius: 10px;
+            padding: 1.5rem;
+        }
+        .dynamic-attribute {
+            border: 1px dashed #dee2e6;
+            padding: 1rem;
+            margin-bottom: 1rem;
+            border-radius: 5px;
+        }
+        .attribute-required {
+            border-color: #dc3545;
+        }
+        .cost-breakdown {
+            background: #fff3cd;
+            border: 1px solid #ffeaa7;
+            border-radius: 5px;
+            padding: 1rem;
+        }
+    </style>
+</head>
+<body>
+    <div class="container-fluid">
+        <!-- Header -->
+        <div class="row mb-4">
+            <div class="col-12">
+                <div class="d-flex justify-content-between align-items-center">
+                    <div>
+                        <h1 class="h3 mb-0">
+                            <i class="fas fa-{{ product.pk and 'edit' or 'plus' }} text-primary me-2"></i>
+                            {% if product.pk %}Edit Product: {{ product.name }}{% else %}Add New Product{% endif %}
+                        </h1>
+                        <nav aria-label="breadcrumb">
+                            <ol class="breadcrumb">
+                                <li class="breadcrumb-item"><a href="{% url 'inventory:dashboard' %}">Dashboard</a></li>
+                                <li class="breadcrumb-item"><a href="{% url 'inventory:product_list' %}">Products</a></li>
+                                <li class="breadcrumb-item active">{% if product.pk %}Edit{% else %}Add{% endif %} Product</li>
+                            </ol>
+                        </nav>
+                    </div>
+                    <div>
+                        <a href="{% url 'inventory:product_list' %}" class="btn btn-outline-secondary me-2">
+                            <i class="fas fa-times"></i> Cancel
+                        </a>
+                        {% if product.pk %}
+                        <a href="{% url 'inventory:product_detail' product.pk %}" class="btn btn-info me-2">
+                            <i class="fas fa-eye"></i> View Product
+                        </a>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+        </div>
 
-// setupAutoSave(); // Uncomment to enable auto-save
-</script>
-{% endblock %}
+        <form id="productForm" method="post" enctype="multipart/form-data">
+            {% csrf_token %}
+            
+            <div class="row">
+                <!-- Main Form -->
+                <div class="col-lg-8">
+                    <!-- Basic Information -->
+                    <div class="form-section">
+                        <h5 class="mb-3">
+                            <i class="fas fa-info-circle text-primary me-2"></i>
+                            Basic Information
+                        </h5>
+                        <div class="row">
+                            <div class="col-md-6">
+                                <div class="mb-3">
+                                    <label class="form-label">Product Name <span class="text-danger">*</span></label>
+                                    {{ form.name }}
+                                    {% if form.name.errors %}
+                                        <div class="text-danger">{{ form.name.errors.0 }}</div>
+                                    {% endif %}
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <div class="mb-3">
+                                    <label class="form-label">SKU <span class="text-danger">*</span></label>
+                                    <div class="input-group">
+                                        {{ form.sku }}
+                                        <button type="button" class="btn btn-outline-secondary" onclick="generateSKU()">
+                                            <i class="fas fa-magic"></i>
+                                        </button>
+                                    </div>
+                                    {% if form.sku.errors %}
+                                        <div class="text-danger">{{ form.sku.errors.0 }}</div>
+                                    {% endif %}
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <div class="mb-3">
+                                    <label class="form-label">Barcode</label>
+                                    <div class="input-group">
+                                        {{ form.barcode }}
+                                        <button type="button" class="btn btn-outline-secondary" onclick="generateBarcode()">
+                                            <i class="fas fa-barcode"></i> Generate
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <div class="mb-3">
+                                    <label class="form-label">Product Type</label>
+                                    {{ form.product_type }}
+                                </div>
+                            </div>
+                            <div class="col-12">
+                                <div class="mb-3">
+                                    <label class="form-label">Short Description</label>
+                                    {{ form.short_description }}
+                                    <small class="form-text text-muted">Brief description for listings</small>
+                                </div>
+                            </div>
+                            <div class="col-12">
+                                <div class="mb-3">
+                                    <label class="form-label">Full Description</label>
+                                    {{ form.description }}
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Categorization -->
+                    <div class="form-section">
+                        <h5 class="mb-3">
+                            <i class="fas fa-tags text-success me-2"></i>
+                            Categorization
+                        </h5>
+                        <div class="row">
+                            <div class="col-md-4">
+                                <div class="mb-3">
+                                    <label class="form-label">Category <span class="text-danger">*</span></label>
+                                    {{ form.category }}
+                                    {% if form.category.errors %}
+                                        <div class="text-danger">{{ form.category.errors.0 }}</div>
+                                    {% endif %}
+                                </div>
+                            </div>
+                            <div class="col-md-4">
+                                <div class="mb-3">
+                                    <label class="form-label">Brand <span class="text-danger">*</span></label>
+                                    {{ form.brand }}
+                                    {% if form.brand.errors %}
+                                        <div class="text-danger">{{ form.brand.errors.0 }}</div>
+                                    {% endif %}
+                                </div>
+                            </div>
+                            <div class="col-md-4">
+                                <div class="mb-3">
+                                    <label class="form-label">Supplier <span class="text-danger">*</span></label>
+                                    {{ form.supplier }}
+                                    {% if form.supplier.errors %}
+                                        <div class="text-danger">{{ form.supplier.errors.0 }}</div>
+                                    {% endif %}
+                                </div>
+                            </div>
+                        </div>
+                        <div class="row">
+                            <div class="col-md-4">
+                                <div class="mb-3">
+                                    <label class="form-label">Model Number</label>
+                                    {{ form.model_number }}
+                                </div>
+                            </div>
+                            <div class="col-md-4">
+                                <div class="mb-3">
+                                    <label class="form-label">Manufacturer Part Number</label>
+                                    {{ form.manufacturer_part_number }}
+                                </div>
+                            </div>
+                            <div class="col-md-4">
+                                <div class="mb-3">
+                                    <label class="form-label">Supplier SKU</label>
+                                    {{ form.supplier_sku }}
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Dynamic Attributes -->
+                    <div class="form-section" id="dynamicAttributesSection">
+                        <h5 class="mb-3">
+                            <i class="fas fa-cogs text-warning me-2"></i>
+                            Component Specifications
+                        </h5>
+                        <div id="dynamicAttributesContainer">
+                            <!-- Dynamic attributes will be loaded here based on component family -->
+                        </div>
+                    </div>
+
+                    <!-- External Resources -->
+                    <div class="form-section">
+                        <h5 class="mb-3">
+                            <i class="fas fa-link text-info me-2"></i>
+                            External Resources
+                        </h5>
+                        <div class="row">
+                            <div class="col-md-6">
+                                <div class="mb-3">
+                                    <label class="form-label">Datasheet URL</label>
+                                    {{ form.datasheet_url }}
+                                    <small class="form-text text-muted">Google Drive or Mega link</small>
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <div class="mb-3">
+                                    <label class="form-label">Package Type</label>
+                                    {{ form.package_type }}
+                                    <small class="form-text text-muted">DIP, SMD, TO-220, etc.</small>
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <div class="mb-3">
+                                    <label class="form-label">Product Images (JSON)</label>
+                                    {{ form.product_images }}
+                                    <small class="form-text text-muted">["image1.jpg", "image2.jpg"]</small>
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <div class="mb-3">
+                                    <label class="form-label">Quality Grade</label>
+                                    {{ form.quality_grade }}
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Physical Attributes -->
+                    <div class="form-section">
+                        <h5 class="mb-3">
+                            <i class="fas fa-cube text-secondary me-2"></i>
+                            Physical Attributes
+                        </h5>
+                        <div class="row">
+                            <div class="col-md-4">
+                                <div class="mb-3">
+                                    <label class="form-label">Weight (grams)</label>
+                                    {{ form.weight_grams }}
+                                </div>
+                            </div>
+                            <div class="col-md-4">
+                                <div class="mb-3">
+                                    <label class="form-label">Dimensions (L x W x H mm)</label>
+                                    {{ form.dimensions }}
+                                </div>
+                            </div>
+                            <div class="col-md-4">
+                                <div class="mb-3">
+                                    <label class="form-label">Volume (cm³)</label>
+                                    {{ form.volume_cubic_cm }}
+                                </div>
+                            </div>
+                        </div>
+                        <div class="row">
+                            <div class="col-md-4">
+                                <div class="form-check">
+                                    {{ form.is_hazardous }}
+                                    <label class="form-check-label">Hazardous Material</label>
+                                </div>
+                            </div>
+                            <div class="col-md-4">
+                                <div class="form-check">
+                                    {{ form.requires_esd_protection }}
+                                    <label class="form-check-label">Requires ESD Protection</label>
+                                </div>
+                            </div>
+                            <div class="col-md-4">
+                                <div class="form-check">
+                                    {{ form.is_temperature_sensitive }}
+                                    <label class="form-check-label">Temperature Sensitive</label>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Sidebar -->
+                <div class="col-lg-4">
+                    <!-- Cost Calculator -->
+                    <div class="cost-calculator mb-4">
+                        <h5 class="mb-3">
+                            <i class="fas fa-calculator me-2"></i>
+                            Advanced Cost Calculator
+                        </h5>
+                        <div class="mb-3">
+                            <label class="form-label text-white">Cost Price <span class="text-warning">*</span></label>
+                            <div class="input-group">
+                                {{ form.cost_price }}
+                                {{ form.supplier_currency }}
+                            </div>
+                        </div>
+                        <div class="row">
+                            <div class="col-6">
+                                <div class="mb-3">
+                                    <label class="form-label text-white">Shipping/Unit</label>
+                                    {{ form.shipping_cost_per_unit }}
+                                </div>
+                            </div>
+                            <div class="col-6">
+                                <div class="mb-3">
+                                    <label class="form-label text-white">Insurance/Unit</label>
+                                    {{ form.insurance_cost_per_unit }}
+                                </div>
+                            </div>
+                        </div>
+                        <div class="row">
+                            <div class="col-6">
+                                <div class="mb-3">
+                                    <label class="form-label text-white">Duty %</label>
+                                    {{ form.customs_duty_percentage }}
+                                </div>
+                            </div>
+                            <div class="col-6">
+                                <div class="mb-3">
+                                    <label class="form-label text-white">VAT %</label>
+                                    {{ form.vat_percentage }}
+                                </div>
+                            </div>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label text-white">Other Fees/Unit</label>
+                            {{ form.other_fees_per_unit }}
+                        </div>
+                        <button type="button" class="btn btn-light w-100" onclick="calculateCosts()">
+                            <i class="fas fa-calculator"></i> Calculate Total Cost
+                        </button>
+                        
+                        <div id="costBreakdown" class="mt-3" style="display:none;">
+                            <div class="cost-breakdown">
+                                <h6 class="text-dark">Cost Breakdown (USD)</h6>
+                                <div id="costDetails"></div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Pricing -->
+                    <div class="card mb-4">
+                        <div class="card-header">
+                            <h6 class="card-title mb-0">
+                                <i class="fas fa-dollar-sign text-success me-2"></i>
+                                Pricing & Markup
+                            </h6>
+                        </div>
+                        <div class="card-body">
+                            <div class="mb-3">
+                                <label class="form-label">Selling Price <span class="text-danger">*</span></label>
+                                <div class="input-group">
+                                    {{ form.selling_price }}
+                                    {{ form.selling_currency }}
+                                </div>
+                            </div>
+                            <div class="mb-3">
+                                <label class="form-label">Target Markup %</label>
+                                {{ form.target_markup_percentage }}
+                                <small class="form-text text-muted">Auto-calculate selling price</small>
+                            </div>
+                            <div class="form-check">
+                                {{ form.calculate_costs }}
+                                <label class="form-check-label">Auto-calculate costs</label>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Stock Management -->
+                    <div class="card mb-4">
+                        <div class="card-header">
+                            <h6 class="card-title mb-0">
+                                <i class="fas fa-boxes text-primary me-2"></i>
+                                Stock Management
+                            </h6>
+                        </div>
+                        <div class="card-body">
+                            <div class="row">
+                                <div class="col-6">
+                                    <div class="mb-3">
+                                        <label class="form-label">Reorder Level</label>
+                                        {{ form.reorder_level }}
+                                    </div>
+                                </div>
+                                <div class="col-6">
+                                    <div class="mb-3">
+                                        <label class="form-label">Reorder Qty</label>
+                                        {{ form.reorder_quantity }}
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="row">
+                                <div class="col-6">
+                                    <div class="mb-3">
+                                        <label class="form-label">Max Stock</label>
+                                        {{ form.max_stock_level }}
+                                    </div>
+                                </div>
+                                <div class="col-6">
+                                    <div class="mb-3">
+                                        <label class="form-label">Lead Time (Days)</label>
+                                        {{ form.supplier_lead_time_days }}
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="mb-3">
+                                <label class="form-label">Supplier MOQ</label>
+                                {{ form.supplier_minimum_order_quantity }}
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Status -->
+                    <div class="card">
+                        <div class="card-header">
+                            <h6 class="card-title mb-0">
+                                <i class="fas fa-toggle-on text-info me-2"></i>
+                                Status & Flags
+                            </h6>
+                        </div>
+                        <div class="card-body">
+                            <div class="form-check mb-2">
+                                {{ form.is_active }}
+                                <label class="form-check-label">Active Product</label>
+                            </div>
+                            <div class="form-check mb-2">
+                                {{ form.is_featured }}
+                                <label class="form-check-label">Featured Product</label>
+                            </div>
+                            <button type="submit" class="btn btn-success w-100 mt-3">
+                                <i class="fas fa-save"></i> {% if product.pk %}Update{% else %}Save{% endif %} Product
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </form>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        // Load dynamic attributes when category changes
+        document.querySelector('select[name="category"]').addEventListener('change', function() {
+            const categoryId = this.value;
+            if (categoryId) {
+                loadDynamicAttributes(categoryId);
+            }
+        });
+
+        function loadDynamicAttributes(categoryId) {
+            // Get component family for category and load attributes
+            fetch(`/inventory/api/component-families/${categoryId}/attributes/`)
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        const container = document.getElementById('dynamicAttributesContainer');
+                        container.innerHTML = '';
+                        
+                        data.attributes.forEach(attr => {
+                            const div = document.createElement('div');
+                            div.className = `dynamic-attribute ${attr.is_required ? 'attribute-required' : ''}`;
+                            
+                            let input = createAttributeInput(attr);
+                            
+                            div.innerHTML = `
+                                <div class="row">
+                                    <div class="col-md-6">
+                                        <label class="form-label">
+                                            ${attr.name}
+                                            ${attr.is_required ? '<span class="text-danger">*</span>' : ''}
+                                        </label>
+                                        ${input}
+                                        ${attr.help_text ? `<small class="form-text text-muted">${attr.help_text}</small>` : ''}
+                                    </div>
+                                </div>
+                            `;
+                            
+                            container.appendChild(div);
+                        });
+                        
+                        document.getElementById('dynamicAttributesSection').style.display = data.attributes.length > 0 ? 'block' : 'none';
+                    }
+                })
+                .catch(error => {
+                    console.error('Error loading dynamic attributes:', error);
+                });
+        }
+
+        function createAttributeInput(attr) {
+            if (attr.field_type === 'choice') {
+                let options = '<option value="">-- Select --</option>';
+                attr.choice_options.forEach(opt => {
+                    options += `<option value="${opt}">${opt}</option>`;
+                });
+                return `<select class="form-control" name="attr_${attr.id}" ${attr.is_required ? 'required' : ''}>${options}</select>`;
+            } else if (attr.field_type === 'boolean') {
+                return `<input type="checkbox" class="form-check-input" name="attr_${attr.id}">`;
+            } else if (attr.field_type === 'decimal') {
+                return `<input type="number" class="form-control" name="attr_${attr.id}" 
+                         step="0.000001" ${attr.is_required ? 'required' : ''}
+                         ${attr.min_value ? `min="${attr.min_value}"` : ''}
+                         ${attr.max_value ? `max="${attr.max_value}"` : ''}
+                         placeholder="${attr.default_value || ''}">`;
+            } else if (attr.field_type === 'url') {
+                return `<input type="url" class="form-control" name="attr_${attr.id}" 
+                         ${attr.is_required ? 'required' : ''} placeholder="${attr.default_value || ''}">`;
+            } else {
+                return `<input type="text" class="form-control" name="attr_${attr.id}" 
+                         ${attr.is_required ? 'required' : ''} placeholder="${attr.default_value || ''}">`;
+            }
+        }
+
+        function calculateCosts() {
+            const formData = new FormData(document.getElementById('productForm'));
+            const data = {
+                cost_price: formData.get('cost_price'),
+                currency_id: formData.get('supplier_currency'),
+                shipping_cost_per_unit: formData.get('shipping_cost_per_unit'),
+                insurance_cost_per_unit: formData.get('insurance_cost_per_unit'),
+                customs_duty_percentage: formData.get('customs_duty_percentage'),
+                vat_percentage: formData.get('vat_percentage'),
+                other_fees_per_unit: formData.get('other_fees_per_unit'),
+                category_id: formData.get('category'),
+                supplier_id: formData.get('supplier'),
+                weight_grams: formData.get('weight_grams')
+            };
+
+            fetch('/inventory/api/pricing/calculate/', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value
+                },
+                body: JSON.stringify(data)
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    displayCostBreakdown(data.calculation);
+                } else {
+                    alert('Error calculating costs: ' + data.error);
+                }
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                alert('Error calculating costs');
+            });
+        }
+
+        function displayCostBreakdown(calc) {
+            const breakdown = document.getElementById('costBreakdown');
+            const details = document.getElementById('costDetails');
+            
+            details.innerHTML = `
+                <div class="row text-dark">
+                    <div class="col-8">Base Cost (${calc.currency_code}):</div>
+                    <div class="col-4 text-end">$${calc.base_cost_usd.toFixed(4)}</div>
+                    <div class="col-8">Shipping:</div>
+                    <div class="col-4 text-end">$${calc.shipping_cost.toFixed(4)}</div>
+                    <div class="col-8">Insurance:</div>
+                    <div class="col-4 text-end">$${calc.insurance_cost.toFixed(4)}</div>
+                    <div class="col-8">Customs Duty:</div>
+                    <div class="col-4 text-end">$${calc.customs_duty.toFixed(4)}</div>
+                    <div class="col-8">VAT:</div>
+                    <div class="col-4 text-end">$${calc.vat_cost.toFixed(4)}</div>
+                    <div class="col-8">Other Fees:</div>
+                    <div class="col-4 text-end">$${calc.other_fees.toFixed(4)}</div>
+                    <div class="col-8">Overhead:</div>
+                    <div class="col-4 text-end">$${calc.overhead_cost.toFixed(4)}</div>
+                    <hr>
+                    <div class="col-8"><strong>Total Cost:</strong></div>
+                    <div class="col-4 text-end"><strong>$${calc.total_cost_usd.toFixed(4)}</strong></div>
+                </div>
+                <div class="mt-2">
+                    <h6 class="text-dark">Suggested Markups:</h6>
+                    ${calc.markup_options.map(option => `
+                        <div class="row">
+                            <div class="col-4">${option.markup_percentage}%:</div>
+                            <div class="col-4">$${option.selling_price.toFixed(2)}</div>
+                            <div class="col-4 text-success">+$${option.profit_per_unit.toFixed(2)}</div>
+                        </div>
+                    `).join('')}
+                </div>
+            `;
+            
+            breakdown.style.display = 'block';
+        }
+
+        function generateSKU() {
+            const category = document.querySelector('select[name="category"]').selectedOptions[0]?.text || '';
+            const brand = document.querySelector('select[name="brand"]').selectedOptions[0]?.text || '';
+            const date = new Date();
+            const year = date.getFullYear();
+            const random = Math.floor(Math.random() * 1000).toString().padStart(3, '0');
+            
+            let sku = 'BT';
+            if (category) sku += '-' + category.substring(0, 3).toUpperCase();
+            if (brand) sku += '-' + brand.substring(0, 3).toUpperCase();
+            sku += '-' + year + '-' + random;
+            
+            document.querySelector('input[name="sku"]').value = sku;
+        }
+
+        function generateBarcode() {
+            const sku = document.querySelector('input[name="sku"]').value;
+            if (sku) {
+                // Simple barcode generation based on SKU
+                const barcode = sku.replace(/[^0-9A-Z]/g, '').substring(0, 12);
+                document.querySelector('input[name="barcode"]').value = barcode;
+            }
+        }
+
+        // Load existing dynamic attributes if editing
+        {% if product.pk and product.component_family %}
+        document.addEventListener('DOMContentLoaded', function() {
+            loadDynamicAttributes({{ product.category.id }});
+        });
+        {% endif %}
+
+        // Real-time cost calculation on input change
+        ['cost_price', 'shipping_cost_per_unit', 'customs_duty_percentage', 'vat_percentage'].forEach(field => {
+            const input = document.querySelector(`input[name="${field}"]`);
+            if (input) {
+                input.addEventListener('change', calculateCosts);
+            }
+        });
+    </script>
+</body>
+</html>

@@ -1,2 +1,0 @@
-WARNING 2025-08-25 15:11:46,249 log 26816 9228 Bad Request: /quotes/ajax/dashboard-stats/
-WARNING 2025-08-25 15:11:46,249 basehttp 26816 9228 "GET /quotes/ajax/dashboard-stats/ HTTP/1.1" 400 34

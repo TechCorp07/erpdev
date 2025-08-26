@@ -32,6 +32,7 @@ from .models import (
     Product, StockLevel, StockMovement, PurchaseOrder, PurchaseOrderItem,
     ReorderAlert, StockTake, StockTakeItem, Category, Supplier, Location
 )
+from inventory import models
 
 logger = logging.getLogger(__name__)
 

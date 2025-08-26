@@ -1,0 +1,622 @@
+<!-- inventory/templates/inventory/stock/low_stock_ordering.html -->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Low Stock Ordering - BlitzTech Electronics</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <style>
+        .supplier-card {
+            border: none;
+            box-shadow: 0 0.125rem 0.25rem rgba(0, 0, 0, 0.075);
+            transition: all 0.15s ease-in-out;
+        }
+        .supplier-card:hover {
+            box-shadow: 0 0.5rem 1rem rgba(0, 0, 0, 0.15);
+            transform: translateY(-2px);
+        }
+        .priority-critical { border-left: 4px solid #dc3545; }
+        .priority-high { border-left: 4px solid #fd7e14; }
+        .priority-medium { border-left: 4px solid #ffc107; }
+        .priority-low { border-left: 4px solid #6c757d; }
+        
+        .priority-badge-critical { background-color: #dc3545; }
+        .priority-badge-high { background-color: #fd7e14; }
+        .priority-badge-medium { background-color: #ffc107; }
+        .priority-badge-low { background-color: #6c757d; }
+        
+        .product-row {
+            transition: background-color 0.15s ease-in-out;
+        }
+        .product-row:hover {
+            background-color: #f8f9fa;
+        }
+        .sticky-header {
+            position: sticky;
+            top: 0;
+            background: white;
+            z-index: 100;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        .order-summary {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border-radius: 10px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container-fluid">
+        <!-- Sticky Header -->
+        <div class="sticky-header py-3 mb-4">
+            <div class="d-flex justify-content-between align-items-center">
+                <div>
+                    <h1 class="h3 mb-0">
+                        <i class="fas fa-exclamation-triangle text-warning me-2"></i>
+                        Low Stock Ordering Panel
+                    </h1>
+                    <p class="text-muted mb-0">Automated reorder recommendations for {{ total_products }} products</p>
+                </div>
+                <div>
+                    <button class="btn btn-success me-2" onclick="downloadAllOrders()">
+                        <i class="fas fa-download"></i> Download All Orders
+                    </button>
+                    <button class="btn btn-primary me-2" onclick="emailToSuppliers()">
+                        <i class="fas fa-envelope"></i> Email to Suppliers
+                    </button>
+                    <button class="btn btn-outline-secondary" onclick="refreshData()">
+                        <i class="fas fa-sync-alt"></i> Refresh
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Summary Cards -->
+        <div class="row mb-4">
+            <div class="col-xl-3 col-md-6 mb-3">
+                <div class="card order-summary">
+                    <div class="card-body text-center">
+                        <i class="fas fa-boxes fa-2x mb-2 opacity-75"></i>
+                        <h3 class="mb-0">{{ total_products|default:0 }}</h3>
+                        <small>Products Need Reordering</small>
+                    </div>
+                </div>
+            </div>
+            <div class="col-xl-3 col-md-6 mb-3">
+                <div class="card" style="background: linear-gradient(135deg, #11998e 0%, #38ef7d 100%); color: white;">
+                    <div class="card-body text-center">
+                        <i class="fas fa-truck fa-2x mb-2 opacity-75"></i>
+                        <h3 class="mb-0">{{ total_suppliers|default:0 }}</h3>
+                        <small>Suppliers Involved</small>
+                    </div>
+                </div>
+            </div>
+            <div class="col-xl-3 col-md-6 mb-3">
+                <div class="card" style="background: linear-gradient(135deg, #fc4a1a 0%, #f7b733 100%); color: white;">
+                    <div class="card-body text-center">
+                        <i class="fas fa-dollar-sign fa-2x mb-2 opacity-75"></i>
+                        <h3 class="mb-0">${{ total_order_value|floatformat:0|default:0 }}</h3>
+                        <small>Total Order Value</small>
+                    </div>
+                </div>
+            </div>
+            <div class="col-xl-3 col-md-6 mb-3">
+                <div class="card" style="background: linear-gradient(135deg, #4b6cb7 0%, #182848 100%); color: white;">
+                    <div class="card-body text-center">
+                        <i class="fas fa-clock fa-2x mb-2 opacity-75"></i>
+                        <h3 class="mb-0">{{ currencies|length|default:1 }}</h3>
+                        <small>Currencies</small>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Filter and Controls -->
+        <div class="row mb-4">
+            <div class="col-12">
+                <div class="card">
+                    <div class="card-body">
+                        <div class="row align-items-end">
+                            <div class="col-md-3">
+                                <label class="form-label">Filter by Supplier</label>
+                                <select class="form-control" id="supplierFilter" onchange="filterBySupplier()">
+                                    <option value="">All Suppliers</option>
+                                    {% for supplier_id, group in supplier_groups.items %}
+                                    <option value="{{ supplier_id }}">{{ group.supplier.name }}</option>
+                                    {% endfor %}
+                                </select>
+                            </div>
+                            <div class="col-md-3">
+                                <label class="form-label">Filter by Priority</label>
+                                <select class="form-control" id="priorityFilter" onchange="filterByPriority()">
+                                    <option value="">All Priorities</option>
+                                    <option value="critical">Critical (Out of Stock)</option>
+                                    <option value="high">High (Very Low)</option>
+                                    <option value="medium">Medium (Low Stock)</option>
+                                </select>
+                            </div>
+                            <div class="col-md-3">
+                                <label class="form-label">Filter by Country</label>
+                                <select class="form-control" id="countryFilter" onchange="filterByCountry()">
+                                    <option value="">All Countries</option>
+                                    {% regroup supplier_groups.values by supplier.country.name as country_list %}
+                                    {% for country in country_list %}
+                                    <option value="{{ country.grouper }}">{{ country.grouper }}</option>
+                                    {% endfor %}
+                                </select>
+                            </div>
+                            <div class="col-md-3">
+                                <button class="btn btn-outline-primary w-100" onclick="toggleSelectAll()">
+                                    <i class="fas fa-check-square"></i> Toggle Select All
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Supplier Groups -->
+        {% for supplier_id, group in supplier_groups.items %}
+        <div class="supplier-group mb-4" data-supplier="{{ supplier_id }}" data-country="{{ group.supplier.country.name }}">
+            <div class="card supplier-card">
+                <div class="card-header">
+                    <div class="row align-items-center">
+                        <div class="col-md-6">
+                            <div class="d-flex align-items-center">
+                                <div class="form-check me-3">
+                                    <input class="form-check-input supplier-checkbox" type="checkbox" 
+                                           id="supplier_{{ supplier_id }}" onchange="toggleSupplierProducts({{ supplier_id }})">
+                                </div>
+                                <div>
+                                    <h5 class="mb-0">
+                                        <i class="fas fa-building text-primary me-2"></i>
+                                        {{ group.supplier.name }}
+                                    </h5>
+                                    <small class="text-muted">
+                                        <i class="fas fa-map-marker-alt me-1"></i>{{ group.supplier.country.name }}
+                                        | <i class="fas fa-clock me-1"></i>{{ group.supplier.typical_lead_time_days }} days lead time
+                                        {% if group.supplier.email %}
+                                        | <i class="fas fa-envelope me-1"></i>{{ group.supplier.email }}
+                                        {% endif %}
+                                    </small>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-3 text-center">
+                            <strong>{{ group.products|length }} Products</strong>
+                            <br><small class="text-muted">{{ group.currency.code }} {{ group.total_value|floatformat:2 }}</small>
+                        </div>
+                        <div class="col-md-3 text-end">
+                            <button class="btn btn-sm btn-outline-success me-2" onclick="downloadSupplierOrder({{ supplier_id }})">
+                                <i class="fas fa-download"></i> Download Order
+                            </button>
+                            <button class="btn btn-sm btn-success" onclick="emailSupplier({{ supplier_id }})">
+                                <i class="fas fa-envelope"></i> Email Order
+                            </button>
+                        </div>
+                    </div>
+                </div>
+                <div class="card-body">
+                    <div class="table-responsive">
+                        <table class="table table-hover mb-0">
+                            <thead class="table-light">
+                                <tr>
+                                    <th width="40">
+                                        <input type="checkbox" class="form-check-input" onchange="toggleSupplierProducts({{ supplier_id }})">
+                                    </th>
+                                    <th>Product</th>
+                                    <th>Current Stock</th>
+                                    <th>Recommended Qty</th>
+                                    <th>Unit Cost</th>
+                                    <th>Order Value</th>
+                                    <th>Priority</th>
+                                    <th>Lead Time</th>
+                                    <th>MOQ</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for product_info in group.products %}
+                                <tr class="product-row priority-{{ product_info.priority }}" 
+                                    data-priority="{{ product_info.priority }}"
+                                    data-supplier="{{ supplier_id }}">
+                                    <td>
+                                        <input type="checkbox" class="form-check-input product-checkbox" 
+                                               data-supplier="{{ supplier_id }}"
+                                               data-product="{{ product_info.product.id }}">
+                                    </td>
+                                    <td>
+                                        <div>
+                                            <strong>{{ product_info.product.sku }}</strong>
+                                            <br>
+                                            <span class="text-muted">{{ product_info.product.name|truncatechars:40 }}</span>
+                                            <br>
+                                            <small class="text-muted">
+                                                {{ product_info.product.brand.name }} | {{ product_info.product.category.name }}
+                                                {% if product_info.product.supplier_sku %}
+                                                <br>Supplier SKU: {{ product_info.product.supplier_sku }}
+                                                {% endif %}
+                                            </small>
+                                        </div>
+                                    </td>
+                                    <td>
+                                        <span class="badge bg-{{ product_info.current_stock == 0 and 'danger' or product_info.current_stock <= 5 and 'warning' or 'success' }}">
+                                            {{ product_info.current_stock }}
+                                        </span>
+                                        <br><small class="text-muted">Reorder: {{ product_info.product.reorder_level }}</small>
+                                    </td>
+                                    <td>
+                                        <input type="number" class="form-control form-control-sm" 
+                                               value="{{ product_info.recommended_quantity }}"
+                                               min="{{ product_info.product.supplier_minimum_order_quantity }}"
+                                               onchange="updateOrderQuantity(this, {{ product_info.product.id }})"
+                                               style="width: 80px;">
+                                    </td>
+                                    <td>
+                                        {{ group.currency.symbol }}{{ product_info.unit_cost|floatformat:4 }}
+                                        {% if product_info.product.supplier_price_breaks %}
+                                        <br><small class="text-info">
+                                            <i class="fas fa-tags"></i> Volume discounts available
+                                        </small>
+                                        {% endif %}
+                                    </td>
+                                    <td>
+                                        <strong class="order-value" data-product="{{ product_info.product.id }}">
+                                            {{ group.currency.symbol }}{{ product_info.order_value|floatformat:2 }}
+                                        </strong>
+                                    </td>
+                                    <td>
+                                        <span class="badge priority-badge-{{ product_info.priority }}">
+                                            {{ product_info.priority|capfirst }}
+                                        </span>
+                                    </td>
+                                    <td>{{ product_info.product.supplier_lead_time_days }} days</td>
+                                    <td>{{ product_info.product.supplier_minimum_order_quantity }}</td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+        {% empty %}
+        <div class="row">
+            <div class="col-12">
+                <div class="card">
+                    <div class="card-body text-center py-5">
+                        <i class="fas fa-check-circle fa-5x text-success mb-4"></i>
+                        <h3 class="text-success">Excellent Stock Management!</h3>
+                        <p class="text-muted">No products currently need reordering. All stock levels are above reorder points.</p>
+                        <a href="{% url 'inventory:product_list' %}" class="btn btn-outline-primary">
+                            <i class="fas fa-boxes"></i> View All Products
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </div>
+        {% endfor %}
+
+        <!-- Action Buttons -->
+        {% if supplier_groups %}
+        <div class="row mt-4">
+            <div class="col-12">
+                <div class="card">
+                    <div class="card-body">
+                        <h5 class="card-title">
+                            <i class="fas fa-tasks text-primary me-2"></i>
+                            Bulk Actions
+                        </h5>
+                        <div class="row">
+                            <div class="col-md-3">
+                                <button class="btn btn-success w-100 mb-2" onclick="createPurchaseOrders()">
+                                    <i class="fas fa-shopping-cart"></i> Create Purchase Orders
+                                </button>
+                            </div>
+                            <div class="col-md-3">
+                                <button class="btn btn-info w-100 mb-2" onclick="generateReorderAlerts()">
+                                    <i class="fas fa-bell"></i> Generate Reorder Alerts
+                                </button>
+                            </div>
+                            <div class="col-md-3">
+                                <button class="btn btn-warning w-100 mb-2" onclick="exportToExcel()">
+                                    <i class="fas fa-file-excel"></i> Export to Excel
+                                </button>
+                            </div>
+                            <div class="col-md-3">
+                                <button class="btn btn-secondary w-100 mb-2" onclick="scheduleReminder()">
+                                    <i class="fas fa-clock"></i> Schedule Reminder
+                                </button>
+                            </div>
+                        </div>
+                        <div class="mt-3">
+                            <small class="text-muted">
+                                <i class="fas fa-info-circle me-1"></i>
+                                Last updated: <span id="lastUpdated">{{ request.timestamp|date:"M d, Y H:i" }}</span>
+                                | Auto-refresh in <span id="refreshCountdown">5:00</span>
+                            </small>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        {% endif %}
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        // Global state
+        let selectedProducts = new Set();
+        let refreshInterval;
+
+        // Initialize
+        document.addEventListener('DOMContentLoaded', function() {
+            startRefreshCountdown();
+            calculateTotalValues();
+        });
+
+        // Filter functions
+        function filterBySupplier() {
+            const supplierId = document.getElementById('supplierFilter').value;
+            document.querySelectorAll('.supplier-group').forEach(group => {
+                if (!supplierId || group.dataset.supplier === supplierId) {
+                    group.style.display = 'block';
+                } else {
+                    group.style.display = 'none';
+                }
+            });
+        }
+
+        function filterByPriority() {
+            const priority = document.getElementById('priorityFilter').value;
+            document.querySelectorAll('.product-row').forEach(row => {
+                if (!priority || row.dataset.priority === priority) {
+                    row.style.display = 'table-row';
+                } else {
+                    row.style.display = 'none';
+                }
+            });
+        }
+
+        function filterByCountry() {
+            const country = document.getElementById('countryFilter').value;
+            document.querySelectorAll('.supplier-group').forEach(group => {
+                if (!country || group.dataset.country === country) {
+                    group.style.display = 'block';
+                } else {
+                    group.style.display = 'none';
+                }
+            });
+        }
+
+        // Selection functions
+        function toggleSelectAll() {
+            const allCheckboxes = document.querySelectorAll('.product-checkbox');
+            const allChecked = Array.from(allCheckboxes).every(cb => cb.checked);
+            
+            allCheckboxes.forEach(cb => {
+                cb.checked = !allChecked;
+                updateSelectedProducts(cb);
+            });
+            
+            updateSupplierCheckboxes();
+        }
+
+        function toggleSupplierProducts(supplierId) {
+            const supplierCheckbox = document.getElementById(`supplier_${supplierId}`);
+            const productCheckboxes = document.querySelectorAll(`.product-checkbox[data-supplier="${supplierId}"]`);
+            
+            productCheckboxes.forEach(cb => {
+                cb.checked = supplierCheckbox.checked;
+                updateSelectedProducts(cb);
+            });
+        }
+
+        function updateSelectedProducts(checkbox) {
+            const productId = checkbox.dataset.product;
+            const supplierId = checkbox.dataset.supplier;
+            const key = `${supplierId}_${productId}`;
+            
+            if (checkbox.checked) {
+                selectedProducts.add(key);
+            } else {
+                selectedProducts.delete(key);
+            }
+            
+            updateSupplierCheckboxes();
+        }
+
+        function updateSupplierCheckboxes() {
+            document.querySelectorAll('.supplier-checkbox').forEach(supplierCb => {
+                const supplierId = supplierCb.id.replace('supplier_', '');
+                const supplierProducts = document.querySelectorAll(`.product-checkbox[data-supplier="${supplierId}"]`);
+                const checkedProducts = Array.from(supplierProducts).filter(cb => cb.checked);
+                
+                supplierCb.checked = checkedProducts.length > 0;
+                supplierCb.indeterminate = checkedProducts.length > 0 && checkedProducts.length < supplierProducts.length;
+            });
+        }
+
+        // Order quantity updates
+        function updateOrderQuantity(input, productId) {
+            const quantity = parseInt(input.value);
+            const row = input.closest('.product-row');
+            const supplierId = row.dataset.supplier;
+            
+            // Get unit cost from the row
+            const costCell = row.querySelector('td:nth-child(5)');
+            const costText = costCell.textContent.trim();
+            const unitCost = parseFloat(costText.replace(/[^0-9.]/g, ''));
+            
+            // Calculate new order value
+            const newOrderValue = quantity * unitCost;
+            const orderValueCell = row.querySelector('.order-value');
+            const currencySymbol = costText.charAt(0);
+            
+            orderValueCell.textContent = `${currencySymbol}${newOrderValue.toFixed(2)}`;
+            
+            // Update total values
+            calculateTotalValues();
+        }
+
+        function calculateTotalValues() {
+            let totalValue = 0;
+            document.querySelectorAll('.order-value').forEach(cell => {
+                const value = parseFloat(cell.textContent.replace(/[^0-9.]/g, ''));
+                totalValue += value;
+            });
+            
+            // Update summary if exists
+            const summaryCard = document.querySelector('.order-summary');
+            if (summaryCard) {
+                // Update display logic here
+            }
+        }
+
+        // Download functions
+        function downloadSupplierOrder(supplierId) {
+            const url = `/inventory/api/reorders/generate-list/?supplier_id=${supplierId}&format=csv`;
+            window.open(url, '_blank');
+        }
+
+        function downloadAllOrders() {
+            const url = `/inventory/api/reorders/generate-list/?format=csv`;
+            window.open(url, '_blank');
+        }
+
+        function exportToExcel() {
+            const selectedSuppliers = Array.from(document.querySelectorAll('.supplier-checkbox:checked'))
+                .map(cb => cb.id.replace('supplier_', ''));
+            
+            let url = '/inventory/api/reorders/generate-list/?format=excel';
+            if (selectedSuppliers.length > 0) {
+                url += '&suppliers=' + selectedSuppliers.join(',');
+            }
+            
+            window.open(url, '_blank');
+        }
+
+        // Email functions
+        function emailSupplier(supplierId) {
+            if (confirm('Send order list to supplier via email?')) {
+                fetch('/inventory/api/reorders/email-supplier/', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value
+                    },
+                    body: JSON.stringify({
+                        supplier_id: supplierId,
+                        include_products: getSelectedProductsForSupplier(supplierId)
+                    })
+                })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        alert('Order sent successfully!');
+                    } else {
+                        alert('Error sending order: ' + data.error);
+                    }
+                });
+            }
+        }
+
+        function emailToSuppliers() {
+            if (selectedProducts.size === 0) {
+                alert('Please select products to order first.');
+                return;
+            }
+            
+            if (confirm(`Send order lists to ${getSelectedSuppliersCount()} suppliers?`)) {
+                // Implementation for bulk email sending
+                alert('Feature coming soon!');
+            }
+        }
+
+        // Utility functions
+        function getSelectedProductsForSupplier(supplierId) {
+            return Array.from(selectedProducts).filter(key => key.startsWith(supplierId + '_'));
+        }
+
+        function getSelectedSuppliersCount() {
+            const suppliers = new Set();
+            selectedProducts.forEach(key => {
+                suppliers.add(key.split('_')[0]);
+            });
+            return suppliers.size;
+        }
+
+        function refreshData() {
+            location.reload();
+        }
+
+        function startRefreshCountdown() {
+            let seconds = 300; // 5 minutes
+            const countdown = document.getElementById('refreshCountdown');
+            
+            refreshInterval = setInterval(() => {
+                const minutes = Math.floor(seconds / 60);
+                const secs = seconds % 60;
+                countdown.textContent = `${minutes}:${secs.toString().padStart(2, '0')}`;
+                
+                if (seconds <= 0) {
+                    refreshData();
+                }
+                seconds--;
+            }, 1000);
+        }
+
+        // Advanced functions
+        function createPurchaseOrders() {
+            if (selectedProducts.size === 0) {
+                alert('Please select products to create purchase orders.');
+                return;
+            }
+            
+            if (confirm('Create purchase orders for selected products?')) {
+                // Implementation for PO creation
+                alert('Purchase orders feature coming soon!');
+            }
+        }
+
+        function generateReorderAlerts() {
+            fetch('/inventory/api/reorders/generate-recommendations/', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value
+                }
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    alert(`Generated ${data.recommendations_created} reorder alerts.`);
+                    refreshData();
+                } else {
+                    alert('Error generating alerts: ' + data.error);
+                }
+            });
+        }
+
+        function scheduleReminder() {
+            alert('Reminder scheduling feature coming soon!');
+        }
+
+        // Add event listeners for product checkboxes
+        document.addEventListener('change', function(e) {
+            if (e.target.classList.contains('product-checkbox')) {
+                updateSelectedProducts(e.target);
+            }
+        });
+
+        // Clean up intervals on page unload
+        window.addEventListener('beforeunload', function() {
+            if (refreshInterval) {
+                clearInterval(refreshInterval);
+            }
+        });
+    </script>
+</body>
+</html>

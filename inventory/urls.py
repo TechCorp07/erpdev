@@ -1,21 +1,18 @@
-# inventory/urls.py - Cleaned URL Configuration (Only Working Views)
+# inventory/urls.py - Complete URL Configuration for Electronics Business
 
 """
-URL Routing for Inventory Management System
+Complete URL routing for BlitzTech Electronics inventory management system.
 
-This URL configuration includes only the currently implemented views.
-Future functionality is commented out with clear notes for implementation.
-
-Currently Working:
-- Basic dashboard and overview
-- Product CRUD operations
-- Basic stock management
-- Simple category/supplier management
-- API endpoints for product search and stock adjustments
-- Quote system integration endpoints
-- Export functionality
-
-Future Implementation sections are clearly marked and commented.
+Features:
+1. Product management with dynamic attributes
+2. Advanced cost calculation and pricing
+3. Multi-location stock management
+4. Reorder management and automation
+5. Business intelligence and analytics
+6. Barcode/QR code support
+7. Bulk operations and data management
+8. API endpoints for integration
+9. Reporting and export functionality
 """
 
 from django.urls import path, include
@@ -24,365 +21,363 @@ from . import views
 app_name = 'inventory'
 
 # =====================================
-# WORKING URLS - CURRENTLY IMPLEMENTED
+# MAIN DASHBOARD AND OVERVIEW
 # =====================================
 
-urlpatterns = [
-    # Main dashboard (root inventory URL)
+dashboard_patterns = [
     path('', views.InventoryDashboardView.as_view(), name='dashboard'),
-    
-    # Dashboard and overview - WORKING
-    path('overview/', views.InventoryOverviewView.as_view(), name='overview'),
-    path('quick-stats/', views.quick_stats_api, name='quick_stats'),
-    path('alerts/', views.inventory_alerts_view, name='alerts'),
-    
-    # Product management - WORKING BASIC CRUD
+    path('overview/', views.InventoryDashboardView.as_view(), name='overview'),
+    path('analytics/', views.inventory_analytics_view, name='analytics'),
+    path('low-stock-ordering/', views.LowStockOrderingView.as_view(), name='low_stock_ordering'),
+]
+
+# =====================================
+# PRODUCT MANAGEMENT
+# =====================================
+
+product_patterns = [
+    # Basic CRUD
     path('products/', views.ProductListView.as_view(), name='product_list'),
     path('products/<int:pk>/', views.ProductDetailView.as_view(), name='product_detail'),
     path('products/create/', views.ProductCreateView.as_view(), name='product_create'),
     path('products/<int:pk>/edit/', views.ProductUpdateView.as_view(), name='product_edit'),
     path('products/<int:pk>/delete/', views.ProductDeleteView.as_view(), name='product_delete'),
-    path('products/<int:pk>/duplicate/', views.product_duplicate_view, name='product_duplicate'),
-    path('products/<int:pk>/adjust-stock/', views.adjust_stock_view, name='adjust_stock'),
-    path('products/export/', views.product_export_view, name='product_export'),
-    path('products/import/', views.product_import_view, name='product_import'),
-    path('products/search/', views.ProductSearchView.as_view(), name='product_search'),
-    path('products/bulk-import/', views.ProductBulkImportView.as_view(), name='bulk_import'),
-    path('products/import-template/', views.product_import_template_excel, name='product_import_template_excel'),
-    path('export/data/', views.export_data_view, name='export_data'),
     
-    # Category management - WORKING BASIC CRUD
+    # Advanced product operations
+    path('products/<int:pk>/duplicate/', views.product_duplicate_view, name='product_duplicate'),
+    path('products/<int:pk>/cost-analysis/', views.product_cost_analysis_view, name='product_cost_analysis'),
+    path('products/bulk-create/', views.ProductBulkCreateView.as_view(), name='product_bulk_create'),
+    path('products/bulk-update/', views.product_bulk_update_view, name='product_bulk_update'),
+    path('products/bulk-import/', views.ProductBulkImportView.as_view(), name='product_bulk_import'),
+    path('products/import-template/', views.product_import_template_view, name='product_import_template'),
+    
+    # Export and data management
+    path('products/export/', views.product_export_view, name='product_export'),
+    path('products/export-catalog/', views.product_catalog_export_view, name='product_catalog_export'),
+    
+    # Search and filtering
+    path('products/search/', views.ProductSearchView.as_view(), name='product_search'),
+    path('products/advanced-search/', views.ProductAdvancedSearchView.as_view(), name='product_advanced_search'),
+]
+
+# =====================================
+# DYNAMIC CONFIGURATION MANAGEMENT
+# =====================================
+
+configuration_patterns = [
+    # Currency management
+    path('configuration/currencies/', views.CurrencyListView.as_view(), name='currency_list'),
+    path('configuration/currencies/create/', views.CurrencyCreateView.as_view(), name='currency_create'),
+    path('configuration/currencies/<int:pk>/edit/', views.CurrencyUpdateView.as_view(), name='currency_edit'),
+    path('configuration/currencies/update-rates/', views.update_exchange_rates_view, name='update_exchange_rates'),
+    
+    # Overhead factors
+    path('configuration/overhead-factors/', views.OverheadFactorListView.as_view(), name='overhead_factor_list'),
+    path('configuration/overhead-factors/create/', views.OverheadFactorCreateView.as_view(), name='overhead_factor_create'),
+    path('configuration/overhead-factors/<int:pk>/edit/', views.OverheadFactorUpdateView.as_view(), name='overhead_factor_edit'),
+    
+    # Product attributes
+    path('configuration/attributes/', views.ProductAttributeListView.as_view(), name='product_attribute_list'),
+    path('configuration/attributes/create/', views.ProductAttributeCreateView.as_view(), name='product_attribute_create'),
+    path('configuration/attributes/<int:pk>/edit/', views.ProductAttributeUpdateView.as_view(), name='product_attribute_edit'),
+    
+    # Component families
+    path('configuration/component-families/', views.ComponentFamilyListView.as_view(), name='component_family_list'),
+    path('configuration/component-families/create/', views.ComponentFamilyCreateView.as_view(), name='component_family_create'),
+    path('configuration/component-families/<int:pk>/edit/', views.ComponentFamilyUpdateView.as_view(), name='component_family_edit'),
+    
+    # Storage locations and bins
+    path('configuration/locations/', views.StorageLocationListView.as_view(), name='storage_location_list'),
+    path('configuration/locations/create/', views.StorageLocationCreateView.as_view(), name='storage_location_create'),
+    path('configuration/locations/<int:pk>/edit/', views.StorageLocationUpdateView.as_view(), name='storage_location_edit'),
+    path('configuration/locations/<int:location_id>/bins/', views.StorageBinListView.as_view(), name='storage_bin_list'),
+    path('configuration/bins/create/', views.StorageBinCreateView.as_view(), name='storage_bin_create'),
+    path('configuration/bins/<int:pk>/edit/', views.StorageBinUpdateView.as_view(), name='storage_bin_edit'),
+]
+
+# =====================================
+# BUSINESS ENTITY MANAGEMENT
+# =====================================
+
+entity_patterns = [
+    # Category management
     path('categories/', views.CategoryListView.as_view(), name='category_list'),
     path('categories/<int:pk>/', views.CategoryDetailView.as_view(), name='category_detail'),
     path('categories/create/', views.CategoryCreateView.as_view(), name='category_create'),
+    path('categories/<int:pk>/edit/', views.CategoryUpdateView.as_view(), name='category_edit'),
+    path('categories/<int:pk>/products/', views.CategoryProductsView.as_view(), name='category_products'),
     
-    # Supplier management - WORKING BASIC CRUD
+    # Brand management
+    path('brands/', views.BrandListView.as_view(), name='brand_list'),
+    path('brands/<int:pk>/', views.BrandDetailView.as_view(), name='brand_detail'),
+    path('brands/create/', views.BrandCreateView.as_view(), name='brand_create'),
+    path('brands/<int:pk>/edit/', views.BrandUpdateView.as_view(), name='brand_edit'),
+    path('brands/<int:pk>/products/', views.BrandProductsView.as_view(), name='brand_products'),
+    
+    # Supplier management
     path('suppliers/', views.SupplierListView.as_view(), name='supplier_list'),
     path('suppliers/<int:pk>/', views.SupplierDetailView.as_view(), name='supplier_detail'),
     path('suppliers/create/', views.SupplierCreateView.as_view(), name='supplier_create'),
-    
-    # Stock management - WORKING BASIC OPERATIONS
-    path('stock/', views.StockOverviewView.as_view(), name='stock_overview'),
-    path('stock/movements/', views.StockMovementListView.as_view(), name='stock_movements'),
-    path('stock/transfer/', views.stock_transfer_view, name='stock_transfer'),
-    path('stock/take-create/', views.stock_take_create, name='stock_take_create'),
-    path('stock/adjust/', views.StockAdjustDashboardView.as_view(), name='stock_adjust'),
-    path('stock-takes/', views.StockTakeListView.as_view(), name='stock_take_list'),
-    path('stock-takes/<int:pk>/export/excel/', views.export_stock_take_excel, name='stock_take_export_excel'),
-    path('stock-takes/<int:pk>/export/pdf/', views.export_stock_take_pdf, name='stock_take_export_pdf'),
-    
-    # API endpoints - WORKING
-    path('api/products/search/', views.product_search_api, name='product_search_api'),
-    path('api/products/check-sku/', views.check_sku_availability, name='check_sku_availability'),
-    path('api/products/check-barcode/', views.check_barcode_availability, name='check_barcode_availability'),
-    path('api/stock/adjust/', views.stock_adjust_api, name='stock_adjust_api'),
-    path('api/dashboard/metrics/', views.dashboard_metrics_api, name='dashboard_metrics_api'),
-    path('api/recent-activities/', views.recent_activities_api, name='recent_activities_api'),
-    path('api/critical-alerts/', views.critical_alerts_api, name='critical_alerts_api'),
-    path('api/live-stock/<int:product_id>/', views.get_live_stock, name='live_stock_api'),
-    
-    # Quote system integration - WORKING
-    path('integrations/quote-products/', views.quote_products_api, name='quote_products_api'),
-    path('integrations/check-availability/', views.check_quote_availability_api, name='check_quote_availability_api'),
-    path('integrations/reserve-stock/', views.reserve_for_quote_api, name='reserve_for_quote_api'),
-    
-    # Quick access - WORKING
-    path('quick-add-product/', views.QuickAddProductView.as_view(), name='quick_add_product'),
-    path('quick-search/', views.quick_search_view, name='quick_search'),
-    
-    # Utility - WORKING
-    path('help/', views.InventoryHelpView.as_view(), name='help'),
-    path('settings/', views.InventorySettingsView.as_view(), name='settings'),
-    
-    path('reports/dashboard/', views.reports_dashboard, name='reports_dashboard'),
-    path('reports/valuation/', views.InventoryValuationReportView.as_view(), name='valuation_report'),
-    path('reports/low-stock/', views.LowStockReportView.as_view(), name='low_stock_report'),
-    path('reports/export/<str:report_type>/', views.export_report, name='export_report'),
-    
-    path('stock/movements/export/', views.stock_movements_export, name='stock_movements_export'),
-    path('stock/low-stock/', views.low_stock_view, name='low_stock'),
-    path('stock/adjust/', views.StockAdjustDashboardView.as_view(), name='stock_adjust'),
-    path('suppliers/api/<int:pk>/details/', views.supplier_details_api, name='supplier_details_api'),
-    
-    path('alerts/dashboard/', views.AlertsDashboardView.as_view(), name='alerts_dashboard'),
-    path('reorder-alerts/', views.reorder_alert_list, name='reorder_alert_list'),
-]
-
-# =====================================
-# FUTURE IMPLEMENTATION - COMMENTED OUT
-# =====================================
-
-"""
-# FUTURE: Advanced Product Management
-# These URLs are for advanced product features not yet implemented:
-# - Advanced search and filtering
-# - Product analytics and performance
-# - Bulk operations
-# - Import functionality
-# - Stock history and reservations
-
-future_product_patterns = [
-    path('products/search/', views.ProductSearchView.as_view(), name='product_search'),
-    path('products/catalog/', views.ProductCatalogView.as_view(), name='product_catalog'),
-    path('products/<int:pk>/stock/', views.ProductStockView.as_view(), name='product_stock'),
-    path('products/<int:pk>/stock-history/', views.ProductStockHistoryView.as_view(), name='product_stock_history'),
-    path('products/<int:pk>/reserve-stock/', views.reserve_stock_api, name='reserve_stock'),
-    path('products/<int:pk>/release-stock/', views.release_stock_api, name='release_stock'),
-    path('products/<int:pk>/analytics/', views.ProductAnalyticsView.as_view(), name='product_analytics'),
-    path('products/<int:pk>/performance/', views.ProductPerformanceView.as_view(), name='product_performance'),
-    path('products/bulk-update/', views.ProductBulkUpdateView.as_view(), name='product_bulk_update'),
-    path('products/bulk-adjust-stock/', views.bulk_stock_adjustment_view, name='bulk_adjust_stock'),
-    path('products/bulk-price-update/', views.bulk_price_update_view, name='bulk_price_update'),
-    path('products/import/', views.ProductImportView.as_view(), name='product_import'),
-    path('products/import-template/', views.product_import_template, name='product_import_template'),
-]
-
-# FUTURE: Advanced Category Management  
-# These URLs are for category features beyond basic CRUD:
-# - Category analytics
-# - Bulk operations on category products
-# - Category hierarchy management
-# - Performance metrics
-
-future_category_patterns = [
-    path('categories/<slug:slug>/', views.CategoryDetailView.as_view(), name='category_detail_slug'),
-    path('categories/<int:pk>/edit/', views.CategoryUpdateView.as_view(), name='category_edit'),
-    path('categories/<int:pk>/delete/', views.CategoryDeleteView.as_view(), name='category_delete'),
-    path('categories/<int:pk>/products/', views.CategoryProductsView.as_view(), name='category_products'),
-    path('categories/<int:pk>/apply-defaults/', views.apply_category_defaults_view, name='apply_category_defaults'),
-    path('categories/<int:pk>/bulk-update-products/', views.category_bulk_update_products, name='category_bulk_update_products'),
-    path('categories/<int:pk>/analytics/', views.CategoryAnalyticsView.as_view(), name='category_analytics'),
-    path('categories/<int:pk>/performance/', views.CategoryPerformanceView.as_view(), name='category_performance'),
-    path('categories/api/hierarchy/', views.category_hierarchy_api, name='category_hierarchy_api'),
-    path('categories/api/<int:pk>/products-count/', views.category_products_count_api, name='category_products_count_api'),
-]
-
-# FUTURE: Advanced Supplier Management
-# These URLs are for supplier features beyond basic CRUD:
-# - Supplier performance tracking
-# - Purchase order integration
-# - Supplier analytics and reports
-# - Communication features
-
-future_supplier_patterns = [
     path('suppliers/<int:pk>/edit/', views.SupplierUpdateView.as_view(), name='supplier_edit'),
-    path('suppliers/<int:pk>/delete/', views.SupplierDeleteView.as_view(), name='supplier_delete'),
     path('suppliers/<int:pk>/products/', views.SupplierProductsView.as_view(), name='supplier_products'),
-    path('suppliers/<int:pk>/purchase-orders/', views.SupplierPurchaseOrdersView.as_view(), name='supplier_purchase_orders'),
     path('suppliers/<int:pk>/performance/', views.SupplierPerformanceView.as_view(), name='supplier_performance'),
     path('suppliers/<int:pk>/contact/', views.supplier_contact_view, name='supplier_contact'),
-    path('suppliers/<int:pk>/analytics/', views.SupplierAnalyticsView.as_view(), name='supplier_analytics'),
-    path('suppliers/<int:pk>/price-history/', views.SupplierPriceHistoryView.as_view(), name='supplier_price_history'),
-    path('suppliers/bulk-update/', views.SupplierBulkUpdateView.as_view(), name='supplier_bulk_update'),
-    path('suppliers/export/', views.supplier_export_view, name='supplier_export'),
-    path('suppliers/api/search/', views.supplier_search_api, name='supplier_search_api'),
 ]
 
-# FUTURE: Location Management System
-# Complete multi-location inventory management:
-# - Location CRUD operations
-# - Stock transfers between locations
-# - Location capacity management
-# - Location-specific analytics
+# =====================================
+# STOCK MANAGEMENT
+# =====================================
 
-future_location_patterns = [
-    path('locations/', views.LocationListView.as_view(), name='location_list'),
-    path('locations/<int:pk>/', views.LocationDetailView.as_view(), name='location_detail'),
-    path('locations/create/', views.LocationCreateView.as_view(), name='location_create'),
-    path('locations/<int:pk>/edit/', views.LocationUpdateView.as_view(), name='location_edit'),
-    path('locations/<int:pk>/delete/', views.LocationDeleteView.as_view(), name='location_delete'),
-    path('locations/<int:pk>/stock/', views.LocationStockView.as_view(), name='location_stock'),
-    path('locations/<int:pk>/transfer-from/', views.location_transfer_from_view, name='location_transfer_from'),
-    path('locations/<int:pk>/transfer-to/', views.location_transfer_to_view, name='location_transfer_to'),
-    path('locations/<int:pk>/capacity/', views.LocationCapacityView.as_view(), name='location_capacity'),
-    path('locations/<int:pk>/analytics/', views.LocationAnalyticsView.as_view(), name='location_analytics'),
-    path('locations/<int:pk>/utilization/', views.LocationUtilizationView.as_view(), name='location_utilization'),
-    path('locations/api/stock-levels/', views.location_stock_levels_api, name='location_stock_levels_api'),
-    path('locations/api/<int:pk>/availability/', views.location_availability_api, name='location_availability_api'),
+stock_patterns = [
+    # Stock level management
+    path('stock/', views.StockOverviewView.as_view(), name='stock_overview'),
+    path('stock/locations/', views.StockByLocationView.as_view(), name='stock_by_location'),
+    path('stock/movements/', views.StockMovementListView.as_view(), name='stock_movement_list'),
+    
+    # Stock adjustments
+    path('stock/adjust/', views.StockAdjustmentView.as_view(), name='stock_adjustment'),
+    path('stock/transfer/', views.StockTransferView.as_view(), name='stock_transfer'),
+    path('stock/bulk-adjust/', views.BulkStockAdjustmentView.as_view(), name='bulk_stock_adjustment'),
+    
+    # Stock takes (physical counting)
+    path('stock/takes/', views.StockTakeListView.as_view(), name='stock_take_list'),
+    path('stock/takes/create/', views.StockTakeCreateView.as_view(), name='stock_take_create'),
+    path('stock/takes/<int:pk>/', views.StockTakeDetailView.as_view(), name='stock_take_detail'),
+    path('stock/takes/<int:pk>/complete/', views.stock_take_complete_view, name='stock_take_complete'),
 ]
 
-# FUTURE: Advanced Stock Management
-# Enhanced stock operations and tracking:
-# - Advanced stock level views
-# - Bulk stock operations
-# - Stock valuation and aging reports
-# - Turnover analysis
+# =====================================
+# REORDER MANAGEMENT
+# =====================================
 
-future_stock_patterns = [
-    path('stock/levels/', views.StockLevelsView.as_view(), name='stock_levels'),
-    path('stock/low-stock/', views.LowStockView.as_view(), name='low_stock'),
-    path('stock/out-of-stock/', views.OutOfStockView.as_view(), name='out_of_stock'),
-    path('stock/movements/<int:pk>/', views.StockMovementDetailView.as_view(), name='stock_movement_detail'),
-    path('stock/adjust/', views.StockAdjustmentView.as_view(), name='stock_adjust'),
-    path('stock/bulk-adjust/', views.BulkStockAdjustmentView.as_view(), name='bulk_stock_adjust'),
-    path('stock/valuation/', views.StockValuationView.as_view(), name='stock_valuation'),
-    path('stock/aging/', views.StockAgingView.as_view(), name='stock_aging'),
-    path('stock/turnover/', views.StockTurnoverView.as_view(), name='stock_turnover'),
-    path('stock/api/levels/', views.stock_levels_api, name='stock_levels_api'),
-    path('stock/api/movement-summary/', views.stock_movement_summary_api, name='stock_movement_summary_api'),
-    path('stock/api/transfer/', views.stock_transfer_api, name='stock_transfer_api'),
+reorder_patterns = [
+    # Reorder alerts and management
+    path('reorders/', views.ReorderAlertListView.as_view(), name='reorder_alert_list'),
+    path('reorders/generate-recommendations/', views.generate_reorder_recommendations_view, name='generate_reorder_recommendations'),
+    path('reorders/download-list/', views.download_reorder_csv, name='download_reorder_csv'),
+    path('reorders/bulk-create-alerts/', views.bulk_create_reorder_alerts_view, name='bulk_create_reorder_alerts'),
+    path('reorders/<int:pk>/acknowledge/', views.acknowledge_reorder_alert_view, name='acknowledge_reorder_alert'),
+    path('reorders/<int:pk>/complete/', views.complete_reorder_alert_view, name='complete_reorder_alert'),
+    
+    # Purchase order integration
+    path('reorders/create-po/', views.create_purchase_order_from_alerts_view, name='create_po_from_alerts'),
 ]
 
-# FUTURE: Purchase Order Management
-# Complete purchase order workflow:
-# - PO creation and management
-# - Supplier communication
-# - Receiving and tracking
-# - Analytics and reporting
+# =====================================
+# COST CALCULATION AND PRICING
+# =====================================
 
-future_purchase_order_patterns = [
-    path('purchase-orders/', views.PurchaseOrderListView.as_view(), name='purchase_order_list'),
-    path('purchase-orders/<int:pk>/', views.PurchaseOrderDetailView.as_view(), name='purchase_order_detail'),
-    path('purchase-orders/create/', views.PurchaseOrderCreateView.as_view(), name='purchase_order_create'),
-    path('purchase-orders/<int:pk>/edit/', views.PurchaseOrderUpdateView.as_view(), name='purchase_order_edit'),
-    path('purchase-orders/<int:pk>/delete/', views.PurchaseOrderDeleteView.as_view(), name='purchase_order_delete'),
-    path('purchase-orders/<int:pk>/send/', views.send_purchase_order_view, name='send_purchase_order'),
-    path('purchase-orders/<int:pk>/acknowledge/', views.acknowledge_purchase_order_view, name='acknowledge_purchase_order'),
-    path('purchase-orders/<int:pk>/receive/', views.receive_purchase_order_view, name='receive_purchase_order'),
-    path('purchase-orders/<int:pk>/cancel/', views.cancel_purchase_order_view, name='cancel_purchase_order'),
-    path('purchase-orders/<int:po_id>/items/', views.PurchaseOrderItemsView.as_view(), name='purchase_order_items'),
-    path('purchase-orders/<int:po_id>/items/add/', views.add_purchase_order_item_view, name='add_purchase_order_item'),
-    path('purchase-orders/<int:po_id>/items/<int:item_id>/edit/', views.edit_purchase_order_item_view, name='edit_purchase_order_item'),
-    path('purchase-orders/<int:po_id>/items/<int:item_id>/receive/', views.receive_purchase_order_item_view, name='receive_purchase_order_item'),
-    path('purchase-orders/<int:pk>/pdf/', views.purchase_order_pdf_view, name='purchase_order_pdf'),
-    path('purchase-orders/<int:pk>/email/', views.email_purchase_order_view, name='email_purchase_order'),
-    path('purchase-orders/<int:pk>/print/', views.print_purchase_order_view, name='print_purchase_order'),
-    path('purchase-orders/analytics/', views.PurchaseOrderAnalyticsView.as_view(), name='purchase_order_analytics'),
-    path('purchase-orders/<int:pk>/performance/', views.PurchaseOrderPerformanceView.as_view(), name='purchase_order_performance'),
-    path('purchase-orders/api/search/', views.purchase_order_search_api, name='purchase_order_search_api'),
-    path('purchase-orders/api/<int:pk>/status/', views.purchase_order_status_api, name='purchase_order_status_api'),
-    path('purchase-orders/api/generate-from-alerts/', views.generate_po_from_alerts_api, name='generate_po_from_alerts_api'),
+pricing_patterns = [
+    # Cost calculation tools
+    path('pricing/calculator/', views.CostCalculatorView.as_view(), name='cost_calculator'),
+    path('pricing/bulk-update/', views.BulkPriceUpdateView.as_view(), name='bulk_price_update'),
+    path('pricing/margin-analysis/', views.MarginAnalysisView.as_view(), name='margin_analysis'),
+    path('pricing/competitive-analysis/', views.CompetitivePricingView.as_view(), name='competitive_pricing'),
+    
+    # Markup management
+    path('pricing/markup-rules/', views.MarkupRuleListView.as_view(), name='markup_rule_list'),
+    path('pricing/markup-rules/create/', views.MarkupRuleCreateView.as_view(), name='markup_rule_create'),
+    
+    # Overhead cost management
+    path('pricing/overhead-analysis/', views.OverheadAnalysisView.as_view(), name='overhead_analysis'),
 ]
 
-# FUTURE: Reorder Alert Management
-# Automated reorder point management:
-# - Alert generation and management
-# - Bulk operations on alerts
-# - Analytics and recommendations
-# - PO generation from alerts
+# =====================================
+# BARCODE AND QR CODE MANAGEMENT
+# =====================================
 
-future_reorder_patterns = [
-    path('reorder-alerts/', views.ReorderAlertListView.as_view(), name='reorder_alert_list'),
-    path('reorder-alerts/<int:pk>/', views.ReorderAlertDetailView.as_view(), name='reorder_alert_detail'),
-    path('reorder-alerts/<int:pk>/acknowledge/', views.acknowledge_reorder_alert_view, name='acknowledge_reorder_alert'),
-    path('reorder-alerts/<int:pk>/resolve/', views.resolve_reorder_alert_view, name='resolve_reorder_alert'),
-    path('reorder-alerts/<int:pk>/create-po/', views.create_po_from_alert_view, name='create_po_from_alert'),
-    path('reorder-alerts/bulk-acknowledge/', views.bulk_acknowledge_alerts_view, name='bulk_acknowledge_alerts'),
-    path('reorder-alerts/bulk-create-po/', views.bulk_create_po_from_alerts_view, name='bulk_create_po_from_alerts'),
-    path('reorder-alerts/bulk-resolve/', views.bulk_resolve_alerts_view, name='bulk_resolve_alerts'),
-    path('reorder-alerts/analytics/', views.ReorderAnalyticsView.as_view(), name='reorder_analytics'),
-    path('reorder-alerts/recommendations/', views.ReorderRecommendationsView.as_view(), name='reorder_recommendations'),
-    path('reorder-alerts/api/active/', views.active_reorder_alerts_api, name='active_reorder_alerts_api'),
-    path('reorder-alerts/api/priority/<str:priority>/', views.priority_reorder_alerts_api, name='priority_reorder_alerts_api'),
-    path('reorder-alerts/api/generate/', views.generate_reorder_alerts_api, name='generate_reorder_alerts_api'),
+barcode_patterns = [
+    # QR Code generation and management
+    path('barcodes/generator/', views.BarcodeGeneratorView.as_view(), name='barcode_generator'),
+    path('barcodes/bulk-generate/', views.bulk_generate_barcodes_view, name='bulk_generate_barcodes'),
+    path('barcodes/print-labels/', views.print_barcode_labels_view, name='print_barcode_labels'),
+    
+    # Barcode scanning interface
+    path('barcodes/scanner/', views.BarcodeScannerView.as_view(), name='barcode_scanner'),
+    path('barcodes/mobile-scanner/', views.MobileBarcodeScannerView.as_view(), name='mobile_barcode_scanner'),
 ]
 
-# FUTURE: Stock Take Management
-# Physical inventory counting system:
-# - Stock take planning and execution
-# - Variance tracking and resolution
-# - Approval workflows
-# - Reporting and analysis
+# =====================================
+# BUSINESS INTELLIGENCE AND REPORTS
+# =====================================
 
-future_stock_take_patterns = [
-    path('stock-takes/<int:pk>/', views.StockTakeDetailView.as_view(), name='stock_take_detail'),
-    path('stock-takes/create/', views.StockTakeCreateView.as_view(), name='stock_take_create'),
-    path('stock-takes/<int:pk>/edit/', views.StockTakeUpdateView.as_view(), name='stock_take_edit'),
-    path('stock-takes/<int:pk>/delete/', views.StockTakeDeleteView.as_view(), name='stock_take_delete'),
-    path('stock-takes/<int:pk>/start/', views.start_stock_take_view, name='start_stock_take'),
-    path('stock-takes/<int:pk>/complete/', views.complete_stock_take_view, name='complete_stock_take'),
-    path('stock-takes/<int:pk>/approve/', views.approve_stock_take_view, name='approve_stock_take'),
-    path('stock-takes/<int:pk>/cancel/', views.cancel_stock_take_view, name='cancel_stock_take'),
-    path('stock-takes/<int:pk>/items/', views.StockTakeItemsView.as_view(), name='stock_take_items'),
-    path('stock-takes/<int:pk>/count/', views.StockTakeCountingView.as_view(), name='stock_take_counting'),
-    path('stock-takes/<int:pk>/count/<int:item_id>/', views.count_stock_take_item_view, name='count_stock_take_item'),
-    path('stock-takes/<int:pk>/variances/', views.StockTakeVariancesView.as_view(), name='stock_take_variances'),
-    path('stock-takes/<int:pk>/report/', views.StockTakeReportView.as_view(), name='stock_take_report'),
-    path('stock-takes/<int:pk>/adjustments/', views.StockTakeAdjustmentsView.as_view(), name='stock_take_adjustments'),
-    path('stock-takes/<int:pk>/pdf/', views.stock_take_pdf_view, name='stock_take_pdf'),
-    path('stock-takes/api/items/<int:pk>/', views.stock_take_items_api, name='stock_take_items_api'),
-    path('stock-takes/api/count/', views.stock_take_count_api, name='stock_take_count_api'),
-    path('stock-takes/api/<int:pk>/summary/', views.stock_take_summary_api, name='stock_take_summary_api'),
+reports_patterns = [
+    # Main reports dashboard
+    path('reports/', views.inventory_reports_view, name='reports'),
+    
+    # Standard inventory reports
+    path('reports/stock-valuation/', views.stock_valuation_report, name='stock_valuation_report'),
+    path('reports/low-stock/', views.low_stock_report, name='low_stock_report'),
+    path('reports/stock-aging/', views.stock_aging_report, name='stock_aging_report'),
+    path('reports/turnover-analysis/', views.inventory_turnover_report, name='inventory_turnover_report'),
+    path('reports/abc-analysis/', views.abc_analysis_report, name='abc_analysis_report'),
+    
+    # Supplier and vendor reports
+    path('reports/supplier-performance/', views.supplier_performance_report, name='supplier_performance_report'),
+    path('reports/supplier-comparison/', views.supplier_comparison_report, name='supplier_comparison_report'),
+    path('reports/purchase-analysis/', views.purchase_analysis_report, name='purchase_analysis_report'),
+    
+    # Financial and business reports
+    path('reports/cost-analysis/', views.cost_analysis_report, name='cost_analysis_report'),
+    path('reports/margin-analysis/', views.margin_analysis_report, name='margin_analysis_report'),
+    path('reports/profitability/', views.profitability_report, name='profitability_report'),
+    path('reports/tax-compliance/', views.tax_compliance_report, name='tax_compliance_report'),
+    
+    # Category and brand reports
+    path('reports/category-analysis/', views.category_analysis_report, name='category_analysis_report'),
+    path('reports/brand-performance/', views.brand_performance_report, name='brand_performance_report'),
+    
+    # Custom and advanced reports
+    path('reports/custom/', views.CustomReportView.as_view(), name='custom_report'),
+    path('reports/executive-summary/', views.executive_summary_report, name='executive_summary_report'),
 ]
 
-# FUTURE: Comprehensive Reporting System
-# Advanced analytics and reporting:
-# - Inventory valuation reports
-# - Performance analytics
-# - ABC analysis
-# - Custom report builder
-# - Scheduled reports
+# =====================================
+# API ENDPOINTS
+# =====================================
 
-future_reports_patterns = [
-    path('reports/', views.ReportsDashboardView.as_view(), name='reports_dashboard'),
-    path('reports/inventory-valuation/', views.InventoryValuationReportView.as_view(), name='inventory_valuation_report'),
-    path('reports/stock-levels/', views.StockLevelsReportView.as_view(), name='stock_levels_report'),
-    path('reports/low-stock/', views.LowStockReportView.as_view(), name='low_stock_report'),
-    path('reports/stock-movement/', views.StockMovementReportView.as_view(), name='stock_movement_report'),
-    path('reports/abc-analysis/', views.ABCAnalysisReportView.as_view(), name='abc_analysis_report'),
-    path('reports/purchase-analysis/', views.PurchaseAnalysisReportView.as_view(), name='purchase_analysis_report'),
-    path('reports/supplier-performance/', views.SupplierPerformanceReportView.as_view(), name='supplier_performance_report'),
-    path('reports/cost-analysis/', views.CostAnalysisReportView.as_view(), name='cost_analysis_report'),
-    path('reports/turnover-analysis/', views.TurnoverAnalysisReportView.as_view(), name='turnover_analysis_report'),
-    path('reports/profit-margin/', views.ProfitMarginReportView.as_view(), name='profit_margin_report'),
-    path('reports/demand-forecast/', views.DemandForecastReportView.as_view(), name='demand_forecast_report'),
-    path('reports/custom/', views.CustomReportBuilderView.as_view(), name='custom_report_builder'),
-    path('reports/custom/<int:report_id>/', views.CustomReportView.as_view(), name='custom_report_view'),
-    path('reports/export/<str:report_type>/', views.export_report_view, name='export_report'),
-    path('reports/schedule-report/', views.schedule_report_view, name='schedule_report'),
-    path('reports/api/dashboard-metrics/', views.dashboard_metrics_api, name='dashboard_metrics_api'),
-    path('reports/api/chart-data/<str:chart_type>/', views.chart_data_api, name='chart_data_api'),
+api_patterns = [
+    # Product data APIs
+    path('api/products/search/', views.product_search_api, name='product_search_api'),
+    path('api/products/<int:product_id>/details/', views.product_details_api, name='product_details_api'),
+    path('api/products/<int:product_id>/cost-calculation/', views.calculate_product_cost_api, name='product_cost_calculation_api'),
+    path('api/products/<int:product_id>/stock-levels/', views.product_stock_levels_api, name='product_stock_levels_api'),
+    
+    # Dynamic attributes APIs
+    path('api/component-families/<int:family_id>/attributes/', views.component_family_attributes_api, name='component_family_attributes_api'),
+    path('api/products/<int:product_id>/attributes/', views.product_attributes_api, name='product_attributes_api'),
+    
+    # Stock management APIs
+    path('api/stock/adjust/', views.stock_adjustment_api, name='stock_adjustment_api'),
+    path('api/stock/levels/', views.stock_levels_api, name='stock_levels_api'),
+    path('api/stock/movements/', views.stock_movements_api, name='stock_movements_api'),
+    
+    # Reorder management APIs
+    path('api/reorders/generate-list/', views.generate_reorder_list_api, name='generate_reorder_list_api'),
+    path('api/reorders/check-stock/', views.check_stock_availability_api, name='check_stock_availability_api'),
+    path('api/reorders/recommendations/', views.reorder_recommendations_api, name='reorder_recommendations_api'),
+    
+    # Cost calculation APIs
+    path('api/pricing/calculate/', views.calculate_product_cost_api, name='calculate_cost_api'),
+    path('api/pricing/bulk-update/', views.bulk_price_update_api, name='bulk_price_update_api'),
+    path('api/pricing/margin-analysis/', views.margin_analysis_api, name='margin_analysis_api'),
+    
+    # Barcode and QR code APIs
+    path('api/barcodes/generate/<int:product_id>/', views.generate_barcode_api, name='generate_barcode_api'),
+    path('api/qr-codes/generate/<int:product_id>/', views.product_qr_code_api, name='product_qr_code_api'),
+    path('api/barcodes/lookup/<str:barcode>/', views.barcode_lookup_api, name='barcode_lookup_api'),
+    path('api/qr-codes/scan/', views.qr_code_scan_api, name='qr_code_scan_api'),
+    
+    # Currency and exchange rate APIs
+    path('api/currencies/rates/', views.currency_rates_api, name='currency_rates_api'),
+    path('api/currencies/convert/', views.currency_convert_api, name='currency_convert_api'),
+    path('api/currencies/update-rates/', views.update_exchange_rates_api, name='update_exchange_rates_api'),
+    
+    # Business intelligence APIs
+    path('api/analytics/dashboard/', views.dashboard_analytics_api, name='dashboard_analytics_api'),
+    path('api/analytics/category-performance/', views.category_performance_api, name='category_performance_api'),
+    path('api/analytics/supplier-analysis/', views.supplier_country_analysis_api, name='supplier_analysis_api'),
+    path('api/analytics/stock-trends/', views.stock_trends_api, name='stock_trends_api'),
+    
+    # Integration APIs (for quote system, etc.)
+    path('api/integration/quote-products/', views.quote_products_api, name='quote_products_api'),
+    path('api/integration/reserve-stock/', views.reserve_stock_api, name='reserve_stock_api'),
+    path('api/integration/release-reservation/', views.release_reservation_api, name='release_reservation_api'),
+    path('api/integration/product-availability/', views.product_availability_api, name='product_availability_api'),
 ]
 
-# FUTURE: Mobile and Advanced API Endpoints
-# Enhanced API for mobile apps and integrations:
-# - Dashboard APIs
-# - Barcode scanning
-# - Mobile synchronization
-# - Real-time updates
+# =====================================
+# MOBILE AND FIELD OPERATIONS
+# =====================================
 
-future_api_patterns = [
-    path('api/dashboard/', views.dashboard_api, name='dashboard_api'),
-    path('api/search/', views.global_search_api, name='global_search_api'),
-    path('api/notifications/', views.inventory_notifications_api, name='inventory_notifications_api'),
-    path('api/barcode/scan/', views.barcode_scan_api, name='barcode_scan_api'),
-    path('api/barcode/lookup/<str:barcode>/', views.barcode_lookup_api, name='barcode_lookup_api'),
-    path('api/qr/generate/<int:product_id>/', views.generate_qr_code_api, name='generate_qr_code_api'),
+mobile_patterns = [
+    # Mobile interfaces
+    path('mobile/', views.MobileDashboardView.as_view(), name='mobile_dashboard'),
+    path('mobile/scanner/', views.MobileBarcodeScannerView.as_view(), name='mobile_scanner'),
+    path('mobile/stock-check/', views.MobileStockCheckView.as_view(), name='mobile_stock_check'),
+    path('mobile/quick-adjust/', views.mobile_quick_adjust_view, name='mobile_quick_adjust'),
+    
+    # Offline support APIs
     path('api/mobile/sync/', views.mobile_sync_api, name='mobile_sync_api'),
     path('api/mobile/offline-data/', views.mobile_offline_data_api, name='mobile_offline_data_api'),
     path('api/mobile/upload-batch/', views.mobile_upload_batch_api, name='mobile_upload_batch_api'),
-    path('api/live/stock-levels/', views.live_stock_levels_api, name='live_stock_levels_api'),
-    path('api/live/alerts/', views.live_alerts_api, name='live_alerts_api'),
-    path('api/live/notifications/', views.live_notifications_api, name='live_notifications_api'),
 ]
 
-# FUTURE: Extended Integration Endpoints
-# Advanced integrations with other systems:
-# - Enhanced quote system integration
-# - CRM integration
-# - Financial system integration
-# - External webhooks
+# =====================================
+# IMPORT/EXPORT AND DATA MANAGEMENT
+# =====================================
 
-future_integration_patterns = [
-    path('integrations/release-reservation/', views.release_quote_reservation_api, name='release_quote_reservation_api'),
-    path('integrations/customer-products/', views.customer_products_api, name='customer_products_api'),
-    path('integrations/purchase-history/', views.customer_purchase_history_api, name='customer_purchase_history_api'),
-    path('integrations/valuations/', views.inventory_valuations_api, name='inventory_valuations_api'),
-    path('integrations/cost-updates/', views.cost_updates_api, name='cost_updates_api'),
-    path('integrations/webhooks/supplier-update/', views.supplier_update_webhook, name='supplier_update_webhook'),
-    path('integrations/webhooks/price-update/', views.price_update_webhook, name='price_update_webhook'),
+data_management_patterns = [
+    # Data import/export
+    path('data/export/', views.DataExportView.as_view(), name='data_export'),
+    path('data/import/', views.DataImportView.as_view(), name='data_import'),
+    path('data/templates/', views.import_templates_view, name='import_templates'),
+    
+    # Data validation and cleanup
+    path('data/validation/', views.data_validation_view, name='data_validation'),
+    path('data/cleanup/', views.data_cleanup_view, name='data_cleanup'),
+    path('data/duplicates/', views.find_duplicates_view, name='find_duplicates'),
+    
+    # Backup and restore
+    path('data/backup/', views.data_backup_view, name='data_backup'),
+    path('data/restore/', views.data_restore_view, name='data_restore'),
 ]
 
-# FUTURE: Additional Utility Features
-# Enhanced utility and maintenance features:
-# - Advanced audit logging
-# - System maintenance tools
-# - Data validation tools
-# - Backup and restore functionality
+# =====================================
+# SYSTEM ADMINISTRATION
+# =====================================
 
-future_utility_patterns = [
-    path('audit-log/', views.InventoryAuditLogView.as_view(), name='audit_log'),
-    path('quick-adjust-stock/', views.quick_adjust_stock_view, name='quick_adjust_stock'),
+admin_patterns = [
+    # System health and monitoring
+    path('admin/system-health/', views.system_health_view, name='system_health'),
+    path('admin/performance-metrics/', views.performance_metrics_view, name='performance_metrics'),
+    path('admin/audit-log/', views.audit_log_view, name='audit_log'),
+    
+    # Configuration management
+    path('admin/system-settings/', views.system_settings_view, name='system_settings'),
+    path('admin/maintenance/', views.system_maintenance_view, name='system_maintenance'),
+    
+    # User activity monitoring
+    path('admin/user-activity/', views.user_activity_view, name='user_activity'),
+    path('admin/permission-overview/', views.permission_overview_view, name='permission_overview'),
 ]
 
-"""
+# =====================================
+# COMBINE ALL URL PATTERNS
+# =====================================
+
+urlpatterns = [
+    # Main dashboard (root)
+    path('', views.InventoryDashboardView.as_view(), name='index'),
+] + dashboard_patterns + product_patterns + configuration_patterns + entity_patterns + \
+    stock_patterns + reorder_patterns + pricing_patterns + barcode_patterns + \
+    reports_patterns + api_patterns + mobile_patterns + data_management_patterns + admin_patterns
+
+# =====================================
+# QUICK ACCESS SHORTCUTS
+# =====================================
+
+# Add some convenient shortcuts for common operations
+urlpatterns += [
+    # Quick access shortcuts
+    path('quick/add-product/', views.QuickAddProductView.as_view(), name='quick_add_product'),
+    path('quick/stock-check/', views.quick_stock_check_view, name='quick_stock_check'),
+    path('quick/reorder/', views.quick_reorder_view, name='quick_reorder'),
+    path('quick/cost-calc/', views.quick_cost_calculator_view, name='quick_cost_calculator'),
+    
+    # Dashboard widgets
+    path('widgets/low-stock/', views.low_stock_widget_api, name='low_stock_widget'),
+    path('widgets/top-products/', views.top_products_widget_api, name='top_products_widget'),
+    path('widgets/supplier-alerts/', views.supplier_alerts_widget_api, name='supplier_alerts_widget'),
+    path('widgets/cost-trends/', views.cost_trends_widget_api, name='cost_trends_widget'),
+    
+    # Search shortcuts
+    path('search/', views.global_inventory_search, name='global_search'),
+    path('search/suggestions/', views.search_suggestions_api, name='search_suggestions'),
+    
+    # Help and documentation
+    path('help/', views.inventory_help_view, name='help'),
+    path('help/getting-started/', views.getting_started_guide, name='getting_started'),
+    path('help/cost-calculation/', views.cost_calculation_guide, name='cost_calculation_guide'),
+    path('help/api-docs/', views.api_documentation_view, name='api_docs'),
+]

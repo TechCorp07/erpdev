@@ -3,18 +3,17 @@
 """
 Django Forms for Inventory Management
 
-This module provides user-friendly forms for all inventory operations with
-intelligent validation, business logic integration, and enhanced user experience.
-
 Key Features:
-- Smart field validation with business rules
-- Dynamic form fields based on user permissions
-- Integration with existing core system
-- AJAX-ready forms for seamless user experience
-- Bulk operation forms for efficiency
-- Mobile-friendly responsive design
+1. Dynamic product attributes based on component family
+2. Advanced cost calculation with real-time overhead computation
+3. Multi-currency support with exchange rate integration
+4. Intelligent field validation and business logic
+5. Dynamic form generation for configurable attributes
+6. Bulk operations support
+7. Integration with barcode/QR systems
 """
 
+import json
 from django import forms
 from django.core.exceptions import ValidationError
 from django.db.models import Q
@@ -23,10 +22,279 @@ from django.utils import timezone
 import re
 
 from .models import (
-    Category, Supplier, Location, Product, StockLevel, StockMovement,
-    StockTake, StockTakeItem, PurchaseOrder, PurchaseOrderItem, ReorderAlert
+    Brand, Category, ComponentFamily, Currency, OverheadFactor, ProductAttributeDefinition, StorageBin, StorageLocation, Supplier, Location, Product, StockLevel, StockMovement,
+    StockTake, StockTakeItem, PurchaseOrder, PurchaseOrderItem, ReorderAlert, SupplierCountry
 )
 
+# =====================================
+# DYNAMIC ATTRIBUTE FORMS
+# =====================================
+
+class DynamicAttributeFormMixin:
+    """Mixin to add dynamic attributes to product forms"""
+    
+    def __init__(self, *args, **kwargs):
+        self.component_family = kwargs.pop('component_family', None)
+        super().__init__(*args, **kwargs)
+        
+        if self.component_family:
+            self.add_dynamic_attributes()
+        elif self.instance and self.instance.pk and self.instance.component_family:
+            self.component_family = self.instance.component_family
+            self.add_dynamic_attributes()
+    
+    def add_dynamic_attributes(self):
+        """Add dynamic attribute fields based on component family"""
+        if not self.component_family:
+            return
+        
+        attribute_definitions = self.component_family.all_attributes
+        
+        for attr_def in attribute_definitions:
+            field_name = f"attr_{attr_def.id}"
+            
+            # Create appropriate field type
+            if attr_def.field_type == 'text':
+                field = forms.CharField(
+                    required=attr_def.is_required,
+                    initial=attr_def.default_value,
+                    help_text=attr_def.help_text,
+                    widget=forms.TextInput(attrs={'class': 'form-control'})
+                )
+                
+            elif attr_def.field_type == 'number':
+                field = forms.IntegerField(
+                    required=attr_def.is_required,
+                    initial=int(attr_def.default_value) if attr_def.default_value else None,
+                    help_text=attr_def.help_text,
+                    widget=forms.NumberInput(attrs={'class': 'form-control'})
+                )
+                if attr_def.min_value:
+                    field.widget.attrs['min'] = int(attr_def.min_value)
+                if attr_def.max_value:
+                    field.widget.attrs['max'] = int(attr_def.max_value)
+                    
+            elif attr_def.field_type == 'decimal':
+                field = forms.DecimalField(
+                    required=attr_def.is_required,
+                    initial=Decimal(attr_def.default_value) if attr_def.default_value else None,
+                    help_text=attr_def.help_text,
+                    max_digits=15,
+                    decimal_places=6,
+                    widget=forms.NumberInput(attrs={'class': 'form-control', 'step': '0.000001'})
+                )
+                if attr_def.min_value:
+                    field.widget.attrs['min'] = float(attr_def.min_value)
+                if attr_def.max_value:
+                    field.widget.attrs['max'] = float(attr_def.max_value)
+                    
+            elif attr_def.field_type == 'choice':
+                choices = [('', '-- Select --')]
+                if attr_def.choice_options:
+                    choices.extend([(opt, opt) for opt in attr_def.choice_options])
+                
+                field = forms.ChoiceField(
+                    choices=choices,
+                    required=attr_def.is_required,
+                    initial=attr_def.default_value,
+                    help_text=attr_def.help_text,
+                    widget=forms.Select(attrs={'class': 'form-control'})
+                )
+                
+            elif attr_def.field_type == 'boolean':
+                field = forms.BooleanField(
+                    required=attr_def.is_required,
+                    initial=attr_def.default_value == 'True',
+                    help_text=attr_def.help_text,
+                    widget=forms.CheckboxInput(attrs={'class': 'form-check-input'})
+                )
+                
+            elif attr_def.field_type == 'url':
+                field = forms.URLField(
+                    required=attr_def.is_required,
+                    initial=attr_def.default_value,
+                    help_text=attr_def.help_text,
+                    widget=forms.URLInput(attrs={'class': 'form-control'})
+                )
+                
+            elif attr_def.field_type == 'email':
+                field = forms.EmailField(
+                    required=attr_def.is_required,
+                    initial=attr_def.default_value,
+                    help_text=attr_def.help_text,
+                    widget=forms.EmailInput(attrs={'class': 'form-control'})
+                )
+            else:
+                # Default to text field
+                field = forms.CharField(
+                    required=attr_def.is_required,
+                    initial=attr_def.default_value,
+                    help_text=attr_def.help_text,
+                    widget=forms.TextInput(attrs={'class': 'form-control'})
+                )
+            
+            # Add validation pattern if specified
+            if attr_def.validation_pattern:
+                field.validators.append(
+                    lambda value, pattern=attr_def.validation_pattern: self.validate_pattern(value, pattern)
+                )
+            
+            field.label = attr_def.name
+            self.fields[field_name] = field
+            
+            # Set initial value from instance if editing
+            if self.instance and self.instance.pk:
+                current_value = self.instance.get_attribute_value(attr_def.name)
+                if current_value:
+                    self.fields[field_name].initial = current_value
+    
+    def validate_pattern(self, value, pattern):
+        """Validate field value against regex pattern"""
+        if value and not re.match(pattern, str(value)):
+            raise ValidationError(f"Value does not match required pattern: {pattern}")
+    
+    def save_dynamic_attributes(self, product):
+        """Save dynamic attribute values to product"""
+        if not self.component_family:
+            return
+        
+        attribute_definitions = self.component_family.all_attributes
+        dynamic_attributes = {}
+        
+        for attr_def in attribute_definitions:
+            field_name = f"attr_{attr_def.id}"
+            if field_name in self.cleaned_data:
+                value = self.cleaned_data[field_name]
+                if value is not None and value != '':
+                    dynamic_attributes[attr_def.name] = str(value)
+        
+        product.dynamic_attributes = dynamic_attributes
+        product.save(update_fields=['dynamic_attributes'])
+
+# =====================================
+# SYSTEM CONFIGURATION FORMS
+# =====================================
+
+class CurrencyForm(forms.ModelForm):
+    """Form for managing currencies and exchange rates"""
+    
+    class Meta:
+        model = Currency
+        fields = [
+            'code', 'name', 'symbol', 'exchange_rate_to_usd',
+            'auto_update_enabled', 'api_source', 'is_active'
+        ]
+        widgets = {
+            'code': forms.TextInput(attrs={'class': 'form-control', 'placeholder': 'USD, EUR, CNY'}),
+            'name': forms.TextInput(attrs={'class': 'form-control', 'placeholder': 'US Dollar'}),
+            'symbol': forms.TextInput(attrs={'class': 'form-control', 'placeholder': '$, €, ¥'}),
+            'exchange_rate_to_usd': forms.NumberInput(attrs={'class': 'form-control', 'step': '0.000001'}),
+            'auto_update_enabled': forms.CheckboxInput(attrs={'class': 'form-check-input'}),
+            'api_source': forms.Select(attrs={'class': 'form-control'}),
+            'is_active': forms.CheckboxInput(attrs={'class': 'form-check-input'})
+        }
+    
+    def clean_code(self):
+        code = self.cleaned_data.get('code', '').upper()
+        if len(code) != 3:
+            raise ValidationError('Currency code must be exactly 3 characters')
+        return code
+    
+    def clean_exchange_rate_to_usd(self):
+        rate = self.cleaned_data.get('exchange_rate_to_usd')
+        if rate and rate <= 0:
+            raise ValidationError('Exchange rate must be positive')
+        return rate
+
+
+class OverheadFactorForm(forms.ModelForm):
+    """Form for configuring overhead factors"""
+    
+    class Meta:
+        model = OverheadFactor
+        fields = [
+            'name', 'description', 'calculation_type', 'fixed_amount',
+            'percentage_rate', 'applies_to_categories', 'applies_to_suppliers',
+            'display_order', 'is_active'
+        ]
+        widgets = {
+            'name': forms.TextInput(attrs={'class': 'form-control', 'placeholder': 'e.g., Rent, Electricity, Bank Charges'}),
+            'description': forms.Textarea(attrs={'class': 'form-control', 'rows': 3}),
+            'calculation_type': forms.Select(attrs={'class': 'form-control'}),
+            'fixed_amount': forms.NumberInput(attrs={'class': 'form-control', 'step': '0.0001'}),
+            'percentage_rate': forms.NumberInput(attrs={'class': 'form-control', 'step': '0.01'}),
+            'applies_to_categories': forms.SelectMultiple(attrs={'class': 'form-control', 'size': '6'}),
+            'applies_to_suppliers': forms.SelectMultiple(attrs={'class': 'form-control', 'size': '6'}),
+            'display_order': forms.NumberInput(attrs={'class': 'form-control'}),
+            'is_active': forms.CheckboxInput(attrs={'class': 'form-check-input'})
+        }
+    
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.fields['applies_to_categories'].queryset = Category.objects.filter(is_active=True)
+        self.fields['applies_to_suppliers'].queryset = Supplier.objects.filter(is_active=True)
+    
+    def clean(self):
+        cleaned_data = super().clean()
+        calculation_type = cleaned_data.get('calculation_type')
+        fixed_amount = cleaned_data.get('fixed_amount')
+        percentage_rate = cleaned_data.get('percentage_rate')
+        
+        if calculation_type in ['fixed_per_item', 'fixed_per_order']:
+            if not fixed_amount or fixed_amount <= 0:
+                self.add_error('fixed_amount', 'Fixed amount is required for this calculation type')
+        else:
+            if not percentage_rate or percentage_rate <= 0:
+                self.add_error('percentage_rate', 'Percentage rate is required for this calculation type')
+        
+        return cleaned_data
+
+class ProductAttributeDefinitionForm(forms.ModelForm):
+    """Form for defining dynamic product attributes"""
+    
+    class Meta:
+        model = ProductAttributeDefinition
+        fields = [
+            'name', 'field_type', 'component_families', 'is_required',
+            'default_value', 'help_text', 'choice_options',
+            'min_value', 'max_value', 'validation_pattern',
+            'display_order', 'show_in_listings', 'show_in_search', 'is_active'
+        ]
+        widgets = {
+            'name': forms.TextInput(attrs={'class': 'form-control', 'placeholder': 'e.g., Voltage Rating, Package Type'}),
+            'field_type': forms.Select(attrs={'class': 'form-control'}),
+            'component_families': forms.SelectMultiple(attrs={'class': 'form-control', 'size': '6'}),
+            'is_required': forms.CheckboxInput(attrs={'class': 'form-check-input'}),
+            'default_value': forms.TextInput(attrs={'class': 'form-control'}),
+            'help_text': forms.TextInput(attrs={'class': 'form-control', 'placeholder': 'Help text for users'}),
+            'choice_options': forms.Textarea(attrs={'class': 'form-control', 'rows': 3, 'placeholder': '["Option1", "Option2", "Option3"]'}),
+            'min_value': forms.NumberInput(attrs={'class': 'form-control', 'step': '0.0001'}),
+            'max_value': forms.NumberInput(attrs={'class': 'form-control', 'step': '0.0001'}),
+            'validation_pattern': forms.TextInput(attrs={'class': 'form-control', 'placeholder': 'Regex pattern'}),
+            'display_order': forms.NumberInput(attrs={'class': 'form-control'}),
+            'show_in_listings': forms.CheckboxInput(attrs={'class': 'form-check-input'}),
+            'show_in_search': forms.CheckboxInput(attrs={'class': 'form-check-input'}),
+            'is_active': forms.CheckboxInput(attrs={'class': 'form-check-input'})
+        }
+    
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.fields['component_families'].queryset = ComponentFamily.objects.filter(is_active=True)
+    
+    def clean_choice_options(self):
+        choice_options = self.cleaned_data.get('choice_options')
+        field_type = self.cleaned_data.get('field_type')
+        
+        if field_type == 'choice' and choice_options:
+            try:
+                options = json.loads(choice_options)
+                if not isinstance(options, list):
+                    raise ValidationError('Choice options must be a JSON list')
+                return options
+            except json.JSONDecodeError:
+                raise ValidationError('Invalid JSON format for choice options')
+        
+        return choice_options if choice_options else []
 
 # =====================================
 # BASE FORM CLASSES AND MIXINS
@@ -130,7 +398,6 @@ class AjaxResponseMixin:
             'errors': form_errors,
             'message': 'Please correct the errors below'
         }
-
 
 # =====================================
 # CATEGORY MANAGEMENT FORMS
@@ -261,7 +528,6 @@ class CategoryBulkUpdateForm(forms.Form):
         
         return cleaned_data
 
-
 # =====================================
 # SUPPLIER MANAGEMENT FORMS
 # =====================================
@@ -387,7 +653,6 @@ class SupplierSearchForm(forms.Form):
         widget=forms.NumberInput(attrs={'step': '0.1', 'min': '1', 'max': '10'})
     )
 
-
 # =====================================
 # LOCATION MANAGEMENT FORMS
 # =====================================
@@ -443,6 +708,363 @@ class LocationForm(InventoryBaseForm):
         
         return cleaned_data
 
+# =====================================
+# SEARCH AND FILTER FORMS
+# =====================================
+
+class AdvancedProductSearchForm(forms.Form):
+    """Advanced search form with electronics-specific filters"""
+    
+    search = forms.CharField(
+        required=False,
+        widget=forms.TextInput(attrs={
+            'class': 'form-control',
+            'placeholder': 'Search by name, SKU, part number, description...',
+            'autocomplete': 'off'
+        })
+    )
+    
+    category = forms.ModelChoiceField(
+        queryset=Category.objects.filter(is_active=True),
+        required=False,
+        empty_label='All Categories',
+        widget=forms.Select(attrs={'class': 'form-control'})
+    )
+    
+    component_family = forms.ModelChoiceField(
+        queryset=ComponentFamily.objects.filter(is_active=True),
+        required=False,
+        empty_label='All Component Families',
+        widget=forms.Select(attrs={'class': 'form-control'})
+    )
+    
+    brand = forms.ModelChoiceField(
+        queryset=Brand.objects.filter(is_active=True),
+        required=False,
+        empty_label='All Brands',
+        widget=forms.Select(attrs={'class': 'form-control'})
+    )
+    
+    supplier = forms.ModelChoiceField(
+        queryset=Supplier.objects.filter(is_active=True),
+        required=False,
+        empty_label='All Suppliers',
+        widget=forms.Select(attrs={'class': 'form-control'})
+    )
+    
+    supplier_country = forms.ModelChoiceField(
+        queryset=SupplierCountry.objects.filter(is_active=True),
+        required=False,
+        empty_label='All Countries',
+        widget=forms.Select(attrs={'class': 'form-control'})
+    )
+    
+    product_type = forms.ChoiceField(
+        choices=[('', 'All Types')] + Product.PRODUCT_TYPES,
+        required=False,
+        widget=forms.Select(attrs={'class': 'form-control'})
+    )
+    
+    quality_grade = forms.ChoiceField(
+        choices=[('', 'All Grades')] + [
+            ('consumer', 'Consumer Grade'),
+            ('industrial', 'Industrial Grade'),
+            ('automotive', 'Automotive Grade'),
+            ('military', 'Military Grade'),
+            ('space', 'Space Grade'),
+        ],
+        required=False,
+        widget=forms.Select(attrs={'class': 'form-control'})
+    )
+    
+    stock_status = forms.ChoiceField(
+        choices=[
+            ('', 'All Stock Levels'),
+            ('in_stock', 'In Stock'),
+            ('low_stock', 'Low Stock'),
+            ('out_of_stock', 'Out of Stock'),
+            ('needs_reorder', 'Needs Reorder')
+        ],
+        required=False,
+        widget=forms.Select(attrs={'class': 'form-control'})
+    )
+    
+    price_range_min = forms.DecimalField(
+        required=False,
+        max_digits=10,
+        decimal_places=2,
+        widget=forms.NumberInput(attrs={
+            'class': 'form-control',
+            'placeholder': 'Min Price',
+            'step': '0.01'
+        })
+    )
+    
+    price_range_max = forms.DecimalField(
+        required=False,
+        max_digits=10,
+        decimal_places=2,
+        widget=forms.NumberInput(attrs={
+            'class': 'form-control',
+            'placeholder': 'Max Price',
+            'step': '0.01'
+        })
+    )
+    
+    markup_range_min = forms.DecimalField(
+        required=False,
+        max_digits=5,
+        decimal_places=2,
+        widget=forms.NumberInput(attrs={
+            'class': 'form-control',
+            'placeholder': 'Min Markup %',
+            'step': '0.01'
+        })
+    )
+    
+    markup_range_max = forms.DecimalField(
+        required=False,
+        max_digits=5,
+        decimal_places=2,
+        widget=forms.NumberInput(attrs={
+            'class': 'form-control',
+            'placeholder': 'Max Markup %',
+            'step': '0.01'
+        })
+    )
+    
+    # Special characteristics
+    is_hazardous = forms.BooleanField(
+        required=False,
+        widget=forms.CheckboxInput(attrs={'class': 'form-check-input'}),
+        label="Hazardous materials only"
+    )
+    
+    requires_esd_protection = forms.BooleanField(
+        required=False,
+        widget=forms.CheckboxInput(attrs={'class': 'form-check-input'}),
+        label="ESD sensitive only"
+    )
+    
+    is_temperature_sensitive = forms.BooleanField(
+        required=False,
+        widget=forms.CheckboxInput(attrs={'class': 'form-check-input'}),
+        label="Temperature sensitive only"
+    )
+    
+    has_datasheet = forms.BooleanField(
+        required=False,
+        widget=forms.CheckboxInput(attrs={'class': 'form-check-input'}),
+        label="Has datasheet only"
+    )
+    
+    # Dynamic attribute search - these will be added dynamically
+    def __init__(self, *args, **kwargs):
+        self.component_family = kwargs.pop('component_family', None)
+        super().__init__(*args, **kwargs)
+        
+        if self.component_family:
+            self.add_attribute_search_fields()
+    
+    def add_attribute_search_fields(self):
+        """Add search fields for dynamic attributes"""
+        if not self.component_family:
+            return
+        
+        # Add search fields for commonly searched attributes
+        searchable_attrs = self.component_family.attribute_definitions.filter(
+            show_in_search=True,
+            is_active=True
+        )
+        
+        for attr_def in searchable_attrs:
+            field_name = f"attr_search_{attr_def.id}"
+            
+            if attr_def.field_type in ['text', 'number', 'decimal']:
+                field = forms.CharField(
+                    required=False,
+                    widget=forms.TextInput(attrs={
+                        'class': 'form-control',
+                        'placeholder': f'Search {attr_def.name}'
+                    })
+                )
+            elif attr_def.field_type == 'choice':
+                choices = [('', f'All {attr_def.name}')]
+                if attr_def.choice_options:
+                    choices.extend([(opt, opt) for opt in attr_def.choice_options])
+                
+                field = forms.ChoiceField(
+                    choices=choices,
+                    required=False,
+                    widget=forms.Select(attrs={'class': 'form-control'})
+                )
+            else:
+                continue  # Skip other field types for search
+            
+            field.label = f"{attr_def.name}"
+            self.fields[field_name] = field
+
+# =====================================
+# BULK OPERATIONS FORMS
+# =====================================
+
+class BulkCostUpdateForm(forms.Form):
+    """Form for bulk updating product costs and pricing"""
+    
+    UPDATE_TYPES = [
+        ('exchange_rate', 'Apply Exchange Rate Change'),
+        ('shipping_cost', 'Update Shipping Costs'),
+        ('duty_percentage', 'Update Customs Duty %'),
+        ('markup_percentage', 'Update Markup %'),
+        ('selling_price_increase', 'Increase Selling Price by %'),
+        ('overhead_recalculation', 'Recalculate Overhead Costs'),
+    ]
+    
+    update_type = forms.ChoiceField(
+        choices=UPDATE_TYPES,
+        widget=forms.RadioSelect(attrs={'class': 'form-check-input'}),
+        initial='markup_percentage'
+    )
+    
+    value = forms.DecimalField(
+        max_digits=15,
+        decimal_places=6,
+        widget=forms.NumberInput(attrs={'class': 'form-control', 'step': '0.000001'}),
+        help_text="Enter the new value or percentage change"
+    )
+    
+    # Filters for which products to update
+    apply_to_category = forms.ModelChoiceField(
+        queryset=Category.objects.filter(is_active=True),
+        required=False,
+        empty_label="All Categories",
+        widget=forms.Select(attrs={'class': 'form-control'})
+    )
+    
+    apply_to_supplier = forms.ModelChoiceField(
+        queryset=Supplier.objects.filter(is_active=True),
+        required=False,
+        empty_label="All Suppliers",
+        widget=forms.Select(attrs={'class': 'form-control'})
+    )
+    
+    apply_to_brand = forms.ModelChoiceField(
+        queryset=Brand.objects.filter(is_active=True),
+        required=False,
+        empty_label="All Brands",
+        widget=forms.Select(attrs={'class': 'form-control'})
+    )
+    
+    apply_to_currency = forms.ModelChoiceField(
+        queryset=Currency.objects.filter(is_active=True),
+        required=False,
+        empty_label="All Currencies",
+        widget=forms.Select(attrs={'class': 'form-control'}),
+        help_text="For exchange rate updates, select the currency to update"
+    )
+    
+    preview_only = forms.BooleanField(
+        initial=True,
+        required=False,
+        widget=forms.CheckboxInput(attrs={'class': 'form-check-input'}),
+        help_text="Preview changes before applying (recommended)"
+    )
+    
+    def clean(self):
+        cleaned_data = super().clean()
+        update_type = cleaned_data.get('update_type')
+        value = cleaned_data.get('value')
+        
+        if update_type == 'exchange_rate' and not cleaned_data.get('apply_to_currency'):
+            self.add_error('apply_to_currency', 'Currency selection is required for exchange rate updates')
+        
+        if value is not None:
+            if update_type in ['markup_percentage', 'selling_price_increase'] and value < 0:
+                self.add_error('value', 'Percentage values cannot be negative')
+            
+            if update_type == 'exchange_rate' and value <= 0:
+                self.add_error('value', 'Exchange rate must be positive')
+        
+        return cleaned_data
+
+class ReorderListGenerationForm(forms.Form):
+    """Form for generating customized reorder lists"""
+    
+    PRIORITY_CHOICES = [
+        ('', 'All Priorities'),
+        ('critical', 'Critical (Out of Stock)'),
+        ('high', 'High (Very Low Stock)'),
+        ('medium', 'Medium (Low Stock)'),
+    ]
+    
+    FORMAT_CHOICES = [
+        ('csv', 'CSV File'),
+        ('excel', 'Excel File'),
+        ('pdf', 'PDF Report'),
+    ]
+    
+    # Filters
+    supplier = forms.ModelChoiceField(
+        queryset=Supplier.objects.filter(is_active=True),
+        required=False,
+        empty_label="All Suppliers",
+        widget=forms.Select(attrs={'class': 'form-control'})
+    )
+    
+    category = forms.ModelChoiceField(
+        queryset=Category.objects.filter(is_active=True),
+        required=False,
+        empty_label="All Categories",
+        widget=forms.Select(attrs={'class': 'form-control'})
+    )
+    
+    priority = forms.ChoiceField(
+        choices=PRIORITY_CHOICES,
+        required=False,
+        widget=forms.Select(attrs={'class': 'form-control'})
+    )
+    
+    supplier_country = forms.ModelChoiceField(
+        queryset=SupplierCountry.objects.filter(is_active=True),
+        required=False,
+        empty_label="All Countries",
+        widget=forms.Select(attrs={'class': 'form-control'})
+    )
+    
+    # Output options
+    output_format = forms.ChoiceField(
+        choices=FORMAT_CHOICES,
+        initial='csv',
+        widget=forms.RadioSelect(attrs={'class': 'form-check-input'})
+    )
+    
+    group_by_supplier = forms.BooleanField(
+        initial=True,
+        required=False,
+        widget=forms.CheckboxInput(attrs={'class': 'form-check-input'}),
+        help_text="Group products by supplier for easier ordering"
+    )
+    
+    include_supplier_contact = forms.BooleanField(
+        initial=True,
+        required=False,
+        widget=forms.CheckboxInput(attrs={'class': 'form-check-input'}),
+        help_text="Include supplier contact information"
+    )
+    
+    include_cost_analysis = forms.BooleanField(
+        initial=False,
+        required=False,
+        widget=forms.CheckboxInput(attrs={'class': 'form-check-input'}),
+        help_text="Include detailed cost breakdown (confidential)"
+    )
+    
+    calculate_optimal_quantities = forms.BooleanField(
+        initial=True,
+        required=False,
+        widget=forms.CheckboxInput(attrs={'class': 'form-check-input'}),
+        help_text="Calculate optimal order quantities based on EOQ"
+    )
 
 # =====================================
 # PRODUCT MANAGEMENT FORMS
@@ -456,38 +1078,109 @@ class ProductForm(InventoryBaseForm):
     intelligent validation, cost calculation, and integration
     with categories and suppliers.
     """
+    # Custom fields for better UX
+    calculate_costs = forms.BooleanField(
+        required=False,
+        initial=True,
+        widget=forms.CheckboxInput(attrs={'class': 'form-check-input'}),
+        help_text="Automatically calculate total costs and markup"
+    )
+    
+    target_markup_percentage = forms.DecimalField(
+        required=False,
+        max_digits=5,
+        decimal_places=2,
+        widget=forms.NumberInput(attrs={'class': 'form-control', 'step': '0.01'}),
+        help_text="Target markup percentage for automatic pricing"
+    )
     
     class Meta:
         model = Product
         fields = [
+            # Basic information
             'name', 'sku', 'barcode', 'description', 'short_description',
-            'category', 'supplier', 'product_type', 'brand', 'model_number',
-            'manufacturer_part_number', 'weight', 'dimensions',
-            'cost_price', 'selling_price', 'currency',
+            # Categorization
+            'category', 'supplier', 'brand', 'product_type',
+            # Specifications
+            'model_number', 'manufacturer_part_number', 'supplier_sku',
+            'package_type', 'quality_grade', 'datasheet_url',
+            # Physical attributes
+            'weight_grams', 'dimensions', 'volume_cubic_cm',
+            # Cost structure
+            'cost_price', 'supplier_currency', 'shipping_cost_per_unit',
+            'insurance_cost_per_unit', 'customs_duty_percentage',
+            'vat_percentage', 'other_fees_per_unit',
+            # Pricing
+            'selling_currency', 'selling_price',
+            # Stock management
             'reorder_level', 'reorder_quantity', 'max_stock_level',
-            'supplier_sku', 'supplier_lead_time_days', 'minimum_order_quantity',
-            'is_active', 'is_serialized', 'is_perishable', 'requires_quality_check',
-            'meta_title', 'meta_description'
+            'supplier_lead_time_days', 'supplier_minimum_order_quantity',
+            # Additional data
+            'certifications', 'product_images', 'additional_documents',
+            # Status
+            'is_active', 'is_featured', 'is_hazardous', 
+            'requires_esd_protection', 'is_temperature_sensitive'
         ]
         widgets = {
-            'description': forms.Textarea(attrs={'rows': 4}),
-            'short_description': forms.Textarea(attrs={'rows': 2}),
-            'cost_price': forms.NumberInput(attrs={'step': '0.01', 'min': '0'}),
-            'selling_price': forms.NumberInput(attrs={'step': '0.01', 'min': '0'}),
-            'weight': forms.NumberInput(attrs={'step': '0.001', 'min': '0'}),
-            'reorder_level': forms.NumberInput(attrs={'min': '0'}),
-            'reorder_quantity': forms.NumberInput(attrs={'min': '1'}),
-            'max_stock_level': forms.NumberInput(attrs={'min': '1'}),
-            'supplier_lead_time_days': forms.NumberInput(attrs={'min': '1', 'max': '365'}),
-            'minimum_order_quantity': forms.NumberInput(attrs={'min': '1'}),
-            'meta_description': forms.Textarea(attrs={'rows': 2})
+            'name': forms.TextInput(attrs={'class': 'form-control', 'placeholder': 'Descriptive product name'}),
+            'sku': forms.TextInput(attrs={'class': 'form-control', 'placeholder': 'BT-2024-001'}),
+            'barcode': forms.TextInput(attrs={'class': 'form-control', 'placeholder': 'Barcode number'}),
+            'description': forms.Textarea(attrs={'class': 'form-control', 'rows': 4}),
+            'short_description': forms.TextInput(attrs={'class': 'form-control', 'placeholder': 'Brief description'}),
+            
+            'category': forms.Select(attrs={'class': 'form-control', 'onchange': 'updateComponentFamily()'}),
+            'supplier': forms.Select(attrs={'class': 'form-control', 'onchange': 'updateSupplierInfo()'}),
+            'brand': forms.Select(attrs={'class': 'form-control', 'onchange': 'updateBrandDefaults()'}),
+            'product_type': forms.Select(attrs={'class': 'form-control'}),
+            
+            'model_number': forms.TextInput(attrs={'class': 'form-control'}),
+            'manufacturer_part_number': forms.TextInput(attrs={'class': 'form-control'}),
+            'supplier_sku': forms.TextInput(attrs={'class': 'form-control'}),
+            'package_type': forms.TextInput(attrs={'class': 'form-control', 'placeholder': 'DIP, SMD, TO-220, etc.'}),
+            'quality_grade': forms.Select(attrs={'class': 'form-control'}),
+            'datasheet_url': forms.URLInput(attrs={'class': 'form-control', 'placeholder': 'Google Drive or Mega link'}),
+            
+            'weight_grams': forms.NumberInput(attrs={'class': 'form-control', 'step': '0.01'}),
+            'dimensions': forms.TextInput(attrs={'class': 'form-control', 'placeholder': 'L x W x H in mm'}),
+            'volume_cubic_cm': forms.NumberInput(attrs={'class': 'form-control', 'step': '0.01'}),
+            
+            'cost_price': forms.NumberInput(attrs={'class': 'form-control', 'step': '0.000001', 'onchange': 'calculateCosts()'}),
+            'supplier_currency': forms.Select(attrs={'class': 'form-control', 'onchange': 'calculateCosts()'}),
+            'shipping_cost_per_unit': forms.NumberInput(attrs={'class': 'form-control', 'step': '0.000001', 'onchange': 'calculateCosts()'}),
+            'insurance_cost_per_unit': forms.NumberInput(attrs={'class': 'form-control', 'step': '0.000001', 'onchange': 'calculateCosts()'}),
+            'customs_duty_percentage': forms.NumberInput(attrs={'class': 'form-control', 'step': '0.01', 'onchange': 'calculateCosts()'}),
+            'vat_percentage': forms.NumberInput(attrs={'class': 'form-control', 'step': '0.01', 'onchange': 'calculateCosts()'}),
+            'other_fees_per_unit': forms.NumberInput(attrs={'class': 'form-control', 'step': '0.000001', 'onchange': 'calculateCosts()'}),
+            
+            'selling_currency': forms.Select(attrs={'class': 'form-control'}),
+            'selling_price': forms.NumberInput(attrs={'class': 'form-control', 'step': '0.01'}),
+            
+            'reorder_level': forms.NumberInput(attrs={'class': 'form-control', 'min': '0'}),
+            'reorder_quantity': forms.NumberInput(attrs={'class': 'form-control', 'min': '1'}),
+            'max_stock_level': forms.NumberInput(attrs={'class': 'form-control', 'min': '1'}),
+            'supplier_lead_time_days': forms.NumberInput(attrs={'class': 'form-control', 'min': '1'}),
+            'supplier_minimum_order_quantity': forms.NumberInput(attrs={'class': 'form-control', 'min': '1'}),
+            
+            'certifications': forms.Textarea(attrs={'class': 'form-control', 'rows': 2, 'placeholder': '["CE", "FCC", "SABS"]'}),
+            'product_images': forms.Textarea(attrs={'class': 'form-control', 'rows': 3, 'placeholder': '["image1.jpg", "image2.jpg"]'}),
+            'additional_documents': forms.Textarea(attrs={'class': 'form-control', 'rows': 2, 'placeholder': '["cert.pdf", "test_report.pdf"]'}),
+            
+            'is_active': forms.CheckboxInput(attrs={'class': 'form-check-input'}),
+            'is_featured': forms.CheckboxInput(attrs={'class': 'form-check-input'}),
+            'is_hazardous': forms.CheckboxInput(attrs={'class': 'form-check-input'}),
+            'requires_esd_protection': forms.CheckboxInput(attrs={'class': 'form-check-input'}),
+            'is_temperature_sensitive': forms.CheckboxInput(attrs={'class': 'form-check-input'})
         }
     
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         
-        # Filter suppliers to only active ones
+        # Set querysets for foreign keys
+        self.fields['category'].queryset = Category.objects.filter(is_active=True)
         self.fields['supplier'].queryset = Supplier.objects.filter(is_active=True)
+        self.fields['brand'].queryset = Brand.objects.filter(is_active=True)
+        self.fields['supplier_currency'].queryset = Currency.objects.filter(is_active=True)
+        self.fields['selling_currency'].queryset = Currency.objects.filter(is_active=True)
         
         # Add calculated field display
         if self.instance and self.instance.pk:
@@ -497,6 +1190,16 @@ class ProductForm(InventoryBaseForm):
                 required=False,
                 help_text='Calculated automatically based on cost and selling price'
             )
+        
+        if not self.instance.pk:
+            # Set defaults based on selected options
+            if 'category' in self.data:
+                try:
+                    category = Category.objects.get(id=self.data['category'])
+                    if category.default_markup_percentage:
+                        self.fields['target_markup_percentage'].initial = category.default_markup_percentage
+                except Category.DoesNotExist:
+                    pass
         
         # Add helpful help texts
         self.fields['sku'].help_text = 'Unique product identifier (auto-generated if left blank)'
@@ -555,24 +1258,22 @@ class ProductForm(InventoryBaseForm):
     def clean(self):
         cleaned_data = super().clean()
         
-        # Validate pricing
+        # Validate JSON fields
+        for field_name in ['certifications', 'product_images', 'additional_documents']:
+            value = cleaned_data.get(field_name)
+            if value:
+                try:
+                    json.loads(value)
+                except json.JSONDecodeError:
+                    self.add_error(field_name, 'Invalid JSON format')
+        
+        # Validate cost/price relationship
         cost_price = cleaned_data.get('cost_price')
         selling_price = cleaned_data.get('selling_price')
         
         if cost_price and selling_price:
-            if selling_price < cost_price:
-                self.add_error(
-                    'selling_price',
-                    'Selling price cannot be less than cost price.'
-                )
-            
-            # Warn about very low margins
-            margin = ((selling_price - cost_price) / cost_price) * 100 if cost_price > 0 else 0
-            if margin < 5:
-                self.add_error(
-                    'selling_price',
-                    'Warning: Profit margin is very low (less than 5%).'
-                )
+            if selling_price <= cost_price:
+                self.add_error('selling_price', 'Selling price should be higher than cost price')
         
         # Validate stock levels
         reorder_level = cleaned_data.get('reorder_level')
@@ -580,12 +1281,35 @@ class ProductForm(InventoryBaseForm):
         
         if reorder_level and max_stock_level:
             if reorder_level >= max_stock_level:
-                self.add_error(
-                    'reorder_level',
-                    'Reorder level must be less than maximum stock level.'
-                )
+                self.add_error('reorder_level', 'Reorder level must be less than maximum stock level')
         
         return cleaned_data
+    
+    def save(self, commit=True):
+        product = super().save(commit=False)
+        
+        # Parse JSON fields
+        for field_name in ['certifications', 'product_images', 'additional_documents']:
+            value = self.cleaned_data.get(field_name)
+            if value:
+                try:
+                    setattr(product, field_name, json.loads(value))
+                except json.JSONDecodeError:
+                    setattr(product, field_name, [])
+        
+        # Auto-calculate selling price if target markup is provided
+        target_markup = self.cleaned_data.get('target_markup_percentage')
+        if target_markup and self.cleaned_data.get('calculate_costs'):
+            # This will be calculated in the model's save method
+            product.markup_percentage = target_markup
+        
+        if commit:
+            product.save()
+            
+            # Save dynamic attributes
+            self.save_dynamic_attributes(product)
+        
+        return product
 
 class ProductBulkUpdateForm(forms.Form):
     """
@@ -634,7 +1358,6 @@ class ProductBulkUpdateForm(forms.Form):
         required=False
     )
 
-
 # =====================================
 # STOCK MANAGEMENT FORMS
 # =====================================
@@ -651,43 +1374,83 @@ class StockAdjustmentForm(forms.Form):
         ('set', 'Set to specific amount'),
         ('add', 'Add to current stock'),
         ('subtract', 'Subtract from current stock'),
+        ('transfer', 'Transfer between locations'),
+    ]
+    
+    REASON_CHOICES = [
+        ('stock_take', 'Stock Take Adjustment'),
+        ('damage', 'Damaged Goods'),
+        ('theft', 'Theft/Loss'),
+        ('customer_return', 'Customer Return'),
+        ('supplier_return', 'Return to Supplier'),
+        ('promotion', 'Promotional Use'),
+        ('sample', 'Sample/Demo'),
+        ('correction', 'Data Correction'),
+        ('other', 'Other'),
     ]
     
     product = forms.ModelChoiceField(
         queryset=Product.objects.filter(is_active=True),
-        widget=forms.Select(attrs={'class': 'form-select'})
+        widget=forms.Select(attrs={'class': 'form-control'})
+    )
+    storage_bin = forms.ModelChoiceField(
+            queryset=StorageBin.objects.filter(is_active=True),
+            required=False,
+            empty_label="No specific bin",
+            widget=forms.Select(attrs={'class': 'form-control'})
     )
     adjustment_type = forms.ChoiceField(
         choices=ADJUSTMENT_TYPES,
-        widget=forms.RadioSelect
+        widget=forms.RadioSelect(attrs={'class': 'form-check-input'})
     )
     quantity = forms.IntegerField(
         min_value=0,
-        widget=forms.NumberInput(attrs={'min': '0'})
-    )
-    reason = forms.CharField(
-        max_length=200,
-        widget=forms.TextInput(attrs={
-            'placeholder': 'Reason for stock adjustment...'
-        })
+        widget=forms.NumberInput(attrs={'class': 'form-control', 'min': '0'})
     )
     location = forms.ModelChoiceField(
-        queryset=Location.objects.filter(is_active=True),
+        queryset=StorageLocation.objects.filter(is_active=True),
+        widget=forms.Select(attrs={'class': 'form-control'})
+    )    
+    # For transfers
+    transfer_to_location = forms.ModelChoiceField(
+        queryset=StorageLocation.objects.filter(is_active=True),
         required=False,
-        help_text='Leave blank for all locations'
+        widget=forms.Select(attrs={'class': 'form-control'}),
+        help_text="Required for transfer adjustments"
     )
+    
+    transfer_to_bin = forms.ModelChoiceField(
+        queryset=StorageBin.objects.filter(is_active=True),
+        required=False,
+        empty_label="No specific bin",
+        widget=forms.Select(attrs={'class': 'form-control'})
+    )
+    
+    reason = forms.ChoiceField(
+        choices=REASON_CHOICES,
+        widget=forms.Select(attrs={'class': 'form-control'})
+    )
+    
     notes = forms.CharField(
         max_length=500,
-        widget=forms.Textarea(attrs={'rows': 3}),
-        required=False
+        required=False,
+        widget=forms.Textarea(attrs={'class': 'form-control', 'rows': 3}),
+        help_text="Additional notes about this adjustment"
+    )
+    
+    reference_document = forms.CharField(
+        max_length=100,
+        required=False,
+        widget=forms.TextInput(attrs={'class': 'form-control', 'placeholder': 'PO, Invoice, Stock Take #'}),
+        help_text="Reference document number"
     )
     
     def __init__(self, *args, **kwargs):
         self.user = kwargs.pop('user', None)
         super().__init__(*args, **kwargs)
         
-        # Set default location if available
-        default_location = Location.objects.filter(is_default=True).first()
+        # Set default location
+        default_location = StorageLocation.objects.filter(is_default=True).first()
         if default_location:
             self.fields['location'].initial = default_location
     
@@ -696,13 +1459,22 @@ class StockAdjustmentForm(forms.Form):
         
         product = cleaned_data.get('product')
         adjustment_type = cleaned_data.get('adjustment_type')
+        location = cleaned_data.get('location')
         quantity = cleaned_data.get('quantity')
         
-        if product and adjustment_type == 'subtract' and quantity:
-            if quantity > product.current_stock:
-                raise ValidationError(
-                    f'Cannot subtract {quantity} from current stock of {product.current_stock}'
-                )
+        # Validate transfer fields
+        if adjustment_type == 'transfer':
+            transfer_to = cleaned_data.get('transfer_to_location')
+            if not transfer_to:
+                self.add_error('transfer_to_location', 'Transfer destination is required')
+            elif transfer_to == location:
+                self.add_error('transfer_to_location', 'Cannot transfer to the same location')
+        
+        # Validate sufficient stock for subtract operations
+        if adjustment_type == 'subtract' and product and location and quantity:
+            current_stock = product.get_stock_at_location(location)
+            if quantity > current_stock:
+                self.add_error('quantity', f'Cannot subtract {quantity} from current stock of {current_stock}')
         
         return cleaned_data
 
@@ -769,7 +1541,6 @@ class StockTransferForm(forms.Form):
                 )
         
         return cleaned_data
-
 
 # =====================================
 # PURCHASE ORDER FORMS
@@ -877,7 +1648,6 @@ PurchaseOrderItemFormSet = formset_factory(
     can_delete=True
 )
 
-
 # =====================================
 # STOCK TAKE FORMS
 # =====================================
@@ -947,7 +1717,6 @@ class StockTakeItemForm(forms.ModelForm):
                 required=False,
                 label='System Quantity'
             )
-
 
 # =====================================
 # SEARCH AND FILTER FORMS

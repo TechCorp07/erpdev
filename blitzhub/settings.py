@@ -31,13 +31,16 @@ INSTALLED_APPS = [
     'django.contrib.sessions',
     'django.contrib.messages',
     'django.contrib.staticfiles',
+    'django.contrib.humanize',
 
     #Third Party
     'sslserver',
+    'rest_framework',
+    'corsheaders',
+    'import_export',
     'crispy_forms',
     'crispy_bootstrap5',
     'django_extensions',
-    'django.contrib.humanize',
     'django.contrib.sites',
     'phonenumber_field',
     'allauth',
@@ -49,13 +52,15 @@ INSTALLED_APPS = [
     #Apps
     'core',
     'crm',
-    'quotes', 
+    'quotes',
     'website',
     'inventory',
 ]
 
 MIDDLEWARE = [
+    'corsheaders.middleware.CorsMiddleware',
     'django.middleware.security.SecurityMiddleware',
+    'whitenoise.middleware.WhiteNoiseMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
     'django.middleware.common.CommonMiddleware',
     'django.middleware.csrf.CsrfViewMiddleware',
@@ -64,6 +69,7 @@ MIDDLEWARE = [
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
     'core.middleware.EmployeeAccessMiddleware',
+    'core.middleware.UserProfileMiddleware',
 ]
 
 ROOT_URLCONF = 'blitzhub.urls'
@@ -92,6 +98,7 @@ TEMPLATES = [
                 'core.context_processors.system_context_processor',
                 'website.context_processors.website_context',
                 'core.context_processors.dashboard_context',
+                'core.context_processors.site_settings',
             ],
         },
     },
@@ -269,13 +276,34 @@ EMAIL_VERIFICATION_TIMEOUT = 86400  # 24 hours
 # =====================================
 # ENHANCED COMPANY INFORMATION FOR EMAILS AND QUOTES
 # =====================================
-COMPANY_NAME = 'BlitzTech Electronics'
-COMPANY_ADDRESS = 'Harare, Zimbabwe'
-COMPANY_PHONE = '+263 XX XXX XXXX'
-COMPANY_EMAIL = 'info@blitztechelectronics.co.zw'
-COMPANY_WEBSITE = 'www.blitztechelectronics.co.zw'
-COMPANY_TAX_NUMBER = 'TAX123456789'
-SUPPORT_EMAIL = 'support@blitztechelectronics.co.zw'
+COMPANY_SETTINGS = {
+    'COMPANY_NAME': 'BlitzTech Electronics',
+    'COMPANY_ADDRESS': 'Harare, Zimbabwe',
+    'COMPANY_PHONE': '+263 XX XXX XXXX',
+    'COMPANY_EMAIL': 'info@blitztechelectronics.co.zw',
+    'COMPANY_WEBSITE': 'https://blitztechelectronics.co.zw',
+    'COMPANY_TAX_NUMBER': 'TAX123456789',
+    'SUPPORT_EMAIL': 'support@blitztechelectronics.co.zw',
+    'BUSINESS_REGISTRATION': 'REG-XXXXXXXX',
+}
+
+# Notification Settings
+NOTIFICATION_SETTINGS = {
+    'ENABLE_EMAIL_NOTIFICATIONS': True,
+    'ENABLE_SMS_NOTIFICATIONS': False,  # Future feature
+    'ENABLE_PUSH_NOTIFICATIONS': False,  # Future feature
+    'LOW_STOCK_NOTIFICATION_EMAILS': os.environ.get('LOW_STOCK_EMAILS', '').split(','),
+    'ADMIN_NOTIFICATION_EMAILS': os.environ.get('ADMIN_EMAILS', '').split(','),
+}
+
+# Integration Settings
+INTEGRATION_SETTINGS = {
+    'ENABLE_QUOTE_SYSTEM_INTEGRATION': True,
+    'ENABLE_CRM_INTEGRATION': True,
+    'ENABLE_SHOP_INTEGRATION': True,
+    'ENABLE_API_ACCESS': True,
+    'API_RATE_LIMIT_PER_HOUR': 1000,
+}
 
 # Management notification emails
 MANAGEMENT_NOTIFICATION_EMAILS = [
@@ -316,6 +344,76 @@ PDF_WATERMARK = None  # Optional watermark text
 # File Upload Settings (for attachments)
 FILE_UPLOAD_MAX_MEMORY_SIZE = 10 * 1024 * 1024  # 10MB
 DATA_UPLOAD_MAX_MEMORY_SIZE = 10 * 1024 * 1024  # 10MB
+DATA_UPLOAD_MAX_NUMBER_FIELDS = 1000
+
+# Allowed file extensions for uploads
+ALLOWED_UPLOAD_EXTENSIONS = [
+    '.jpg', '.jpeg', '.png', '.gif', '.bmp',  # Images
+    '.pdf', '.doc', '.docx', '.xls', '.xlsx',  # Documents
+    '.csv', '.txt',  # Data files
+]
+
+# Maximum file sizes (in bytes)
+MAX_UPLOAD_SIZE = {
+    'image': 5 * 1024 * 1024,      # 5MB for images
+    'document': 10 * 1024 * 1024,  # 10MB for documents
+    'data': 50 * 1024 * 1024,      # 50MB for data files
+}
+
+# =====================================
+# CELERY CONFIGURATION (For Background Tasks)
+# =====================================
+
+CELERY_BROKER_URL = os.environ.get('CELERY_BROKER_URL', 'redis://localhost:6379/0')
+CELERY_RESULT_BACKEND = os.environ.get('CELERY_RESULT_BACKEND', 'redis://localhost:6379/0')
+CELERY_ACCEPT_CONTENT = ['json']
+CELERY_TASK_SERIALIZER = 'json'
+CELERY_RESULT_SERIALIZER = 'json'
+CELERY_TIMEZONE = TIME_ZONE
+
+# Celery beat schedule for periodic tasks
+CELERY_BEAT_SCHEDULE = {
+    'update-exchange-rates': {
+        'task': 'inventory.tasks.update_exchange_rates',
+        'schedule': 3600.0,  # Every hour
+    },
+    'check-low-stock': {
+        'task': 'inventory.tasks.check_low_stock_levels',
+        'schedule': 1800.0,  # Every 30 minutes
+    },
+    'generate-daily-reports': {
+        'task': 'inventory.tasks.generate_daily_reports',
+        'schedule': 86400.0,  # Daily
+    },
+    'cleanup-old-data': {
+        'task': 'inventory.tasks.cleanup_old_data',
+        'schedule': 604800.0,  # Weekly
+    },
+}
+
+# =====================================
+# CORS CONFIGURATION
+# =====================================
+
+CORS_ALLOWED_ORIGINS = [
+    "http://localhost:3000",  # React development server
+    "http://127.0.0.1:3000",
+    "https://blitztechelectronics.co.zw",  # Production domain
+]
+
+CORS_ALLOW_CREDENTIALS = True
+
+CORS_ALLOW_HEADERS = [
+    'accept',
+    'accept-encoding',
+    'authorization',
+    'content-type',
+    'dnt',
+    'origin',
+    'user-agent',
+    'x-csrftoken',
+    'x-requested-with',
+]
 
 # Security Settings for Client Portal
 SECURE_ACCESS_TOKEN_LENGTH = 32
@@ -357,8 +455,12 @@ SESSION_SAVE_EVERY_REQUEST = True  # Refresh session with each request to keep i
 SESSION_COOKIE_SECURE = not DEBUG  # HTTPS only in production
 SESSION_COOKIE_HTTPONLY = True
 SESSION_COOKIE_SAMESITE = 'Lax'
-CSRF_COOKIE_SECURE = not DEBUG
+
+# CSRF settings
 CSRF_COOKIE_HTTPONLY = True
+CSRF_COOKIE_SAMESITE = 'Strict'
+CSRF_COOKIE_SECURE = not DEBUG
+
 # Account lockout settings
 ACCOUNT_LOCKOUT_THRESHOLD = 5
 ACCOUNT_LOCKOUT_DURATION = 1800  # 30 minutes
@@ -525,6 +627,109 @@ CRM_SETTINGS = {
 }
 
 # =====================================
+# INVENTORY SYSTEM SPECIFIC SETTINGS
+# =====================================
+
+# Inventory Management Settings
+INVENTORY_SETTINGS = {
+    # Default values for new products
+    'DEFAULT_REORDER_LEVEL': 10,
+    'DEFAULT_REORDER_QUANTITY': 50,
+    'DEFAULT_MAX_STOCK_LEVEL': 200,
+    'DEFAULT_LEAD_TIME_DAYS': 30,
+    
+    # Cost calculation settings
+    'DEFAULT_MARKUP_PERCENTAGE': Decimal('30.00'),
+    'MINIMUM_MARKUP_PERCENTAGE': Decimal('5.00'),
+    'MAXIMUM_MARKUP_PERCENTAGE': Decimal('500.00'),
+    
+    # Default currencies
+    'BASE_CURRENCY': 'USD',
+    'SELLING_CURRENCY': 'USD',
+    'SUPPORTED_CURRENCIES': ['USD', 'ZWG', 'EUR', 'CNY'],
+    
+    # VAT and tax settings for Zimbabwe
+    'DEFAULT_VAT_PERCENTAGE': Decimal('15.00'),
+    'DEFAULT_CUSTOMS_DUTY_PERCENTAGE': Decimal('10.00'),
+    
+    # Stock level alerts
+    'ENABLE_LOW_STOCK_ALERTS': True,
+    'LOW_STOCK_ALERT_THRESHOLD': 0.8,  # Alert when stock is 80% below reorder level
+    'CRITICAL_STOCK_THRESHOLD': 0,     # Critical when stock is 0
+    
+    # Barcode settings
+    'BARCODE_PREFIX': 'BT',
+    'AUTO_GENERATE_BARCODES': True,
+    'AUTO_GENERATE_QR_CODES': True,
+    
+    # Business rules
+    'ENFORCE_MINIMUM_MARKUP': True,
+    'REQUIRE_DATASHEET_FOR_COMPONENTS': False,
+    'AUTO_CALCULATE_EOQ': True,
+    'ENABLE_PRICE_HISTORY': True,
+    
+    # Import/export settings
+    'EXCEL_IMPORT_MAX_ROWS': 10000,
+    'CSV_EXPORT_ENCODING': 'utf-8-sig',
+    'BACKUP_RETENTION_DAYS': 30,
+    
+    # Performance settings
+    'CACHE_PRODUCT_CALCULATIONS': True,
+    'CACHE_TIMEOUT_SECONDS': 300,  # 5 minutes
+    'PAGINATE_PRODUCTS_BY': 25,
+    
+    # Supplier integration
+    'AUTO_UPDATE_EXCHANGE_RATES': False,
+    'EXCHANGE_RATE_API_KEY': os.environ.get('EXCHANGE_RATE_API_KEY', ''),
+    'SUPPLIER_EMAIL_TEMPLATES_DIR': 'inventory/emails/',
+    
+    # Storage and logistics
+    'ENABLE_MULTI_LOCATION': True,
+    'DEFAULT_LOCATION_NAME': 'BlitzTech Main Store/Warehouse',
+    'ENABLE_STORAGE_BINS': True,
+    'REQUIRE_STORAGE_BIN_SELECTION': False,
+    
+    # Analytics and reporting
+    'ENABLE_ABC_ANALYSIS': True,
+    'ENABLE_INVENTORY_TURNOVER_ANALYSIS': True,
+    'GENERATE_DAILY_REPORTS': True,
+    'REPORT_EMAIL_RECIPIENTS': os.environ.get('REPORT_EMAILS', '').split(','),
+}
+
+# =====================================
+# REST FRAMEWORK CONFIGURATION
+# =====================================
+
+REST_FRAMEWORK = {
+    'DEFAULT_AUTHENTICATION_CLASSES': [
+        'rest_framework.authentication.SessionAuthentication',
+        'rest_framework.authentication.TokenAuthentication',
+    ],
+    'DEFAULT_PERMISSION_CLASSES': [
+        'rest_framework.permissions.IsAuthenticated',
+    ],
+    'DEFAULT_PAGINATION_CLASS': 'rest_framework.pagination.PageNumberPagination',
+    'PAGE_SIZE': 25,
+    'DEFAULT_FILTER_BACKENDS': [
+        'django_filters.rest_framework.DjangoFilterBackend',
+        'rest_framework.filters.SearchFilter',
+        'rest_framework.filters.OrderingFilter',
+    ],
+    'DEFAULT_RENDERER_CLASSES': [
+        'rest_framework.renderers.JSONRenderer',
+        'rest_framework.renderers.BrowsableAPIRenderer',
+    ],
+    'DEFAULT_THROTTLE_CLASSES': [
+        'rest_framework.throttling.AnonRateThrottle',
+        'rest_framework.throttling.UserRateThrottle'
+    ],
+    'DEFAULT_THROTTLE_RATES': {
+        'anon': '100/hour',
+        'user': '1000/hour'
+    }
+}
+
+# =====================================
 # FEATURE FLAGS FOR QUOTE SYSTEM
 # =====================================
 FEATURE_FLAGS = {
@@ -616,6 +821,12 @@ LOGGING = {
             'backupCount': 10,
             'formatter': 'verbose',
         },
+        'inventory_file': {
+            'level': 'INFO',
+            'class': 'logging.FileHandler',
+            'filename': BASE_DIR / 'logs' / 'inventory.log',
+            'formatter': 'verbose',
+        },
         'security_file': {
             'level': 'WARNING',
             'class': 'logging.handlers.RotatingFileHandler',
@@ -652,6 +863,11 @@ LOGGING = {
             'handlers': ['console', 'file', 'mail_admins'],
             'level': 'INFO',
             'propagate': True,
+        },
+        'inventory': {
+            'handlers': ['console', 'inventory_file'],
+            'level': 'INFO',
+            'propagate': False,
         },
         'django.security': {
             'handlers': ['security_file', 'mail_admins'],
