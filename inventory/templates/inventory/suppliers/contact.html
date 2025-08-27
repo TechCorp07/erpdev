@@ -1,0 +1,14 @@
+{% extends "dashboard_base.html" %}
+{% load static %}
+
+{% block page_title %}Supplier Contact{% endblock %}
+
+{% block dashboard_content %}
+<h1>{{ supplier.name }}</h1>
+<ul>
+  <li>Email: {{ supplier.email }}</li>
+  <li>Phone: {{ supplier.phone }}</li>
+  <li>Country: {{ supplier.country.name }}</li>
+ </ul>
+{% endblock %}
+

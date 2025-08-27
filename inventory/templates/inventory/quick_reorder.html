@@ -1,0 +1,26 @@
+{% extends "dashboard_base.html" %}
+{% load static %}
+
+{% block page_title %}Quick Reorder{% endblock %}
+
+{% block dashboard_content %}
+<h1>Quick Reorder</h1>
+<table class="table">
+  <thead>
+    <tr><th>Product</th><th>Stock</th><th>Reorder Level</th><th>Recommended Qty</th></tr>
+  </thead>
+  <tbody>
+    {% for p in products %}
+    <tr>
+      <td>{{ p.name }}</td>
+      <td>{{ p.total_stock }}</td>
+      <td>{{ p.reorder_level }}</td>
+      <td>{{ p.reorder_qty }}</td>
+    </tr>
+    {% empty %}
+    <tr><td colspan="4">All products sufficiently stocked.</td></tr>
+    {% endfor %}
+  </tbody>
+ </table>
+{% endblock %}
+

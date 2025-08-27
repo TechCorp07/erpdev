@@ -24,6 +24,7 @@ from datetime import datetime, timedelta
 from decimal import Decimal
 from django.template.loader import render_to_string
 import qrcode
+import requests
 from weasyprint import HTML
 from django.db import transaction
 
@@ -39,15 +40,17 @@ from django.views.generic import (
 from django.views.decorators.http import require_http_methods, require_POST
 from django.views.decorators.csrf import csrf_exempt
 from django.db.models import Q, Sum, Count, Avg, F, Case, When, Max
+from django.db.models.functions import TruncDate
 from django.utils import timezone
 from django.urls import reverse_lazy, reverse
 from django.contrib.auth.mixins import LoginRequiredMixin, PermissionRequiredMixin
-from django.utils.decorators import method_decorator
 from openpyxl import Workbook
 
 from .models import (
-    Brand, Category, ComponentFamily, Currency, OverheadFactor, StorageLocation, Supplier, Location, Product, StockLevel, StockMovement,
-    StockTake, StockTakeItem, PurchaseOrder, PurchaseOrderItem, ReorderAlert
+    Brand, Category, ComponentFamily, Currency, OverheadFactor,
+    StorageLocation, Supplier, Location, Product, StockLevel,
+    StockMovement, StockTake, StockTakeItem, PurchaseOrder,
+    PurchaseOrderItem, ReorderAlert,
 )
 from .forms import (
     CategoryForm, SupplierForm, LocationForm, ProductForm, ProductSearchForm,
@@ -62,7 +65,8 @@ from .utils import (
     calculate_available_stock, get_stock_status, calculate_stock_value,
     create_stock_movement, export_products_to_csv, import_products_from_csv,
     get_products_for_quote_system, check_stock_availability_for_quote,
-    generate_stock_valuation_report, calculate_inventory_turnover
+    generate_stock_valuation_report, calculate_inventory_turnover,
+    BarcodeManager
 )
 
 logger = logging.getLogger(__name__)
@@ -159,7 +163,7 @@ class InventoryDashboardView(LoginRequiredMixin, TemplateView):
         context['storage_locations'] = StorageLocation.objects.filter(
             is_active=True
         ).annotate(
-            product_count=Count('productstock level__product', distinct=True),
+            product_count=Count('productstocklevel__product', distinct=True),
             total_items=Sum('productstocklevel__quantity_on_hand')
         )[:3]
         
@@ -2687,24 +2691,6 @@ def reorder_alert_list(request):
 
 @login_required
 @inventory_permission_required('view')
-def inventory_analytics_view(request):
-    """Advanced analytics dashboard for inventory metrics"""
-    template_name = 'inventory/analytics/analytics_dashboard.html'
-    
-    # Calculate key analytics
-    context = {
-        'page_title': 'Inventory Analytics',
-        # Add analytics data here
-        'inventory_turnover': calculate_inventory_turnover(),
-        'abc_analysis': _get_abc_analysis(),
-        'stock_aging': _get_stock_aging_data(),
-        'supplier_performance': _get_supplier_performance(),
-    }
-    
-    return render(request, template_name, context)
-
-@login_required
-@inventory_permission_required('view') 
 def low_stock_report(request):
     """Generate low stock report"""
     products = Product.objects.filter(
@@ -2720,39 +2706,6 @@ def low_stock_report(request):
     
     return render(request, 'inventory/reports/low_stock_report.html', context)
 
-@login_required
-@inventory_permission_required('view')
-def stock_valuation_report(request):
-    """Generate stock valuation report"""
-    products = Product.objects.filter(is_active=True).select_related(
-        'category', 'supplier'
-    )
-    
-    total_value = calculate_stock_value(products)
-    
-    context = {
-        'page_title': 'Stock Valuation Report',
-        'products': products,
-        'total_value': total_value,
-        'report_date': timezone.now().date(),
-    }
-    
-    return render(request, 'inventory/reports/valuation_report.html', context)
-
-def _get_abc_analysis():
-    """Helper function for ABC analysis"""
-    # Implementation for ABC analysis
-    return {}
-
-def _get_stock_aging_data():
-    """Helper function for stock aging analysis"""
-    # Implementation for stock aging
-    return {}
-
-def _get_supplier_performance():
-    """Helper function for supplier performance metrics"""
-    # Implementation for supplier performance
-    return {}
 
 # =====================================
 # PURCHASE ORDER VIEWS
@@ -7069,6 +7022,429 @@ def permission_overview_view(request):
         'page_title': 'Permission Overview',
     }
     return render(request, 'inventory/admin/permission_overview.html', context)
+
+# =====================================
+# SUPPORT VIEWS AND BUSINESS ENDPOINTS
+# =====================================
+
+@login_required
+def inventory_help_view(request):
+    """Render static help documentation for inventory module."""
+    return render(request, "inventory/help.html")
+
+
+@login_required
+def getting_started_guide(request):
+    """Render getting started guide."""
+    return render(request, "inventory/getting_started.html")
+
+
+@login_required
+def cost_calculation_guide(request):
+    """Render cost calculation guide."""
+    return render(request, "inventory/cost_calculation_guide.html")
+
+
+@login_required
+def api_documentation_view(request):
+    """Render internal API documentation."""
+    return render(request, "inventory/api_documentation.html")
+
+
+@login_required
+def supplier_contact_view(request, pk):
+    """Display contact information for a supplier."""
+    supplier = get_object_or_404(Supplier, pk=pk, is_active=True)
+    return render(request, "inventory/suppliers/contact.html", {"supplier": supplier})
+
+
+@login_required
+def quick_reorder_view(request):
+    """List products that need reordering."""
+    products = Product.objects.filter(
+        is_active=True,
+        total_stock__lt=F("reorder_level")
+    ).select_related("supplier", "category")
+    for product in products:
+        product.reorder_qty = max(product.reorder_level * 2 - product.total_stock, 0)
+    return render(request, "inventory/quick_reorder.html", {"products": products})
+
+
+@login_required
+def update_exchange_rates_view(request):
+    """UI for updating currency exchange rates."""
+    if request.method == "POST":
+        try:
+            updated = _refresh_exchange_rates()
+            messages.success(request, f"Updated rates for {len(updated)} currencies.")
+        except Exception as exc:
+            messages.error(request, f"Failed to update rates: {exc}")
+        return redirect("inventory:update_exchange_rates")
+    currencies = Currency.objects.filter(is_active=True).order_by("code")
+    return render(
+        request,
+        "inventory/configuration/update_exchange_rates.html",
+        {"currencies": currencies},
+    )
+
+
+def _refresh_exchange_rates():
+    """Fetch latest exchange rates from public API and update Currency table."""
+    response = requests.get(
+        "https://api.exchangerate.host/latest?base=USD", timeout=10
+    )
+    response.raise_for_status()
+    data = response.json()
+    rates = data.get("rates", {})
+    updated = {}
+    for currency in Currency.objects.filter(is_active=True):
+        if currency.code == "USD":
+            currency.exchange_rate_to_usd = Decimal("1")
+        elif currency.code in rates:
+            rate = Decimal(str(rates[currency.code]))
+            currency.exchange_rate_to_usd = Decimal("1") / rate
+        else:
+            continue
+        currency.save(update_fields=["exchange_rate_to_usd", "last_updated"])
+        updated[currency.code] = float(currency.exchange_rate_to_usd)
+    return updated
+
+
+# --- API views ---
+
+
+@login_required
+@require_POST
+def update_exchange_rates_api(request):
+    """Update currency exchange rates via API."""
+    try:
+        updated = _refresh_exchange_rates()
+        return JsonResponse({"status": "success", "updated": updated})
+    except Exception as exc:
+        return JsonResponse(
+            {"status": "error", "message": str(exc)}, status=500
+        )
+
+
+@login_required
+def currency_rates_api(request):
+    """Return current exchange rates."""
+    currencies = Currency.objects.filter(is_active=True).values(
+        "code", "name", "exchange_rate_to_usd", "last_updated"
+    )
+    data = []
+    for cur in currencies:
+        cur["exchange_rate_to_usd"] = float(cur["exchange_rate_to_usd"])
+        cur["last_updated"] = cur["last_updated"].isoformat()
+        data.append(cur)
+    return JsonResponse({"currencies": data})
+
+
+@login_required
+def currency_convert_api(request):
+    """Convert amount between two currencies."""
+    amount = request.GET.get("amount")
+    from_code = request.GET.get("from")
+    to_code = request.GET.get("to")
+    if not all([amount, from_code, to_code]):
+        return JsonResponse(
+            {"status": "error", "message": "Missing parameters"}, status=400
+        )
+    try:
+        amount = Decimal(amount)
+        from_currency = Currency.objects.get(code=from_code)
+        to_currency = Currency.objects.get(code=to_code)
+        usd_amount = amount * from_currency.exchange_rate_to_usd
+        target_amount = usd_amount / to_currency.exchange_rate_to_usd
+        return JsonResponse(
+            {"status": "success", "result": float(target_amount)}
+        )
+    except Currency.DoesNotExist:
+        return JsonResponse(
+            {"status": "error", "message": "Unknown currency"}, status=404
+        )
+    except Exception as exc:
+        return JsonResponse(
+            {"status": "error", "message": str(exc)}, status=400
+        )
+
+
+@login_required
+@require_POST
+def bulk_price_update_api(request):
+    """Apply percentage change to selling prices of multiple products."""
+    try:
+        payload = json.loads(request.body or "{}")
+        ids = payload.get("product_ids", [])
+        percentage = Decimal(str(payload.get("percentage", 0)))
+    except (ValueError, TypeError):
+        return JsonResponse({"status": "error", "message": "Invalid payload"}, status=400)
+    if not ids or percentage == 0:
+        return JsonResponse({"status": "error", "message": "Invalid parameters"}, status=400)
+    multiplier = Decimal("1") + (percentage / 100)
+    with transaction.atomic():
+        products = Product.objects.filter(id__in=ids)
+        for product in products:
+            product.selling_price = product.selling_price * multiplier
+            product.save(update_fields=["selling_price"])
+    return JsonResponse({"status": "success", "updated": products.count()})
+
+
+@login_required
+def margin_analysis_api(request):
+    """Provide margin information for products."""
+    product_id = request.GET.get("product_id")
+    if product_id:
+        product = get_object_or_404(Product, pk=product_id)
+        if product.selling_price:
+            margin = (
+                (product.selling_price - product.total_cost_price_usd)
+                / product.selling_price
+            ) * 100
+        else:
+            margin = Decimal("0")
+        return JsonResponse(
+            {
+                "product": product.id,
+                "margin_percent": float(margin.quantize(Decimal('0.01'))),
+            }
+        )
+    qs = Product.objects.filter(is_active=True, selling_price__gt=0).annotate(
+        margin_percent=100
+        * (F("selling_price") - F("total_cost_price_usd"))
+        / F("selling_price")
+    )
+    avg_margin = qs.aggregate(avg=Avg("margin_percent"))["avg"] or 0
+    return JsonResponse({"average_margin_percent": float(avg_margin)})
+
+
+@login_required
+def category_performance_api(request):
+    """Return performance metrics grouped by category."""
+    categories = (
+        Category.objects.filter(is_active=True)
+        .annotate(
+            product_count=Count("products", filter=Q(products__is_active=True)),
+            stock_value=Sum(
+                F("products__total_stock") * F("products__total_cost_price_usd")
+            ),
+        )
+        .order_by("-stock_value")[:10]
+        .values("id", "name", "product_count", "stock_value")
+    )
+    data = []
+    for cat in categories:
+        cat["stock_value"] = float(cat["stock_value"] or 0)
+        data.append(cat)
+    return JsonResponse({"categories": data})
+
+
+@login_required
+def check_stock_availability_api(request):
+    """Check if enough stock is available for a product."""
+    product_id = request.GET.get("product_id")
+    quantity = int(request.GET.get("quantity", "0"))
+    product = get_object_or_404(Product, pk=product_id, is_active=True)
+    available = product.total_stock >= quantity
+    return JsonResponse(
+        {
+            "product_id": product.id,
+            "requested": quantity,
+            "available": available,
+            "available_quantity": product.total_stock,
+        }
+    )
+
+
+@login_required
+def generate_barcode_api(request, product_id):
+    """Generate barcode image for a product."""
+    product = get_object_or_404(Product, pk=product_id)
+    code = product.barcode or product.sku
+    img_data = BarcodeManager.generate_barcode(code)
+    if not img_data:
+        return JsonResponse(
+            {"status": "error", "message": "Failed to generate barcode"}, status=500
+        )
+    return JsonResponse({"status": "success", "barcode": img_data})
+
+
+@login_required
+@require_POST
+def qr_code_scan_api(request):
+    """Lookup product based on scanned QR code data."""
+    try:
+        payload = json.loads(request.body or "{}")
+    except json.JSONDecodeError:
+        payload = request.POST
+    code = payload.get("code")
+    if not code:
+        return JsonResponse({"status": "error", "message": "No code provided"}, status=400)
+    product = Product.objects.filter(qr_code=code).first()
+    if not product:
+        return JsonResponse({"status": "error", "message": "Product not found"}, status=404)
+    return JsonResponse({"status": "success", "product": {"id": product.id, "name": product.name}})
+
+
+@login_required
+def reorder_recommendations_api(request):
+    """Suggest reorder quantities for low stock products."""
+    products = (
+        Product.objects.filter(is_active=True, total_stock__lt=F("reorder_level"))
+        .order_by("total_stock")
+        .select_related("supplier")
+    )
+    recommendations = []
+    for product in products:
+        qty = max(product.reorder_level * 2 - product.total_stock, 0)
+        recommendations.append(
+            {
+                "product_id": product.id,
+                "name": product.name,
+                "supplier": product.supplier.name,
+                "recommended_quantity": qty,
+            }
+        )
+    return JsonResponse({"recommendations": recommendations})
+
+
+@login_required
+def stock_levels_api(request):
+    """Return current stock levels for active products."""
+    products = Product.objects.filter(is_active=True).values(
+        "id", "name", "total_stock", "reorder_level"
+    )
+    return JsonResponse({"products": list(products)})
+
+
+@login_required
+def stock_movements_api(request):
+    """Return recent stock movement records."""
+    movements = (
+        StockMovement.objects.select_related("product")
+        .order_by("-created_at")[:50]
+        .values("id", "product__name", "movement_type", "quantity", "created_at")
+    )
+    data = [
+        {
+            "id": m["id"],
+            "product": m["product__name"],
+            "type": m["movement_type"],
+            "quantity": m["quantity"],
+            "date": m["created_at"].isoformat(),
+        }
+        for m in movements
+    ]
+    return JsonResponse({"movements": data})
+
+
+@login_required
+def stock_trends_api(request):
+    """Return incoming/outgoing stock totals per day."""
+    days = int(request.GET.get("days", 30))
+    start = timezone.now() - timedelta(days=days)
+    qs = StockMovement.objects.filter(created_at__gte=start)
+    daily = (
+        qs.annotate(day=TruncDate("created_at"))
+        .values("day")
+        .annotate(
+            incoming=Sum(
+                "quantity", filter=Q(movement_type__in=["in", "purchase", "return"])
+            ),
+            outgoing=Sum(
+                "quantity", filter=Q(movement_type__in=["out", "sale", "adjustment", "damaged"])
+            ),
+        )
+        .order_by("day")
+    )
+    data = []
+    for entry in daily:
+        data.append(
+            {
+                "date": entry["day"].isoformat(),
+                "incoming": entry["incoming"] or 0,
+                "outgoing": abs(entry["outgoing"] or 0),
+            }
+        )
+    return JsonResponse({"trends": data})
+
+
+@login_required
+def supplier_alerts_widget_api(request):
+    """Return count of active reorder alerts grouped by supplier."""
+    alerts = (
+        ReorderAlert.objects.filter(status__in=["active", "acknowledged"])
+        .values("product__supplier__id", "product__supplier__name")
+        .annotate(alert_count=Count("id"))
+        .order_by("-alert_count")[:5]
+    )
+    data = [
+        {
+            "supplier_id": a["product__supplier__id"],
+            "supplier": a["product__supplier__name"],
+            "alerts": a["alert_count"],
+        }
+        for a in alerts
+    ]
+    return JsonResponse({"suppliers": data})
+
+
+@login_required
+def supplier_country_analysis_api(request):
+    """Return number of suppliers per country."""
+    countries = (
+        Supplier.objects.values("country__name")
+        .annotate(count=Count("id"))
+        .order_by("-count")
+    )
+    data = [{"country": c["country__name"], "suppliers": c["count"]} for c in countries]
+    return JsonResponse({"countries": data})
+
+
+@login_required
+def dashboard_analytics_api(request):
+    """Return basic dashboard metrics as JSON."""
+    products = Product.objects.filter(is_active=True)
+    totals = products.aggregate(
+        total_stock_value=Sum(F("total_stock") * F("total_cost_price_usd")),
+        low_stock=Count(
+            "id",
+            filter=Q(total_stock__lte=F("reorder_level"), total_stock__gt=0),
+        ),
+        out_of_stock=Count("id", filter=Q(total_stock=0)),
+    )
+    response = {
+        "total_products": products.count(),
+        "total_categories": Category.objects.filter(is_active=True).count(),
+        "total_suppliers": Supplier.objects.filter(is_active=True).count(),
+        "stock_value": float(totals["total_stock_value"] or 0),
+        "low_stock": totals["low_stock"] or 0,
+        "out_of_stock": totals["out_of_stock"] or 0,
+    }
+    return JsonResponse(response)
+
+
+@login_required
+def cost_trends_widget_api(request):
+    """Return purchase cost totals grouped by month."""
+    months = int(request.GET.get("months", 6))
+    start = timezone.now() - timedelta(days=30 * months)
+    qs = (
+        StockMovement.objects.filter(
+            created_at__gte=start, movement_type__in=["in", "purchase"]
+        )
+        .annotate(month=TruncDate("created_at"))
+        .values("month")
+        .annotate(
+            total=Sum(F("quantity") * F("product__total_cost_price_usd"))
+        )
+        .order_by("month")
+    )
+    data = [
+        {"date": entry["month"].isoformat(), "cost": float(entry["total"] or 0)}
+        for entry in qs
+    ]
+    return JsonResponse({"cost_trends": data})
 
 # Initialize logging
 logger.info("Inventory management views loaded successfully")

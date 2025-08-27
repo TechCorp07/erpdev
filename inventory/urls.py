@@ -26,7 +26,7 @@ app_name = 'inventory'
 
 dashboard_patterns = [
     path('', views.InventoryDashboardView.as_view(), name='dashboard'),
-    path('overview/', views.InventoryDashboardView.as_view(), name='overview'),
+    path('overview/', views.InventoryOverviewView.as_view(), name='overview'),
     path('analytics/', views.inventory_analytics_view, name='analytics'),
     path('low-stock-ordering/', views.LowStockOrderingView.as_view(), name='low_stock_ordering'),
 ]
