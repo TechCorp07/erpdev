@@ -544,23 +544,26 @@ class SupplierForm(InventoryBaseForm):
         model = Supplier
         fields = [
             'name', 'supplier_code', 'supplier_type', 'contact_person',
-            'email', 'phone', 'website',
+            'email', 'phone', 'whatsapp', 'website',
             'address_line_1', 'address_line_2', 'city', 'state_province',
             'postal_code', 'country',
-            'payment_terms', 'currency', 'minimum_order_amount',
-            'average_lead_time_days', 'reliability_rating',
-            'tax_number', 'requires_purchase_order',
-            'is_active', 'is_preferred', 'notes'
+            'payment_terms', 'currency', 'minimum_order_value',
+            'typical_lead_time_days', 'reliability_rating',
+            'preferred_shipping_method', 'rating',
+            'is_active', 'notes'
         ]
         widgets = {
             'reliability_rating': forms.NumberInput(attrs={
                 'step': '0.1', 'min': '1', 'max': '10'
             }),
-            'minimum_order_amount': forms.NumberInput(attrs={
+            'minimum_order_value': forms.NumberInput(attrs={
                 'step': '0.01', 'min': '0'
             }),
-            'average_lead_time_days': forms.NumberInput(attrs={
+            'typical_lead_time_days': forms.NumberInput(attrs={
                 'min': '1', 'max': '365'
+            }),
+            'rating': forms.NumberInput(attrs={
+                'min': '1', 'max': '5'
             }),
             'notes': forms.Textarea(attrs={'rows': 4})
         }
@@ -578,8 +581,9 @@ class SupplierForm(InventoryBaseForm):
         # Add help texts
         self.fields['supplier_code'].help_text = 'Unique identifier for this supplier'
         self.fields['reliability_rating'].help_text = 'Rate from 1-10 based on delivery performance'
-        self.fields['average_lead_time_days'].help_text = 'Average delivery time in days'
-    
+        self.fields['typical_lead_time_days'].help_text = 'Typical lead time in days'
+        self.fields['rating'].help_text = 'Supplier rating (1-5 stars)'
+        
     def clean_supplier_code(self):
         """Ensure supplier code is unique"""
         code = self.cleaned_data.get('supplier_code')
@@ -760,7 +764,7 @@ class AdvancedProductSearchForm(forms.Form):
     )
     
     product_type = forms.ChoiceField(
-        choices=[('', 'All Types')] + Product.PRODUCT_TYPES,
+        choices=[('', 'All Types')] + list(Product.PRODUCT_TYPES),
         required=False,
         widget=forms.Select(attrs={'class': 'form-control'})
     )
@@ -1099,27 +1103,19 @@ class ProductForm(InventoryBaseForm):
         fields = [
             # Basic information
             'name', 'sku', 'barcode', 'description', 'short_description',
-            # Categorization
-            'category', 'supplier', 'brand', 'product_type',
+            # Categorization  
+            'category', 'product_type',
             # Specifications
-            'model_number', 'manufacturer_part_number', 'supplier_sku',
-            'package_type', 'quality_grade', 'datasheet_url',
+            'brand', 'model_number', 'manufacturer_part_number',
             # Physical attributes
-            'weight_grams', 'dimensions', 'volume_cubic_cm',
+            'weight', 'dimensions',
             # Cost structure
-            'cost_price', 'supplier_currency', 'shipping_cost_per_unit',
-            'insurance_cost_per_unit', 'customs_duty_percentage',
-            'vat_percentage', 'other_fees_per_unit',
-            # Pricing
-            'selling_currency', 'selling_price',
+            'cost_price', 'selling_price', 'currency',
             # Stock management
-            'reorder_level', 'reorder_quantity', 'max_stock_level',
-            'supplier_lead_time_days', 'supplier_minimum_order_quantity',
-            # Additional data
-            'certifications', 'product_images', 'additional_documents',
+            'current_stock', 'reserved_stock', 'reorder_level', 
+            'reorder_quantity', 'max_stock_level',
             # Status
-            'is_active', 'is_featured', 'is_hazardous', 
-            'requires_esd_protection', 'is_temperature_sensitive'
+            'is_active', 'is_quotable'
         ]
         widgets = {
             'name': forms.TextInput(attrs={'class': 'form-control', 'placeholder': 'Descriptive product name'}),
@@ -1128,109 +1124,57 @@ class ProductForm(InventoryBaseForm):
             'description': forms.Textarea(attrs={'class': 'form-control', 'rows': 4}),
             'short_description': forms.TextInput(attrs={'class': 'form-control', 'placeholder': 'Brief description'}),
             
-            'category': forms.Select(attrs={'class': 'form-control', 'onchange': 'updateComponentFamily()'}),
-            'supplier': forms.Select(attrs={'class': 'form-control', 'onchange': 'updateSupplierInfo()'}),
-            'brand': forms.Select(attrs={'class': 'form-control', 'onchange': 'updateBrandDefaults()'}),
+            'category': forms.Select(attrs={'class': 'form-control'}),
             'product_type': forms.Select(attrs={'class': 'form-control'}),
             
+            'brand': forms.TextInput(attrs={'class': 'form-control'}),
             'model_number': forms.TextInput(attrs={'class': 'form-control'}),
             'manufacturer_part_number': forms.TextInput(attrs={'class': 'form-control'}),
-            'supplier_sku': forms.TextInput(attrs={'class': 'form-control'}),
-            'package_type': forms.TextInput(attrs={'class': 'form-control', 'placeholder': 'DIP, SMD, TO-220, etc.'}),
-            'quality_grade': forms.Select(attrs={'class': 'form-control'}),
-            'datasheet_url': forms.URLInput(attrs={'class': 'form-control', 'placeholder': 'Google Drive or Mega link'}),
             
-            'weight_grams': forms.NumberInput(attrs={'class': 'form-control', 'step': '0.01'}),
-            'dimensions': forms.TextInput(attrs={'class': 'form-control', 'placeholder': 'L x W x H in mm'}),
-            'volume_cubic_cm': forms.NumberInput(attrs={'class': 'form-control', 'step': '0.01'}),
+            'weight': forms.NumberInput(attrs={'class': 'form-control', 'step': '0.001'}),
+            'dimensions': forms.TextInput(attrs={'class': 'form-control', 'placeholder': 'L x W x H in cm'}),
             
-            'cost_price': forms.NumberInput(attrs={'class': 'form-control', 'step': '0.000001', 'onchange': 'calculateCosts()'}),
-            'supplier_currency': forms.Select(attrs={'class': 'form-control', 'onchange': 'calculateCosts()'}),
-            'shipping_cost_per_unit': forms.NumberInput(attrs={'class': 'form-control', 'step': '0.000001', 'onchange': 'calculateCosts()'}),
-            'insurance_cost_per_unit': forms.NumberInput(attrs={'class': 'form-control', 'step': '0.000001', 'onchange': 'calculateCosts()'}),
-            'customs_duty_percentage': forms.NumberInput(attrs={'class': 'form-control', 'step': '0.01', 'onchange': 'calculateCosts()'}),
-            'vat_percentage': forms.NumberInput(attrs={'class': 'form-control', 'step': '0.01', 'onchange': 'calculateCosts()'}),
-            'other_fees_per_unit': forms.NumberInput(attrs={'class': 'form-control', 'step': '0.000001', 'onchange': 'calculateCosts()'}),
-            
-            'selling_currency': forms.Select(attrs={'class': 'form-control'}),
+            'cost_price': forms.NumberInput(attrs={'class': 'form-control', 'step': '0.01'}),
             'selling_price': forms.NumberInput(attrs={'class': 'form-control', 'step': '0.01'}),
+            'currency': forms.Select(attrs={'class': 'form-control'}),
             
+            'current_stock': forms.NumberInput(attrs={'class': 'form-control', 'min': '0'}),
+            'reserved_stock': forms.NumberInput(attrs={'class': 'form-control', 'min': '0'}),
             'reorder_level': forms.NumberInput(attrs={'class': 'form-control', 'min': '0'}),
             'reorder_quantity': forms.NumberInput(attrs={'class': 'form-control', 'min': '1'}),
             'max_stock_level': forms.NumberInput(attrs={'class': 'form-control', 'min': '1'}),
-            'supplier_lead_time_days': forms.NumberInput(attrs={'class': 'form-control', 'min': '1'}),
-            'supplier_minimum_order_quantity': forms.NumberInput(attrs={'class': 'form-control', 'min': '1'}),
-            
-            'certifications': forms.Textarea(attrs={'class': 'form-control', 'rows': 2, 'placeholder': '["CE", "FCC", "SABS"]'}),
-            'product_images': forms.Textarea(attrs={'class': 'form-control', 'rows': 3, 'placeholder': '["image1.jpg", "image2.jpg"]'}),
-            'additional_documents': forms.Textarea(attrs={'class': 'form-control', 'rows': 2, 'placeholder': '["cert.pdf", "test_report.pdf"]'}),
             
             'is_active': forms.CheckboxInput(attrs={'class': 'form-check-input'}),
-            'is_featured': forms.CheckboxInput(attrs={'class': 'form-check-input'}),
-            'is_hazardous': forms.CheckboxInput(attrs={'class': 'form-check-input'}),
-            'requires_esd_protection': forms.CheckboxInput(attrs={'class': 'form-check-input'}),
-            'is_temperature_sensitive': forms.CheckboxInput(attrs={'class': 'form-check-input'})
+            'is_quotable': forms.CheckboxInput(attrs={'class': 'form-check-input'})
         }
     
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         
-        # Set querysets for foreign keys
-        self.fields['category'].queryset = Category.objects.filter(is_active=True)
-        self.fields['supplier'].queryset = Supplier.objects.filter(is_active=True)
-        self.fields['brand'].queryset = Brand.objects.filter(is_active=True)
-        self.fields['supplier_currency'].queryset = Currency.objects.filter(is_active=True)
-        self.fields['selling_currency'].queryset = Currency.objects.filter(is_active=True)
+        # Set up currency choices
+        CURRENCY_CHOICES = [
+            ('USD', 'US Dollar'),
+            ('ZWG', 'Zimbabwe Gold'),
+            ('ZAR', 'South African Rand'),
+            ('EUR', 'Euro'),
+            ('GBP', 'British Pound'),
+        ]
+        self.fields['currency'].choices = CURRENCY_CHOICES
         
-        # Add calculated field display
-        if self.instance and self.instance.pk:
-            self.fields['profit_margin'] = forms.CharField(
-                initial=f"{self.instance.profit_margin_percentage:.2f}%",
-                widget=forms.TextInput(attrs={'readonly': True}),
-                required=False,
-                help_text='Calculated automatically based on cost and selling price'
-            )
+        # Make key fields required
+        self.fields['category'].required = True
+        self.fields['cost_price'].required = True
+        self.fields['selling_price'].required = True
         
-        if not self.instance.pk:
-            # Set defaults based on selected options
-            if 'category' in self.data:
-                try:
-                    category = Category.objects.get(id=self.data['category'])
-                    if category.default_markup_percentage:
-                        self.fields['target_markup_percentage'].initial = category.default_markup_percentage
-                except Category.DoesNotExist:
-                    pass
-        
-        # Add helpful help texts
-        self.fields['sku'].help_text = 'Unique product identifier (auto-generated if left blank)'
-        self.fields['barcode'].help_text = 'Barcode or QR code for scanning'
+        # Add help texts
+        self.fields['sku'].help_text = 'Unique product identifier'
         self.fields['weight'].help_text = 'Weight in kilograms'
-        self.fields['dimensions'].help_text = 'Length x Width x Height in centimeters'
+        self.fields['reorder_level'].help_text = 'Minimum stock level before reordering'
     
     def clean_sku(self):
-        """Auto-generate SKU if not provided and ensure uniqueness"""
+        """Ensure SKU is unique"""
         sku = self.cleaned_data.get('sku')
         
-        if not sku:
-            # Auto-generate SKU based on category and year
-            category = self.cleaned_data.get('category')
-            if category:
-                from django.utils import timezone
-                year = timezone.now().year
-                category_prefix = category.name[:3].upper()
-                
-                # Find the next available number
-                existing_skus = Product.objects.filter(
-                    sku__startswith=f"{category_prefix}-{year}-"
-                ).values_list('sku', flat=True)
-                
-                next_number = 1
-                while f"{category_prefix}-{year}-{next_number:03d}" in existing_skus:
-                    next_number += 1
-                
-                sku = f"{category_prefix}-{year}-{next_number:03d}"
-        
-        # Check uniqueness
         if sku:
             existing = Product.objects.filter(sku=sku)
             if self.instance.pk:
@@ -1256,32 +1200,22 @@ class ProductForm(InventoryBaseForm):
         return barcode
     
     def clean(self):
+        """Additional validation"""
         cleaned_data = super().clean()
-        
-        # Validate JSON fields
-        for field_name in ['certifications', 'product_images', 'additional_documents']:
-            value = cleaned_data.get(field_name)
-            if value:
-                try:
-                    json.loads(value)
-                except json.JSONDecodeError:
-                    self.add_error(field_name, 'Invalid JSON format')
-        
-        # Validate cost/price relationship
         cost_price = cleaned_data.get('cost_price')
         selling_price = cleaned_data.get('selling_price')
+        current_stock = cleaned_data.get('current_stock')
+        reserved_stock = cleaned_data.get('reserved_stock')
         
+        # Validate pricing
         if cost_price and selling_price:
-            if selling_price <= cost_price:
-                self.add_error('selling_price', 'Selling price should be higher than cost price')
+            if selling_price < cost_price:
+                self.add_error('selling_price', 'Selling price should not be less than cost price.')
         
         # Validate stock levels
-        reorder_level = cleaned_data.get('reorder_level')
-        max_stock_level = cleaned_data.get('max_stock_level')
-        
-        if reorder_level and max_stock_level:
-            if reorder_level >= max_stock_level:
-                self.add_error('reorder_level', 'Reorder level must be less than maximum stock level')
+        if current_stock is not None and reserved_stock is not None:
+            if reserved_stock > current_stock:
+                self.add_error('reserved_stock', 'Reserved stock cannot exceed current stock.')
         
         return cleaned_data
     
