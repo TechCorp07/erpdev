@@ -371,45 +371,6 @@ class InventoryValuationReportView(LoginRequiredMixin, TemplateView):
         })
         return context
 
-@login_required
-@inventory_permission_required('view')
-def quick_stats_api(request):
-    """
-    API endpoint for real-time dashboard statistics.
-    
-    Provides current inventory metrics for dashboard widgets and mobile apps.
-    """
-    try:
-        stats = {
-            'timestamp': timezone.now().isoformat(),
-            'total_products': Product.objects.filter(is_active=True).count(),
-            'low_stock_count': Product.objects.filter(
-                is_active=True,
-                current_stock__lte=F('reorder_level')
-            ).count(),
-            'out_of_stock_count': Product.objects.filter(
-                is_active=True,
-                current_stock=0
-            ).count(),
-            'total_stock_value': float(
-                Product.objects.filter(is_active=True).aggregate(
-                    total=Sum(F('current_stock') * F('cost_price'))
-                )['total'] or 0
-            ),
-            'active_alerts': ReorderAlert.objects.filter(
-                status__in=['active', 'acknowledged']
-            ).count(),
-            'pending_pos': PurchaseOrder.objects.filter(
-                status__in=['draft', 'sent', 'acknowledged']
-            ).count()
-        }
-        
-        return JsonResponse({'success': True, 'stats': stats})
-        
-    except Exception as e:
-        logger.error(f"Error in quick stats API: {str(e)}")
-        return JsonResponse({'success': False, 'error': str(e)})
-
 class InventoryOverviewView(LoginRequiredMixin, TemplateView):
     """Detailed inventory overview with filtering and analysis"""
     template_name = 'inventory/overview.html'
@@ -488,179 +449,68 @@ def inventory_alerts_view(request):
     
     return render(request, template_name, context)
 
-class LowStockOrderingView(LoginRequiredMixin, TemplateView):
+@login_required
+@inventory_permission_required('view')
+def quick_stats_api(request):
     """
-    Generate and manage purchase orders from low stock alerts.
-    This is critical for business continuity - prevents stockouts.
+    API endpoint for real-time dashboard statistics.
+    
+    Provides current inventory metrics for dashboard widgets and mobile apps.
     """
-    template_name = 'inventory/reorder/low_stock_ordering.html'
+    try:
+        stats = {
+            'timestamp': timezone.now().isoformat(),
+            'total_products': Product.objects.filter(is_active=True).count(),
+            'low_stock_count': Product.objects.filter(
+                is_active=True,
+                current_stock__lte=F('reorder_level')
+            ).count(),
+            'out_of_stock_count': Product.objects.filter(
+                is_active=True,
+                current_stock=0
+            ).count(),
+            'total_stock_value': float(
+                Product.objects.filter(is_active=True).aggregate(
+                    total=Sum(F('current_stock') * F('cost_price'))
+                )['total'] or 0
+            ),
+            'active_alerts': ReorderAlert.objects.filter(
+                status__in=['active', 'acknowledged']
+            ).count(),
+            'pending_pos': PurchaseOrder.objects.filter(
+                status__in=['draft', 'sent', 'acknowledged']
+            ).count()
+        }
+        
+        return JsonResponse({'success': True, 'stats': stats})
+        
+    except Exception as e:
+        logger.error(f"Error in quick stats API: {str(e)}")
+        return JsonResponse({'success': False, 'error': str(e)})
+
+@login_required
+@inventory_permission_required('view')
+def search_suggestions_api(request):
+    """API for search suggestions"""
+    query = request.GET.get('q', '')
+    if len(query) < 2:
+        return JsonResponse({'suggestions': []})
     
-    @method_decorator(purchase_order_permission)
-    def dispatch(self, *args, **kwargs):
-        return super().dispatch(*args, **kwargs)
+    products = Product.objects.filter(
+        Q(name__icontains=query) | Q(sku__icontains=query),
+        is_active=True
+    )[:10]
     
-    def get_context_data(self, **kwargs):
-        context = super().get_context_data(**kwargs)
-        
-        # Get products that need reordering
-        low_stock_products = Product.objects.filter(
-            current_stock__lte=F('reorder_level'),
-            is_active=True
-        ).select_related('category', 'supplier').annotate(
-            stock_shortage=F('reorder_level') - F('current_stock'),
-            suggested_order_qty=F('economic_order_quantity')
-        )
-        
-        # Group by supplier for efficient ordering
-        suppliers_data = {}
-        for product in low_stock_products:
-            if product.supplier:
-                supplier = product.supplier
-                if supplier not in suppliers_data:
-                    suppliers_data[supplier] = {
-                        'products': [],
-                        'total_cost': Decimal('0'),
-                        'currency': supplier.currency,
-                        'lead_time': supplier.average_lead_time_days,
-                    }
-                
-                order_quantity = max(
-                    product.suggested_order_qty or product.economic_order_quantity,
-                    product.stock_shortage
-                )
-                estimated_cost = order_quantity * product.cost_price
-                
-                suppliers_data[supplier]['products'].append({
-                    'product': product,
-                    'current_stock': product.current_stock,
-                    'reorder_level': product.reorder_level,
-                    'shortage': product.stock_shortage,
-                    'suggested_qty': order_quantity,
-                    'estimated_cost': estimated_cost,
-                })
-                suppliers_data[supplier]['total_cost'] += estimated_cost
-        
-        # Get existing reorder alerts
-        active_alerts = ReorderAlert.objects.filter(
-            status__in=['active', 'acknowledged']
-        ).select_related('product', 'suggested_supplier').order_by('-priority', '-created_at')
-        
-        # Calculate summary metrics
-        total_products_needing_reorder = low_stock_products.count()
-        total_estimated_cost = sum(data['total_cost'] for data in suppliers_data.values())
-        critical_shortages = low_stock_products.filter(current_stock=0).count()
-        
-        context.update({
-            'page_title': 'Low Stock Ordering',
-            'suppliers_data': suppliers_data,
-            'active_alerts': active_alerts,
-            'total_products_needing_reorder': total_products_needing_reorder,
-            'total_estimated_cost': total_estimated_cost,
-            'critical_shortages': critical_shortages,
-        })
-        return context
+    suggestions = [
+        {
+            'id': product.id,
+            'text': f"{product.name} ({product.sku})",
+            'type': 'product'
+        }
+        for product in products
+    ]
     
-    def post(self, request, *args, **kwargs):
-        """Generate purchase orders from selected products"""
-        try:
-            selected_items = json.loads(request.POST.get('selected_items', '[]'))
-            
-            if not selected_items:
-                messages.error(request, 'No items selected for ordering')
-                return redirect('inventory:low_stock_ordering')
-            
-            # Group items by supplier
-            supplier_orders = {}
-            for item in selected_items:
-                product_id = item['product_id']
-                supplier_id = item['supplier_id']
-                quantity = int(item['quantity'])
-                
-                if supplier_id not in supplier_orders:
-                    supplier_orders[supplier_id] = []
-                
-                supplier_orders[supplier_id].append({
-                    'product_id': product_id,
-                    'quantity': quantity,
-                })
-            
-            # Create purchase orders
-            created_orders = []
-            with transaction.atomic():
-                for supplier_id, items in supplier_orders.items():
-                    supplier = Supplier.objects.get(id=supplier_id)
-                    
-                    # Generate PO number
-                    po_number = f"PO-{timezone.now().strftime('%Y%m%d')}-{supplier.supplier_code}"
-                    counter = 1
-                    while PurchaseOrder.objects.filter(po_number=po_number).exists():
-                        po_number = f"PO-{timezone.now().strftime('%Y%m%d')}-{supplier.supplier_code}-{counter:02d}"
-                        counter += 1
-                    
-                    # Calculate expected delivery
-                    expected_delivery = timezone.now().date() + timedelta(
-                        days=supplier.average_lead_time_days or 7
-                    )
-                    
-                    # Create PO
-                    purchase_order = PurchaseOrder.objects.create(
-                        po_number=po_number,
-                        supplier=supplier,
-                        status='draft',
-                        order_date=timezone.now().date(),
-                        expected_delivery_date=expected_delivery,
-                        currency=supplier.currency,
-                        payment_terms=supplier.payment_terms,
-                        notes=f"Auto-generated from low stock ordering on {timezone.now().strftime('%Y-%m-%d')}",
-                        created_by=request.user,
-                    )
-                    
-                    # Add items to PO
-                    total_amount = Decimal('0')
-                    for item in items:
-                        product = Product.objects.get(id=item['product_id'])
-                        quantity = item['quantity']
-                        unit_price = product.cost_price
-                        total_price = quantity * unit_price
-                        
-                        PurchaseOrderItem.objects.create(
-                            purchase_order=purchase_order,
-                            product=product,
-                            quantity_ordered=quantity,
-                            unit_price=unit_price,
-                            total_price=total_price,
-                            expected_delivery_date=expected_delivery,
-                        )
-                        
-                        total_amount += total_price
-                    
-                    # Update PO totals
-                    purchase_order.subtotal = total_amount
-                    purchase_order.total_amount = total_amount  # Add tax calculation if needed
-                    purchase_order.save()
-                    
-                    created_orders.append(purchase_order)
-                    
-                    # Update reorder alerts
-                    for item in items:
-                        ReorderAlert.objects.filter(
-                            product_id=item['product_id'],
-                            status__in=['active', 'acknowledged']
-                        ).update(
-                            status='ordered',
-                            purchase_order=purchase_order,
-                            resolved_at=timezone.now()
-                        )
-            
-            messages.success(
-                request,
-                f'Successfully created {len(created_orders)} purchase orders'
-            )
-            return redirect('inventory:purchase_order_list')
-            
-        except Exception as e:
-            messages.error(request, f'Failed to create purchase orders: {str(e)}')
-            return redirect('inventory:low_stock_ordering')
+    return JsonResponse({'suggestions': suggestions})
 
 # =====================================
 # PRODUCT MANAGEMENT VIEWS
@@ -2451,6 +2301,228 @@ class LowStockReportView(LoginRequiredMixin, TemplateView):
         context['low_stock_products'] = low_stock_products
         return context
 
+class LowStockOrderingView(LoginRequiredMixin, TemplateView):
+    """
+    Generate and manage purchase orders from low stock alerts.
+    This is critical for business continuity - prevents stockouts.
+    """
+    template_name = 'inventory/reorder/low_stock_ordering.html'
+    
+    @method_decorator(purchase_order_permission)
+    def dispatch(self, *args, **kwargs):
+        return super().dispatch(*args, **kwargs)
+    
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        
+        # Get products that need reordering
+        low_stock_products = Product.objects.filter(
+            current_stock__lte=F('reorder_level'),
+            is_active=True
+        ).select_related('category', 'supplier').annotate(
+            stock_shortage=F('reorder_level') - F('current_stock'),
+            suggested_order_qty=F('economic_order_quantity')
+        )
+        
+        # Group by supplier for efficient ordering
+        suppliers_data = {}
+        for product in low_stock_products:
+            if product.supplier:
+                supplier = product.supplier
+                if supplier not in suppliers_data:
+                    suppliers_data[supplier] = {
+                        'products': [],
+                        'total_cost': Decimal('0'),
+                        'currency': supplier.currency,
+                        'lead_time': supplier.average_lead_time_days,
+                    }
+                
+                order_quantity = max(
+                    product.suggested_order_qty or product.economic_order_quantity,
+                    product.stock_shortage
+                )
+                estimated_cost = order_quantity * product.cost_price
+                
+                suppliers_data[supplier]['products'].append({
+                    'product': product,
+                    'current_stock': product.current_stock,
+                    'reorder_level': product.reorder_level,
+                    'shortage': product.stock_shortage,
+                    'suggested_qty': order_quantity,
+                    'estimated_cost': estimated_cost,
+                })
+                suppliers_data[supplier]['total_cost'] += estimated_cost
+        
+        # Get existing reorder alerts
+        active_alerts = ReorderAlert.objects.filter(
+            status__in=['active', 'acknowledged']
+        ).select_related('product', 'suggested_supplier').order_by('-priority', '-created_at')
+        
+        # Calculate summary metrics
+        total_products_needing_reorder = low_stock_products.count()
+        total_estimated_cost = sum(data['total_cost'] for data in suppliers_data.values())
+        critical_shortages = low_stock_products.filter(current_stock=0).count()
+        
+        context.update({
+            'page_title': 'Low Stock Ordering',
+            'suppliers_data': suppliers_data,
+            'active_alerts': active_alerts,
+            'total_products_needing_reorder': total_products_needing_reorder,
+            'total_estimated_cost': total_estimated_cost,
+            'critical_shortages': critical_shortages,
+        })
+        return context
+    
+    def post(self, request, *args, **kwargs):
+        """Generate purchase orders from selected products"""
+        try:
+            selected_items = json.loads(request.POST.get('selected_items', '[]'))
+            
+            if not selected_items:
+                messages.error(request, 'No items selected for ordering')
+                return redirect('inventory:low_stock_ordering')
+            
+            # Group items by supplier
+            supplier_orders = {}
+            for item in selected_items:
+                product_id = item['product_id']
+                supplier_id = item['supplier_id']
+                quantity = int(item['quantity'])
+                
+                if supplier_id not in supplier_orders:
+                    supplier_orders[supplier_id] = []
+                
+                supplier_orders[supplier_id].append({
+                    'product_id': product_id,
+                    'quantity': quantity,
+                })
+            
+            # Create purchase orders
+            created_orders = []
+            with transaction.atomic():
+                for supplier_id, items in supplier_orders.items():
+                    supplier = Supplier.objects.get(id=supplier_id)
+                    
+                    # Generate PO number
+                    po_number = f"PO-{timezone.now().strftime('%Y%m%d')}-{supplier.supplier_code}"
+                    counter = 1
+                    while PurchaseOrder.objects.filter(po_number=po_number).exists():
+                        po_number = f"PO-{timezone.now().strftime('%Y%m%d')}-{supplier.supplier_code}-{counter:02d}"
+                        counter += 1
+                    
+                    # Calculate expected delivery
+                    expected_delivery = timezone.now().date() + timedelta(
+                        days=supplier.average_lead_time_days or 7
+                    )
+                    
+                    # Create PO
+                    purchase_order = PurchaseOrder.objects.create(
+                        po_number=po_number,
+                        supplier=supplier,
+                        status='draft',
+                        order_date=timezone.now().date(),
+                        expected_delivery_date=expected_delivery,
+                        currency=supplier.currency,
+                        payment_terms=supplier.payment_terms,
+                        notes=f"Auto-generated from low stock ordering on {timezone.now().strftime('%Y-%m-%d')}",
+                        created_by=request.user,
+                    )
+                    
+                    # Add items to PO
+                    total_amount = Decimal('0')
+                    for item in items:
+                        product = Product.objects.get(id=item['product_id'])
+                        quantity = item['quantity']
+                        unit_price = product.cost_price
+                        total_price = quantity * unit_price
+                        
+                        PurchaseOrderItem.objects.create(
+                            purchase_order=purchase_order,
+                            product=product,
+                            quantity_ordered=quantity,
+                            unit_price=unit_price,
+                            total_price=total_price,
+                            expected_delivery_date=expected_delivery,
+                        )
+                        
+                        total_amount += total_price
+                    
+                    # Update PO totals
+                    purchase_order.subtotal = total_amount
+                    purchase_order.total_amount = total_amount  # Add tax calculation if needed
+                    purchase_order.save()
+                    
+                    created_orders.append(purchase_order)
+                    
+                    # Update reorder alerts
+                    for item in items:
+                        ReorderAlert.objects.filter(
+                            product_id=item['product_id'],
+                            status__in=['active', 'acknowledged']
+                        ).update(
+                            status='ordered',
+                            purchase_order=purchase_order,
+                            resolved_at=timezone.now()
+                        )
+            
+            messages.success(
+                request,
+                f'Successfully created {len(created_orders)} purchase orders'
+            )
+            return redirect('inventory:purchase_order_list')
+            
+        except Exception as e:
+            messages.error(request, f'Failed to create purchase orders: {str(e)}')
+            return redirect('inventory:low_stock_ordering')
+
+class StockLevelListView(LoginRequiredMixin, ListView):
+    """List stock levels across locations"""
+    model = StockLevel
+    template_name = 'inventory/stock/stock_level_list.html'
+    context_object_name = 'stock_levels'
+    paginate_by = 50
+    
+    @method_decorator(inventory_permission_required('view'))
+    def dispatch(self, *args, **kwargs):
+        return super().dispatch(*args, **kwargs)
+    
+    def get_queryset(self):
+        return StockLevel.objects.select_related(
+            'product', 'location'
+        ).filter(product__is_active=True).order_by('product__name')
+
+@login_required
+@stock_adjustment_permission
+def stock_adjustment_view(request):
+    """Adjust stock levels"""
+    if request.method == 'POST':
+        form = StockAdjustmentForm(request.POST)
+        if form.is_valid():
+            # Process stock adjustment
+            adjustment = form.save(commit=False)
+            adjustment.adjusted_by = request.user
+            adjustment.save()
+            
+            # Create stock movement record
+            create_stock_movement(
+                product=adjustment.product,
+                movement_type='adjustment',
+                quantity=adjustment.adjustment_quantity,
+                user=request.user,
+                notes=adjustment.notes
+            )
+            
+            messages.success(request, 'Stock adjustment completed successfully')
+            return redirect('inventory:stock_level_list')
+    else:
+        form = StockAdjustmentForm()
+    
+    context = {
+        'page_title': 'Stock Adjustment',
+        'form': form,
+    }
+    return render(request, 'inventory/stock/stock_adjustment.html', context)
+
 @login_required
 @inventory_permission_required('view_stocktake')
 def export_stock_take_pdf(request, pk):
@@ -2681,6 +2753,250 @@ def _get_supplier_performance():
     """Helper function for supplier performance metrics"""
     # Implementation for supplier performance
     return {}
+
+# =====================================
+# PURCHASE ORDER VIEWS
+# =====================================
+
+class PurchaseOrderListView(LoginRequiredMixin, ListView):
+    """List all purchase orders"""
+    model = PurchaseOrder
+    template_name = 'inventory/purchase_orders/po_list.html'
+    context_object_name = 'purchase_orders'
+    paginate_by = 25
+    
+    @method_decorator(purchase_order_permission)
+    def dispatch(self, *args, **kwargs):
+        return super().dispatch(*args, **kwargs)
+    
+    def get_queryset(self):
+        return PurchaseOrder.objects.select_related('supplier').order_by('-created_at')
+
+class PurchaseOrderDetailView(LoginRequiredMixin, DetailView):
+    """Detailed view of purchase order"""
+    model = PurchaseOrder
+    template_name = 'inventory/purchase_orders/po_detail.html'
+    context_object_name = 'purchase_order'
+    
+    @method_decorator(purchase_order_permission)
+    def dispatch(self, *args, **kwargs):
+        return super().dispatch(*args, **kwargs)
+    
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        po = self.get_object()
+        context.update({
+            'page_title': f'Purchase Order: {po.po_number}',
+            'po_items': po.items.select_related('product').all(),
+            'total_value': sum(item.total_price for item in po.items.all()),
+        })
+        return context
+
+class PurchaseOrderCreateView(LoginRequiredMixin, CreateView):
+    """Create new purchase order"""
+    model = PurchaseOrder
+    form_class = PurchaseOrderForm
+    template_name = 'inventory/purchase_orders/po_form.html'
+    
+    @method_decorator(purchase_order_permission)
+    def dispatch(self, *args, **kwargs):
+        return super().dispatch(*args, **kwargs)
+    
+    def form_valid(self, form):
+        form.instance.created_by = self.request.user
+        messages.success(self.request, f'Purchase order {form.instance.po_number} created successfully')
+        return super().form_valid(form)
+
+class PurchaseOrderUpdateView(LoginRequiredMixin, UpdateView):
+    """Update purchase order"""
+    model = PurchaseOrder
+    form_class = PurchaseOrderForm
+    template_name = 'inventory/purchase_orders/po_form.html'
+    
+    @method_decorator(purchase_order_permission)
+    def dispatch(self, *args, **kwargs):
+        return super().dispatch(*args, **kwargs)
+
+@login_required
+@purchase_order_permission
+def purchase_order_receive_view(request, pk):
+    """Receive items from purchase order"""
+    po = get_object_or_404(PurchaseOrder, pk=pk)
+    
+    if request.method == 'POST':
+        # Process receiving logic here
+        po.status = 'received'
+        po.received_date = timezone.now().date()
+        po.save()
+        
+        messages.success(request, f'Purchase order {po.po_number} marked as received')
+        return redirect('inventory:po_detail', pk=po.pk)
+    
+    context = {
+        'page_title': f'Receive PO: {po.po_number}',
+        'purchase_order': po,
+        'po_items': po.items.select_related('product').all(),
+    }
+    return render(request, 'inventory/purchase_orders/po_receive.html', context)
+
+@login_required
+@purchase_order_permission
+def purchase_order_cancel_view(request, pk):
+    """Cancel purchase order"""
+    po = get_object_or_404(PurchaseOrder, pk=pk)
+    
+    if request.method == 'POST':
+        po.status = 'cancelled'
+        po.save()
+        
+        messages.success(request, f'Purchase order {po.po_number} cancelled')
+        return redirect('inventory:po_list')
+    
+    context = {
+        'page_title': f'Cancel PO: {po.po_number}',
+        'purchase_order': po,
+    }
+    return render(request, 'inventory/purchase_orders/po_cancel.html', context)
+
+# =====================================
+# PRICING VIEWS
+# =====================================
+
+class CostCalculatorView(LoginRequiredMixin, TemplateView):
+    """Calculate product costs with overhead factors"""
+    template_name = 'inventory/pricing/cost_calculator.html'
+    
+    @method_decorator(cost_data_access)
+    def dispatch(self, *args, **kwargs):
+        return super().dispatch(*args, **kwargs)
+    
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        
+        # Get overhead factors for calculation
+        overhead_factors = OverheadFactor.objects.filter(is_active=True)
+        
+        context.update({
+            'page_title': 'Cost Calculator',
+            'overhead_factors': overhead_factors,
+        })
+        return context
+
+class BulkPriceUpdateView(LoginRequiredMixin, TemplateView):
+    """Bulk update product prices"""
+    template_name = 'inventory/pricing/bulk_price_update.html'
+    
+    @method_decorator(inventory_permission_required('edit'))
+    def dispatch(self, *args, **kwargs):
+        return super().dispatch(*args, **kwargs)
+    
+    def post(self, request, *args, **kwargs):
+        # Process bulk price update
+        price_adjustment = request.POST.get('price_adjustment', '0')
+        adjustment_type = request.POST.get('adjustment_type', 'percentage')
+        
+        try:
+            adjustment = Decimal(price_adjustment)
+            updated_count = 0
+            
+            products = Product.objects.filter(is_active=True)
+            for product in products:
+                if adjustment_type == 'percentage':
+                    product.selling_price *= (1 + adjustment / 100)
+                else:
+                    product.selling_price += adjustment
+                product.save()
+                updated_count += 1
+            
+            messages.success(request, f'Updated prices for {updated_count} products')
+        except Exception as e:
+            messages.error(request, f'Price update failed: {str(e)}')
+        
+        return redirect('inventory:product_list')
+
+class MarginAnalysisView(LoginRequiredMixin, TemplateView):
+    """Analyze profit margins across products"""
+    template_name = 'inventory/pricing/margin_analysis.html'
+    
+    @method_decorator(cost_data_access)
+    def dispatch(self, *args, **kwargs):
+        return super().dispatch(*args, **kwargs)
+    
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        
+        # Calculate margin statistics
+        products = Product.objects.filter(is_active=True).select_related('category')
+        
+        margin_stats = []
+        for product in products:
+            if product.selling_price > 0:
+                margin = product.selling_price - product.cost_price
+                margin_percentage = (margin / product.selling_price) * 100
+                margin_stats.append({
+                    'product': product,
+                    'margin': margin,
+                    'margin_percentage': margin_percentage,
+                })
+        
+        # Sort by margin percentage
+        margin_stats.sort(key=lambda x: x['margin_percentage'], reverse=True)
+        
+        context.update({
+            'page_title': 'Margin Analysis',
+            'margin_stats': margin_stats,
+        })
+        return context
+
+class CompetitivePricingView(LoginRequiredMixin, TemplateView):
+    """Compare pricing with competitors"""
+    template_name = 'inventory/pricing/competitive_pricing.html'
+    
+    @method_decorator(cost_data_access)
+    def dispatch(self, *args, **kwargs):
+        return super().dispatch(*args, **kwargs)
+    
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context.update({
+            'page_title': 'Competitive Pricing Analysis',
+        })
+        return context
+
+class MarkupRuleListView(LoginRequiredMixin, TemplateView):
+    """List markup rules"""
+    template_name = 'inventory/pricing/markup_rules.html'
+    
+    @method_decorator(inventory_permission_required('view'))
+    def dispatch(self, *args, **kwargs):
+        return super().dispatch(*args, **kwargs)
+
+class MarkupRuleCreateView(LoginRequiredMixin, TemplateView):
+    """Create new markup rule"""
+    template_name = 'inventory/pricing/markup_rule_form.html'
+    
+    @method_decorator(inventory_permission_required('edit'))
+    def dispatch(self, *args, **kwargs):
+        return super().dispatch(*args, **kwargs)
+
+class OverheadAnalysisView(LoginRequiredMixin, TemplateView):
+    """Analyze overhead costs"""
+    template_name = 'inventory/pricing/overhead_analysis.html'
+    
+    @method_decorator(cost_data_access)
+    def dispatch(self, *args, **kwargs):
+        return super().dispatch(*args, **kwargs)
+    
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        
+        overhead_factors = OverheadFactor.objects.filter(is_active=True)
+        
+        context.update({
+            'page_title': 'Overhead Cost Analysis',
+            'overhead_factors': overhead_factors,
+        })
+        return context
 
 # =====================================
 # LOCATION MANAGEMENT VIEWS
@@ -2937,6 +3253,16 @@ class BrandUpdateView(LoginRequiredMixin, UpdateView):
         messages.success(self.request, f'Brand "{form.instance.name}" updated successfully')
         return super().form_valid(form)
 
+class BrandDeleteView(LoginRequiredMixin, DeleteView):
+    """Delete brand"""
+    model = Brand
+    template_name = 'inventory/configuration/brand_confirm_delete.html'
+    success_url = reverse_lazy('inventory:brand_list')
+    
+    @method_decorator(inventory_permission_required('admin'))
+    def dispatch(self, *args, **kwargs):
+        return super().dispatch(*args, **kwargs)
+
 # =====================================
 # STORAGE LOCATION MANAGEMENT VIEWS
 # =====================================
@@ -3022,8 +3348,121 @@ class StorageBinListView(LoginRequiredMixin, TemplateView):
         return context
 
 # =====================================
+# CONFIGURATION VIEWS
+# =====================================
+
+class CategoryListView(LoginRequiredMixin, ListView):
+    """List all product categories"""
+    model = Category
+    template_name = 'inventory/configuration/category_list.html'
+    context_object_name = 'categories'
+    
+    @method_decorator(inventory_permission_required('view'))
+    def dispatch(self, *args, **kwargs):
+        return super().dispatch(*args, **kwargs)
+
+class CategoryCreateView(LoginRequiredMixin, CreateView):
+    """Create new category"""
+    model = Category
+    form_class = CategoryForm
+    template_name = 'inventory/configuration/category_form.html'
+    success_url = reverse_lazy('inventory:category_list')
+    
+    @method_decorator(inventory_permission_required('edit'))
+    def dispatch(self, *args, **kwargs):
+        return super().dispatch(*args, **kwargs)
+
+class CategoryUpdateView(LoginRequiredMixin, UpdateView):
+    """Update category"""
+    model = Category
+    form_class = CategoryForm
+    template_name = 'inventory/configuration/category_form.html'
+    success_url = reverse_lazy('inventory:category_list')
+    
+    @method_decorator(inventory_permission_required('edit'))
+    def dispatch(self, *args, **kwargs):
+        return super().dispatch(*args, **kwargs)
+
+class CategoryDeleteView(LoginRequiredMixin, DeleteView):
+    """Delete category"""
+    model = Category
+    template_name = 'inventory/configuration/category_confirm_delete.html'
+    success_url = reverse_lazy('inventory:category_list')
+    
+    @method_decorator(inventory_permission_required('admin'))
+    def dispatch(self, *args, **kwargs):
+        return super().dispatch(*args, **kwargs)
+
+class SupplierListView(LoginRequiredMixin, ListView):
+    """List all suppliers"""
+    model = Supplier
+    template_name = 'inventory/configuration/supplier_list.html'
+    context_object_name = 'suppliers'
+    
+    @method_decorator(inventory_permission_required('view'))
+    def dispatch(self, *args, **kwargs):
+        return super().dispatch(*args, **kwargs)
+
+class SupplierCreateView(LoginRequiredMixin, CreateView):
+    """Create new supplier"""
+    model = Supplier
+    form_class = SupplierForm
+    template_name = 'inventory/configuration/supplier_form.html'
+    success_url = reverse_lazy('inventory:supplier_list')
+    
+    @method_decorator(inventory_permission_required('edit'))
+    def dispatch(self, *args, **kwargs):
+        return super().dispatch(*args, **kwargs)
+
+class SupplierUpdateView(LoginRequiredMixin, UpdateView):
+    """Update supplier"""
+    model = Supplier
+    form_class = SupplierForm
+    template_name = 'inventory/configuration/supplier_form.html'
+    success_url = reverse_lazy('inventory:supplier_list')
+    
+    @method_decorator(inventory_permission_required('edit'))
+    def dispatch(self, *args, **kwargs):
+        return super().dispatch(*args, **kwargs)
+
+class SupplierDeleteView(LoginRequiredMixin, DeleteView):
+    """Delete supplier"""
+    model = Supplier
+    template_name = 'inventory/configuration/supplier_confirm_delete.html'
+    success_url = reverse_lazy('inventory:supplier_list')
+    
+    @method_decorator(inventory_permission_required('admin'))
+    def dispatch(self, *args, **kwargs):
+        return super().dispatch(*args, **kwargs)
+
+# =====================================
 # API ENDPOINTS
 # =====================================
+
+def calculate_overhead_for_product(self, import_cost, category_id, supplier_id, weight_grams):
+    """Calculate overhead costs for a product"""
+    overhead_factors = OverheadFactor.objects.filter(is_active=True)
+    total_overhead = Decimal('0.00')
+    
+    for factor in overhead_factors:
+        # Check if factor applies
+        applies = True
+        
+        if factor.applies_to_categories.exists() and category_id:
+            applies = applies and factor.applies_to_categories.filter(id=category_id).exists()
+        
+        if factor.applies_to_suppliers.exists() and supplier_id:
+            applies = applies and factor.applies_to_suppliers.filter(id=supplier_id).exists()
+        
+        if applies:
+            cost = factor.calculate_cost(
+                product_cost=import_cost,
+                order_value=import_cost,
+                weight_kg=weight_grams / 1000 if weight_grams else None
+            )
+            total_overhead += cost
+    
+    return total_overhead
 
 @login_required
 @inventory_permission_required('view')
@@ -3455,7 +3894,6 @@ def product_stock_levels_api(request, product_id):
     except Exception as e:
         return JsonResponse({'success': False, 'error': str(e)}, status=500)
 
-
 @login_required
 @inventory_permission_required('edit')
 @require_POST
@@ -3518,7 +3956,6 @@ def reserve_stock_api(request):
     except Exception as e:
         return JsonResponse({'success': False, 'error': str(e)}, status=500)
 
-
 @login_required
 @inventory_permission_required('edit')
 @require_POST
@@ -3563,7 +4000,6 @@ def release_reservation_api(request):
         
     except Exception as e:
         return JsonResponse({'success': False, 'error': str(e)}, status=500)
-
 
 @login_required
 @inventory_permission_required('view')
@@ -3631,31 +4067,6 @@ def product_availability_api(request):
         
     except Exception as e:
         return JsonResponse({'success': False, 'error': str(e)}, status=500)
-
-def calculate_overhead_for_product(self, import_cost, category_id, supplier_id, weight_grams):
-    """Calculate overhead costs for a product"""
-    overhead_factors = OverheadFactor.objects.filter(is_active=True)
-    total_overhead = Decimal('0.00')
-    
-    for factor in overhead_factors:
-        # Check if factor applies
-        applies = True
-        
-        if factor.applies_to_categories.exists() and category_id:
-            applies = applies and factor.applies_to_categories.filter(id=category_id).exists()
-        
-        if factor.applies_to_suppliers.exists() and supplier_id:
-            applies = applies and factor.applies_to_suppliers.filter(id=supplier_id).exists()
-        
-        if applies:
-            cost = factor.calculate_cost(
-                product_cost=import_cost,
-                order_value=import_cost,
-                weight_kg=weight_grams / 1000 if weight_grams else None
-            )
-            total_overhead += cost
-    
-    return total_overhead
 
 @login_required
 @inventory_permission_required('edit')
@@ -3739,6 +4150,132 @@ def generate_reorder_list_api(request):
     except Exception as e:
         logger.error(f"Error generating reorder list: {str(e)}")
         return JsonResponse({'success': False, 'error': str(e)})
+
+@csrf_exempt
+@require_http_methods(["GET"])
+def product_attributes_api(request, product_id):
+    """API for product attributes"""
+    try:
+        product = Product.objects.get(id=product_id, is_active=True)
+        data = {
+            'product_id': product.id,
+            'attributes': product.get_dynamic_attributes(),  # Assuming this method exists
+        }
+        return JsonResponse(data)
+    except Product.DoesNotExist:
+        return JsonResponse({'error': 'Product not found'}, status=404)
+
+@csrf_exempt
+@require_http_methods(["POST"])
+def stock_adjustment_api(request):
+    """API for stock adjustments"""
+    try:
+        data = json.loads(request.body)
+        product_id = data.get('product_id')
+        adjustment = data.get('adjustment')
+        notes = data.get('notes', '')
+        
+        product = Product.objects.get(id=product_id, is_active=True)
+        product.current_stock += adjustment
+        product.save()
+        
+        # Create movement record
+        create_stock_movement(
+            product=product,
+            movement_type='adjustment',
+            quantity=adjustment,
+            user=request.user,
+            notes=notes
+        )
+        
+        return JsonResponse({
+            'success': True,
+            'new_stock': product.current_stock
+        })
+    except Exception as e:
+        return JsonResponse({
+            'success': False,
+            'error': str(e)
+        })
+
+@csrf_exempt
+@require_http_methods(["POST"])
+def stock_transfer_api(request):
+    """API for stock transfers"""
+    try:
+        data = json.loads(request.body)
+        product_id = data.get('product_id')
+        from_location_id = data.get('from_location_id')
+        to_location_id = data.get('to_location_id')
+        quantity = data.get('quantity')
+        
+        product = Product.objects.get(id=product_id, is_active=True)
+        from_location = Location.objects.get(id=from_location_id)
+        to_location = Location.objects.get(id=to_location_id)
+        
+        # Process transfer
+        from_stock = StockLevel.objects.get(product=product, location=from_location)
+        to_stock, created = StockLevel.objects.get_or_create(
+            product=product, 
+            location=to_location,
+            defaults={'quantity': 0}
+        )
+        
+        from_stock.quantity -= quantity
+        to_stock.quantity += quantity
+        
+        from_stock.save()
+        to_stock.save()
+        
+        # Create movement records
+        create_stock_movement(
+            product=product,
+            movement_type='transfer_out',
+            quantity=-quantity,
+            user=request.user,
+            from_location=from_location,
+            to_location=to_location
+        )
+        
+        create_stock_movement(
+            product=product,
+            movement_type='transfer_in',
+            quantity=quantity,
+            user=request.user,
+            from_location=from_location,
+            to_location=to_location
+        )
+        
+        return JsonResponse({'success': True})
+    except Exception as e:
+        return JsonResponse({
+            'success': False,
+            'error': str(e)
+        })
+
+@csrf_exempt
+@require_http_methods(["GET"])
+def reorder_suggestions_api(request):
+    """API for reorder suggestions"""
+    low_stock_products = Product.objects.filter(
+        is_active=True,
+        current_stock__lte=F('reorder_level')
+    ).select_related('supplier')
+    
+    suggestions = []
+    for product in low_stock_products:
+        suggestions.append({
+            'product_id': product.id,
+            'product_name': product.name,
+            'current_stock': product.current_stock,
+            'reorder_level': product.reorder_level,
+            'reorder_quantity': product.reorder_quantity,
+            'supplier': product.supplier.name if product.supplier else '',
+            'cost_price': str(product.cost_price),
+            'total_cost': str(product.reorder_quantity * product.cost_price),
+        })
+    
+    return JsonResponse({'suggestions': suggestions})
 
 # =====================================
 # INTEGRATION ENDPOINTS FOR QUOTE SYSTEM
@@ -3944,6 +4481,87 @@ def inventory_analytics_view(request):
 # =====================================
 # REPORTS VIEWS
 # =====================================
+
+class AlertsDashboardView(LoginRequiredMixin, TemplateView):
+    template_name = "inventory/alerts/reorder_alert_list.html"
+
+    @method_decorator(inventory_permission_required('view'))
+    def dispatch(self, *args, **kwargs):
+        return super().dispatch(*args, **kwargs)
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        active_alerts = ReorderAlert.objects.filter(
+            status__in=['active', 'acknowledged']
+        ).select_related('product', 'suggested_supplier').order_by('priority', '-created_at')
+        context['active_alerts'] = active_alerts
+        return context
+
+class ReorderAlertListView(LoginRequiredMixin, ListView):
+    """
+    Manage all reorder alerts - active, acknowledged, and resolved.
+    """
+    model = ReorderAlert
+    template_name = 'inventory/reorder/reorder_alerts.html'
+    context_object_name = 'alerts'
+    paginate_by = 50
+    
+    @method_decorator(inventory_permission_required('view'))
+    def dispatch(self, *args, **kwargs):
+        return super().dispatch(*args, **kwargs)
+    
+    def get_queryset(self):
+        queryset = ReorderAlert.objects.select_related(
+            'product', 'suggested_supplier', 'acknowledged_by', 'purchase_order'
+        ).order_by('-priority', '-created_at')
+        
+        # Apply filters
+        status = self.request.GET.get('status')
+        if status:
+            queryset = queryset.filter(status=status)
+        
+        priority = self.request.GET.get('priority')
+        if priority:
+            queryset = queryset.filter(priority=priority)
+        
+        supplier = self.request.GET.get('supplier')
+        if supplier:
+            queryset = queryset.filter(suggested_supplier_id=supplier)
+        
+        return queryset
+    
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        
+        # Calculate summary statistics
+        alerts = ReorderAlert.objects.all()
+        summary = {
+            'total_alerts': alerts.count(),
+            'active_alerts': alerts.filter(status='active').count(),
+            'acknowledged_alerts': alerts.filter(status='acknowledged').count(),
+            'critical_alerts': alerts.filter(priority='critical').count(),
+            'high_priority_alerts': alerts.filter(priority='high').count(),
+        }
+        
+        context.update({
+            'page_title': 'Reorder Alerts',
+            'summary': summary,
+            'suppliers': Supplier.objects.filter(is_active=True).order_by('name'),
+            'filters': {
+                'status': self.request.GET.get('status'),
+                'priority': self.request.GET.get('priority'),
+                'supplier': self.request.GET.get('supplier'),
+            }
+        })
+        return context
+
+class CustomReportView(LoginRequiredMixin, TemplateView):
+    """Custom report builder"""
+    template_name = 'inventory/reports/custom_report.html'
+    
+    @method_decorator(inventory_permission_required('view'))
+    def dispatch(self, *args, **kwargs):
+        return super().dispatch(*args, **kwargs)
 
 @login_required
 @inventory_permission_required('view')
@@ -4230,80 +4848,6 @@ def export_report(request, report_type):
 
     else:
         return HttpResponse("Unknown export format", status=400)
-
-class AlertsDashboardView(LoginRequiredMixin, TemplateView):
-    template_name = "inventory/alerts/reorder_alert_list.html"
-
-    @method_decorator(inventory_permission_required('view'))
-    def dispatch(self, *args, **kwargs):
-        return super().dispatch(*args, **kwargs)
-
-    def get_context_data(self, **kwargs):
-        context = super().get_context_data(**kwargs)
-        active_alerts = ReorderAlert.objects.filter(
-            status__in=['active', 'acknowledged']
-        ).select_related('product', 'suggested_supplier').order_by('priority', '-created_at')
-        context['active_alerts'] = active_alerts
-        return context
-
-
-class ReorderAlertListView(LoginRequiredMixin, ListView):
-    """
-    Manage all reorder alerts - active, acknowledged, and resolved.
-    """
-    model = ReorderAlert
-    template_name = 'inventory/reorder/reorder_alerts.html'
-    context_object_name = 'alerts'
-    paginate_by = 50
-    
-    @method_decorator(inventory_permission_required('view'))
-    def dispatch(self, *args, **kwargs):
-        return super().dispatch(*args, **kwargs)
-    
-    def get_queryset(self):
-        queryset = ReorderAlert.objects.select_related(
-            'product', 'suggested_supplier', 'acknowledged_by', 'purchase_order'
-        ).order_by('-priority', '-created_at')
-        
-        # Apply filters
-        status = self.request.GET.get('status')
-        if status:
-            queryset = queryset.filter(status=status)
-        
-        priority = self.request.GET.get('priority')
-        if priority:
-            queryset = queryset.filter(priority=priority)
-        
-        supplier = self.request.GET.get('supplier')
-        if supplier:
-            queryset = queryset.filter(suggested_supplier_id=supplier)
-        
-        return queryset
-    
-    def get_context_data(self, **kwargs):
-        context = super().get_context_data(**kwargs)
-        
-        # Calculate summary statistics
-        alerts = ReorderAlert.objects.all()
-        summary = {
-            'total_alerts': alerts.count(),
-            'active_alerts': alerts.filter(status='active').count(),
-            'acknowledged_alerts': alerts.filter(status='acknowledged').count(),
-            'critical_alerts': alerts.filter(priority='critical').count(),
-            'high_priority_alerts': alerts.filter(priority='high').count(),
-        }
-        
-        context.update({
-            'page_title': 'Reorder Alerts',
-            'summary': summary,
-            'suppliers': Supplier.objects.filter(is_active=True).order_by('name'),
-            'filters': {
-                'status': self.request.GET.get('status'),
-                'priority': self.request.GET.get('priority'),
-                'supplier': self.request.GET.get('supplier'),
-            }
-        })
-        return context
 
 @login_required
 @inventory_permission_required('edit')
@@ -5107,6 +5651,104 @@ def category_analysis_report(request):
         messages.error(request, f'Failed to generate category analysis: {str(e)}')
         return redirect('inventory:inventory_reports')
 
+@login_required
+@inventory_permission_required('view')
+def supplier_comparison_report(request):
+    """Compare suppliers"""
+    context = {
+        'page_title': 'Supplier Comparison Report',
+    }
+    return render(request, 'inventory/reports/supplier_comparison.html', context)
+
+@login_required
+@inventory_permission_required('view')
+def purchase_analysis_report(request):
+    """Purchase analysis report"""
+    context = {
+        'page_title': 'Purchase Analysis Report',
+    }
+    return render(request, 'inventory/reports/purchase_analysis.html', context)
+
+@login_required
+@inventory_permission_required('view')
+def cost_analysis_report(request):
+    """Cost analysis report"""
+    context = {
+        'page_title': 'Cost Analysis Report',
+    }
+    return render(request, 'inventory/reports/cost_analysis.html', context)
+
+@login_required
+@inventory_permission_required('view')
+def margin_analysis_report(request):
+    """Margin analysis report"""
+    context = {
+        'page_title': 'Margin Analysis Report',
+    }
+    return render(request, 'inventory/reports/margin_analysis.html', context)
+
+@login_required
+@inventory_permission_required('view')
+def profitability_report(request):
+    """Profitability report"""
+    context = {
+        'page_title': 'Profitability Report',
+    }
+    return render(request, 'inventory/reports/profitability.html', context)
+
+@login_required
+@inventory_permission_required('view')
+def tax_compliance_report(request):
+    """Tax compliance report"""
+    context = {
+        'page_title': 'Tax Compliance Report',
+    }
+    return render(request, 'inventory/reports/tax_compliance.html', context)
+
+@login_required
+@inventory_permission_required('view')
+def brand_performance_report(request):
+    """Brand performance report"""
+    brands = Brand.objects.filter(is_active=True).annotate(
+        product_count=Count('products', filter=Q(products__is_active=True))
+    )
+    
+    context = {
+        'page_title': 'Brand Performance Report',
+        'brands': brands,
+        'report_date': timezone.now().date(),
+    }
+    return render(request, 'inventory/reports/brand_performance.html', context)
+
+@login_required
+@inventory_permission_required('view')
+def executive_summary_report(request):
+    """Executive summary report"""
+    # Calculate key metrics
+    total_products = Product.objects.filter(is_active=True).count()
+    total_stock_value = Product.objects.filter(is_active=True).aggregate(
+        total=Sum(F('current_stock') * F('cost_price'))
+    )['total'] or 0
+    
+    low_stock_count = Product.objects.filter(
+        is_active=True,
+        current_stock__lte=F('reorder_level')
+    ).count()
+    
+    pending_po_count = PurchaseOrder.objects.filter(
+        status__in=['draft', 'sent', 'acknowledged']
+    ).count()
+    
+    context = {
+        'page_title': 'Executive Summary Report',
+        'total_products': total_products,
+        'total_stock_value': total_stock_value,
+        'low_stock_count': low_stock_count,
+        'pending_po_count': pending_po_count,
+        'report_date': timezone.now().date(),
+    }
+    return render(request, 'inventory/reports/executive_summary.html', context)
+
 # =====================================
 # STOCK TAKE MANAGEMENT VIEWS
 # =====================================
@@ -5317,420 +5959,24 @@ def stock_take_complete_view(request, pk):
     return redirect('inventory:stock_take_detail', pk=pk)
 
 # =====================================
-# MOBILE AND BARCODE FEATURES
+# DATA MANAGEMENT VIEWS
 # =====================================
 
-class MobileDashboardView(LoginRequiredMixin, TemplateView):
-    """
-    Mobile-optimized inventory dashboard for warehouse staff.
-    """
-    template_name = 'inventory/mobile/mobile_dashboard.html'
+class DataExportView(LoginRequiredMixin, TemplateView):
+    """Export inventory data"""
+    template_name = 'inventory/data/data_export.html'
     
     @method_decorator(inventory_permission_required('view'))
     def dispatch(self, *args, **kwargs):
         return super().dispatch(*args, **kwargs)
-    
-    def get_context_data(self, **kwargs):
-        context = super().get_context_data(**kwargs)
-        
-        # Quick stats for mobile view
-        low_stock_count = Product.objects.filter(
-            current_stock__lte=F('reorder_level'),
-            is_active=True
-        ).count()
-        
-        pending_stock_takes = StockTake.objects.filter(
-            status__in=['pending', 'in_progress']
-        ).count()
-        
-        recent_movements = StockMovement.objects.select_related(
-            'product'
-        ).order_by('-created_at')[:10]
-        
-        context.update({
-            'page_title': 'Mobile Inventory',
-            'low_stock_count': low_stock_count,
-            'pending_stock_takes': pending_stock_takes,
-            'recent_movements': recent_movements,
-            'is_mobile': True,
-        })
-        return context
 
-class MobileStockCheckView(LoginRequiredMixin, TemplateView):
-    """
-    Quick stock check interface for mobile devices.
-    """
-    template_name = 'inventory/mobile/mobile_stock_check.html'
-    
-    @method_decorator(inventory_permission_required('view'))
-    def dispatch(self, *args, **kwargs):
-        return super().dispatch(*args, **kwargs)
-    
-    def get_context_data(self, **kwargs):
-        context = super().get_context_data(**kwargs)
-        
-        search_term = self.request.GET.get('q', '').strip()
-        product = None
-        
-        if search_term:
-            # Try to find product by SKU or barcode first
-            try:
-                product = Product.objects.select_related(
-                    'category', 'supplier'
-                ).get(
-                    Q(sku__iexact=search_term) | Q(barcode=search_term),
-                    is_active=True
-                )
-            except Product.DoesNotExist:
-                # Try partial name match
-                products = Product.objects.filter(
-                    name__icontains=search_term,
-                    is_active=True
-                ).select_related('category', 'supplier')[:5]
-                
-                if products.count() == 1:
-                    product = products.first()
-                elif products.count() > 1:
-                    context['multiple_products'] = products
-        
-        if product:
-            # Get stock levels by location
-            stock_levels = product.stock_levels.select_related('location').all()
-            
-            context.update({
-                'product': product,
-                'stock_levels': stock_levels,
-                'stock_status': get_stock_status(product),
-            })
-        
-        context.update({
-            'page_title': 'Stock Check',
-            'search_term': search_term,
-            'is_mobile': True,
-        })
-        return context
-
-@login_required
-@inventory_permission_required('edit')
-@require_POST
-def mobile_quick_adjust_view(request):
-    """
-    Quick stock adjustment from mobile device.
-    """
-    try:
-        product_id = request.POST.get('product_id')
-        location_id = request.POST.get('location_id')
-        new_quantity = int(request.POST.get('new_quantity', 0))
-        reason = request.POST.get('reason', 'Mobile adjustment')
-        
-        product = get_object_or_404(Product, id=product_id)
-        
-        with transaction.atomic():
-            if location_id:
-                location = get_object_or_404(Location, id=location_id)
-                stock_level, created = StockLevel.objects.get_or_create(
-                    product=product,
-                    location=location,
-                    defaults={'quantity': 0}
-                )
-                
-                old_quantity = stock_level.quantity
-                adjustment = new_quantity - old_quantity
-                
-                stock_level.quantity = new_quantity
-                stock_level.last_counted = timezone.now()
-                stock_level.save()
-                
-                # Update product total
-                product.current_stock = product.stock_levels.aggregate(
-                    total=Sum('quantity')
-                )['total'] or 0
-                
-            else:
-                old_quantity = product.current_stock
-                adjustment = new_quantity - old_quantity
-                product.current_stock = new_quantity
-            
-            product.last_stock_check = timezone.now()
-            product.save()
-            
-            # Create movement record
-            StockMovement.objects.create(
-                product=product,
-                movement_type='adjustment',
-                quantity=adjustment,
-                from_location=location if location_id and adjustment < 0 else None,
-                to_location=location if location_id and adjustment > 0 else None,
-                previous_stock=old_quantity,
-                new_stock=new_quantity,
-                reference=f"MOBILE-ADJ-{timezone.now().strftime('%Y%m%d%H%M%S')}",
-                notes=f"Mobile adjustment: {reason}",
-                created_by=request.user
-            )
-            
-        return JsonResponse({
-            'success': True,
-            'message': f'Stock updated: {product.name} adjusted by {adjustment}',
-            'new_quantity': new_quantity,
-        })
-        
-    except Exception as e:
-        return JsonResponse({
-            'success': False,
-            'error': str(e)
-        }, status=500)
-
-class BarcodeGeneratorView(LoginRequiredMixin, TemplateView):
-    """
-    Generate barcodes for products that don't have them.
-    """
-    template_name = 'inventory/barcode/barcode_generator.html'
+class DataImportView(LoginRequiredMixin, TemplateView):
+    """Import inventory data"""
+    template_name = 'inventory/data/data_import.html'
     
     @method_decorator(inventory_permission_required('edit'))
     def dispatch(self, *args, **kwargs):
         return super().dispatch(*args, **kwargs)
-    
-    def get_context_data(self, **kwargs):
-        context = super().get_context_data(**kwargs)
-        
-        # Get products without barcodes
-        products_without_barcodes = Product.objects.filter(
-            is_active=True,
-            barcode__in=['', None]
-        ).select_related('category', 'supplier').order_by('name')
-        
-        context.update({
-            'page_title': 'Barcode Generator',
-            'products_without_barcodes': products_without_barcodes,
-            'total_products': products_without_barcodes.count(),
-        })
-        return context
-
-@login_required
-@inventory_permission_required('edit')
-def bulk_generate_barcodes_view(request):
-    """
-    Generate barcodes for multiple products at once.
-    """
-    if request.method == 'POST':
-        try:
-            product_ids = request.POST.getlist('product_ids')
-            barcode_prefix = request.POST.get('prefix', 'BT')
-            
-            if not product_ids:
-                messages.error(request, 'No products selected')
-                return redirect('inventory:barcode_generator')
-            
-            generated_count = 0
-            with transaction.atomic():
-                for product_id in product_ids:
-                    try:
-                        product = Product.objects.get(id=product_id, is_active=True)
-                        
-                        if not product.barcode:
-                            # Generate unique barcode
-                            timestamp = timezone.now().strftime('%Y%m%d%H%M%S')
-                            barcode = f"{barcode_prefix}{product.id:06d}{timestamp[-4:]}"
-                            
-                            # Ensure uniqueness
-                            counter = 1
-                            original_barcode = barcode
-                            while Product.objects.filter(barcode=barcode).exists():
-                                barcode = f"{original_barcode}{counter:02d}"
-                                counter += 1
-                            
-                            product.barcode = barcode
-                            product.save()
-                            generated_count += 1
-                            
-                    except Product.DoesNotExist:
-                        continue
-            
-            messages.success(request, f'Generated {generated_count} barcodes')
-            
-        except Exception as e:
-            messages.error(request, f'Failed to generate barcodes: {str(e)}')
-    
-    return redirect('inventory:barcode_generator')
-
-@login_required
-@inventory_permission_required('view')
-def print_barcode_labels_view(request):
-    """
-    Generate printable barcode labels.
-    """
-    try:
-        product_ids = request.GET.getlist('product_id')
-        
-        if not product_ids:
-            messages.error(request, 'No products selected for label printing')
-            return redirect('inventory:product_list')
-        
-        products = Product.objects.filter(
-            id__in=product_ids,
-            is_active=True
-        ).exclude(barcode__in=['', None])
-        
-        if not products:
-            messages.error(request, 'No products with barcodes found')
-            return redirect('inventory:product_list')
-        
-        # Generate barcode images
-        label_data = []
-        for product in products:
-            try:
-                # Generate barcode using python-barcode or similar
-                from barcode import Code128
-                from barcode.writer import ImageWriter
-                
-                code = Code128(product.barcode, writer=ImageWriter())
-                barcode_buffer = BytesIO()
-                code.write(barcode_buffer)
-                barcode_b64 = base64.b64encode(barcode_buffer.getvalue()).decode()
-                
-                label_data.append({
-                    'product': product,
-                    'barcode_image': f'data:image/png;base64,{barcode_b64}',
-                })
-                
-            except Exception as e:
-                logger.error(f"Failed to generate barcode for {product.sku}: {str(e)}")
-                continue
-        
-        return render(request, 'inventory/barcode/barcode_labels.html', {
-            'page_title': 'Barcode Labels',
-            'label_data': label_data,
-        })
-        
-    except Exception as e:
-        messages.error(request, f'Failed to generate labels: {str(e)}')
-        return redirect('inventory:product_list')
-
-class BarcodeScannerView(LoginRequiredMixin, TemplateView):
-    """
-    Barcode scanner interface for desktop/mobile.
-    """
-    template_name = 'inventory/barcode/barcode_scanner.html'
-    
-    @method_decorator(inventory_permission_required('view'))
-    def dispatch(self, *args, **kwargs):
-        return super().dispatch(*args, **kwargs)
-    
-    def get_context_data(self, **kwargs):
-        context = super().get_context_data(**kwargs)
-        
-        context.update({
-            'page_title': 'Barcode Scanner',
-            'scan_mode': self.request.GET.get('mode', 'lookup'),  # lookup, adjust, transfer
-        })
-        return context
-
-@login_required
-@inventory_permission_required('view')
-def product_qr_code_api(request, product_id):
-    """Generate QR code for a product"""
-    try:
-        product = get_object_or_404(Product, id=product_id, is_active=True)
-        
-        # Create QR code data
-        qr_data = {
-            'type': 'product',
-            'sku': product.sku,
-            'name': product.name,
-            'brand': product.brand.name,
-            'price': float(product.selling_price),
-            'stock': product.total_stock,
-            'url': request.build_absolute_uri(
-                reverse('inventory:product_detail', args=[product.id])
-            )
-        }
-        
-        # Generate QR code
-        qr = qrcode.QRCode(
-            version=1,
-            error_correction=qrcode.constants.ERROR_CORRECT_L,
-            box_size=10,
-            border=4,
-        )
-        qr.add_data(json.dumps(qr_data))
-        qr.make(fit=True)
-        
-        # Create image
-        img = qr.make_image(fill_color="black", back_color="white")
-        
-        # Convert to base64
-        buffer = BytesIO()
-        img.save(buffer, format='PNG')
-        img_data = base64.b64encode(buffer.getvalue()).decode()
-        
-        return JsonResponse({
-            'success': True,
-            'qr_code': img_data,
-            'qr_data': qr_data
-        })
-        
-    except Exception as e:
-        logger.error(f"Error generating QR code: {str(e)}")
-        return JsonResponse({'success': False, 'error': str(e)})
-
-@login_required
-@inventory_permission_required('view')
-def barcode_lookup_api(request):
-    """
-    API endpoint: Look up product by barcode.
-    """
-    try:
-        barcode = request.GET.get('barcode', '').strip()
-        
-        if not barcode:
-            return JsonResponse({'success': False, 'error': 'No barcode provided'})
-        
-        try:
-            product = Product.objects.select_related(
-                'category', 'supplier', 'brand'
-            ).get(barcode=barcode, is_active=True)
-            
-            # Get stock levels
-            stock_levels = []
-            for stock_level in product.stock_levels.select_related('location'):
-                stock_levels.append({
-                    'location_id': stock_level.location.id,
-                    'location_name': stock_level.location.name,
-                    'quantity': stock_level.quantity,
-                    'available_quantity': stock_level.available_quantity,
-                })
-            
-            data = {
-                'product_id': product.id,
-                'sku': product.sku,
-                'name': product.name,
-                'description': product.description,
-                'category': product.category.name if product.category else '',
-                'supplier': product.supplier.name if product.supplier else '',
-                'brand': product.brand.name if product.brand else '',
-                'cost_price': float(product.cost_price),
-                'selling_price': float(product.selling_price),
-                'current_stock': product.current_stock,
-                'reorder_level': product.reorder_level,
-                'stock_status': get_stock_status(product),
-                'stock_levels': stock_levels,
-                'last_restocked': product.last_restocked_date.isoformat() if product.last_restocked_date else None,
-            }
-            
-            return JsonResponse({'success': True, 'product': data})
-            
-        except Product.DoesNotExist:
-            return JsonResponse({
-                'success': False,
-                'error': f'Product with barcode "{barcode}" not found'
-            })
-        
-    except Exception as e:
-        return JsonResponse({'success': False, 'error': str(e)}, status=500)
-
-# =====================================
-# DATA VALIDATION AND CLEANUP VIEWS
-# =====================================
 
 @login_required
 @inventory_permission_required('admin')
@@ -5974,6 +6220,519 @@ def find_duplicates_view(request):
     except Exception as e:
         messages.error(request, f'Duplicate search failed: {str(e)}')
         return redirect('inventory:dashboard')
+
+@login_required
+@inventory_permission_required('view')
+def import_templates_view(request):
+    """Download import templates"""
+    template_type = request.GET.get('type', 'products')
+    
+    if template_type == 'products':
+        return product_import_template_view(request)
+    
+    # Add other template types as needed
+    return HttpResponse('Template not found', status=404)
+
+@login_required
+@inventory_permission_required('admin')
+def data_backup_view(request):
+    """Backup inventory data"""
+    # Implementation for data backup
+    context = {
+        'page_title': 'Data Backup',
+    }
+    return render(request, 'inventory/data/backup.html', context)
+
+@login_required
+@inventory_permission_required('admin')
+def data_restore_view(request):
+    """Restore inventory data"""
+    # Implementation for data restore
+    context = {
+        'page_title': 'Data Restore',
+    }
+    return render(request, 'inventory/data/restore.html', context)
+
+# =====================================
+# MOBILE AND BARCODE FEATURES
+# =====================================
+
+class MobileDashboardView(LoginRequiredMixin, TemplateView):
+    """
+    Mobile-optimized inventory dashboard for warehouse staff.
+    """
+    template_name = 'inventory/mobile/mobile_dashboard.html'
+    
+    @method_decorator(inventory_permission_required('view'))
+    def dispatch(self, *args, **kwargs):
+        return super().dispatch(*args, **kwargs)
+    
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        
+        # Quick stats for mobile view
+        low_stock_count = Product.objects.filter(
+            current_stock__lte=F('reorder_level'),
+            is_active=True
+        ).count()
+        
+        pending_stock_takes = StockTake.objects.filter(
+            status__in=['pending', 'in_progress']
+        ).count()
+        
+        recent_movements = StockMovement.objects.select_related(
+            'product'
+        ).order_by('-created_at')[:10]
+        
+        context.update({
+            'page_title': 'Mobile Inventory',
+            'low_stock_count': low_stock_count,
+            'pending_stock_takes': pending_stock_takes,
+            'recent_movements': recent_movements,
+            'is_mobile': True,
+        })
+        return context
+
+class MobileStockCheckView(LoginRequiredMixin, TemplateView):
+    """
+    Quick stock check interface for mobile devices.
+    """
+    template_name = 'inventory/mobile/mobile_stock_check.html'
+    
+    @method_decorator(inventory_permission_required('view'))
+    def dispatch(self, *args, **kwargs):
+        return super().dispatch(*args, **kwargs)
+    
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        
+        search_term = self.request.GET.get('q', '').strip()
+        product = None
+        
+        if search_term:
+            # Try to find product by SKU or barcode first
+            try:
+                product = Product.objects.select_related(
+                    'category', 'supplier'
+                ).get(
+                    Q(sku__iexact=search_term) | Q(barcode=search_term),
+                    is_active=True
+                )
+            except Product.DoesNotExist:
+                # Try partial name match
+                products = Product.objects.filter(
+                    name__icontains=search_term,
+                    is_active=True
+                ).select_related('category', 'supplier')[:5]
+                
+                if products.count() == 1:
+                    product = products.first()
+                elif products.count() > 1:
+                    context['multiple_products'] = products
+        
+        if product:
+            # Get stock levels by location
+            stock_levels = product.stock_levels.select_related('location').all()
+            
+            context.update({
+                'product': product,
+                'stock_levels': stock_levels,
+                'stock_status': get_stock_status(product),
+            })
+        
+        context.update({
+            'page_title': 'Stock Check',
+            'search_term': search_term,
+            'is_mobile': True,
+        })
+        return context
+
+class BarcodeGeneratorView(LoginRequiredMixin, TemplateView):
+    """
+    Generate barcodes for products that don't have them.
+    """
+    template_name = 'inventory/barcode/barcode_generator.html'
+    
+    @method_decorator(inventory_permission_required('edit'))
+    def dispatch(self, *args, **kwargs):
+        return super().dispatch(*args, **kwargs)
+    
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        
+        # Get products without barcodes
+        products_without_barcodes = Product.objects.filter(
+            is_active=True,
+            barcode__in=['', None]
+        ).select_related('category', 'supplier').order_by('name')
+        
+        context.update({
+            'page_title': 'Barcode Generator',
+            'products_without_barcodes': products_without_barcodes,
+            'total_products': products_without_barcodes.count(),
+        })
+        return context
+
+class BarcodeScannerView(LoginRequiredMixin, TemplateView):
+    """
+    Barcode scanner interface for desktop/mobile.
+    """
+    template_name = 'inventory/barcode/barcode_scanner.html'
+    
+    @method_decorator(inventory_permission_required('view'))
+    def dispatch(self, *args, **kwargs):
+        return super().dispatch(*args, **kwargs)
+    
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        
+        context.update({
+            'page_title': 'Barcode Scanner',
+            'scan_mode': self.request.GET.get('mode', 'lookup'),  # lookup, adjust, transfer
+        })
+        return context
+
+class MobileBarcodeScannerView(LoginRequiredMixin, TemplateView):
+    """Mobile-optimized barcode scanner"""
+    template_name = 'inventory/barcodes/mobile_scanner.html'
+    
+    @method_decorator(inventory_permission_required('view'))
+    def dispatch(self, *args, **kwargs):
+        return super().dispatch(*args, **kwargs)
+
+@csrf_exempt
+@require_http_methods(["POST"])
+def mobile_sync_api(request):
+    """API for mobile app synchronization"""
+    try:
+        data = json.loads(request.body)
+        last_sync = data.get('last_sync')
+        
+        # Return changes since last sync
+        sync_data = {
+            'products': [],
+            'stock_levels': [],
+            'movements': [],
+            'timestamp': timezone.now().isoformat(),
+        }
+        
+        return JsonResponse(sync_data)
+    except Exception as e:
+        return JsonResponse({
+            'success': False,
+            'error': str(e)
+        })
+
+@csrf_exempt
+@require_http_methods(["GET"])
+def mobile_offline_data_api(request):
+    """API for mobile offline data"""
+    # Return essential data for offline operation
+    products = Product.objects.filter(is_active=True).values(
+        'id', 'name', 'sku', 'current_stock', 'reorder_level'
+    )[:100]  # Limit for mobile
+    
+    return JsonResponse({
+        'products': list(products),
+        'timestamp': timezone.now().isoformat(),
+    })
+
+@csrf_exempt
+@require_http_methods(["POST"])
+def mobile_upload_batch_api(request):
+    """API for mobile batch uploads"""
+    try:
+        data = json.loads(request.body)
+        batch_data = data.get('batch_data', [])
+        
+        processed_count = 0
+        for item in batch_data:
+            # Process each batch item
+            # This could be stock adjustments, transfers, etc.
+            processed_count += 1
+        
+        return JsonResponse({
+            'success': True,
+            'processed_count': processed_count
+        })
+    except Exception as e:
+        return JsonResponse({
+            'success': False,
+            'error': str(e)
+        })
+
+@login_required
+@inventory_permission_required('edit')
+@require_POST
+def mobile_quick_adjust_view(request):
+    """
+    Quick stock adjustment from mobile device.
+    """
+    try:
+        product_id = request.POST.get('product_id')
+        location_id = request.POST.get('location_id')
+        new_quantity = int(request.POST.get('new_quantity', 0))
+        reason = request.POST.get('reason', 'Mobile adjustment')
+        
+        product = get_object_or_404(Product, id=product_id)
+        
+        with transaction.atomic():
+            if location_id:
+                location = get_object_or_404(Location, id=location_id)
+                stock_level, created = StockLevel.objects.get_or_create(
+                    product=product,
+                    location=location,
+                    defaults={'quantity': 0}
+                )
+                
+                old_quantity = stock_level.quantity
+                adjustment = new_quantity - old_quantity
+                
+                stock_level.quantity = new_quantity
+                stock_level.last_counted = timezone.now()
+                stock_level.save()
+                
+                # Update product total
+                product.current_stock = product.stock_levels.aggregate(
+                    total=Sum('quantity')
+                )['total'] or 0
+                
+            else:
+                old_quantity = product.current_stock
+                adjustment = new_quantity - old_quantity
+                product.current_stock = new_quantity
+            
+            product.last_stock_check = timezone.now()
+            product.save()
+            
+            # Create movement record
+            StockMovement.objects.create(
+                product=product,
+                movement_type='adjustment',
+                quantity=adjustment,
+                from_location=location if location_id and adjustment < 0 else None,
+                to_location=location if location_id and adjustment > 0 else None,
+                previous_stock=old_quantity,
+                new_stock=new_quantity,
+                reference=f"MOBILE-ADJ-{timezone.now().strftime('%Y%m%d%H%M%S')}",
+                notes=f"Mobile adjustment: {reason}",
+                created_by=request.user
+            )
+            
+        return JsonResponse({
+            'success': True,
+            'message': f'Stock updated: {product.name} adjusted by {adjustment}',
+            'new_quantity': new_quantity,
+        })
+        
+    except Exception as e:
+        return JsonResponse({
+            'success': False,
+            'error': str(e)
+        }, status=500)
+
+@login_required
+@inventory_permission_required('edit')
+def bulk_generate_barcodes_view(request):
+    """
+    Generate barcodes for multiple products at once.
+    """
+    if request.method == 'POST':
+        try:
+            product_ids = request.POST.getlist('product_ids')
+            barcode_prefix = request.POST.get('prefix', 'BT')
+            
+            if not product_ids:
+                messages.error(request, 'No products selected')
+                return redirect('inventory:barcode_generator')
+            
+            generated_count = 0
+            with transaction.atomic():
+                for product_id in product_ids:
+                    try:
+                        product = Product.objects.get(id=product_id, is_active=True)
+                        
+                        if not product.barcode:
+                            # Generate unique barcode
+                            timestamp = timezone.now().strftime('%Y%m%d%H%M%S')
+                            barcode = f"{barcode_prefix}{product.id:06d}{timestamp[-4:]}"
+                            
+                            # Ensure uniqueness
+                            counter = 1
+                            original_barcode = barcode
+                            while Product.objects.filter(barcode=barcode).exists():
+                                barcode = f"{original_barcode}{counter:02d}"
+                                counter += 1
+                            
+                            product.barcode = barcode
+                            product.save()
+                            generated_count += 1
+                            
+                    except Product.DoesNotExist:
+                        continue
+            
+            messages.success(request, f'Generated {generated_count} barcodes')
+            
+        except Exception as e:
+            messages.error(request, f'Failed to generate barcodes: {str(e)}')
+    
+    return redirect('inventory:barcode_generator')
+
+@login_required
+@inventory_permission_required('view')
+def print_barcode_labels_view(request):
+    """
+    Generate printable barcode labels.
+    """
+    try:
+        product_ids = request.GET.getlist('product_id')
+        
+        if not product_ids:
+            messages.error(request, 'No products selected for label printing')
+            return redirect('inventory:product_list')
+        
+        products = Product.objects.filter(
+            id__in=product_ids,
+            is_active=True
+        ).exclude(barcode__in=['', None])
+        
+        if not products:
+            messages.error(request, 'No products with barcodes found')
+            return redirect('inventory:product_list')
+        
+        # Generate barcode images
+        label_data = []
+        for product in products:
+            try:
+                # Generate barcode using python-barcode or similar
+                from barcode import Code128
+                from barcode.writer import ImageWriter
+                
+                code = Code128(product.barcode, writer=ImageWriter())
+                barcode_buffer = BytesIO()
+                code.write(barcode_buffer)
+                barcode_b64 = base64.b64encode(barcode_buffer.getvalue()).decode()
+                
+                label_data.append({
+                    'product': product,
+                    'barcode_image': f'data:image/png;base64,{barcode_b64}',
+                })
+                
+            except Exception as e:
+                logger.error(f"Failed to generate barcode for {product.sku}: {str(e)}")
+                continue
+        
+        return render(request, 'inventory/barcode/barcode_labels.html', {
+            'page_title': 'Barcode Labels',
+            'label_data': label_data,
+        })
+        
+    except Exception as e:
+        messages.error(request, f'Failed to generate labels: {str(e)}')
+        return redirect('inventory:product_list')
+
+@login_required
+@inventory_permission_required('view')
+def product_qr_code_api(request, product_id):
+    """Generate QR code for a product"""
+    try:
+        product = get_object_or_404(Product, id=product_id, is_active=True)
+        
+        # Create QR code data
+        qr_data = {
+            'type': 'product',
+            'sku': product.sku,
+            'name': product.name,
+            'brand': product.brand.name,
+            'price': float(product.selling_price),
+            'stock': product.total_stock,
+            'url': request.build_absolute_uri(
+                reverse('inventory:product_detail', args=[product.id])
+            )
+        }
+        
+        # Generate QR code
+        qr = qrcode.QRCode(
+            version=1,
+            error_correction=qrcode.constants.ERROR_CORRECT_L,
+            box_size=10,
+            border=4,
+        )
+        qr.add_data(json.dumps(qr_data))
+        qr.make(fit=True)
+        
+        # Create image
+        img = qr.make_image(fill_color="black", back_color="white")
+        
+        # Convert to base64
+        buffer = BytesIO()
+        img.save(buffer, format='PNG')
+        img_data = base64.b64encode(buffer.getvalue()).decode()
+        
+        return JsonResponse({
+            'success': True,
+            'qr_code': img_data,
+            'qr_data': qr_data
+        })
+        
+    except Exception as e:
+        logger.error(f"Error generating QR code: {str(e)}")
+        return JsonResponse({'success': False, 'error': str(e)})
+
+@login_required
+@inventory_permission_required('view')
+def barcode_lookup_api(request):
+    """
+    API endpoint: Look up product by barcode.
+    """
+    try:
+        barcode = request.GET.get('barcode', '').strip()
+        
+        if not barcode:
+            return JsonResponse({'success': False, 'error': 'No barcode provided'})
+        
+        try:
+            product = Product.objects.select_related(
+                'category', 'supplier', 'brand'
+            ).get(barcode=barcode, is_active=True)
+            
+            # Get stock levels
+            stock_levels = []
+            for stock_level in product.stock_levels.select_related('location'):
+                stock_levels.append({
+                    'location_id': stock_level.location.id,
+                    'location_name': stock_level.location.name,
+                    'quantity': stock_level.quantity,
+                    'available_quantity': stock_level.available_quantity,
+                })
+            
+            data = {
+                'product_id': product.id,
+                'sku': product.sku,
+                'name': product.name,
+                'description': product.description,
+                'category': product.category.name if product.category else '',
+                'supplier': product.supplier.name if product.supplier else '',
+                'brand': product.brand.name if product.brand else '',
+                'cost_price': float(product.cost_price),
+                'selling_price': float(product.selling_price),
+                'current_stock': product.current_stock,
+                'reorder_level': product.reorder_level,
+                'stock_status': get_stock_status(product),
+                'stock_levels': stock_levels,
+                'last_restocked': product.last_restocked_date.isoformat() if product.last_restocked_date else None,
+            }
+            
+            return JsonResponse({'success': True, 'product': data})
+            
+        except Product.DoesNotExist:
+            return JsonResponse({
+                'success': False,
+                'error': f'Product with barcode "{barcode}" not found'
+            })
+        
+    except Exception as e:
+        return JsonResponse({'success': False, 'error': str(e)}, status=500)
 
 # =====================================
 # QUICK ACCESS AND UTILITY VIEWS
@@ -6243,6 +7002,73 @@ def global_inventory_search(request):
         
     except Exception as e:
         return JsonResponse({'success': False, 'error': str(e)}, status=500)
+
+# =====================================
+# SYSTEM ADMINISTRATION VIEWS
+# =====================================
+
+@login_required
+@inventory_permission_required('admin')
+def system_health_view(request):
+    """System health monitoring"""
+    context = {
+        'page_title': 'System Health',
+    }
+    return render(request, 'inventory/admin/system_health.html', context)
+
+@login_required
+@inventory_permission_required('admin')
+def performance_metrics_view(request):
+    """Performance metrics"""
+    context = {
+        'page_title': 'Performance Metrics',
+    }
+    return render(request, 'inventory/admin/performance_metrics.html', context)
+
+@login_required
+@inventory_permission_required('admin')
+def audit_log_view(request):
+    """Audit log view"""
+    context = {
+        'page_title': 'Audit Log',
+    }
+    return render(request, 'inventory/admin/audit_log.html', context)
+
+@login_required
+@inventory_permission_required('admin')
+def system_settings_view(request):
+    """System settings"""
+    context = {
+        'page_title': 'System Settings',
+    }
+    return render(request, 'inventory/admin/system_settings.html', context)
+
+@login_required
+@inventory_permission_required('admin')
+def system_maintenance_view(request):
+    """System maintenance"""
+    context = {
+        'page_title': 'System Maintenance',
+    }
+    return render(request, 'inventory/admin/system_maintenance.html', context)
+
+@login_required
+@inventory_permission_required('admin')
+def user_activity_view(request):
+    """User activity monitoring"""
+    context = {
+        'page_title': 'User Activity',
+    }
+    return render(request, 'inventory/admin/user_activity.html', context)
+
+@login_required
+@inventory_permission_required('admin')
+def permission_overview_view(request):
+    """Permission overview"""
+    context = {
+        'page_title': 'Permission Overview',
+    }
+    return render(request, 'inventory/admin/permission_overview.html', context)
 
 # Initialize logging
 logger.info("Inventory management views loaded successfully")
