@@ -1,0 +1,25 @@
+{% extends "dashboard_base.html" %}
+{% load static %}
+
+{% block page_title %}Update Exchange Rates{% endblock %}
+
+{% block dashboard_content %}
+<h1>Update Exchange Rates</h1>
+<form method="post">
+  {% csrf_token %}
+  <button type="submit" class="btn btn-primary">Update Rates</button>
+</form>
+<table class="table mt-3">
+  <thead><tr><th>Currency</th><th>Rate to USD</th><th>Last Updated</th></tr></thead>
+  <tbody>
+    {% for c in currencies %}
+    <tr>
+      <td>{{ c.code }}</td>
+      <td>{{ c.exchange_rate_to_usd }}</td>
+      <td>{{ c.last_updated }}</td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+{% endblock %}
+

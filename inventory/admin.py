@@ -882,7 +882,6 @@ class ProductAdmin(ElectronicsAdminMixin, admin.ModelAdmin):
         urls = super().get_urls()
         custom_urls = [
             path('generate-reorder-list/', self.admin_site.admin_view(self.generate_reorder_list), name='inventory-generate-reorder-list'),
-            path('bulk-cost-update/', self.admin_site.admin_view(self.bulk_cost_update), name='inventory-bulk-cost-update'),
         ]
         return custom_urls + urls
     
@@ -1414,8 +1413,7 @@ class InventoryAdminDashboard:
             'pending_pos': pending_pos,
         }
 
-# Register the reports admin
-admin.site.register(InventoryReportsAdmin, InventoryReportsAdmin)
+# Register custom reports view if a model is available; currently removed to avoid invalid registration
 
 # =====================================
 # OTHER MODEL REGISTRATIONS
@@ -1431,34 +1429,3 @@ class SupplierCountryAdmin(ElectronicsAdminMixin, admin.ModelAdmin):
     search_fields = ('name', 'code')
 
 
-@admin.register(Category)
-class CategoryAdmin(ElectronicsAdminMixin, admin.ModelAdmin):
-    list_display = (
-        'name', 'parent', 'component_family', 'get_product_count',
-        'default_markup_percentage', 'requires_datasheet', 'is_active'
-    )
-    list_filter = (
-        'component_family', 'requires_datasheet', 'requires_certification',
-        'requires_esd_protection', 'is_active'
-    )
-    search_fields = ('name', 'description')
-    prepopulated_fields = {'slug': ('name',)}
-    
-    def get_product_count(self, obj):
-        count = obj.get_product_count()
-        if count > 0:
-            url = reverse('admin:inventory_product_changelist') + f'?category__id__exact={obj.id}'
-            return format_html('<a href="{}">{} products</a>', url, count)
-        return "0 products"
-    get_product_count.short_description = "Products"
-
-
-# Additional model registrations for existing models
-@admin.register(ReorderAlert)
-class ReorderAlertAdmin(admin.ModelAdmin):
-    list_display = (
-        'product', 'quantity_needed', 'priority', 'status',
-        'created_at', 'acknowledged_at'
-    )
-    list_filter = ('priority', 'status', 'created_at')
-    search_fields = ('product__sku', 'product__name')
