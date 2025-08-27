@@ -1104,18 +1104,24 @@ class ProductForm(InventoryBaseForm):
             # Basic information
             'name', 'sku', 'barcode', 'description', 'short_description',
             # Categorization  
-            'category', 'product_type',
+            'category', 'supplier', 'product_type',
             # Specifications
-            'brand', 'model_number', 'manufacturer_part_number',
+            'brand', 'model_number', 'manufacturer_part_number', 'supplier_sku',
             # Physical attributes
             'weight', 'dimensions',
             # Cost structure
             'cost_price', 'selling_price', 'currency',
             # Stock management
-            'current_stock', 'reserved_stock', 'reorder_level', 
-            'reorder_quantity', 'max_stock_level',
-            # Status
-            'is_active', 'is_quotable'
+            'current_stock', 'reserved_stock', 'available_stock',
+            'reorder_level', 'reorder_quantity', 'max_stock_level',
+            'supplier_lead_time_days', 'supplier_minimum_order_quantity',
+            # Quote settings
+            'quote_description', 'minimum_quote_quantity', 
+            'bulk_discount_threshold', 'bulk_discount_percentage',
+            # Status flags
+            'is_active', 'is_quotable', 'is_serialized', 'requires_quality_check',
+            # SEO
+            'meta_title', 'meta_description'
         ]
         widgets = {
             'name': forms.TextInput(attrs={'class': 'form-control', 'placeholder': 'Descriptive product name'}),
@@ -1123,35 +1129,56 @@ class ProductForm(InventoryBaseForm):
             'barcode': forms.TextInput(attrs={'class': 'form-control', 'placeholder': 'Barcode number'}),
             'description': forms.Textarea(attrs={'class': 'form-control', 'rows': 4}),
             'short_description': forms.TextInput(attrs={'class': 'form-control', 'placeholder': 'Brief description'}),
+            'quote_description': forms.Textarea(attrs={'class': 'form-control', 'rows': 3}),
             
+            # Dropdowns
             'category': forms.Select(attrs={'class': 'form-control'}),
+            'supplier': forms.Select(attrs={'class': 'form-control'}),
             'product_type': forms.Select(attrs={'class': 'form-control'}),
+            'currency': forms.Select(attrs={'class': 'form-control'}),
             
+            # Text fields
             'brand': forms.TextInput(attrs={'class': 'form-control'}),
             'model_number': forms.TextInput(attrs={'class': 'form-control'}),
             'manufacturer_part_number': forms.TextInput(attrs={'class': 'form-control'}),
-            
-            'weight': forms.NumberInput(attrs={'class': 'form-control', 'step': '0.001'}),
+            'supplier_sku': forms.TextInput(attrs={'class': 'form-control'}),
             'dimensions': forms.TextInput(attrs={'class': 'form-control', 'placeholder': 'L x W x H in cm'}),
             
+            # Numeric fields
+            'weight': forms.NumberInput(attrs={'class': 'form-control', 'step': '0.001'}),
             'cost_price': forms.NumberInput(attrs={'class': 'form-control', 'step': '0.01'}),
             'selling_price': forms.NumberInput(attrs={'class': 'form-control', 'step': '0.01'}),
-            'currency': forms.Select(attrs={'class': 'form-control'}),
             
+            # Stock fields
             'current_stock': forms.NumberInput(attrs={'class': 'form-control', 'min': '0'}),
             'reserved_stock': forms.NumberInput(attrs={'class': 'form-control', 'min': '0'}),
+            'available_stock': forms.NumberInput(attrs={'class': 'form-control', 'min': '0'}),
             'reorder_level': forms.NumberInput(attrs={'class': 'form-control', 'min': '0'}),
-            'reorder_quantity': forms.NumberInput(attrs={'class': 'form-control', 'min': '1'}),
-            'max_stock_level': forms.NumberInput(attrs={'class': 'form-control', 'min': '1'}),
+            'reorder_quantity': forms.NumberInput(attrs={'class': 'form-control', 'min': '0'}),
+            'max_stock_level': forms.NumberInput(attrs={'class': 'form-control', 'min': '0'}),
+            'supplier_lead_time_days': forms.NumberInput(attrs={'class': 'form-control', 'min': '0'}),
+            'supplier_minimum_order_quantity': forms.NumberInput(attrs={'class': 'form-control', 'min': '0'}),
             
+            # Quote fields
+            'minimum_quote_quantity': forms.NumberInput(attrs={'class': 'form-control', 'min': '1'}),
+            'bulk_discount_threshold': forms.NumberInput(attrs={'class': 'form-control', 'min': '0'}),
+            'bulk_discount_percentage': forms.NumberInput(attrs={'class': 'form-control', 'step': '0.01'}),
+            
+            # SEO fields
+            'meta_title': forms.TextInput(attrs={'class': 'form-control'}),
+            'meta_description': forms.Textarea(attrs={'class': 'form-control', 'rows': 2}),
+            
+            # Boolean fields
             'is_active': forms.CheckboxInput(attrs={'class': 'form-check-input'}),
-            'is_quotable': forms.CheckboxInput(attrs={'class': 'form-check-input'})
+            'is_quotable': forms.CheckboxInput(attrs={'class': 'form-check-input'}),
+            'is_serialized': forms.CheckboxInput(attrs={'class': 'form-check-input'}),
+            'requires_quality_check': forms.CheckboxInput(attrs={'class': 'form-check-input'})
         }
     
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         
-        # Set up currency choices
+        # Set up currency choices (matching your existing choices)
         CURRENCY_CHOICES = [
             ('USD', 'US Dollar'),
             ('ZWG', 'Zimbabwe Gold'),
@@ -1163,6 +1190,7 @@ class ProductForm(InventoryBaseForm):
         
         # Make key fields required
         self.fields['category'].required = True
+        self.fields['supplier'].required = True
         self.fields['cost_price'].required = True
         self.fields['selling_price'].required = True
         
@@ -1170,6 +1198,9 @@ class ProductForm(InventoryBaseForm):
         self.fields['sku'].help_text = 'Unique product identifier'
         self.fields['weight'].help_text = 'Weight in kilograms'
         self.fields['reorder_level'].help_text = 'Minimum stock level before reordering'
+        self.fields['available_stock'].help_text = 'Calculated automatically (current - reserved)'
+        self.fields['quote_description'].help_text = 'Different description for quotes (optional)'
+        self.fields['bulk_discount_percentage'].help_text = 'Discount % for bulk orders'
     
     def clean_sku(self):
         """Ensure SKU is unique"""
@@ -1185,20 +1216,6 @@ class ProductForm(InventoryBaseForm):
         
         return sku
     
-    def clean_barcode(self):
-        """Ensure barcode uniqueness if provided"""
-        barcode = self.cleaned_data.get('barcode')
-        
-        if barcode:
-            existing = Product.objects.filter(barcode=barcode)
-            if self.instance.pk:
-                existing = existing.exclude(pk=self.instance.pk)
-            
-            if existing.exists():
-                raise ValidationError('A product with this barcode already exists.')
-        
-        return barcode
-    
     def clean(self):
         """Additional validation"""
         cleaned_data = super().clean()
@@ -1206,6 +1223,8 @@ class ProductForm(InventoryBaseForm):
         selling_price = cleaned_data.get('selling_price')
         current_stock = cleaned_data.get('current_stock')
         reserved_stock = cleaned_data.get('reserved_stock')
+        bulk_discount_threshold = cleaned_data.get('bulk_discount_threshold')
+        bulk_discount_percentage = cleaned_data.get('bulk_discount_percentage')
         
         # Validate pricing
         if cost_price and selling_price:
@@ -1216,34 +1235,16 @@ class ProductForm(InventoryBaseForm):
         if current_stock is not None and reserved_stock is not None:
             if reserved_stock > current_stock:
                 self.add_error('reserved_stock', 'Reserved stock cannot exceed current stock.')
+                
+            # Auto-calculate available stock
+            cleaned_data['available_stock'] = current_stock - reserved_stock
+        
+        # Validate bulk discount
+        if bulk_discount_threshold and bulk_discount_percentage:
+            if bulk_discount_percentage < 0 or bulk_discount_percentage > 100:
+                self.add_error('bulk_discount_percentage', 'Discount percentage must be between 0 and 100.')
         
         return cleaned_data
-    
-    def save(self, commit=True):
-        product = super().save(commit=False)
-        
-        # Parse JSON fields
-        for field_name in ['certifications', 'product_images', 'additional_documents']:
-            value = self.cleaned_data.get(field_name)
-            if value:
-                try:
-                    setattr(product, field_name, json.loads(value))
-                except json.JSONDecodeError:
-                    setattr(product, field_name, [])
-        
-        # Auto-calculate selling price if target markup is provided
-        target_markup = self.cleaned_data.get('target_markup_percentage')
-        if target_markup and self.cleaned_data.get('calculate_costs'):
-            # This will be calculated in the model's save method
-            product.markup_percentage = target_markup
-        
-        if commit:
-            product.save()
-            
-            # Save dynamic attributes
-            self.save_dynamic_attributes(product)
-        
-        return product
 
 class ProductBulkUpdateForm(forms.Form):
     """
@@ -1342,12 +1343,12 @@ class StockAdjustmentForm(forms.Form):
         widget=forms.NumberInput(attrs={'class': 'form-control', 'min': '0'})
     )
     location = forms.ModelChoiceField(
-        queryset=StorageLocation.objects.filter(is_active=True),
+        queryset=Location.objects.filter(is_active=True),
         widget=forms.Select(attrs={'class': 'form-control'})
     )    
     # For transfers
     transfer_to_location = forms.ModelChoiceField(
-        queryset=StorageLocation.objects.filter(is_active=True),
+        queryset=Location.objects.filter(is_active=True),
         required=False,
         widget=forms.Select(attrs={'class': 'form-control'}),
         help_text="Required for transfer adjustments"
@@ -1384,7 +1385,7 @@ class StockAdjustmentForm(forms.Form):
         super().__init__(*args, **kwargs)
         
         # Set default location
-        default_location = StorageLocation.objects.filter(is_default=True).first()
+        default_location = Location.objects.filter(is_default=True).first()
         if default_location:
             self.fields['location'].initial = default_location
     

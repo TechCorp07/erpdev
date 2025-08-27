@@ -1,4 +1,4 @@
-# inventory/views.py - Comprehensive Inventory Management Views
+# inventory/views.py - Inventory Management Views
 
 """
 Django Views for Inventory Management System
@@ -32,30 +32,33 @@ from django.utils.decorators import method_decorator
 from django.shortcuts import render, get_object_or_404, redirect
 from django.contrib.auth.decorators import login_required
 from django.contrib import messages
-from django.http import FileResponse, JsonResponse, HttpResponse, Http404
+from django.http import JsonResponse, HttpResponse
 from django.views import View
 from django.views.generic import (
     ListView, DetailView, CreateView, UpdateView, DeleteView, TemplateView
 )
 from django.views.decorators.http import require_http_methods, require_POST
 from django.views.decorators.csrf import csrf_exempt
-from django.db.models import Q, Sum, Count, Avg, F, Case, When, Max
+from django.db.models import Q, Sum, Count, Avg, F, Max
 from django.db.models.functions import TruncDate
 from django.utils import timezone
 from django.urls import reverse_lazy, reverse
-from django.contrib.auth.mixins import LoginRequiredMixin, PermissionRequiredMixin
+from django.contrib.auth.mixins import LoginRequiredMixin
 from openpyxl import Workbook
 
 from .models import (
-    Brand, Category, ComponentFamily, Currency, OverheadFactor,
+    Brand, Category, ComponentFamily, Currency, OverheadFactor, ProductAttributeDefinition, StorageBin,
     StorageLocation, Supplier, Location, Product, StockLevel,
     StockMovement, StockTake, StockTakeItem, PurchaseOrder,
     PurchaseOrderItem, ReorderAlert,
 )
 from .forms import (
-    CategoryForm, SupplierForm, LocationForm, ProductForm, ProductSearchForm,
-    StockAdjustmentForm, StockTransferForm, PurchaseOrderForm, PurchaseOrderItemForm,
-    StockTakeForm, ProductBulkUpdateForm, InventoryReportForm
+    CategoryForm, CurrencyForm, ProductAttributeDefinitionForm, SupplierForm, LocationForm, ProductForm, ProductSearchForm,
+    StockAdjustmentForm, StockTransferForm, PurchaseOrderForm, StockTakeForm,
+    AdvancedProductSearchForm, OverheadFactorForm
+)
+from django.views.generic import (
+    ListView, DetailView, CreateView, UpdateView, DeleteView, TemplateView, FormView
 )
 from .decorators import (
     inventory_permission_required, stock_adjustment_permission, location_access_required,
@@ -63,10 +66,7 @@ from .decorators import (
 )
 from .utils import (
     calculate_available_stock, get_stock_status, calculate_stock_value,
-    create_stock_movement, export_products_to_csv, import_products_from_csv,
-    get_products_for_quote_system, check_stock_availability_for_quote,
-    generate_stock_valuation_report, calculate_inventory_turnover,
-    BarcodeManager
+    create_stock_movement, BarcodeManager
 )
 
 logger = logging.getLogger(__name__)
@@ -1143,6 +1143,179 @@ class ProductBulkCreateView(LoginRequiredMixin, TemplateView):
             messages.error(request, f'Bulk create failed: {str(e)}')
             return redirect('inventory:product_bulk_create')
 
+class ProductAdvancedSearchView(LoginRequiredMixin, ListView):
+    """
+    Advanced product search & filtering using AdvancedProductSearchForm.
+    """
+    model = Product
+    template_name = "inventory/product/product_advanced_search.html"  # create this if you don't have it
+    context_object_name = "products"
+    paginate_by = 30
+
+    @method_decorator(inventory_permission_required('view'))
+    def dispatch(self, *args, **kwargs):
+        return super().dispatch(*args, **kwargs)
+
+    def get_queryset(self):
+        qs = Product.objects.all().select_related(
+            'category', 'supplier', 'brand', 'component_family'
+        )
+
+        form = AdvancedProductSearchForm(self.request.GET or None)
+        if not form.is_valid():
+            return qs
+
+        cd = form.cleaned_data
+
+        # Free text
+        search = cd.get('search')
+        if search:
+            qs = qs.filter(
+                Q(name__icontains=search) |
+                Q(sku__icontains=search) |
+                Q(manufacturer_part_number__icontains=search) |
+                Q(supplier_sku__icontains=search) |
+                Q(description__icontains=search) |
+                Q(barcode__icontains=search)
+            )
+
+        # Entity filters
+        if cd.get('category'):
+            qs = qs.filter(category=cd['category'])
+        if cd.get('component_family'):
+            qs = qs.filter(component_family=cd['component_family'])
+        if cd.get('brand'):
+            qs = qs.filter(brand=cd['brand'])
+        if cd.get('supplier'):
+            qs = qs.filter(supplier=cd['supplier'])
+        if cd.get('supplier_country'):
+            qs = qs.filter(supplier__country=cd['supplier_country'])
+
+        # Choice filters (only apply if model has those fields)
+        if cd.get('product_type') and hasattr(Product, 'product_type'):
+            qs = qs.filter(product_type=cd['product_type'])
+        if cd.get('quality_grade') and hasattr(Product, 'quality_grade'):
+            qs = qs.filter(quality_grade=cd['quality_grade'])
+
+        # Stock status
+        stock_status = cd.get('stock_status')
+        if stock_status == 'in_stock':
+            qs = qs.filter(total_stock__gt=F('reorder_level'))
+        elif stock_status == 'low_stock':
+            qs = qs.filter(total_stock__lte=F('reorder_level'), total_stock__gt=0)
+        elif stock_status == 'out_of_stock':
+            qs = qs.filter(total_stock=0)
+        elif stock_status == 'needs_reorder':
+            qs = qs.filter(total_stock__lte=F('reorder_level'))
+
+        # Price range
+        if cd.get('price_range_min') is not None:
+            qs = qs.filter(selling_price__gte=cd['price_range_min'])
+        if cd.get('price_range_max') is not None:
+            qs = qs.filter(selling_price__lte=cd['price_range_max'])
+
+        # Markup range (guard for field existence)
+        if hasattr(Product, 'markup_percentage'):
+            if cd.get('markup_range_min') is not None:
+                qs = qs.filter(markup_percentage__gte=cd['markup_range_min'])
+            if cd.get('markup_range_max') is not None:
+                qs = qs.filter(markup_percentage__lte=cd['markup_range_max'])
+
+        return qs.order_by('name')
+
+    def get_context_data(self, **kwargs):
+        ctx = super().get_context_data(**kwargs)
+        ctx['form'] = AdvancedProductSearchForm(self.request.GET or None)
+        return ctx
+
+class ProductAttributeListView(LoginRequiredMixin, ListView):
+    """List and search dynamic product attribute definitions."""
+    model = ProductAttributeDefinition
+    template_name = 'inventory/configuration/product_attribute_list.html'
+    context_object_name = 'attributes'
+
+    @method_decorator(inventory_permission_required('view'))
+    def dispatch(self, *args, **kwargs):
+        return super().dispatch(*args, **kwargs)
+
+    def get_queryset(self):
+        qs = ProductAttributeDefinition.objects.all().order_by('display_order', 'name')
+        q = self.request.GET.get('q', '').strip()
+        if q:
+            qs = qs.filter(Q(name__icontains=q) | Q(help_text__icontains=q))
+        return qs
+
+    def get_context_data(self, **kwargs):
+        ctx = super().get_context_data(**kwargs)
+        ctx.update({
+            'page_title': 'Product Attributes',
+            'total_active': ProductAttributeDefinition.objects.filter(is_active=True).count(),
+        })
+        return ctx
+
+class ProductAttributeCreateView(LoginRequiredMixin, CreateView):
+    """Create a new product attribute definition."""
+    model = ProductAttributeDefinition
+    form_class = ProductAttributeDefinitionForm
+    template_name = 'inventory/configuration/product_attribute_form.html'
+    success_url = reverse_lazy('inventory:product_attribute_list')
+
+    @method_decorator(inventory_permission_required('edit'))
+    def dispatch(self, *args, **kwargs):
+        return super().dispatch(*args, **kwargs)
+
+    def form_valid(self, form):
+        if hasattr(form.instance, 'created_by') and self.request.user.is_authenticated:
+            form.instance.created_by = self.request.user
+        messages.success(self.request, f'Attribute "{form.instance.name}" created successfully.')
+        return super().form_valid(form)
+
+class ProductAttributeUpdateView(LoginRequiredMixin, UpdateView):
+    """Update an existing product attribute definition."""
+    model = ProductAttributeDefinition
+    form_class = ProductAttributeDefinitionForm
+    template_name = 'inventory/configuration/product_attribute_form.html'
+    success_url = reverse_lazy('inventory:product_attribute_list')
+
+    @method_decorator(inventory_permission_required('edit'))
+    def dispatch(self, *args, **kwargs):
+        return super().dispatch(*args, **kwargs)
+
+    def form_valid(self, form):
+        messages.success(self.request, f'Attribute "{form.instance.name}" updated successfully.')
+        return super().form_valid(form)
+
+class ComponentFamilyListView(ListView):
+    model = ComponentFamily
+    template_name = "inventory/configuration/component_family_list.html"  # not required for makemigrations
+    context_object_name = "families"
+    paginate_by = 25
+
+class ComponentFamilyCreateView(CreateView):
+    model = ComponentFamily
+    fields = [
+        "name", "slug", "description", "default_attributes",
+        "typical_markup_percentage", "default_bin_prefix",
+        "is_active", "display_order",
+    ]
+    template_name = "inventory/configuration/component_family_form.html"
+    success_url = reverse_lazy("inventory:component_family_list")
+
+class ComponentFamilyUpdateView(UpdateView):
+    model = ComponentFamily
+    fields = [
+        "name", "slug", "description", "default_attributes",
+        "typical_markup_percentage", "default_bin_prefix",
+        "is_active", "display_order",
+    ]
+    template_name = "inventory/configuration/component_family_form.html"
+    success_url = reverse_lazy("inventory:component_family_list")
+
+class ComponentFamilyDeleteView(DeleteView):
+    model = ComponentFamily
+    template_name = "inventory/confirm_delete.html"
+    success_url = reverse_lazy("inventory:component_family_list")
+
 @login_required
 @inventory_permission_required('view')
 def product_import_template_view(request):
@@ -1363,6 +1536,100 @@ def _export_catalog_csv(products):
     
     return response
 
+def _export_catalog_excel(products):
+    """Export product catalog as Excel (.xlsx)"""
+    from openpyxl import Workbook
+    from openpyxl.styles import Font, PatternFill
+
+    wb = Workbook()
+    ws = wb.active
+    ws.title = "Product Catalog"
+
+    headers = [
+        'SKU', 'Product Name', 'Description', 'Category', 'Brand',
+        'Price', 'In Stock', 'Barcode'
+    ]
+    # Header row styling
+    for col, header in enumerate(headers, start=1):
+        cell = ws.cell(row=1, column=col, value=header)
+        cell.font = Font(bold=True)
+        cell.fill = PatternFill(start_color="DDDDDD", end_color="DDDDDD", fill_type="solid")
+
+    # Data rows
+    for r, p in enumerate(products, start=2):
+        ws.cell(row=r, column=1, value=p.sku)
+        ws.cell(row=r, column=2, value=p.name)
+        ws.cell(row=r, column=3, value=p.description)
+        ws.cell(row=r, column=4, value=p.category.name if p.category else '')
+        ws.cell(row=r, column=5, value=p.brand.name if getattr(p, 'brand', None) else '')
+        ws.cell(row=r, column=6, value=float(p.selling_price or 0))
+        ws.cell(row=r, column=7, value='Yes' if (p.current_stock or 0) > 0 else 'No')
+        ws.cell(row=r, column=8, value=p.barcode)
+
+    # Best-effort column widths
+    for column in ws.columns:
+        try:
+            max_len = max(len(str(c.value)) if c.value is not None else 0 for c in column)
+        except ValueError:
+            max_len = 10
+        column[0].column_letter  # ensure first cell exists
+        ws.column_dimensions[column[0].column_letter].width = min(max_len + 2, 50)
+
+    response = HttpResponse(
+        content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+    )
+    response['Content-Disposition'] = f'attachment; filename="product_catalog_{timezone.now().strftime("%Y%m%d")}.xlsx"'
+    wb.save(response)
+    return response
+
+def _export_catalog_pdf(products):
+    """Export product catalog as a simple PDF using WeasyPrint"""
+    # You can switch to a real template later; this inline HTML keeps it dependency-light.
+    html = f"""
+    <html>
+    <head>
+    <meta charset="utf-8">
+    <style>
+        body {{ font-family: Arial, sans-serif; font-size: 12px; }}
+        h1 {{ text-align: center; }}
+        table {{ width: 100%; border-collapse: collapse; }}
+        th, td {{ border: 1px solid #ddd; padding: 8px; }}
+        th {{ background: #f2f2f2; text-align: left; }}
+        tr:nth-child(even) {{ background: #fafafa; }}
+    </style>
+    </head>
+    <body>
+    <h1>Product Catalog</h1>
+    <table>
+        <thead>
+        <tr>
+            <th>SKU</th><th>Name</th><th>Category</th><th>Brand</th>
+            <th>Price</th><th>In Stock</th><th>Barcode</th>
+        </tr>
+        </thead>
+        <tbody>
+        {''.join(
+            f"<tr>"
+            f"<td>{p.sku}</td>"
+            f"<td>{p.name}</td>"
+            f"<td>{p.category.name if p.category else ''}</td>"
+            f"<td>{p.brand.name if p.brand else ''}</td>"
+            f"<td>{float(p.selling_price or 0):.2f}</td>"
+            f"<td>{'Yes' if p.current_stock > 0 else 'No'}</td>"
+            f"<td>{p.barcode or ''}</td>"
+            f"</tr>"
+            for p in products
+        )}
+        </tbody>
+    </table>
+    </body>
+    </html>
+    """
+    pdf_bytes = HTML(string=html).write_pdf()
+    response = HttpResponse(pdf_bytes, content_type='application/pdf')
+    response['Content-Disposition'] = f'attachment; filename="product_catalog_{timezone.now().strftime("%Y%m%d")}.pdf"'
+    return response
+
 @login_required
 @inventory_permission_required('view')
 def product_catalog_export_view(request):
@@ -1391,7 +1658,7 @@ def product_catalog_export_view(request):
 
 @login_required
 @inventory_permission_required('edit')
-def adjust_stock_view(request, pk):
+def adjust_stock_view(self, request, pk):
     """
     Stock adjustment view for individual products.
     
@@ -1404,20 +1671,41 @@ def adjust_stock_view(request, pk):
         
         if form.is_valid():
             try:
-                adjustment_type = form.cleaned_data['adjustment_type']
-                quantity = form.cleaned_data['quantity']
-                reason = form.cleaned_data['reason']
-                location = form.cleaned_data['location']
-                notes = form.cleaned_data['notes']
+                product = form.cleaned_data['product']
+                quantity = int(form.cleaned_data['quantity'])
+                adjustment_type = form.cleaned_data['adjustment_type']  # 'set' | 'add' | 'subtract'
+                location = form.cleaned_data.get('location')
+                reason = form.cleaned_data.get('reason', '')
+                notes = form.cleaned_data.get('notes', '')
+                
+                if location:
+                    stock_level, _ = StockLevel.objects.get_or_create(
+                        product=product,
+                        location=location,
+                        defaults={'quantity': 0}
+                    )
+                    previous_stock = stock_level.quantity
+                else:
+                    previous_stock = product.current_stock
                 
                 # Calculate actual adjustment quantity
                 if adjustment_type == 'set':
-                    actual_adjustment = quantity - product.current_stock
+                    new_stock = quantity
+                    actual_adjustment = new_stock - previous_stock
                 elif adjustment_type == 'add':
+                    new_stock = previous_stock + quantity
                     actual_adjustment = quantity
-                else:  # subtract
-                    actual_adjustment = -quantity
+                else:  # 'subtract'
+                    new_stock = max(0, previous_stock - quantity)
+                    actual_adjustment = -(previous_stock - new_stock)
                 
+                if location:
+                    stock_level.quantity = new_stock
+                    stock_level.save()
+                else:
+                    product.current_stock = new_stock
+                    product.save()
+                    
                 # Check for negative stock
                 if product.current_stock + actual_adjustment < 0:
                     messages.error(
@@ -1430,22 +1718,20 @@ def adjust_stock_view(request, pk):
                     })
                 
                 # Create stock movement
-                movement = create_stock_movement(
+                StockMovement.objects.create(
                     product=product,
                     movement_type='adjustment',
                     quantity=actual_adjustment,
-                    reference=f"Manual adjustment: {reason}",
-                    to_location=location if actual_adjustment > 0 else None,
                     from_location=location if actual_adjustment < 0 else None,
-                    user=request.user,
-                    notes=notes
+                    to_location=location if actual_adjustment > 0 else None,
+                    previous_stock=previous_stock,
+                    new_stock=new_stock,
+                    reference=f"ADJ-{timezone.now().strftime('%Y%m%d%H%M%S')}",
+                    notes=f"Reason: {reason}. {notes}",
+                    created_by=self.request.user
                 )
-                
-                messages.success(
-                    request,
-                    f'Stock adjusted for {product.name}. '
-                    f'New stock level: {product.current_stock}'
-                )
+
+                messages.success(self.request, f"Stock adjusted for {product.name}: {previous_stock} → {new_stock}")
                 
                 logger.info(
                     f"Stock adjustment: {actual_adjustment} units of {product.sku} "
@@ -2951,6 +3237,49 @@ class OverheadAnalysisView(LoginRequiredMixin, TemplateView):
         })
         return context
 
+class OverheadFactorListView(LoginRequiredMixin, ListView):
+    """List and manage overhead factors used in cost calculations."""
+    model = OverheadFactor
+    template_name = 'inventory/configuration/overhead_factor_list.html'
+    context_object_name = 'overhead_factors'
+
+    @method_decorator(inventory_permission_required('view'))
+    def dispatch(self, *args, **kwargs):
+        return super().dispatch(*args, **kwargs)
+
+    def get_queryset(self):
+        return OverheadFactor.objects.order_by('display_order', 'name')
+
+class OverheadFactorCreateView(LoginRequiredMixin, CreateView):
+    """Create a new overhead factor."""
+    model = OverheadFactor
+    form_class = OverheadFactorForm
+    template_name = 'inventory/configuration/overhead_factor_form.html'
+    success_url = reverse_lazy('inventory:overhead_factor_list')
+
+    @method_decorator(inventory_permission_required('edit'))
+    def dispatch(self, *args, **kwargs):
+        return super().dispatch(*args, **kwargs)
+
+    def form_valid(self, form):
+        messages.success(self.request, f'Overhead factor "{form.instance.name}" created.')
+        return super().form_valid(form)
+
+class OverheadFactorUpdateView(LoginRequiredMixin, UpdateView):
+    """Edit an existing overhead factor."""
+    model = OverheadFactor
+    form_class = OverheadFactorForm
+    template_name = 'inventory/configuration/overhead_factor_form.html'
+    success_url = reverse_lazy('inventory:overhead_factor_list')
+
+    @method_decorator(inventory_permission_required('edit'))
+    def dispatch(self, *args, **kwargs):
+        return super().dispatch(*args, **kwargs)
+
+    def form_valid(self, form):
+        messages.success(self.request, f'Overhead factor "{form.instance.name}" updated.')
+        return super().form_valid(form)
+
 # =====================================
 # LOCATION MANAGEMENT VIEWS
 # =====================================
@@ -3216,6 +3545,22 @@ class BrandDeleteView(LoginRequiredMixin, DeleteView):
     def dispatch(self, *args, **kwargs):
         return super().dispatch(*args, **kwargs)
 
+class BrandProductsView(ProductListView):
+    template_name = 'inventory/brand/brand_products.html'
+
+    def get_queryset(self):
+        qs = super().get_queryset()
+        return qs.filter(brand_id=self.kwargs['pk'])
+
+    def get_context_data(self, **kwargs):
+        ctx = super().get_context_data(**kwargs)
+        brand = get_object_or_404(Brand, pk=self.kwargs['pk'])
+        ctx.update({
+            'brand': brand,
+            'page_title': f'Products by {brand.name}',
+        })
+        return ctx
+
 # =====================================
 # STORAGE LOCATION MANAGEMENT VIEWS
 # =====================================
@@ -3233,22 +3578,13 @@ class StorageLocationListView(LoginRequiredMixin, ListView):
         return super().dispatch(*args, **kwargs)
     
     def get_queryset(self):
-        return StorageLocation.objects.select_related('location').order_by('location__name', 'name')
+        return StorageLocation.objects.order_by('name')
     
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
         
-        # Group by location
-        locations_data = {}
-        for storage_loc in self.get_queryset():
-            location = storage_loc.location
-            if location not in locations_data:
-                locations_data[location] = []
-            locations_data[location].append(storage_loc)
-        
         context.update({
             'page_title': 'Storage Locations',
-            'locations_data': locations_data,
         })
         return context
 
@@ -3257,7 +3593,14 @@ class StorageLocationCreateView(LoginRequiredMixin, CreateView):
     Create new storage locations.
     """
     model = StorageLocation
-    fields = ['location', 'name', 'description', 'storage_type', 'capacity', 'is_active']
+    fields = [
+        'name', 'code', 'location_type',
+        'address', 'city', 'country',
+        'contact_person', 'phone', 'email',
+        'max_capacity_cubic_meters',
+        'is_active', 'is_default',
+        'allows_sales', 'allows_receiving',
+    ]
     template_name = 'inventory/configuration/storage_location_form.html'
     success_url = reverse_lazy('inventory:storage_location_list')
     
@@ -3277,6 +3620,38 @@ class StorageLocationCreateView(LoginRequiredMixin, CreateView):
         messages.success(self.request, f'Storage location "{form.instance.name}" created successfully')
         return super().form_valid(form)
 
+class StorageLocationUpdateView(LoginRequiredMixin, UpdateView):
+    """
+    Edit existing storage locations.
+    """
+    model = StorageLocation
+    fields = [
+        'name', 'code', 'location_type',
+        'address', 'city', 'country',
+        'contact_person', 'phone', 'email',
+        'max_capacity_cubic_meters',
+        'is_active', 'is_default',
+        'allows_sales', 'allows_receiving',
+    ]
+    template_name = 'inventory/configuration/storage_location_form.html'
+    success_url = reverse_lazy('inventory:storage_location_list')
+
+    @method_decorator(inventory_permission_required('edit'))
+    def dispatch(self, *args, **kwargs):
+        return super().dispatch(*args, **kwargs)
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context.update({
+            'page_title': f'Edit Storage Location: {self.object.name}',
+            'form_action': 'Update',
+        })
+        return context
+
+    def form_valid(self, form):
+        messages.success(self.request, f'Storage location "{form.instance.name}" updated successfully')
+        return super().form_valid(form)
+
 class StorageBinListView(LoginRequiredMixin, TemplateView):
     """
     Manage individual storage bins for precise inventory placement.
@@ -3291,7 +3666,7 @@ class StorageBinListView(LoginRequiredMixin, TemplateView):
         context = super().get_context_data(**kwargs)
         
         # For now, show storage locations as bins can be managed through them
-        storage_locations = StorageLocation.objects.select_related('location').filter(is_active=True)
+        storage_locations = StorageLocation.objects.filter(is_active=True)
         
         context.update({
             'page_title': 'Storage Bin Management',
@@ -3299,6 +3674,64 @@ class StorageBinListView(LoginRequiredMixin, TemplateView):
             'note': 'Storage bins are managed through Storage Locations. Each storage location can contain multiple bins.'
         })
         return context
+
+class StorageBinCreateView(LoginRequiredMixin, CreateView):
+    """
+    Create storage bins within a location.
+    """
+    model = StorageBin
+    fields = [
+        'location', 'bin_code', 'name',
+        'component_families', 'row', 'column', 'shelf',
+        'max_capacity_items', 'requires_special_handling',
+        'is_active', 'notes'
+    ]
+    template_name = 'inventory/configuration/storage_bin_form.html'
+    success_url = reverse_lazy('inventory:storage_location_list')
+
+    @method_decorator(inventory_permission_required('edit'))
+    def dispatch(self, *args, **kwargs):
+        return super().dispatch(*args, **kwargs)
+
+    def get_initial(self):
+        initial = super().get_initial()
+        # Optional: allow ?location=<id> to preselect a location
+        loc_id = self.request.GET.get('location')
+        if loc_id:
+            initial['location'] = loc_id
+        return initial
+
+    def form_valid(self, form):
+        messages.success(
+            self.request,
+            f'Bin "{form.instance.bin_code}" created successfully'
+        )
+        return super().form_valid(form)
+
+class StorageBinUpdateView(LoginRequiredMixin, UpdateView):
+    """
+    Edit existing storage bins.
+    """
+    model = StorageBin
+    fields = [
+        'location', 'bin_code', 'name',
+        'component_families', 'row', 'column', 'shelf',
+        'max_capacity_items', 'requires_special_handling',
+        'is_active', 'notes'
+    ]
+    template_name = 'inventory/configuration/storage_bin_form.html'
+    success_url = reverse_lazy('inventory:storage_location_list')
+
+    @method_decorator(inventory_permission_required('edit'))
+    def dispatch(self, *args, **kwargs):
+        return super().dispatch(*args, **kwargs)
+
+    def form_valid(self, form):
+        messages.success(
+            self.request,
+            f'Bin "{form.instance.bin_code}" updated successfully'
+        )
+        return super().form_valid(form)
 
 # =====================================
 # CONFIGURATION VIEWS
@@ -3346,6 +3779,42 @@ class CategoryDeleteView(LoginRequiredMixin, DeleteView):
     def dispatch(self, *args, **kwargs):
         return super().dispatch(*args, **kwargs)
 
+class CategoryDetailView(LoginRequiredMixin, DetailView):
+    """Detail page for a single category"""
+    model = Category
+    template_name = 'inventory/configuration/category_detail.html'
+    context_object_name = 'category'
+    # If you keep the URL using pk:
+    # (nothing else required)
+    @method_decorator(inventory_permission_required('view'))
+    def dispatch(self, *args, **kwargs):
+        return super().dispatch(*args, **kwargs)
+
+class CategoryProductsView(LoginRequiredMixin, ListView):
+    """List products belonging to a category"""
+    model = Product
+    template_name = 'inventory/configuration/category_products.html'
+    context_object_name = 'products'
+    paginate_by = 30
+
+    @method_decorator(inventory_permission_required('view'))
+    def dispatch(self, *args, **kwargs):
+        return super().dispatch(*args, **kwargs)
+
+    def get_queryset(self):
+        # URL uses <int:pk> for the category
+        return (
+            Product.objects.filter(category_id=self.kwargs['pk'], is_active=True)
+            .select_related('category', 'brand', 'supplier')
+            .order_by('name')
+        )
+
+    def get_context_data(self, **kwargs):
+        ctx = super().get_context_data(**kwargs)
+        ctx['category'] = get_object_or_404(Category, pk=self.kwargs['pk'])
+        ctx['page_title'] = f"Products in {ctx['category'].name}"
+        return ctx
+
 class SupplierListView(LoginRequiredMixin, ListView):
     """List all suppliers"""
     model = Supplier
@@ -3387,6 +3856,83 @@ class SupplierDeleteView(LoginRequiredMixin, DeleteView):
     @method_decorator(inventory_permission_required('admin'))
     def dispatch(self, *args, **kwargs):
         return super().dispatch(*args, **kwargs)
+
+class SupplierDetailView(LoginRequiredMixin, DetailView):
+    """Detailed view for a supplier, with quick stats."""
+    model = Supplier
+    template_name = 'inventory/suppliers/supplier_detail.html'
+    context_object_name = 'supplier'
+
+    @method_decorator(inventory_permission_required('view'))
+    def dispatch(self, *args, **kwargs):
+        return super().dispatch(*args, **kwargs)
+
+    def get_context_data(self, **kwargs):
+        ctx = super().get_context_data(**kwargs)
+        supplier = self.object
+        products = supplier.products.filter(is_active=True).select_related('category', 'brand')
+        ctx.update({
+            'page_title': f'Supplier: {supplier.name}',
+            'products': products.order_by('name')[:25],  # preview list
+            'total_products': products.count(),
+            'average_lead_time_days': supplier.average_lead_time_days,
+            'on_time_delivery_rate': supplier.on_time_delivery_rate,
+            'quality_score': supplier.quality_score,
+            'reliability_rating': supplier.reliability_rating,
+            'rating': supplier.rating,
+            'is_preferred': supplier.is_preferred,
+        })
+        return ctx
+
+class SupplierProductsView(LoginRequiredMixin, ListView):
+    """All products sourced from a given supplier."""
+    model = Product
+    template_name = 'inventory/suppliers/supplier_products.html'
+    context_object_name = 'products'
+    paginate_by = 30
+
+    @method_decorator(inventory_permission_required('view'))
+    def dispatch(self, *args, **kwargs):
+        return super().dispatch(*args, **kwargs)
+
+    def get_queryset(self):
+        return (Product.objects
+                .filter(supplier_id=self.kwargs['pk'], is_active=True)
+                .select_related('category', 'brand')
+                .order_by('name'))
+
+    def get_context_data(self, **kwargs):
+        ctx = super().get_context_data(**kwargs)
+        supplier = get_object_or_404(Supplier, pk=self.kwargs['pk'])
+        ctx.update({
+            'supplier': supplier,
+            'page_title': f'Products by {supplier.name}',
+        })
+        return ctx
+
+class SupplierPerformanceView(LoginRequiredMixin, TemplateView):
+    """Show KPIs/metrics for a supplier."""
+    template_name = 'inventory/suppliers/performance.html'
+
+    @method_decorator(inventory_permission_required('view'))
+    def dispatch(self, *args, **kwargs):
+        return super().dispatch(*args, **kwargs)
+
+    def get_context_data(self, **kwargs):
+        ctx = super().get_context_data(**kwargs)
+        supplier = get_object_or_404(Supplier, pk=self.kwargs['pk'])
+        recent = supplier.get_recent_performance(days=30)
+        ctx.update({
+            'supplier': supplier,
+            'page_title': f'Performance: {supplier.name}',
+            'average_lead_time_days': supplier.average_lead_time_days,
+            'on_time_delivery_rate': supplier.on_time_delivery_rate,
+            'quality_score': supplier.quality_score,
+            'reliability_rating': supplier.reliability_rating,
+            'rating': supplier.rating,
+            'recent_performance': recent,
+        })
+        return ctx
 
 # =====================================
 # API ENDPOINTS
@@ -3819,7 +4365,7 @@ def product_stock_levels_api(request, product_id):
             stock_levels.append({
                 'location_id': stock_level.location.id,
                 'location_name': stock_level.location.name,
-                'location_code': stock_level.location.code,
+                'location_code': stock_level.location.location_code,
                 'quantity': stock_level.quantity,
                 'available_quantity': stock_level.available_quantity,
                 'reserved_quantity': stock_level.reserved_quantity,
@@ -6725,6 +7271,59 @@ class QuickAddProductView(LoginRequiredMixin, CreateView):
     def get_success_url(self):
         return reverse('inventory:quick_add_product')  # Stay on same page for continuous entry
 
+class CurrencyListView(LoginRequiredMixin, ListView):
+    """List all currencies and their exchange rates."""
+    model = Currency
+    template_name = 'inventory/configuration/currency_list.html'
+    context_object_name = 'currencies'
+
+    @method_decorator(inventory_permission_required('view'))
+    def dispatch(self, *args, **kwargs):
+        return super().dispatch(*args, **kwargs)
+
+    def get_queryset(self):
+        return Currency.objects.order_by('code')
+
+class CurrencyCreateView(LoginRequiredMixin, CreateView):
+    """Create a new currency."""
+    model = Currency
+    form_class = CurrencyForm
+    template_name = 'inventory/configuration/currency_form.html'
+    success_url = reverse_lazy('inventory:currency_list')
+
+    @method_decorator(inventory_permission_required('edit'))
+    def dispatch(self, *args, **kwargs):
+        return super().dispatch(*args, **kwargs)
+
+    def form_valid(self, form):
+        messages.success(self.request, f'Currency "{form.instance.code}" created successfully.')
+        return super().form_valid(form)
+
+class CurrencyUpdateView(LoginRequiredMixin, UpdateView):
+    """Edit an existing currency."""
+    model = Currency
+    form_class = CurrencyForm
+    template_name = 'inventory/configuration/currency_form.html'
+    success_url = reverse_lazy('inventory:currency_list')
+
+    @method_decorator(inventory_permission_required('edit'))
+    def dispatch(self, *args, **kwargs):
+        return super().dispatch(*args, **kwargs)
+
+    def form_valid(self, form):
+        messages.success(self.request, f'Currency "{form.instance.code}" updated successfully.')
+        return super().form_valid(form)
+
+class CurrencyDeleteView(LoginRequiredMixin, DeleteView):
+    """Delete a currency (admin only)."""
+    model = Currency
+    template_name = 'inventory/configuration/currency_confirm_delete.html'
+    success_url = reverse_lazy('inventory:currency_list')
+
+    @method_decorator(inventory_permission_required('admin'))
+    def dispatch(self, *args, **kwargs):
+        return super().dispatch(*args, **kwargs)
+
 @login_required
 @inventory_permission_required('view')
 def quick_stock_check_view(request):
@@ -7109,9 +7708,7 @@ def _refresh_exchange_rates():
         updated[currency.code] = float(currency.exchange_rate_to_usd)
     return updated
 
-
 # --- API views ---
-
 
 @login_required
 @require_POST

@@ -424,7 +424,7 @@ class StorageBin(models.Model):
         unique_together = ['location', 'bin_code']
     
     def __str__(self):
-        return f"{self.location.code}-{self.bin_code}: {self.name}"
+        return f"{self.location.location_code}-{self.bin_code}: {self.name}"
     
     @property
     def current_item_count(self):
@@ -704,7 +704,7 @@ class Supplier(models.Model):
             avg_value=models.Avg('total_amount')
         )['avg_value']
         return avg or Decimal('0.00')
-  
+
 class Category(models.Model):
     """
     Product category system with hierarchical support.
@@ -812,7 +812,7 @@ class Category(models.Model):
         return " > ".join(path)
     
     def get_absolute_url(self):
-        return reverse('inventory:category_detail', kwargs={'slug': self.slug})
+        return reverse('inventory:category_detail', kwargs={'pk': self.pk})
     
     def get_product_count(self):
         """Get total number of products in this category and subcategories"""
@@ -1063,6 +1063,7 @@ class Product(models.Model):
     )
     
     # Stock information with multi-location support
+    current_stock = models.IntegerField(default=0, help_text="Legacy alias of total_stock for views and analytics")
     total_stock = models.IntegerField(default=0, help_text="Total stock across all locations")
     reserved_stock = models.IntegerField(
         default=0,
@@ -1228,6 +1229,9 @@ class Product(models.Model):
         if not self.qr_code:
             self.qr_code = f"BT-{self.sku}-{timezone.now().strftime('%Y%m%d')}"
         
+        self.current_stock = self.total_stock or 0
+        self.available_stock = max(0, (self.total_stock or 0) - (self.reserved_stock or 0))
+        
         super().save(*args, **kwargs)
     
     def calculate_all_costs(self):
@@ -1296,11 +1300,6 @@ class Product(models.Model):
     
     def get_absolute_url(self):
         return reverse('inventory:product_detail', kwargs={'pk': self.pk})
-    
-    @property
-    def available_stock(self):
-        """Calculate available stock (total - reserved)"""
-        return max(0, self.total_stock - self.reserved_stock)
     
     @property
     def profit_margin_percentage(self):
@@ -1379,8 +1378,8 @@ class Product(models.Model):
         """Get stock level at specific location"""
         try:
             stock_level = self.stock_levels.get(location=location)
-            return stock_level.quantity_on_hand
-        except:
+            return stock_level.quantity
+        except self.stock_levels.model.DoesNotExist:
             return 0
     
     def get_preferred_supplier_price(self, quantity=1):
@@ -1433,9 +1432,9 @@ class Product(models.Model):
 
 class ProductStockLevel(models.Model):
     """Stock levels per product per location with bin tracking"""
-    product = models.ForeignKey(Product, on_delete=models.CASCADE, related_name='stock_levels')
+    product = models.ForeignKey(Product, on_delete=models.CASCADE, related_name='bin_stock_levels')
     location = models.ForeignKey(StorageLocation, on_delete=models.CASCADE)
-    storage_bin = models.ForeignKey(StorageBin, on_delete=models.SET_NULL, null=True, blank=True)
+    storage_bin = models.ForeignKey(StorageBin, on_delete=models.SET_NULL, null=True, blank=True, related_name='stock_levels')
     
     quantity_on_hand = models.IntegerField(default=0)
     quantity_reserved = models.IntegerField(default=0)
@@ -1455,12 +1454,12 @@ class ProductStockLevel(models.Model):
         ordering = ['product', 'location']
     
     def __str__(self):
-        return f"{self.product.sku} @ {self.location.code}: {self.quantity_on_hand}"
-    
+        return f"{self.product.sku} @ {self.location.location_code}: {self.quantity}"
+
     @property
     def available_quantity(self):
         """Calculate available quantity"""
-        return max(0, self.quantity_on_hand - self.quantity_reserved)
+        return max(0, self.quantity - self.quantity_reserved)
     
     def save(self, *args, **kwargs):
         """Update product total stock when stock level changes"""
@@ -1471,7 +1470,7 @@ class ProductStockLevel(models.Model):
             product=self.product,
             is_active=True
         ).aggregate(
-            total_stock=Sum('quantity_on_hand'),
+            total_stock=Sum('quantity'),
             total_reserved=Sum('quantity_reserved')
         )
         
@@ -1790,7 +1789,15 @@ class StockTakeItem(models.Model):
     
     def __str__(self):
         return f"{self.product.sku}: {self.variance:+d} variance"
-
+    
+    @property
+    def expected_quantity(self):
+        return self.system_quantity
+    
+    @property
+    def actual_quantity(self):
+        return self.counted_quantity
+    
 class PurchaseOrder(models.Model):
     """
     Purchase orders to suppliers for inventory replenishment.

@@ -30,15 +30,16 @@ from django.utils import timezone
 from django.db.models import Sum, Count, Avg, F, Q, Case, When
 from django.http import HttpResponse
 from django.template.loader import render_to_string
+from typing import Dict, List, Optional, Tuple, Union
+from openpyxl.styles import Font, Alignment, PatternFill
 from django.core.mail import send_mail
 from django.conf import settings
+from typing import Iterable
 from io import BytesIO
 import base64
 import openpyxl
-from openpyxl.styles import Font, Alignment, PatternFill
 import requests
 import re
-from typing import Dict, List, Optional, Tuple, Union
 import math
 
 logger = logging.getLogger(__name__)
@@ -1666,6 +1667,197 @@ class MobileDataManager:
         except Exception as e:
             logger.error(f"Error syncing mobile data: {str(e)}")
             return {'error': str(e)}
+
+def get_stock_status(product, location=None):
+    """
+    Wrapper so views can import this. Falls back to Product.stock_status.
+    If a location is provided, compute status from that location's available qty.
+    """
+    try:
+        if location:
+            from .models import StockLevel
+            sl = StockLevel.objects.filter(product=product, location=location).first()
+            qty = sl.available_quantity if sl else 0
+            threshold = product.reorder_level or 0
+            if qty <= 0:
+                return "out_of_stock"
+            if qty <= threshold:
+                return "low_stock"
+            return "in_stock"
+        # default to the model property
+        return getattr(product, "stock_status", "in_stock")
+    except Exception:
+        return getattr(product, "stock_status", "in_stock")
+
+def get_products_for_quote_system(search_term: str = None,
+                                  category=None,
+                                  supplier=None,
+                                  limit: int = 50):
+    """
+    Wrapper that supports optional category/supplier filters expected by views.
+    Returns list[dict] in the same shape used by the quote API.
+    """
+    from .models import Product
+    qs = Product.objects.filter(is_active=True).select_related(
+        'category', 'supplier', 'brand', 'supplier_currency'
+    )
+    if category:
+        qs = qs.filter(category=category)
+    if supplier:
+        qs = qs.filter(supplier=supplier)
+    if search_term:
+        qs = qs.filter(
+            Q(name__icontains=search_term) |
+            Q(sku__icontains=search_term) |
+            Q(manufacturer_part_number__icontains=search_term) |
+            Q(supplier_sku__icontains=search_term)
+        )
+    qs = qs[:max(1, min(limit, 100))]
+
+    out = []
+    for p in qs:
+        out.append({
+            'id': p.id,
+            'sku': p.sku,
+            'name': p.name,
+            'description': (p.short_description or (p.description or '')[:100]),
+            'category': p.category.name if p.category else '',
+            'brand': p.brand.name if getattr(p, 'brand', None) else '',
+            'supplier': p.supplier.name if p.supplier else '',
+            'cost_price': float(p.total_cost_price_usd),
+            'selling_price': float(p.selling_price or 0),
+            'currency': p.selling_currency.code if p.selling_currency else 'USD',
+            'current_stock': getattr(p, 'total_stock', p.current_stock),
+            'available_stock': getattr(p, 'available_stock', 0),
+            'stock_status': get_stock_status(p),
+            'lead_time_days': getattr(p, 'supplier_lead_time_days', None),
+            'minimum_quantity': getattr(p, 'supplier_minimum_order_quantity', None),
+            'specifications': getattr(p, 'dynamic_attributes', {}),
+            'datasheet_url': getattr(p, 'datasheet_url', ''),
+            'images': getattr(p, 'product_images', []),
+        })
+    return out
+
+def check_stock_availability_for_quote(quote_items: Iterable[dict]) -> dict:
+    """
+    Normalize items from the quote system and delegate to IntegrationHelper.check_stock_availability.
+    Returns a dict keyed by product_id with can_fulfill flags, matching what views expect.
+    """
+    # normalize incoming shapes: accept product_id/id/product and quantity/qty
+    reqs = []
+    for item in quote_items:
+        pid = item.get('product_id') or item.get('id') or item.get('product')
+        qty = item.get('quantity') or item.get('qty') or 1
+        if pid is None:
+            continue
+        reqs.append({'product_id': int(pid), 'quantity': int(qty)})
+
+    results = IntegrationHelper.check_stock_availability(reqs)
+    availability = {}
+
+    for bucket, can_fulfill in [('available', True), ('partially_available', False), ('unavailable', False)]:
+        for it in results.get(bucket, []):
+            pid = str(it.get('product_id'))
+            availability[pid] = {**it, 'can_fulfill': can_fulfill}
+
+    # If IntegrationHelper returned an error, surface it
+    if 'error' in results:
+        availability['error'] = results['error']
+    return availability
+
+def reserve_stock_for_quote(quote_items: Iterable[dict], quote_reference: str, user=None) -> dict:
+    """
+    Normalize and delegate to IntegrationHelper.reserve_stock.
+    """
+    reqs = []
+    for item in quote_items:
+        pid = item.get('product_id') or item.get('id') or item.get('product')
+        qty = item.get('quantity') or item.get('qty') or 1
+        if pid is None:
+            continue
+        reqs.append({'product_id': int(pid), 'quantity': int(qty)})
+
+    return IntegrationHelper.reserve_stock(reqs, reference=quote_reference)
+
+def calculate_inventory_turnover(product, period_days: int = 365):
+    """
+    Thin wrapper to the AnalyticsCalculator so the symbol exists at module level.
+    """
+    return AnalyticsCalculator.calculate_inventory_turnover(product, period_days)
+
+def generate_stock_valuation_report(products_qs, as_of_date=None) -> dict:
+    """
+    Simple valuation report (sum of current_stock * cost_price) + counts.
+    """
+    agg = products_qs.aggregate(
+        total_value=Sum(F('current_stock') * F('cost_price')),
+        total_items=Sum('current_stock')
+    )
+    return {
+        'as_of': (as_of_date or timezone.now()).isoformat(),
+        'total_value': float(agg.get('total_value') or 0),
+        'total_items': int(agg.get('total_items') or 0),
+        'product_count': products_qs.count(),
+    }
+
+def export_products_to_csv(products_qs) -> HttpResponse:
+    """
+    Minimal CSV export so the import exists for views; returns HttpResponse(csv).
+    """
+    import csv
+    from io import StringIO
+    buffer = StringIO()
+    writer = csv.writer(buffer)
+    writer.writerow(['SKU', 'Name', 'Category', 'Supplier', 'Current Stock', 'Cost Price', 'Selling Price'])
+    for p in products_qs:
+        writer.writerow([
+            p.sku,
+            p.name,
+            p.category.name if p.category else '',
+            p.supplier.name if p.supplier else '',
+            getattr(p, 'total_stock', p.current_stock),
+            float(p.cost_price or 0),
+            float(p.selling_price or 0),
+        ])
+    resp = HttpResponse(buffer.getvalue(), content_type='text/csv')
+    resp['Content-Disposition'] = 'attachment; filename="products.csv"'
+    return resp
+
+def import_products_from_csv(file_obj, user=None) -> dict:
+    """
+    Minimal CSV import (SKU, Name, Category?, Supplier?) to satisfy the symbol import.
+    Returns {'created': X, 'updated': Y, 'errors': [..]}.
+    """
+    import csv
+    from io import TextIOWrapper
+    from .models import Product, Category, Supplier
+
+    created = updated = 0
+    errors = []
+    reader = csv.DictReader(TextIOWrapper(file_obj, encoding='utf-8'))
+
+    for i, row in enumerate(reader, start=2):
+        try:
+            sku = (row.get('SKU') or row.get('sku') or '').strip()
+            name = (row.get('Name') or row.get('name') or '').strip()
+            if not sku or not name:
+                errors.append(f'Row {i}: SKU and Name are required')
+                continue
+            category = None
+            if row.get('Category'):
+                category, _ = Category.objects.get_or_create(name=row['Category'])
+            supplier = None
+            if row.get('Supplier'):
+                supplier, _ = Supplier.objects.get_or_create(name=row['Supplier'])
+            obj, was_created = Product.objects.update_or_create(
+                sku=sku,
+                defaults={'name': name, 'category': category, 'supplier': supplier}
+            )
+            created += 1 if was_created else 0
+            updated += 0 if was_created else 1
+        except Exception as e:
+            errors.append(f'Row {i}: {e}')
+    return {'created': created, 'updated': updated, 'errors': errors}
 
 # Initialize logging
 logger.info("Inventory management utilities loaded successfully")

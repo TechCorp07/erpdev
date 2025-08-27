@@ -417,18 +417,18 @@ class BrandAdmin(ElectronicsAdminMixin, admin.ModelAdmin):
 class SupplierAdmin(ElectronicsAdminMixin, admin.ModelAdmin):
     """Enhanced supplier management"""
     list_display = (
-        'name', 'code', 'country', 'currency', 'rating', 
+        'name', 'supplier_code', 'country', 'currency', 'rating',
         'on_time_delivery_rate', 'get_products_count', 'is_preferred', 'is_active'
     )
     list_filter = (
         'country', 'currency', 'rating', 'is_preferred', 'is_active',
         'supports_dropshipping', 'preferred_contact_method'
     )
-    search_fields = ('name', 'code', 'contact_person', 'email')
+    search_fields = ('name', 'supplier_code', 'contact_person', 'email')
     
     fieldsets = (
         ('Basic Information', {
-            'fields': ('name', 'code', 'website')
+            'fields': ('name', 'supplier_code', 'website')
         }),
         ('Contact Information', {
             'fields': ('contact_person', 'email', 'phone', 'whatsapp', 'address')
