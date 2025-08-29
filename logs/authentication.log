@@ -1,0 +1,14 @@
+INFO 2025-08-28 16:28:07,849 utils 37972 39288 Invalidated permission cache for user ID: 1
+INFO 2025-08-28 16:28:07,850 utils 37972 39288 Successful login for posodraxy07 from 127.0.0.1
+INFO 2025-08-28 16:28:07,852 views 37972 39288 User posodraxy07 logged in successfully
+INFO 2025-08-28 16:28:15,721 utils 37972 39288 Security event logged: login_success for user posodraxy07
+INFO 2025-08-28 16:28:15,726 views 37972 39288 User posodraxy07 logged out
+INFO 2025-08-28 16:29:19,544 utils 31516 4692 Invalidated permission cache for user ID: 1
+INFO 2025-08-28 16:29:19,545 utils 31516 4692 Successful login for posodraxy07 from 127.0.0.1
+INFO 2025-08-28 16:29:19,548 views 31516 4692 User posodraxy07 logged in successfully
+INFO 2025-08-28 16:30:08,444 views 31516 4692 Employee list viewed by posodraxy07
+WARNING 2025-08-28 16:52:46,419 views 24160 42496 Failed login attempt for username: posodraxy07
+INFO 2025-08-28 16:55:28,014 utils 2288 45128 Invalidated permission cache for user ID: 1
+INFO 2025-08-28 16:55:28,015 utils 2288 45128 Successful login for posodraxy07 from 127.0.0.1
+INFO 2025-08-28 16:55:28,018 views 2288 45128 User posodraxy07 logged in successfully
+INFO 2025-08-28 17:30:58,943 views 2288 46336 Employee list viewed by posodraxy07

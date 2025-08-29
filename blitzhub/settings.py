@@ -69,7 +69,7 @@ MIDDLEWARE = [
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
     'core.middleware.EmployeeAccessMiddleware',
-    'core.middleware.UserProfileMiddleware',
+    #'core.middleware.UserProfileMiddleware',
 ]
 
 ROOT_URLCONF = 'blitzhub.urls'
@@ -98,7 +98,7 @@ TEMPLATES = [
                 'core.context_processors.system_context_processor',
                 'website.context_processors.website_context',
                 'core.context_processors.dashboard_context',
-                'core.context_processors.site_settings',
+                #'core.context_processors.site_settings',
             ],
         },
     },
