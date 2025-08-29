@@ -45,6 +45,30 @@ import math
 logger = logging.getLogger(__name__)
 
 # =====================================
+# UNIVERSAL UTILITIES
+# =====================================
+
+def get_base_context(title, **extra_context):
+    """Generate consistent base context for views"""
+    context = {
+        'page_title': title,
+        'timestamp': timezone.now(),
+    }
+    context.update(extra_context)
+    return context
+
+def get_model_stats(model_class, filters=None):
+    """Get basic statistics for a model"""
+    queryset = model_class.objects.all()
+    if filters:
+        queryset = queryset.filter(**filters)
+    
+    return {
+        'total_count': queryset.count(),
+        'active_count': queryset.filter(is_active=True).count() if hasattr(model_class, 'is_active') else None,
+    }
+    
+# =====================================
 # COST CALCULATION UTILITIES
 # =====================================
 

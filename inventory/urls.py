@@ -20,6 +20,32 @@ from . import views
 
 app_name = 'inventory'
 
+def generate_crud_patterns(model_name, view_prefix, url_prefix=''):
+    """Generate standard CRUD URL patterns"""
+    base_path = f'{url_prefix}{model_name}/' if url_prefix else f'{model_name}/'
+    name_prefix = model_name.replace('-', '_')
+    
+    return [
+        path(f'{base_path}', getattr(views, f'{view_prefix}ListView').as_view(), name=f'{name_prefix}_list'),
+        path(f'{base_path}<int:pk>/', getattr(views, f'{view_prefix}DetailView').as_view(), name=f'{name_prefix}_detail'),
+        path(f'{base_path}create/', getattr(views, f'{view_prefix}CreateView').as_view(), name=f'{name_prefix}_create'),
+        path(f'{base_path}<int:pk>/edit/', getattr(views, f'{view_prefix}UpdateView').as_view(), name=f'{name_prefix}_edit'),
+        path(f'{base_path}<int:pk>/delete/', getattr(views, f'{view_prefix}DeleteView').as_view(), name=f'{name_prefix}_delete'),
+    ]
+
+def generate_config_crud_patterns(model_name, view_prefix):
+    """Generate CRUD patterns with configuration/ prefix"""
+    return generate_crud_patterns(model_name, view_prefix, 'configuration/')
+
+def generate_entity_patterns(model_name, view_prefix, custom_patterns=None):
+    """Generate entity CRUD patterns with optional custom patterns"""
+    patterns = generate_crud_patterns(model_name, view_prefix)
+    
+    if custom_patterns:
+        patterns.extend(custom_patterns)
+    
+    return patterns
+
 # =====================================
 # MAIN DASHBOARD AND OVERVIEW
 # =====================================
@@ -36,12 +62,8 @@ dashboard_patterns = [
 # =====================================
 
 product_patterns = [
-    # Basic CRUD
-    path('products/', views.ProductListView.as_view(), name='product_list'),
-    path('products/<int:pk>/', views.ProductDetailView.as_view(), name='product_detail'),
-    path('products/create/', views.ProductCreateView.as_view(), name='product_create'),
-    path('products/<int:pk>/edit/', views.ProductUpdateView.as_view(), name='product_edit'),
-    path('products/<int:pk>/delete/', views.ProductDeleteView.as_view(), name='product_delete'),
+    # Standard CRUD operations
+    *generate_crud_patterns('products', 'Product'),
     
     # Advanced product operations
     path('products/<int:pk>/duplicate/', views.product_duplicate_view, name='product_duplicate'),
@@ -65,34 +87,17 @@ product_patterns = [
 # =====================================
 
 configuration_patterns = [
-    # Currency management
-    path('configuration/currencies/', views.CurrencyListView.as_view(), name='currency_list'),
-    path('configuration/currencies/create/', views.CurrencyCreateView.as_view(), name='currency_create'),
-    path('configuration/currencies/<int:pk>/edit/', views.CurrencyUpdateView.as_view(), name='currency_edit'),
+    # Standard CRUD patterns with configuration prefix
+    *generate_config_crud_patterns('currencies', 'Currency'),
+    *generate_config_crud_patterns('overhead-factors', 'OverheadFactor'), 
+    *generate_config_crud_patterns('attributes', 'ProductAttribute'),
+    *generate_config_crud_patterns('component-families', 'ComponentFamily'),
+    *generate_config_crud_patterns('locations', 'StorageLocation'),
+    *generate_config_crud_patterns('bins', 'StorageBin'),
+    
+    # Custom patterns that don't fit standard CRUD
     path('configuration/currencies/update-rates/', views.update_exchange_rates_view, name='update_exchange_rates'),
-    
-    # Overhead factors
-    path('configuration/overhead-factors/', views.OverheadFactorListView.as_view(), name='overhead_factor_list'),
-    path('configuration/overhead-factors/create/', views.OverheadFactorCreateView.as_view(), name='overhead_factor_create'),
-    path('configuration/overhead-factors/<int:pk>/edit/', views.OverheadFactorUpdateView.as_view(), name='overhead_factor_edit'),
-    
-    # Product attributes
-    path('configuration/attributes/', views.ProductAttributeListView.as_view(), name='product_attribute_list'),
-    path('configuration/attributes/create/', views.ProductAttributeCreateView.as_view(), name='product_attribute_create'),
-    path('configuration/attributes/<int:pk>/edit/', views.ProductAttributeUpdateView.as_view(), name='product_attribute_edit'),
-    
-    # Component families
-    path('configuration/component-families/', views.ComponentFamilyListView.as_view(), name='component_family_list'),
-    path('configuration/component-families/create/', views.ComponentFamilyCreateView.as_view(), name='component_family_create'),
-    path('configuration/component-families/<int:pk>/edit/', views.ComponentFamilyUpdateView.as_view(), name='component_family_edit'),
-    
-    # Storage locations and bins
-    path('configuration/locations/', views.StorageLocationListView.as_view(), name='storage_location_list'),
-    path('configuration/locations/create/', views.StorageLocationCreateView.as_view(), name='storage_location_create'),
-    path('configuration/locations/<int:pk>/edit/', views.StorageLocationUpdateView.as_view(), name='storage_location_edit'),
     path('configuration/locations/<int:location_id>/bins/', views.StorageBinListView.as_view(), name='storage_bin_list'),
-    path('configuration/bins/create/', views.StorageBinCreateView.as_view(), name='storage_bin_create'),
-    path('configuration/bins/<int:pk>/edit/', views.StorageBinUpdateView.as_view(), name='storage_bin_edit'),
 ]
 
 # =====================================
@@ -101,27 +106,21 @@ configuration_patterns = [
 
 entity_patterns = [
     # Category management
-    path('categories/', views.CategoryListView.as_view(), name='category_list'),
-    path('categories/<int:pk>/', views.CategoryDetailView.as_view(), name='category_detail'),
-    path('categories/create/', views.CategoryCreateView.as_view(), name='category_create'),
-    path('categories/<int:pk>/edit/', views.CategoryUpdateView.as_view(), name='category_edit'),
-    path('categories/<int:pk>/products/', views.CategoryProductsView.as_view(), name='category_products'),
+    *generate_entity_patterns('categories', 'Category', [
+        path('categories/<int:pk>/products/', views.CategoryProductsView.as_view(), name='category_products'),
+    ]),
     
     # Brand management
-    path('brands/', views.BrandListView.as_view(), name='brand_list'),
-    path('brands/<int:pk>/', views.BrandDetailView.as_view(), name='brand_detail'),
-    path('brands/create/', views.BrandCreateView.as_view(), name='brand_create'),
-    path('brands/<int:pk>/edit/', views.BrandUpdateView.as_view(), name='brand_edit'),
-    path('brands/<int:pk>/products/', views.BrandProductsView.as_view(), name='brand_products'),
+    *generate_entity_patterns('brands', 'Brand', [
+        path('brands/<int:pk>/products/', views.BrandProductsView.as_view(), name='brand_products'),
+    ]),
     
     # Supplier management
-    path('suppliers/', views.SupplierListView.as_view(), name='supplier_list'),
-    path('suppliers/<int:pk>/', views.SupplierDetailView.as_view(), name='supplier_detail'),
-    path('suppliers/create/', views.SupplierCreateView.as_view(), name='supplier_create'),
-    path('suppliers/<int:pk>/edit/', views.SupplierUpdateView.as_view(), name='supplier_edit'),
-    path('suppliers/<int:pk>/products/', views.SupplierProductsView.as_view(), name='supplier_products'),
-    path('suppliers/<int:pk>/performance/', views.SupplierPerformanceView.as_view(), name='supplier_performance'),
-    path('suppliers/<int:pk>/contact/', views.supplier_contact_view, name='supplier_contact'),
+    *generate_entity_patterns('suppliers', 'Supplier', [
+        path('suppliers/<int:pk>/products/', views.SupplierProductsView.as_view(), name='supplier_products'),
+        path('suppliers/<int:pk>/performance/', views.SupplierPerformanceView.as_view(), name='supplier_performance'),
+        path('suppliers/<int:pk>/contact/', views.supplier_contact_view, name='supplier_contact'),
+    ]),
 ]
 
 # =====================================
@@ -140,9 +139,7 @@ stock_patterns = [
     path('stock/bulk-adjust/', views.BulkStockAdjustmentView.as_view(), name='bulk_stock_adjustment'),
     
     # Stock takes (physical counting)
-    path('stock/takes/', views.StockTakeListView.as_view(), name='stock_take_list'),
-    path('stock/takes/create/', views.StockTakeCreateView.as_view(), name='stock_take_create'),
-    path('stock/takes/<int:pk>/', views.StockTakeDetailView.as_view(), name='stock_take_detail'),
+    *generate_crud_patterns('stock/takes', 'StockTake'),
     path('stock/takes/<int:pk>/complete/', views.stock_take_complete_view, name='stock_take_complete'),
 ]
 
@@ -174,9 +171,8 @@ pricing_patterns = [
     path('pricing/margin-analysis/', views.MarginAnalysisView.as_view(), name='margin_analysis'),
     path('pricing/competitive-analysis/', views.CompetitivePricingView.as_view(), name='competitive_pricing'),
     
-    # Markup management
-    path('pricing/markup-rules/', views.MarkupRuleListView.as_view(), name='markup_rule_list'),
-    path('pricing/markup-rules/create/', views.MarkupRuleCreateView.as_view(), name='markup_rule_create'),
+    # Markup management with CRUD
+    *generate_crud_patterns('pricing/markup-rules', 'MarkupRule'),
     
     # Overhead cost management
     path('pricing/overhead-analysis/', views.OverheadAnalysisView.as_view(), name='overhead_analysis'),

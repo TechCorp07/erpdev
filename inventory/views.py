@@ -57,9 +57,6 @@ from .forms import (
     StockAdjustmentForm, StockTransferForm, PurchaseOrderForm, StockTakeForm,
     AdvancedProductSearchForm, OverheadFactorForm
 )
-from django.views.generic import (
-    ListView, DetailView, CreateView, UpdateView, DeleteView, TemplateView, FormView
-)
 from .decorators import (
     inventory_permission_required, stock_adjustment_permission, location_access_required,
     purchase_order_permission, stock_take_permission, cost_data_access, bulk_operation_permission
@@ -70,6 +67,89 @@ from .utils import (
 )
 
 logger = logging.getLogger(__name__)
+
+# =====================================
+# UNIVERSAL OVERVIEW VIEWS
+# =====================================
+
+class BaseInventoryListView(LoginRequiredMixin, ListView):
+    """Base class for inventory list views"""
+    paginate_by = 25
+    
+    @method_decorator(inventory_permission_required('view'))
+    def dispatch(self, *args, **kwargs):
+        return super().dispatch(*args, **kwargs)
+
+class BaseInventoryCreateView(LoginRequiredMixin, CreateView):
+    """Base class for inventory create views"""
+    
+    @method_decorator(inventory_permission_required('edit'))
+    def dispatch(self, *args, **kwargs):
+        return super().dispatch(*args, **kwargs)
+    
+    def form_valid(self, form):
+        messages.success(
+            self.request, 
+            f'{self.model._meta.verbose_name.title()} "{form.instance}" created successfully'
+        )
+        return super().form_valid(form)
+
+class BaseInventoryUpdateView(LoginRequiredMixin, UpdateView):
+    """Base class for inventory update views"""
+    
+    @method_decorator(inventory_permission_required('edit'))
+    def dispatch(self, *args, **kwargs):
+        return super().dispatch(*args, **kwargs)
+    
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context.update({
+            'page_title': f'Edit {self.model._meta.verbose_name.title()}: {self.object}',
+            'form_action': 'Update',
+        })
+        return context
+    
+    def form_valid(self, form):
+        messages.success(
+            self.request, 
+            f'{self.model._meta.verbose_name.title()} "{form.instance}" updated successfully'
+        )
+        return super().form_valid(form)
+
+class BaseInventoryDeleteView(LoginRequiredMixin, DeleteView):
+    """Base class for inventory delete views"""
+    
+    @method_decorator(inventory_permission_required('admin'))
+    def dispatch(self, *args, **kwargs):
+        return super().dispatch(*args, **kwargs)
+
+class BaseInventoryDetailView(LoginRequiredMixin, DetailView):
+    """Base class for inventory detail views"""
+    
+    @method_decorator(inventory_permission_required('view'))
+    def dispatch(self, *args, **kwargs):
+        return super().dispatch(*args, **kwargs)
+
+class InventoryViewMixin:
+    """Common mixin for inventory views"""
+    
+    @method_decorator(inventory_permission_required('view'))
+    def dispatch(self, *args, **kwargs):
+        return super().dispatch(*args, **kwargs)
+
+class InventoryEditMixin:
+    """Mixin for inventory edit operations"""
+    
+    @method_decorator(inventory_permission_required('edit'))
+    def dispatch(self, *args, **kwargs):
+        return super().dispatch(*args, **kwargs)
+
+class InventoryAdminMixin:
+    """Mixin for inventory admin operations"""
+    
+    @method_decorator(inventory_permission_required('admin'))
+    def dispatch(self, *args, **kwargs):
+        return super().dispatch(*args, **kwargs)
 
 # =====================================
 # DASHBOARD AND OVERVIEW VIEWS
@@ -1285,13 +1365,12 @@ class ProductAttributeUpdateView(LoginRequiredMixin, UpdateView):
         messages.success(self.request, f'Attribute "{form.instance.name}" updated successfully.')
         return super().form_valid(form)
 
-class ComponentFamilyListView(ListView):
+class ComponentFamilyListView(BaseInventoryListView):
     model = ComponentFamily
-    template_name = "inventory/configuration/component_family_list.html"  # not required for makemigrations
+    template_name = "inventory/configuration/component_family_list.html"
     context_object_name = "families"
-    paginate_by = 25
 
-class ComponentFamilyCreateView(CreateView):
+class ComponentFamilyCreateView(BaseInventoryCreateView):
     model = ComponentFamily
     fields = [
         "name", "slug", "description", "default_attributes",
@@ -1301,7 +1380,7 @@ class ComponentFamilyCreateView(CreateView):
     template_name = "inventory/configuration/component_family_form.html"
     success_url = reverse_lazy("inventory:component_family_list")
 
-class ComponentFamilyUpdateView(UpdateView):
+class ComponentFamilyUpdateView(BaseInventoryUpdateView):
     model = ComponentFamily
     fields = [
         "name", "slug", "description", "default_attributes",
@@ -1311,7 +1390,7 @@ class ComponentFamilyUpdateView(UpdateView):
     template_name = "inventory/configuration/component_family_form.html"
     success_url = reverse_lazy("inventory:component_family_list")
 
-class ComponentFamilyDeleteView(DeleteView):
+class ComponentFamilyDeleteView(BaseInventoryDeleteView):
     model = ComponentFamily
     template_name = "inventory/confirm_delete.html"
     success_url = reverse_lazy("inventory:component_family_list")
@@ -3284,7 +3363,7 @@ class OverheadFactorUpdateView(LoginRequiredMixin, UpdateView):
 # LOCATION MANAGEMENT VIEWS
 # =====================================
 
-class LocationListView(LoginRequiredMixin, ListView):
+class LocationListView(BaseInventoryListView):
     """
     Manage warehouse locations and storage areas.
     Essential for multi-location inventory tracking.
@@ -3293,34 +3372,7 @@ class LocationListView(LoginRequiredMixin, ListView):
     template_name = 'inventory/configuration/location_list.html'
     context_object_name = 'locations'
     
-    @method_decorator(inventory_permission_required('view'))
-    def dispatch(self, *args, **kwargs):
-        return super().dispatch(*args, **kwargs)
-    
-    def get_context_data(self, **kwargs):
-        context = super().get_context_data(**kwargs)
-        
-        # Calculate summary metrics for each location
-        locations_with_stats = []
-        for location in self.get_queryset():
-            stock_levels = location.stock_levels.all()
-            total_products = stock_levels.count()
-            total_value = sum(sl.stock_value for sl in stock_levels)
-            
-            locations_with_stats.append({
-                'location': location,
-                'total_products': total_products,
-                'total_value': total_value,
-                'is_active': location.is_active,
-            })
-        
-        context.update({
-            'page_title': 'Warehouse Locations',
-            'locations_with_stats': locations_with_stats,
-        })
-        return context
-
-class LocationDetailView(LoginRequiredMixin, DetailView):
+class LocationDetailView(BaseInventoryDetailView):
     """
     Detailed view of a specific location with stock levels.
     """
@@ -3328,40 +3380,7 @@ class LocationDetailView(LoginRequiredMixin, DetailView):
     template_name = 'inventory/configuration/location_detail.html'
     context_object_name = 'location'
     
-    @method_decorator(inventory_permission_required('view'))
-    def dispatch(self, *args, **kwargs):
-        return super().dispatch(*args, **kwargs)
-    
-    def get_context_data(self, **kwargs):
-        context = super().get_context_data(**kwargs)
-        location = self.get_object()
-        
-        # Get stock levels for this location
-        stock_levels = location.stock_levels.select_related(
-            'product', 'product__category', 'product__supplier'
-        ).order_by('-quantity')
-        
-        # Calculate metrics
-        total_products = stock_levels.count()
-        total_value = sum(sl.stock_value for sl in stock_levels)
-        zero_stock_count = stock_levels.filter(quantity=0).count()
-        
-        # Recent movements at this location
-        recent_movements = StockMovement.objects.filter(
-            Q(from_location=location) | Q(to_location=location)
-        ).select_related('product').order_by('-created_at')[:20]
-        
-        context.update({
-            'page_title': f'Location: {location.name}',
-            'stock_levels': stock_levels,
-            'total_products': total_products,
-            'total_value': total_value,
-            'zero_stock_count': zero_stock_count,
-            'recent_movements': recent_movements,
-        })
-        return context
-
-class LocationCreateView(LoginRequiredMixin, CreateView):
+class LocationCreateView(BaseInventoryCreateView):
     """
     Create new warehouse locations.
     """
@@ -3370,23 +3389,7 @@ class LocationCreateView(LoginRequiredMixin, CreateView):
     template_name = 'inventory/configuration/location_form.html'
     success_url = reverse_lazy('inventory:location_list')
     
-    @method_decorator(inventory_permission_required('edit'))
-    def dispatch(self, *args, **kwargs):
-        return super().dispatch(*args, **kwargs)
-    
-    def get_context_data(self, **kwargs):
-        context = super().get_context_data(**kwargs)
-        context.update({
-            'page_title': 'Create New Location',
-            'form_action': 'Create',
-        })
-        return context
-    
-    def form_valid(self, form):
-        messages.success(self.request, f'Location "{form.instance.name}" created successfully')
-        return super().form_valid(form)
-
-class LocationUpdateView(LoginRequiredMixin, UpdateView):
+class LocationUpdateView(BaseInventoryUpdateView):
     """
     Update existing warehouse locations.
     """
@@ -3395,155 +3398,36 @@ class LocationUpdateView(LoginRequiredMixin, UpdateView):
     template_name = 'inventory/configuration/location_form.html'
     success_url = reverse_lazy('inventory:location_list')
     
-    @method_decorator(inventory_permission_required('edit'))
-    def dispatch(self, *args, **kwargs):
-        return super().dispatch(*args, **kwargs)
-    
-    def get_context_data(self, **kwargs):
-        context = super().get_context_data(**kwargs)
-        context.update({
-            'page_title': f'Edit Location: {self.object.name}',
-            'form_action': 'Update',
-        })
-        return context
-    
-    def form_valid(self, form):
-        messages.success(self.request, f'Location "{form.instance.name}" updated successfully')
-        return super().form_valid(form)
-
 # =====================================
 # BRAND MANAGEMENT VIEWS
 # =====================================
 
-class BrandListView(LoginRequiredMixin, ListView):
-    """
-    Manage product brands for better organization.
-    """
+class BrandListView(BaseInventoryListView):
     model = Brand
     template_name = 'inventory/configuration/brand_list.html'
     context_object_name = 'brands'
-    
-    @method_decorator(inventory_permission_required('view'))
-    def dispatch(self, *args, **kwargs):
-        return super().dispatch(*args, **kwargs)
-    
-    def get_context_data(self, **kwargs):
-        context = super().get_context_data(**kwargs)
-        
-        # Add product counts for each brand
-        brands_with_stats = []
-        for brand in self.get_queryset():
-            product_count = brand.products.filter(is_active=True).count()
-            total_stock = brand.products.filter(is_active=True).aggregate(
-                total=Sum('current_stock')
-            )['total'] or 0
-            
-            brands_with_stats.append({
-                'brand': brand,
-                'product_count': product_count,
-                'total_stock': total_stock,
-            })
-        
-        context.update({
-            'page_title': 'Product Brands',
-            'brands_with_stats': brands_with_stats,
-        })
-        return context
 
-class BrandDetailView(LoginRequiredMixin, DetailView):
-    """
-    Detailed view of brand with associated products.
-    """
-    model = Brand
-    template_name = 'inventory/configuration/brand_detail.html'
-    context_object_name = 'brand'
-    
-    @method_decorator(inventory_permission_required('view'))
-    def dispatch(self, *args, **kwargs):
-        return super().dispatch(*args, **kwargs)
-    
-    def get_context_data(self, **kwargs):
-        context = super().get_context_data(**kwargs)
-        brand = self.get_object()
-        
-        # Get products for this brand
-        products = brand.products.filter(is_active=True).select_related(
-            'category', 'supplier'
-        ).order_by('name')
-        
-        # Calculate metrics
-        total_products = products.count()
-        total_stock_value = sum(p.current_stock * p.cost_price for p in products)
-        total_stock_units = sum(p.current_stock for p in products)
-        
-        context.update({
-            'page_title': f'Brand: {brand.name}',
-            'products': products,
-            'total_products': total_products,
-            'total_stock_value': total_stock_value,
-            'total_stock_units': total_stock_units,
-        })
-        return context
-
-class BrandCreateView(LoginRequiredMixin, CreateView):
-    """
-    Create new product brands.
-    """
+class BrandCreateView(BaseInventoryCreateView):
     model = Brand
     fields = ['name', 'description', 'is_active']
     template_name = 'inventory/configuration/brand_form.html'
     success_url = reverse_lazy('inventory:brand_list')
-    
-    @method_decorator(inventory_permission_required('edit'))
-    def dispatch(self, *args, **kwargs):
-        return super().dispatch(*args, **kwargs)
-    
-    def get_context_data(self, **kwargs):
-        context = super().get_context_data(**kwargs)
-        context.update({
-            'page_title': 'Create New Brand',
-            'form_action': 'Create',
-        })
-        return context
-    
-    def form_valid(self, form):
-        messages.success(self.request, f'Brand "{form.instance.name}" created successfully')
-        return super().form_valid(form)
 
-class BrandUpdateView(LoginRequiredMixin, UpdateView):
-    """
-    Update existing brands.
-    """
+class BrandUpdateView(BaseInventoryUpdateView):
     model = Brand
     fields = ['name', 'description', 'is_active']
     template_name = 'inventory/configuration/brand_form.html'
     success_url = reverse_lazy('inventory:brand_list')
-    
-    @method_decorator(inventory_permission_required('edit'))
-    def dispatch(self, *args, **kwargs):
-        return super().dispatch(*args, **kwargs)
-    
-    def get_context_data(self, **kwargs):
-        context = super().get_context_data(**kwargs)
-        context.update({
-            'page_title': f'Edit Brand: {self.object.name}',
-            'form_action': 'Update',
-        })
-        return context
-    
-    def form_valid(self, form):
-        messages.success(self.request, f'Brand "{form.instance.name}" updated successfully')
-        return super().form_valid(form)
 
-class BrandDeleteView(LoginRequiredMixin, DeleteView):
-    """Delete brand"""
+class BrandDeleteView(BaseInventoryDeleteView):
     model = Brand
     template_name = 'inventory/configuration/brand_confirm_delete.html'
     success_url = reverse_lazy('inventory:brand_list')
-    
-    @method_decorator(inventory_permission_required('admin'))
-    def dispatch(self, *args, **kwargs):
-        return super().dispatch(*args, **kwargs)
+
+class BrandDetailView(BaseInventoryDetailView):
+    model = Brand
+    template_name = 'inventory/configuration/brand_detail.html'
+    context_object_name = 'brand'
 
 class BrandProductsView(ProductListView):
     template_name = 'inventory/brand/brand_products.html'
@@ -3565,7 +3449,7 @@ class BrandProductsView(ProductListView):
 # STORAGE LOCATION MANAGEMENT VIEWS
 # =====================================
 
-class StorageLocationListView(LoginRequiredMixin, ListView):
+class StorageLocationListView(BaseInventoryListView):
     """
     Manage detailed storage locations within warehouses.
     """
@@ -3573,22 +3457,7 @@ class StorageLocationListView(LoginRequiredMixin, ListView):
     template_name = 'inventory/configuration/storage_location_list.html'
     context_object_name = 'storage_locations'
     
-    @method_decorator(inventory_permission_required('view'))
-    def dispatch(self, *args, **kwargs):
-        return super().dispatch(*args, **kwargs)
-    
-    def get_queryset(self):
-        return StorageLocation.objects.order_by('name')
-    
-    def get_context_data(self, **kwargs):
-        context = super().get_context_data(**kwargs)
-        
-        context.update({
-            'page_title': 'Storage Locations',
-        })
-        return context
-
-class StorageLocationCreateView(LoginRequiredMixin, CreateView):
+class StorageLocationCreateView(BaseInventoryCreateView):
     """
     Create new storage locations.
     """
@@ -3604,23 +3473,7 @@ class StorageLocationCreateView(LoginRequiredMixin, CreateView):
     template_name = 'inventory/configuration/storage_location_form.html'
     success_url = reverse_lazy('inventory:storage_location_list')
     
-    @method_decorator(inventory_permission_required('edit'))
-    def dispatch(self, *args, **kwargs):
-        return super().dispatch(*args, **kwargs)
-    
-    def get_context_data(self, **kwargs):
-        context = super().get_context_data(**kwargs)
-        context.update({
-            'page_title': 'Create Storage Location',
-            'form_action': 'Create',
-        })
-        return context
-    
-    def form_valid(self, form):
-        messages.success(self.request, f'Storage location "{form.instance.name}" created successfully')
-        return super().form_valid(form)
-
-class StorageLocationUpdateView(LoginRequiredMixin, UpdateView):
+class StorageLocationUpdateView(BaseInventoryUpdateView):
     """
     Edit existing storage locations.
     """
@@ -3635,22 +3488,6 @@ class StorageLocationUpdateView(LoginRequiredMixin, UpdateView):
     ]
     template_name = 'inventory/configuration/storage_location_form.html'
     success_url = reverse_lazy('inventory:storage_location_list')
-
-    @method_decorator(inventory_permission_required('edit'))
-    def dispatch(self, *args, **kwargs):
-        return super().dispatch(*args, **kwargs)
-
-    def get_context_data(self, **kwargs):
-        context = super().get_context_data(**kwargs)
-        context.update({
-            'page_title': f'Edit Storage Location: {self.object.name}',
-            'form_action': 'Update',
-        })
-        return context
-
-    def form_valid(self, form):
-        messages.success(self.request, f'Storage location "{form.instance.name}" updated successfully')
-        return super().form_valid(form)
 
 class StorageBinListView(LoginRequiredMixin, TemplateView):
     """
@@ -3737,58 +3574,32 @@ class StorageBinUpdateView(LoginRequiredMixin, UpdateView):
 # CONFIGURATION VIEWS
 # =====================================
 
-class CategoryListView(LoginRequiredMixin, ListView):
-    """List all product categories"""
+class CategoryListView(BaseInventoryListView):
     model = Category
     template_name = 'inventory/configuration/category_list.html'
     context_object_name = 'categories'
-    
-    @method_decorator(inventory_permission_required('view'))
-    def dispatch(self, *args, **kwargs):
-        return super().dispatch(*args, **kwargs)
 
-class CategoryCreateView(LoginRequiredMixin, CreateView):
-    """Create new category"""
+class CategoryCreateView(BaseInventoryCreateView):
     model = Category
     form_class = CategoryForm
     template_name = 'inventory/configuration/category_form.html'
     success_url = reverse_lazy('inventory:category_list')
-    
-    @method_decorator(inventory_permission_required('edit'))
-    def dispatch(self, *args, **kwargs):
-        return super().dispatch(*args, **kwargs)
 
-class CategoryUpdateView(LoginRequiredMixin, UpdateView):
-    """Update category"""
+class CategoryUpdateView(BaseInventoryUpdateView):
     model = Category
     form_class = CategoryForm
     template_name = 'inventory/configuration/category_form.html'
     success_url = reverse_lazy('inventory:category_list')
-    
-    @method_decorator(inventory_permission_required('edit'))
-    def dispatch(self, *args, **kwargs):
-        return super().dispatch(*args, **kwargs)
 
-class CategoryDeleteView(LoginRequiredMixin, DeleteView):
-    """Delete category"""
+class CategoryDeleteView(BaseInventoryDeleteView):
     model = Category
     template_name = 'inventory/configuration/category_confirm_delete.html'
     success_url = reverse_lazy('inventory:category_list')
-    
-    @method_decorator(inventory_permission_required('admin'))
-    def dispatch(self, *args, **kwargs):
-        return super().dispatch(*args, **kwargs)
 
-class CategoryDetailView(LoginRequiredMixin, DetailView):
-    """Detail page for a single category"""
+class CategoryDetailView(BaseInventoryDetailView):
     model = Category
     template_name = 'inventory/configuration/category_detail.html'
     context_object_name = 'category'
-    # If you keep the URL using pk:
-    # (nothing else required)
-    @method_decorator(inventory_permission_required('view'))
-    def dispatch(self, *args, **kwargs):
-        return super().dispatch(*args, **kwargs)
 
 class CategoryProductsView(LoginRequiredMixin, ListView):
     """List products belonging to a category"""
@@ -3815,75 +3626,38 @@ class CategoryProductsView(LoginRequiredMixin, ListView):
         ctx['page_title'] = f"Products in {ctx['category'].name}"
         return ctx
 
-class SupplierListView(LoginRequiredMixin, ListView):
+class SupplierListView(BaseInventoryListView):
     """List all suppliers"""
     model = Supplier
     template_name = 'inventory/configuration/supplier_list.html'
     context_object_name = 'suppliers'
-    
-    @method_decorator(inventory_permission_required('view'))
-    def dispatch(self, *args, **kwargs):
-        return super().dispatch(*args, **kwargs)
 
-class SupplierCreateView(LoginRequiredMixin, CreateView):
+class SupplierCreateView(BaseInventoryCreateView):
     """Create new supplier"""
     model = Supplier
     form_class = SupplierForm
     template_name = 'inventory/configuration/supplier_form.html'
     success_url = reverse_lazy('inventory:supplier_list')
-    
-    @method_decorator(inventory_permission_required('edit'))
-    def dispatch(self, *args, **kwargs):
-        return super().dispatch(*args, **kwargs)
 
-class SupplierUpdateView(LoginRequiredMixin, UpdateView):
+class SupplierUpdateView(BaseInventoryUpdateView):
     """Update supplier"""
     model = Supplier
     form_class = SupplierForm
     template_name = 'inventory/configuration/supplier_form.html'
     success_url = reverse_lazy('inventory:supplier_list')
-    
-    @method_decorator(inventory_permission_required('edit'))
-    def dispatch(self, *args, **kwargs):
-        return super().dispatch(*args, **kwargs)
 
-class SupplierDeleteView(LoginRequiredMixin, DeleteView):
+class SupplierDeleteView(BaseInventoryDeleteView):
     """Delete supplier"""
     model = Supplier
     template_name = 'inventory/configuration/supplier_confirm_delete.html'
     success_url = reverse_lazy('inventory:supplier_list')
-    
-    @method_decorator(inventory_permission_required('admin'))
-    def dispatch(self, *args, **kwargs):
-        return super().dispatch(*args, **kwargs)
 
-class SupplierDetailView(LoginRequiredMixin, DetailView):
+class SupplierDetailView(BaseInventoryDetailView):
     """Detailed view for a supplier, with quick stats."""
     model = Supplier
     template_name = 'inventory/suppliers/supplier_detail.html'
     context_object_name = 'supplier'
-
-    @method_decorator(inventory_permission_required('view'))
-    def dispatch(self, *args, **kwargs):
-        return super().dispatch(*args, **kwargs)
-
-    def get_context_data(self, **kwargs):
-        ctx = super().get_context_data(**kwargs)
-        supplier = self.object
-        products = supplier.products.filter(is_active=True).select_related('category', 'brand')
-        ctx.update({
-            'page_title': f'Supplier: {supplier.name}',
-            'products': products.order_by('name')[:25],  # preview list
-            'total_products': products.count(),
-            'average_lead_time_days': supplier.average_lead_time_days,
-            'on_time_delivery_rate': supplier.on_time_delivery_rate,
-            'quality_score': supplier.quality_score,
-            'reliability_rating': supplier.reliability_rating,
-            'rating': supplier.rating,
-            'is_preferred': supplier.is_preferred,
-        })
-        return ctx
-
+    
 class SupplierProductsView(LoginRequiredMixin, ListView):
     """All products sourced from a given supplier."""
     model = Product
