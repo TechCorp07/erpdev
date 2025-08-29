@@ -47,23 +47,25 @@ from django.contrib.auth.mixins import LoginRequiredMixin
 from openpyxl import Workbook
 
 from .models import (
-    Brand, Category, ComponentFamily, Currency, OverheadFactor, ProductAttributeDefinition, StorageBin,
-    StorageLocation, Supplier, Location, Product, StockLevel,
-    StockMovement, StockTake, StockTakeItem, PurchaseOrder,
-    PurchaseOrderItem, ReorderAlert,
+    Brand, Category, ComponentFamily, Currency, OverheadFactor, 
+    ProductAttributeDefinition, StorageBin, StorageLocation,
+    Supplier, Location, Product, StockLevel, StockMovement,
+    StockTake, StockTakeItem, PurchaseOrder, PurchaseOrderItem,
+    ReorderAlert
 )
 from .forms import (
-    CategoryForm, CurrencyForm, ProductAttributeDefinitionForm, ProductBulkUpdateForm, SupplierForm, LocationForm, ProductForm, ProductSearchForm,
-    StockAdjustmentForm, StockTransferForm, PurchaseOrderForm, StockTakeForm,
-    AdvancedProductSearchForm, OverheadFactorForm
+    CategoryForm, CurrencyForm, ProductAttributeDefinitionForm, ProductBulkUpdateForm, SupplierForm,
+    LocationForm, ProductForm, ProductSearchForm, StockAdjustmentForm, StockTransferForm,
+    PurchaseOrderForm, StockTakeForm, OverheadFactorForm
 )
 from .decorators import (
     inventory_permission_required, stock_adjustment_permission, location_access_required,
     purchase_order_permission, stock_take_permission, cost_data_access, bulk_operation_permission
 )
 from .utils import (
-    ExportManager, InventoryAnalytics, PricingCalculator, calculate_available_stock, calculate_days_of_stock, get_low_stock_products, get_stock_status, calculate_stock_value,
-    create_stock_movement, BarcodeManager
+    ExportManager, InventoryAnalytics, PricingCalculator, calculate_available_stock,
+    calculate_days_of_stock, get_low_stock_products, get_stock_status, create_stock_movement,
+    BarcodeManager, validate_stock_movement
 )
 
 logger = logging.getLogger(__name__)
