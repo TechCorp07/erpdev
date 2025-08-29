@@ -27,6 +27,271 @@ from .models import (
 )
 
 # =====================================
+# BASE FORM CLASSES FOR CONSISTENCY
+# =====================================
+
+class InventoryBaseForm(forms.ModelForm):
+    """
+    Base form class for all inventory forms.
+    
+    Provides consistent styling, validation patterns, and AJAX support.
+    """
+    
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        
+        # Apply consistent CSS classes to all fields
+        for field_name, field in self.fields.items():
+            if isinstance(field.widget, forms.TextInput):
+                field.widget.attrs.update({'class': 'form-control'})
+            elif isinstance(field.widget, forms.Textarea):
+                field.widget.attrs.update({'class': 'form-control', 'rows': 3})
+            elif isinstance(field.widget, forms.Select):
+                field.widget.attrs.update({'class': 'form-select'})
+            elif isinstance(field.widget, forms.NumberInput):
+                field.widget.attrs.update({'class': 'form-control'})
+            elif isinstance(field.widget, forms.CheckboxInput):
+                field.widget.attrs.update({'class': 'form-check-input'})
+            elif isinstance(field.widget, forms.DateInput):
+                field.widget.attrs.update({
+                    'class': 'form-control',
+                    'type': 'date'
+                })
+    
+    def get_ajax_response_data(self):
+        """Get data for AJAX response"""
+        return {
+            'success': True,
+            'message': 'Operation completed successfully',
+            'object_id': self.instance.pk if hasattr(self, 'instance') else None
+        }
+    
+    def get_ajax_error_response(self, form_errors):
+        """Get error response for AJAX"""
+        return {
+            'success': False,
+            'errors': form_errors,
+            'message': 'Please correct the errors below'
+        }
+
+class EntityManagementForm(InventoryBaseForm):
+    """
+    Base form for entity management (categories, brands, suppliers, etc.)
+    
+    Provides common fields and validation patterns for business entities.
+    """
+    
+    class Meta:
+        abstract = True
+        fields = ['name', 'description', 'is_active']
+    
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        
+        # Common field configurations
+        if 'name' in self.fields:
+            self.fields['name'].widget.attrs.update({
+                'placeholder': f'Enter {self._meta.model._meta.verbose_name.lower()} name...'
+            })
+        
+        if 'description' in self.fields:
+            self.fields['description'].widget.attrs.update({
+                'placeholder': f'Optional description for this {self._meta.model._meta.verbose_name.lower()}...'
+            })
+    
+    def clean_name(self):
+        """Validate name uniqueness and format"""
+        name = self.cleaned_data.get('name')
+        if name:
+            name = name.strip()
+            
+            # Check for uniqueness
+            queryset = self._meta.model.objects.filter(name__iexact=name)
+            if self.instance.pk:
+                queryset = queryset.exclude(pk=self.instance.pk)
+            
+            if queryset.exists():
+                raise ValidationError(
+                    f'A {self._meta.model._meta.verbose_name.lower()} with this name already exists.'
+                )
+        
+        return name
+
+class SearchFormBase(forms.Form):
+    """
+    Base form for search and filtering operations.
+    
+    Provides common search fields and patterns.
+    """
+    
+    search = forms.CharField(
+        max_length=100, 
+        required=False,
+        widget=forms.TextInput(attrs={
+            'class': 'form-control',
+            'placeholder': 'Search...'
+        })
+    )
+    
+    is_active = forms.ChoiceField(
+        choices=[('', 'All'), ('true', 'Active'), ('false', 'Inactive')],
+        required=False,
+        widget=forms.Select(attrs={'class': 'form-select'})
+    )
+    
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        
+        # Customize search placeholder based on context
+        model_name = getattr(self, 'search_model_name', 'items')
+        self.fields['search'].widget.attrs['placeholder'] = f'Search {model_name}...'
+
+class BulkOperationForm(forms.Form):
+    """
+    Base form for bulk operations across different entities.
+    
+    Provides consistent bulk operation patterns.
+    """
+    
+    ACTION_CHOICES = []  # To be overridden by subclasses
+    
+    action = forms.ChoiceField(
+        required=True,
+        widget=forms.Select(attrs={'class': 'form-select'})
+    )
+    
+    confirm_action = forms.BooleanField(
+        required=True,
+        widget=forms.CheckboxInput(attrs={'class': 'form-check-input'}),
+        label='I confirm I want to perform this bulk operation'
+    )
+    
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.fields['action'].choices = self.ACTION_CHOICES
+    
+    def clean(self):
+        cleaned_data = super().clean()
+        
+        if not cleaned_data.get('confirm_action'):
+            raise ValidationError('You must confirm the bulk operation.')
+        
+        return cleaned_data
+
+# =====================================
+# SPECIALIZED FORM MIXINS
+# =====================================
+
+class PricingFieldsMixin:
+    """Mixin for forms that include pricing fields"""
+    
+    def add_pricing_fields(self):
+        """Add common pricing fields"""
+        self.fields['cost_price'] = forms.DecimalField(
+            max_digits=10, 
+            decimal_places=2,
+            widget=forms.NumberInput(attrs={
+                'class': 'form-control',
+                'step': '0.01',
+                'min': '0'
+            })
+        )
+        
+        self.fields['selling_price'] = forms.DecimalField(
+            max_digits=10, 
+            decimal_places=2,
+            required=False,
+            widget=forms.NumberInput(attrs={
+                'class': 'form-control',
+                'step': '0.01',
+                'min': '0'
+            })
+        )
+
+class StockFieldsMixin:
+    """Mixin for forms that include stock-related fields"""
+    
+    def add_stock_fields(self):
+        """Add common stock fields"""
+        self.fields['current_stock'] = forms.IntegerField(
+            min_value=0,
+            widget=forms.NumberInput(attrs={
+                'class': 'form-control',
+                'min': '0'
+            })
+        )
+        
+        self.fields['reorder_level'] = forms.IntegerField(
+            min_value=0,
+            widget=forms.NumberInput(attrs={
+                'class': 'form-control',
+                'min': '0'
+            })
+        )
+
+class ContactFieldsMixin:
+    """Mixin for forms that include contact information"""
+    
+    def add_contact_fields(self):
+        """Add common contact fields"""
+        self.fields['email'] = forms.EmailField(
+            required=False,
+            widget=forms.EmailInput(attrs={
+                'class': 'form-control',
+                'placeholder': 'email@example.com'
+            })
+        )
+        
+        self.fields['phone'] = forms.CharField(
+            max_length=20,
+            required=False,
+            widget=forms.TextInput(attrs={
+                'class': 'form-control',
+                'placeholder': '+1234567890'
+            })
+        )
+        
+        self.fields['website'] = forms.URLField(
+            required=False,
+            widget=forms.URLInput(attrs={
+                'class': 'form-control',
+                'placeholder': 'https://example.com'
+            })
+        )
+
+# =====================================
+# UTILITY FUNCTIONS FOR FORMS
+# =====================================
+
+def get_active_choices(model_class, empty_label="All"):
+    """Get choices for active records of a model"""
+    queryset = model_class.objects.filter(is_active=True).order_by('name')
+    choices = [('', empty_label)]
+    choices.extend([(obj.pk, str(obj)) for obj in queryset])
+    return choices
+
+def validate_unique_field(instance, field_name, value, error_message=None):
+    """Validate field uniqueness across model instances"""
+    if not value:
+        return value
+    
+    queryset = instance.__class__.objects.filter(**{f"{field_name}__iexact": value})
+    if instance.pk:
+        queryset = queryset.exclude(pk=instance.pk)
+    
+    if queryset.exists():
+        error_message = error_message or f"A record with this {field_name} already exists."
+        raise ValidationError(error_message)
+    
+    return value
+
+def clean_website_url(url):
+    """Standardize website URL format"""
+    if url and not url.startswith(('http://', 'https://')):
+        return f'https://{url}'
+    return url
+
+# =====================================
 # DYNAMIC ATTRIBUTE FORMS
 # =====================================
 
@@ -403,79 +668,29 @@ class AjaxResponseMixin:
 # CATEGORY MANAGEMENT FORMS
 # =====================================
 
-class CategoryForm(InventoryBaseForm):
-    """
-    Category creation and editing form with hierarchical support.
-    
-    Handles product category management with parent-child relationships
-    and intelligent validation to prevent circular references.
-    """
+class CategoryForm(EntityManagementForm):
+    """Category creation and editing form with hierarchical support"""
     
     class Meta:
         model = Category
-        fields = [
-            'name', 'slug', 'parent', 'description',
-            'default_markup_percentage', 'default_reorder_level',
-            'display_order', 'is_active'
-        ]
-        widgets = {
-            'description': forms.Textarea(attrs={'rows': 3}),
-            'default_markup_percentage': forms.NumberInput(attrs={
-                'step': '0.01', 'min': '0', 'max': '1000'
-            }),
-            'default_reorder_level': forms.NumberInput(attrs={
-                'min': '0', 'max': '10000'
-            }),
-            'display_order': forms.NumberInput(attrs={
-                'min': '0', 'max': '999'
-            })
-        }
+        fields = ['name', 'description', 'parent', 'is_active']
     
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-        
-        # Prevent selecting self as parent for existing categories
-        if self.instance and self.instance.pk:
-            self.fields['parent'].queryset = Category.objects.exclude(
-                Q(pk=self.instance.pk) | Q(parent=self.instance)
-            )
-        
-        # Add helpful help texts
-        self.fields['slug'].help_text = 'URL-friendly version of the name (auto-generated if left blank)'
-        self.fields['default_markup_percentage'].help_text = 'Default profit margin for products in this category'
-        self.fields['default_reorder_level'].help_text = 'Default minimum stock level for products'
-    
-    def clean_slug(self):
-        """Auto-generate slug if not provided"""
-        slug = self.cleaned_data.get('slug')
-        name = self.cleaned_data.get('name')
-        
-        if not slug and name:
-            from django.utils.text import slugify
-            slug = slugify(name)
-        
-        # Ensure slug is unique
-        if slug:
-            existing = Category.objects.filter(slug=slug)
-            if self.instance.pk:
-                existing = existing.exclude(pk=self.instance.pk)
-            
-            if existing.exists():
-                raise ValidationError('A category with this slug already exists.')
-        
-        return slug
+    parent = forms.ModelChoiceField(
+        queryset=Category.objects.filter(is_active=True),
+        required=False,
+        empty_label='No Parent (Top Level)',
+        widget=forms.Select(attrs={'class': 'form-select'})
+    )
     
     def clean_parent(self):
         """Prevent circular references in category hierarchy"""
         parent = self.cleaned_data.get('parent')
         
         if parent and self.instance.pk:
-            # Check if the selected parent would create a circular reference
             if self._would_create_circular_reference(parent):
                 raise ValidationError(
                     'Cannot set this parent as it would create a circular reference.'
                 )
-        
         return parent
     
     def _would_create_circular_reference(self, potential_parent):
@@ -487,230 +702,104 @@ class CategoryForm(InventoryBaseForm):
             current = current.parent
         return False
 
-class CategoryBulkUpdateForm(forms.Form):
-    """
-    Bulk update form for category management.
+class BrandForm(EntityManagementForm):
+    """Brand creation and editing form"""
     
-    Allows updating multiple categories at once for efficiency.
-    """
-    
-    ACTION_CHOICES = [
-        ('update_markup', 'Update Default Markup'),
-        ('update_reorder_level', 'Update Default Reorder Level'),
-        ('activate', 'Activate Categories'),
-        ('deactivate', 'Deactivate Categories'),
-    ]
-    
-    categories = forms.ModelMultipleChoiceField(
-        queryset=Category.objects.all(),
-        widget=forms.CheckboxSelectMultiple,
-        required=True
-    )
-    action = forms.ChoiceField(choices=ACTION_CHOICES, required=True)
-    new_markup_percentage = forms.DecimalField(
-        max_digits=5, decimal_places=2, required=False,
-        widget=forms.NumberInput(attrs={'step': '0.01', 'min': '0'})
-    )
-    new_reorder_level = forms.IntegerField(
-        min_value=0, required=False,
-        widget=forms.NumberInput(attrs={'min': '0'})
-    )
-    
-    def clean(self):
-        cleaned_data = super().clean()
-        action = cleaned_data.get('action')
-        
-        if action == 'update_markup' and not cleaned_data.get('new_markup_percentage'):
-            raise ValidationError('Markup percentage is required for markup updates.')
-        
-        if action == 'update_reorder_level' and not cleaned_data.get('new_reorder_level'):
-            raise ValidationError('Reorder level is required for reorder level updates.')
-        
-        return cleaned_data
+    class Meta:
+        model = Brand
+        fields = ['name', 'description', 'is_active']
 
 # =====================================
 # SUPPLIER MANAGEMENT FORMS
 # =====================================
 
-class SupplierForm(InventoryBaseForm):
-    """
-    Comprehensive supplier management form.
-    
-    Handles all aspects of supplier relationship management with
-    validation for business terms and contact information.
-    """
+class SupplierForm(EntityManagementForm, ContactFieldsMixin):
+    """Comprehensive supplier management form"""
     
     class Meta:
         model = Supplier
         fields = [
-            'name', 'supplier_code', 'supplier_type', 'contact_person',
-            'email', 'phone', 'whatsapp', 'website',
-            'address_line_1', 'address_line_2', 'city', 'state_province',
-            'postal_code', 'country',
-            'payment_terms', 'currency', 'minimum_order_value',
-            'typical_lead_time_days', 'reliability_rating',
-            'preferred_shipping_method', 'rating',
-            'is_active', 'notes'
+            'name', 'supplier_code', 'description', 'supplier_type',
+            'email', 'phone', 'website', 'address', 'country',
+            'currency', 'payment_terms', 'lead_time_days',
+            'minimum_order_value', 'is_preferred', 'is_active'
         ]
-        widgets = {
-            'reliability_rating': forms.NumberInput(attrs={
-                'step': '0.1', 'min': '1', 'max': '10'
-            }),
-            'minimum_order_value': forms.NumberInput(attrs={
-                'step': '0.01', 'min': '0'
-            }),
-            'typical_lead_time_days': forms.NumberInput(attrs={
-                'min': '1', 'max': '365'
-            }),
-            'rating': forms.NumberInput(attrs={
-                'min': '1', 'max': '5'
-            }),
-            'notes': forms.Textarea(attrs={'rows': 4})
-        }
     
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
+        self.add_contact_fields()
         
-        # Make certain fields required for better data quality
-        self.fields['contact_person'].required = True
-        self.fields['phone'].required = True
-        self.fields['address_line_1'].required = True
-        self.fields['city'].required = True
-        self.fields['country'].required = True
+        # Customize specific fields
+        self.fields['supplier_code'].widget.attrs.update({
+            'placeholder': 'Unique supplier code (auto-generated if empty)'
+        })
         
-        # Add help texts
-        self.fields['supplier_code'].help_text = 'Unique identifier for this supplier'
-        self.fields['reliability_rating'].help_text = 'Rate from 1-10 based on delivery performance'
-        self.fields['typical_lead_time_days'].help_text = 'Typical lead time in days'
-        self.fields['rating'].help_text = 'Supplier rating (1-5 stars)'
+        self.fields['payment_terms'].widget.attrs.update({
+            'placeholder': 'e.g., Net 30, COD, etc.'
+        })
         
+        self.fields['lead_time_days'].widget.attrs.update({
+            'min': '0', 'max': '365'
+        })
+    
     def clean_supplier_code(self):
-        """Ensure supplier code is unique"""
+        """Generate unique supplier code if not provided"""
         code = self.cleaned_data.get('supplier_code')
         
-        if code:
-            existing = Supplier.objects.filter(supplier_code=code)
-            if self.instance.pk:
-                existing = existing.exclude(pk=self.instance.pk)
+        if not code:
+            # Auto-generate from name
+            name = self.cleaned_data.get('name', '')
+            code = ''.join(word[:3].upper() for word in name.split()[:2])
             
-            if existing.exists():
-                raise ValidationError('A supplier with this code already exists.')
+            # Ensure uniqueness
+            base_code = code
+            counter = 1
+            while Supplier.objects.filter(supplier_code=code).exclude(
+                pk=self.instance.pk if self.instance else None
+            ).exists():
+                code = f"{base_code}{counter:02d}"
+                counter += 1
         
-        return code
+        return validate_unique_field(
+            self.instance, 'supplier_code', code,
+            'A supplier with this code already exists.'
+        )
     
     def clean_email(self):
         """Validate email format and uniqueness"""
         email = self.cleaned_data.get('email')
-        
         if email:
-            # Check for uniqueness
-            existing = Supplier.objects.filter(email=email)
-            if self.instance.pk:
-                existing = existing.exclude(pk=self.instance.pk)
-            
-            if existing.exists():
-                raise ValidationError('A supplier with this email already exists.')
-        
+            return validate_unique_field(
+                self.instance, 'email', email,
+                'A supplier with this email already exists.'
+            )
         return email
     
     def clean_website(self):
         """Ensure website URL is properly formatted"""
-        website = self.cleaned_data.get('website')
-        
-        if website and not website.startswith(('http://', 'https://')):
-            website = 'https://' + website
-        
-        return website
-
-class SupplierSearchForm(forms.Form):
-    """
-    Advanced supplier search and filtering form.
-    
-    Provides multiple search criteria for finding suppliers efficiently.
-    """
-    
-    search = forms.CharField(
-        max_length=100, required=False,
-        widget=forms.TextInput(attrs={
-            'placeholder': 'Search by name, code, or contact person...'
-        })
-    )
-    supplier_type = forms.ChoiceField(
-        choices=[('', 'All Types')] + list(Supplier.SUPPLIER_TYPES),
-        required=False
-    )
-    country = forms.CharField(max_length=100, required=False)
-    currency = forms.ChoiceField(
-        choices=[('', 'All Currencies')] + list(Supplier.CURRENCY_CHOICES),
-        required=False
-    )
-    is_active = forms.ChoiceField(
-        choices=[('', 'All'), ('true', 'Active'), ('false', 'Inactive')],
-        required=False
-    )
-    is_preferred = forms.ChoiceField(
-        choices=[('', 'All'), ('true', 'Preferred'), ('false', 'Standard')],
-        required=False
-    )
-    min_rating = forms.DecimalField(
-        max_digits=3, decimal_places=2, required=False,
-        widget=forms.NumberInput(attrs={'step': '0.1', 'min': '1', 'max': '10'})
-    )
+        return clean_website_url(self.cleaned_data.get('website'))
 
 # =====================================
 # LOCATION MANAGEMENT FORMS
 # =====================================
 
-class LocationForm(InventoryBaseForm):
-    """
-    Location management form for multi-location inventory.
-    
-    Handles storage location configuration with capacity management
-    and operational settings.
-    """
+class LocationForm(EntityManagementForm, ContactFieldsMixin):
+    """Location management form for multi-location inventory"""
     
     class Meta:
         model = Location
         fields = [
-            'name', 'location_code', 'location_type', 'address',
-            'contact_person', 'phone', 'max_capacity',
-            'is_active', 'is_sellable', 'is_default'
+            'name', 'description', 'location_type', 'address',
+            'phone', 'email', 'manager_name', 'is_active'
         ]
-        widgets = {
-            'address': forms.Textarea(attrs={'rows': 3}),
-            'max_capacity': forms.NumberInput(attrs={'min': '1'})
-        }
     
-    def clean_location_code(self):
-        """Ensure location code is unique"""
-        code = self.cleaned_data.get('location_code')
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.add_contact_fields()
         
-        if code:
-            existing = Location.objects.filter(location_code=code)
-            if self.instance.pk:
-                existing = existing.exclude(pk=self.instance.pk)
-            
-            if existing.exists():
-                raise ValidationError('A location with this code already exists.')
-        
-        return code
-    
-    def clean(self):
-        cleaned_data = super().clean()
-        
-        # If setting as default, ensure only one default location exists
-        if cleaned_data.get('is_default'):
-            existing_default = Location.objects.filter(is_default=True)
-            if self.instance.pk:
-                existing_default = existing_default.exclude(pk=self.instance.pk)
-            
-            if existing_default.exists():
-                self.add_error(
-                    'is_default',
-                    'Another location is already set as default. Only one default location is allowed.'
-                )
-        
-        return cleaned_data
+        self.fields['manager_name'].widget.attrs.update({
+            'placeholder': 'Location manager name'
+        })
 
 # =====================================
 # SEARCH AND FILTER FORMS
@@ -1074,344 +1163,97 @@ class ReorderListGenerationForm(forms.Form):
 # PRODUCT MANAGEMENT FORMS
 # =====================================
 
-class ProductForm(InventoryBaseForm):
-    """
-    Comprehensive product management form.
-    
-    This is the core form for product creation and editing with
-    intelligent validation, cost calculation, and integration
-    with categories and suppliers.
-    """
-    # Custom fields for better UX
-    calculate_costs = forms.BooleanField(
-        required=False,
-        initial=True,
-        widget=forms.CheckboxInput(attrs={'class': 'form-check-input'}),
-        help_text="Automatically calculate total costs and markup"
-    )
-    
-    target_markup_percentage = forms.DecimalField(
-        required=False,
-        max_digits=5,
-        decimal_places=2,
-        widget=forms.NumberInput(attrs={'class': 'form-control', 'step': '0.01'}),
-        help_text="Target markup percentage for automatic pricing"
-    )
+class ProductForm(InventoryBaseForm, PricingFieldsMixin, StockFieldsMixin):
+    """Comprehensive product management form"""
     
     class Meta:
         model = Product
         fields = [
-            # Basic information
-            'name', 'sku', 'barcode', 'description', 'short_description',
-            # Categorization  
-            'category', 'supplier', 'product_type',
-            # Specifications
-            'brand', 'model_number', 'manufacturer_part_number', 'supplier_sku',
-            # Physical attributes
-            'weight', 'dimensions',
-            # Cost structure
-            'cost_price', 'selling_price', 'currency',
-            # Stock management
-            'current_stock', 'reserved_stock', 'available_stock',
-            'reorder_level', 'reorder_quantity', 'max_stock_level',
-            'supplier_lead_time_days', 'supplier_minimum_order_quantity',
-            # Quote settings
-            'quote_description', 'minimum_quote_quantity', 
-            'bulk_discount_threshold', 'bulk_discount_percentage',
-            # Status flags
-            'is_active', 'is_quotable', 'is_serialized', 'requires_quality_check',
-            # SEO
-            'meta_title', 'meta_description'
+            'name', 'sku', 'description', 'category', 'brand', 'supplier',
+            'cost_price', 'selling_price', 'current_stock', 'reorder_level',
+            'unit_of_measure', 'weight', 'dimensions', 'is_active'
         ]
-        widgets = {
-            'name': forms.TextInput(attrs={'class': 'form-control', 'placeholder': 'Descriptive product name'}),
-            'sku': forms.TextInput(attrs={'class': 'form-control', 'placeholder': 'BT-2024-001'}),
-            'barcode': forms.TextInput(attrs={'class': 'form-control', 'placeholder': 'Barcode number'}),
-            'description': forms.Textarea(attrs={'class': 'form-control', 'rows': 4}),
-            'short_description': forms.TextInput(attrs={'class': 'form-control', 'placeholder': 'Brief description'}),
-            'quote_description': forms.Textarea(attrs={'class': 'form-control', 'rows': 3}),
-            
-            # Dropdowns
-            'category': forms.Select(attrs={'class': 'form-control'}),
-            'supplier': forms.Select(attrs={'class': 'form-control'}),
-            'product_type': forms.Select(attrs={'class': 'form-control'}),
-            'currency': forms.Select(attrs={'class': 'form-control'}),
-            
-            # Text fields
-            'brand': forms.TextInput(attrs={'class': 'form-control'}),
-            'model_number': forms.TextInput(attrs={'class': 'form-control'}),
-            'manufacturer_part_number': forms.TextInput(attrs={'class': 'form-control'}),
-            'supplier_sku': forms.TextInput(attrs={'class': 'form-control'}),
-            'dimensions': forms.TextInput(attrs={'class': 'form-control', 'placeholder': 'L x W x H in cm'}),
-            
-            # Numeric fields
-            'weight': forms.NumberInput(attrs={'class': 'form-control', 'step': '0.001'}),
-            'cost_price': forms.NumberInput(attrs={'class': 'form-control', 'step': '0.01'}),
-            'selling_price': forms.NumberInput(attrs={'class': 'form-control', 'step': '0.01'}),
-            
-            # Stock fields
-            'current_stock': forms.NumberInput(attrs={'class': 'form-control', 'min': '0'}),
-            'reserved_stock': forms.NumberInput(attrs={'class': 'form-control', 'min': '0'}),
-            'available_stock': forms.NumberInput(attrs={'class': 'form-control', 'min': '0'}),
-            'reorder_level': forms.NumberInput(attrs={'class': 'form-control', 'min': '0'}),
-            'reorder_quantity': forms.NumberInput(attrs={'class': 'form-control', 'min': '0'}),
-            'max_stock_level': forms.NumberInput(attrs={'class': 'form-control', 'min': '0'}),
-            'supplier_lead_time_days': forms.NumberInput(attrs={'class': 'form-control', 'min': '0'}),
-            'supplier_minimum_order_quantity': forms.NumberInput(attrs={'class': 'form-control', 'min': '0'}),
-            
-            # Quote fields
-            'minimum_quote_quantity': forms.NumberInput(attrs={'class': 'form-control', 'min': '1'}),
-            'bulk_discount_threshold': forms.NumberInput(attrs={'class': 'form-control', 'min': '0'}),
-            'bulk_discount_percentage': forms.NumberInput(attrs={'class': 'form-control', 'step': '0.01'}),
-            
-            # SEO fields
-            'meta_title': forms.TextInput(attrs={'class': 'form-control'}),
-            'meta_description': forms.Textarea(attrs={'class': 'form-control', 'rows': 2}),
-            
-            # Boolean fields
-            'is_active': forms.CheckboxInput(attrs={'class': 'form-check-input'}),
-            'is_quotable': forms.CheckboxInput(attrs={'class': 'form-check-input'}),
-            'is_serialized': forms.CheckboxInput(attrs={'class': 'form-check-input'}),
-            'requires_quality_check': forms.CheckboxInput(attrs={'class': 'form-check-input'})
-        }
     
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
+        self.add_pricing_fields()
+        self.add_stock_fields()
         
-        # Set up currency choices (matching your existing choices)
-        CURRENCY_CHOICES = [
-            ('USD', 'US Dollar'),
-            ('ZWG', 'Zimbabwe Gold'),
-            ('ZAR', 'South African Rand'),
-            ('EUR', 'Euro'),
-            ('GBP', 'British Pound'),
-        ]
-        self.fields['currency'].choices = CURRENCY_CHOICES
+        # Customize specific fields
+        self.fields['sku'].widget.attrs.update({
+            'placeholder': 'Unique product code (auto-generated if empty)'
+        })
         
-        # Make key fields required
-        self.fields['category'].required = True
-        self.fields['supplier'].required = True
-        self.fields['cost_price'].required = True
-        self.fields['selling_price'].required = True
-        
-        # Add help texts
-        self.fields['sku'].help_text = 'Unique product identifier'
-        self.fields['weight'].help_text = 'Weight in kilograms'
-        self.fields['reorder_level'].help_text = 'Minimum stock level before reordering'
-        self.fields['available_stock'].help_text = 'Calculated automatically (current - reserved)'
-        self.fields['quote_description'].help_text = 'Different description for quotes (optional)'
-        self.fields['bulk_discount_percentage'].help_text = 'Discount % for bulk orders'
+        self.fields['dimensions'].widget.attrs.update({
+            'placeholder': 'L x W x H (optional)'
+        })
     
     def clean_sku(self):
-        """Ensure SKU is unique"""
+        """Generate unique SKU if not provided"""
         sku = self.cleaned_data.get('sku')
         
-        if sku:
-            existing = Product.objects.filter(sku=sku)
-            if self.instance.pk:
-                existing = existing.exclude(pk=self.instance.pk)
+        if not sku:
+            # Auto-generate from name and category
+            name = self.cleaned_data.get('name', '')
+            category = self.cleaned_data.get('category')
             
-            if existing.exists():
-                raise ValidationError('A product with this SKU already exists.')
+            if category:
+                sku = f"{category.name[:3].upper()}-{name[:6].upper()}"
+            else:
+                sku = name[:10].upper()
+            
+            # Remove spaces and special characters
+            sku = ''.join(c for c in sku if c.isalnum() or c == '-')
+            
+            # Ensure uniqueness
+            base_sku = sku
+            counter = 1
+            while Product.objects.filter(sku=sku).exclude(
+                pk=self.instance.pk if self.instance else None
+            ).exists():
+                sku = f"{base_sku}-{counter:03d}"
+                counter += 1
         
-        return sku
-    
-    def clean(self):
-        """Additional validation"""
-        cleaned_data = super().clean()
-        cost_price = cleaned_data.get('cost_price')
-        selling_price = cleaned_data.get('selling_price')
-        current_stock = cleaned_data.get('current_stock')
-        reserved_stock = cleaned_data.get('reserved_stock')
-        bulk_discount_threshold = cleaned_data.get('bulk_discount_threshold')
-        bulk_discount_percentage = cleaned_data.get('bulk_discount_percentage')
-        
-        # Validate pricing
-        if cost_price and selling_price:
-            if selling_price < cost_price:
-                self.add_error('selling_price', 'Selling price should not be less than cost price.')
-        
-        # Validate stock levels
-        if current_stock is not None and reserved_stock is not None:
-            if reserved_stock > current_stock:
-                self.add_error('reserved_stock', 'Reserved stock cannot exceed current stock.')
-                
-            # Auto-calculate available stock
-            cleaned_data['available_stock'] = current_stock - reserved_stock
-        
-        # Validate bulk discount
-        if bulk_discount_threshold and bulk_discount_percentage:
-            if bulk_discount_percentage < 0 or bulk_discount_percentage > 100:
-                self.add_error('bulk_discount_percentage', 'Discount percentage must be between 0 and 100.')
-        
-        return cleaned_data
-
-class ProductBulkUpdateForm(forms.Form):
-    """
-    Bulk update form for product management.
-    
-    Allows efficient bulk operations on multiple products.
-    """
-    
-    ACTION_CHOICES = [
-        ('update_prices', 'Update Prices'),
-        ('apply_markup', 'Apply Markup Percentage'),
-        ('update_supplier', 'Update Supplier'),
-        ('update_category', 'Update Category'),
-        ('activate', 'Activate Products'),
-        ('deactivate', 'Deactivate Products'),
-    ]
-    
-    products = forms.ModelMultipleChoiceField(
-        queryset=Product.objects.all(),
-        widget=forms.CheckboxSelectMultiple,
-        required=True
-    )
-    action = forms.ChoiceField(choices=ACTION_CHOICES, required=True)
-    
-    # Price update fields
-    cost_price_adjustment = forms.DecimalField(
-        max_digits=10, decimal_places=2, required=False,
-        help_text='Amount to add/subtract from cost price'
-    )
-    selling_price_adjustment = forms.DecimalField(
-        max_digits=10, decimal_places=2, required=False,
-        help_text='Amount to add/subtract from selling price'
-    )
-    markup_percentage = forms.DecimalField(
-        max_digits=5, decimal_places=2, required=False,
-        help_text='Markup percentage to apply to cost price'
-    )
-    
-    # Update fields
-    new_supplier = forms.ModelChoiceField(
-        queryset=Supplier.objects.filter(is_active=True),
-        required=False
-    )
-    new_category = forms.ModelChoiceField(
-        queryset=Category.objects.filter(is_active=True),
-        required=False
-    )
+        return validate_unique_field(
+            self.instance, 'sku', sku,
+            'A product with this SKU already exists.'
+        )
 
 # =====================================
 # STOCK MANAGEMENT FORMS
 # =====================================
 
-class StockAdjustmentForm(forms.Form):
-    """
-    Stock adjustment form for manual inventory changes.
+class StockAdjustmentForm(InventoryBaseForm):
+    """Stock adjustment form with validation"""
     
-    Handles positive and negative stock adjustments with
-    proper validation and audit trail creation.
-    """
-    
-    ADJUSTMENT_TYPES = [
-        ('set', 'Set to specific amount'),
-        ('add', 'Add to current stock'),
-        ('subtract', 'Subtract from current stock'),
-        ('transfer', 'Transfer between locations'),
-    ]
-    
-    REASON_CHOICES = [
-        ('stock_take', 'Stock Take Adjustment'),
-        ('damage', 'Damaged Goods'),
-        ('theft', 'Theft/Loss'),
-        ('customer_return', 'Customer Return'),
-        ('supplier_return', 'Return to Supplier'),
-        ('promotion', 'Promotional Use'),
-        ('sample', 'Sample/Demo'),
-        ('correction', 'Data Correction'),
-        ('other', 'Other'),
-    ]
-    
-    product = forms.ModelChoiceField(
-        queryset=Product.objects.filter(is_active=True),
-        widget=forms.Select(attrs={'class': 'form-control'})
-    )
-    storage_bin = forms.ModelChoiceField(
-            queryset=StorageBin.objects.filter(is_active=True),
-            required=False,
-            empty_label="No specific bin",
-            widget=forms.Select(attrs={'class': 'form-control'})
-    )
     adjustment_type = forms.ChoiceField(
-        choices=ADJUSTMENT_TYPES,
-        widget=forms.RadioSelect(attrs={'class': 'form-check-input'})
+        choices=[
+            ('increase', 'Increase Stock'),
+            ('decrease', 'Decrease Stock'),
+            ('set_to', 'Set Stock To')
+        ],
+        widget=forms.Select(attrs={'class': 'form-select'})
     )
+    
     quantity = forms.IntegerField(
-        min_value=0,
-        widget=forms.NumberInput(attrs={'class': 'form-control', 'min': '0'})
-    )
-    location = forms.ModelChoiceField(
-        queryset=Location.objects.filter(is_active=True),
-        widget=forms.Select(attrs={'class': 'form-control'})
-    )    
-    # For transfers
-    transfer_to_location = forms.ModelChoiceField(
-        queryset=Location.objects.filter(is_active=True),
-        required=False,
-        widget=forms.Select(attrs={'class': 'form-control'}),
-        help_text="Required for transfer adjustments"
+        min_value=1,
+        widget=forms.NumberInput(attrs={
+            'class': 'form-control',
+            'min': '1'
+        })
     )
     
-    transfer_to_bin = forms.ModelChoiceField(
-        queryset=StorageBin.objects.filter(is_active=True),
-        required=False,
-        empty_label="No specific bin",
-        widget=forms.Select(attrs={'class': 'form-control'})
+    reason = forms.CharField(
+        widget=forms.Textarea(attrs={
+            'class': 'form-control',
+            'rows': 3,
+            'placeholder': 'Reason for adjustment...'
+        })
     )
     
-    reason = forms.ChoiceField(
-        choices=REASON_CHOICES,
-        widget=forms.Select(attrs={'class': 'form-control'})
-    )
-    
-    notes = forms.CharField(
-        max_length=500,
-        required=False,
-        widget=forms.Textarea(attrs={'class': 'form-control', 'rows': 3}),
-        help_text="Additional notes about this adjustment"
-    )
-    
-    reference_document = forms.CharField(
-        max_length=100,
-        required=False,
-        widget=forms.TextInput(attrs={'class': 'form-control', 'placeholder': 'PO, Invoice, Stock Take #'}),
-        help_text="Reference document number"
-    )
-    
-    def __init__(self, *args, **kwargs):
-        self.user = kwargs.pop('user', None)
-        super().__init__(*args, **kwargs)
-        
-        # Set default location
-        default_location = Location.objects.filter(is_default=True).first()
-        if default_location:
-            self.fields['location'].initial = default_location
-    
-    def clean(self):
-        cleaned_data = super().clean()
-        
-        product = cleaned_data.get('product')
-        adjustment_type = cleaned_data.get('adjustment_type')
-        location = cleaned_data.get('location')
-        quantity = cleaned_data.get('quantity')
-        
-        # Validate transfer fields
-        if adjustment_type == 'transfer':
-            transfer_to = cleaned_data.get('transfer_to_location')
-            if not transfer_to:
-                self.add_error('transfer_to_location', 'Transfer destination is required')
-            elif transfer_to == location:
-                self.add_error('transfer_to_location', 'Cannot transfer to the same location')
-        
-        # Validate sufficient stock for subtract operations
-        if adjustment_type == 'subtract' and product and location and quantity:
-            current_stock = product.get_stock_at_location(location)
-            if quantity > current_stock:
-                self.add_error('quantity', f'Cannot subtract {quantity} from current stock of {current_stock}')
-        
-        return cleaned_data
+    class Meta:
+        model = StockMovement
+        fields = ['adjustment_type', 'quantity', 'reason']
 
 class StockTransferForm(forms.Form):
     """
@@ -1575,14 +1417,6 @@ class PurchaseOrderItemForm(forms.ModelForm):
             except Product.DoesNotExist:
                 pass
 
-# PurchaseOrderItemFormSet for managing multiple items
-from django.forms import formset_factory
-PurchaseOrderItemFormSet = formset_factory(
-    PurchaseOrderItemForm,
-    extra=1,
-    can_delete=True
-)
-
 # =====================================
 # STOCK TAKE FORMS
 # =====================================
@@ -1657,29 +1491,25 @@ class StockTakeItemForm(forms.ModelForm):
 # SEARCH AND FILTER FORMS
 # =====================================
 
-class ProductSearchForm(forms.Form):
-    """
-    Advanced product search form with multiple criteria.
+class ProductSearchForm(SearchFormBase):
+    """Advanced product search form"""
     
-    Provides comprehensive search and filtering capabilities
-    for finding products efficiently.
-    """
+    search_model_name = 'products'
     
-    search = forms.CharField(
-        max_length=100, required=False,
-        widget=forms.TextInput(attrs={
-            'placeholder': 'Search by name, SKU, or barcode...',
-            'class': 'form-control'
-        })
-    )
     category = forms.ModelChoiceField(
         queryset=Category.objects.filter(is_active=True),
-        required=False, empty_label='All Categories'
+        required=False,
+        empty_label='All Categories',
+        widget=forms.Select(attrs={'class': 'form-select'})
     )
+    
     supplier = forms.ModelChoiceField(
         queryset=Supplier.objects.filter(is_active=True),
-        required=False, empty_label='All Suppliers'
+        required=False,
+        empty_label='All Suppliers',
+        widget=forms.Select(attrs={'class': 'form-select'})
     )
+    
     stock_status = forms.ChoiceField(
         choices=[
             ('', 'All'),
@@ -1687,19 +1517,53 @@ class ProductSearchForm(forms.Form):
             ('low_stock', 'Low Stock'),
             ('out_of_stock', 'Out of Stock')
         ],
-        required=False
+        required=False,
+        widget=forms.Select(attrs={'class': 'form-select'})
     )
-    is_active = forms.ChoiceField(
-        choices=[('', 'All'), ('true', 'Active'), ('false', 'Inactive')],
-        required=False
-    )
+    
     min_price = forms.DecimalField(
         max_digits=10, decimal_places=2, required=False,
-        widget=forms.NumberInput(attrs={'step': '0.01', 'min': '0'})
+        widget=forms.NumberInput(attrs={
+            'class': 'form-control',
+            'step': '0.01',
+            'min': '0',
+            'placeholder': 'Min price'
+        })
     )
+    
     max_price = forms.DecimalField(
         max_digits=10, decimal_places=2, required=False,
-        widget=forms.NumberInput(attrs={'step': '0.01', 'min': '0'})
+        widget=forms.NumberInput(attrs={
+            'class': 'form-control',
+            'step': '0.01',
+            'min': '0',
+            'placeholder': 'Max price'
+        })
+    )
+
+class SupplierSearchForm(SearchFormBase):
+    """Advanced supplier search form"""
+    
+    search_model_name = 'suppliers'
+    
+    supplier_type = forms.ChoiceField(
+        choices=[('', 'All Types')] + list(Supplier.SUPPLIER_TYPES) if hasattr(Supplier, 'SUPPLIER_TYPES') else [],
+        required=False,
+        widget=forms.Select(attrs={'class': 'form-select'})
+    )
+    
+    country = forms.CharField(
+        max_length=100, required=False,
+        widget=forms.TextInput(attrs={
+            'class': 'form-control',
+            'placeholder': 'Country'
+        })
+    )
+    
+    is_preferred = forms.ChoiceField(
+        choices=[('', 'All'), ('true', 'Preferred'), ('false', 'Standard')],
+        required=False,
+        widget=forms.Select(attrs={'class': 'form-select'})
     )
 
 class InventoryReportForm(forms.Form):
@@ -1762,3 +1626,103 @@ class InventoryReportForm(forms.Form):
         required=False,
         label='Group results by category'
     )
+
+# =====================================
+# BULK OPERATION FORMS
+# =====================================
+
+class CategoryBulkUpdateForm(BulkOperationForm):
+    """Bulk update form for categories"""
+    
+    ACTION_CHOICES = [
+        ('update_markup', 'Update Default Markup'),
+        ('activate', 'Activate Categories'),
+        ('deactivate', 'Deactivate Categories'),
+    ]
+    
+    categories = forms.ModelMultipleChoiceField(
+        queryset=Category.objects.all(),
+        widget=forms.CheckboxSelectMultiple(attrs={'class': 'form-check-input'}),
+        required=True
+    )
+    
+    new_markup_percentage = forms.DecimalField(
+        max_digits=5, decimal_places=2, required=False,
+        widget=forms.NumberInput(attrs={
+            'class': 'form-control',
+            'step': '0.01',
+            'min': '0'
+        })
+    )
+    
+    def clean(self):
+        cleaned_data = super().clean()
+        action = cleaned_data.get('action')
+        
+        if action == 'update_markup' and not cleaned_data.get('new_markup_percentage'):
+            raise ValidationError('Markup percentage is required for markup updates.')
+        
+        return cleaned_data
+
+class ProductBulkUpdateForm(BulkOperationForm):
+    """Bulk update form for products"""
+    
+    ACTION_CHOICES = [
+        ('update_prices', 'Update Prices'),
+        ('update_category', 'Update Category'),
+        ('update_supplier', 'Update Supplier'),
+        ('activate', 'Activate Products'),
+        ('deactivate', 'Deactivate Products'),
+    ]
+    
+    products = forms.ModelMultipleChoiceField(
+        queryset=Product.objects.all(),
+        widget=forms.CheckboxSelectMultiple(attrs={'class': 'form-check-input'}),
+        required=True
+    )
+    
+    price_adjustment_type = forms.ChoiceField(
+        choices=[
+            ('percentage', 'Percentage Increase/Decrease'),
+            ('fixed_amount', 'Fixed Amount Increase/Decrease'),
+            ('set_price', 'Set Fixed Price')
+        ],
+        required=False,
+        widget=forms.Select(attrs={'class': 'form-select'})
+    )
+    
+    price_adjustment_value = forms.DecimalField(
+        max_digits=10, decimal_places=2, required=False,
+        widget=forms.NumberInput(attrs={
+            'class': 'form-control',
+            'step': '0.01'
+        })
+    )
+    
+    new_category = forms.ModelChoiceField(
+        queryset=Category.objects.filter(is_active=True),
+        required=False,
+        widget=forms.Select(attrs={'class': 'form-select'})
+    )
+    
+    new_supplier = forms.ModelChoiceField(
+        queryset=Supplier.objects.filter(is_active=True),
+        required=False,
+        widget=forms.Select(attrs={'class': 'form-select'})
+    )
+    
+    def clean(self):
+        cleaned_data = super().clean()
+        action = cleaned_data.get('action')
+        
+        if action == 'update_prices':
+            if not cleaned_data.get('price_adjustment_type') or not cleaned_data.get('price_adjustment_value'):
+                raise ValidationError('Price adjustment type and value are required for price updates.')
+        
+        elif action == 'update_category' and not cleaned_data.get('new_category'):
+            raise ValidationError('New category is required for category updates.')
+        
+        elif action == 'update_supplier' and not cleaned_data.get('new_supplier'):
+            raise ValidationError('New supplier is required for supplier updates.')
+        
+        return cleaned_data

@@ -318,19 +318,15 @@ class BarcodeManager:
     """
     
     @staticmethod
-    def generate_qr_code(data: Union[str, Dict], size: int = 10) -> str:
-        """
-        Generate QR code and return as base64 string
-        
-        Args:
-            data: Data to encode (string or dictionary)
-            size: QR code size (box size)
-            
-        Returns:
-            Base64 encoded PNG image
-        """
+    def generate_qr_code(data, size=10):
+        """Generate QR code and return as base64 string"""
         try:
+            import qrcode
+            from io import BytesIO
+            import base64
+            
             if isinstance(data, dict):
+                import json
                 data = json.dumps(data)
             
             qr = qrcode.QRCode(
@@ -355,19 +351,14 @@ class BarcodeManager:
             return None
     
     @staticmethod
-    def generate_barcode(code: str, code_type: str = 'code128') -> str:
-        """
-        Generate barcode and return as base64 string
-        
-        Args:
-            code: Code to encode
-            code_type: Type of barcode (code128, ean13, etc.)
-            
-        Returns:
-            Base64 encoded PNG image
-        """
+    def generate_barcode(code, code_type='code128'):
+        """Generate barcode and return as base64 string"""
         try:
-            # Generate barcode
+            import barcode
+            from barcode.writer import ImageWriter
+            from io import BytesIO
+            import base64
+            
             barcode_class = barcode.get_barcode_class(code_type)
             barcode_instance = barcode_class(code, writer=ImageWriter())
             
@@ -595,79 +586,99 @@ class StockOptimizer:
                 'suggested_reorder_quantity': product.reorder_quantity,
             }
 
-def calculate_available_stock(product, location=None):
-    """
-    Calculate available stock for a product, optionally at a specific location.
+class StockManager:
+    """Centralized stock management operations"""
     
-    Available stock = Current stock - Reserved stock
-    
-    Args:
-        product: Product instance
-        location: Optional Location instance for location-specific calculation
-        
-    Returns:
-        int: Available stock quantity
-    """
-    try:
+    @staticmethod
+    def calculate_available_stock(product, location=None):
+        """Calculate available stock for a product at specific location or total"""
         if location:
-            from .models import StockLevel
-            stock_level = StockLevel.objects.filter(
-                product=product, location=location
-            ).first()
-            
+            stock_level = product.stock_levels.filter(location=location).first()
             if stock_level:
-                return max(0, stock_level.quantity - stock_level.reserved_quantity)
+                return stock_level.quantity - stock_level.reserved_quantity
             return 0
-        else:
-            return max(0, product.current_stock - product.reserved_stock)
-            
-    except Exception as e:
-        logger.error(f"Error calculating available stock for {product.sku}: {str(e)}")
-        return 0
-
-def calculate_stock_value(products=None, location=None, cost_basis='current'):
-    """
-    Calculate total stock value for products.
+        
+        # Total available across all locations
+        return product.stock_levels.aggregate(
+            available=Sum(F('quantity') - F('reserved_quantity'))
+        )['available'] or 0
     
-    Args:
-        products: QuerySet of products (default: all active products)
-        location: Optional location filter
-        cost_basis: 'current', 'average', or 'fifo' (default: 'current')
+    @staticmethod
+    def get_stock_status(product):
+        """Get stock status for a product"""
+        if not product.is_active:
+            return 'discontinued'
         
-    Returns:
-        Decimal: Total stock value
-    """
-    try:
-        from .models import Product, StockLevel
+        available = StockManager.calculate_available_stock(product)
         
-        if products is None:
-            products = Product.objects.filter(is_active=True)
+        if available <= 0:
+            return 'out_of_stock'
+        elif available <= product.reorder_level:
+            return 'low_stock'
+        else:
+            return 'in_stock'
+    
+    @staticmethod
+    def calculate_stock_value(products_queryset):
+        """Calculate total stock value for a queryset of products"""
+        return products_queryset.aggregate(
+            total_value=Sum(F('current_stock') * F('cost_price'))
+        )['total_value'] or 0
+    
+    @staticmethod
+    def create_stock_movement(product, movement_type, quantity, user=None, **kwargs):
+        """Create a stock movement record"""
+        from .models import StockMovement
         
-        total_value = Decimal('0.00')
-        
-        for product in products:
-            if location:
-                stock_level = StockLevel.objects.filter(
-                    product=product, location=location
-                ).first()
-                quantity = stock_level.quantity if stock_level else 0
-            else:
-                quantity = product.current_stock
-            
-            # For now, use current cost price
-            # In the future, this could be enhanced for FIFO/average costing
-            unit_cost = product.cost_price
-            total_value += quantity * unit_cost
-        
-        return total_value
-        
-    except Exception as e:
-        logger.error(f"Error calculating stock value: {str(e)}")
-        return Decimal('0.00')
+        return StockMovement.objects.create(
+            product=product,
+            movement_type=movement_type,
+            quantity=quantity,
+            user=user,
+            **kwargs
+        )
 
 # =====================================
 # PRICING AND COST UTILITIES
 # =====================================
+
+class PricingCalculator:
+    """Centralized pricing and cost calculations"""
+    
+    @staticmethod
+    def calculate_product_total_cost(product):
+        """Calculate total cost including overheads"""
+        base_cost = product.cost_price or Decimal('0.00')
+        
+        # Add overhead costs
+        overhead_total = Decimal('0.00')
+        overhead_factors = product.category.overhead_factors.filter(is_active=True)
+        
+        for factor in overhead_factors:
+            if factor.calculation_method == 'percentage':
+                overhead_total += base_cost * (factor.factor_value / 100)
+            else:  # fixed_amount
+                overhead_total += factor.factor_value
+        
+        return base_cost + overhead_total
+    
+    @staticmethod
+    def calculate_profit_margin(selling_price, cost_price):
+        """Calculate profit margin percentage"""
+        if cost_price > 0:
+            return ((selling_price - cost_price) / cost_price) * 100
+        return Decimal('0.00')
+    
+    @staticmethod
+    def suggest_selling_price(product, margin_percentage=None):
+        """Suggest selling price based on cost and desired margin"""
+        total_cost = PricingCalculator.calculate_product_total_cost(product)
+        
+        if margin_percentage is None:
+            # Use category default or global default
+            margin_percentage = getattr(product.category, 'default_markup_percentage', 25)
+        
+        return total_cost * (1 + (margin_percentage / 100))
 
 def calculate_selling_price(cost_price, markup_percentage, currency='USD'):
     """
@@ -699,30 +710,6 @@ def calculate_selling_price(cost_price, markup_percentage, currency='USD'):
             
     except Exception as e:
         logger.error(f"Error calculating selling price: {str(e)}")
-        return Decimal('0.00')
-
-def calculate_profit_margin(cost_price, selling_price):
-    """
-    Calculate profit margin percentage.
-    
-    Args:
-        cost_price: Decimal cost price
-        selling_price: Decimal selling price
-        
-    Returns:
-        Decimal: Profit margin percentage
-    """
-    try:
-        if cost_price <= 0:
-            return Decimal('0.00')
-        
-        profit = selling_price - cost_price
-        margin_percentage = (profit / cost_price) * 100
-        
-        return margin_percentage.quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
-        
-    except Exception as e:
-        logger.error(f"Error calculating profit margin: {str(e)}")
         return Decimal('0.00')
 
 def apply_bulk_price_update(products, update_type, value, user=None):
@@ -780,75 +767,9 @@ def apply_bulk_price_update(products, update_type, value, user=None):
         logger.error(f"Error in bulk price update: {str(e)}")
         return 0
 
-
 # =====================================
 # STOCK MOVEMENT UTILITIES
 # =====================================
-
-def create_stock_movement(product, movement_type, quantity, reference, 
-                         from_location=None, to_location=None, user=None, 
-                         unit_cost=None, notes=""):
-    """
-    Create a stock movement record with proper validation and stock updates.
-    
-    Args:
-        product: Product instance
-        movement_type: Type of movement ('in', 'out', 'adjustment', etc.)
-        quantity: Quantity moved (positive for in, negative for out)
-        reference: Reference number or description
-        from_location: Source location (optional)
-        to_location: Destination location (optional)
-        user: User performing the movement
-        unit_cost: Cost per unit (optional)
-        notes: Additional notes
-        
-    Returns:
-        StockMovement: Created movement record
-    """
-    try:
-        from .models import StockMovement
-        
-        with transaction.atomic():
-            # Record current stock before movement
-            previous_stock = product.current_stock
-            
-            # Calculate new stock level
-            new_stock = max(0, previous_stock + quantity)
-            
-            # Create movement record
-            movement = StockMovement.objects.create(
-                product=product,
-                movement_type=movement_type,
-                quantity=quantity,
-                from_location=from_location,
-                to_location=to_location,
-                reference=reference,
-                previous_stock=previous_stock,
-                new_stock=new_stock,
-                unit_cost=unit_cost,
-                total_cost=abs(quantity) * unit_cost if unit_cost else None,
-                notes=notes,
-                created_by=user
-            )
-            
-            # Update product stock
-            product.current_stock = new_stock
-            if movement_type in ['sale', 'out']:
-                product.total_sold = (product.total_sold or 0) + abs(quantity)
-                product.last_sold_date = timezone.now()
-            elif movement_type in ['purchase', 'in']:
-                product.last_restocked_date = timezone.now()
-            
-            product.save()
-            
-            # Update location-specific stock levels
-            update_location_stock_levels(movement)
-            
-            return movement
-            
-    except Exception as e:
-        logger.error(f"Error creating stock movement: {str(e)}")
-        raise ValidationError(f"Failed to create stock movement: {str(e)}")
 
 def update_location_stock_levels(movement):
     """
@@ -950,6 +871,83 @@ def transfer_stock_between_locations(product, from_location, to_location,
 # =====================================
 # IMPORT/EXPORT UTILITIES
 # =====================================
+class ExportManager:
+    """Handle various export operations"""
+    
+    @staticmethod
+    def export_products_to_csv(products_queryset):
+        """Export products to CSV format"""
+        import csv
+        from django.http import HttpResponse
+        
+        response = HttpResponse(content_type='text/csv')
+        response['Content-Disposition'] = 'attachment; filename="products_export.csv"'
+        
+        writer = csv.writer(response)
+        writer.writerow([
+            'SKU', 'Name', 'Category', 'Brand', 'Supplier', 
+            'Cost Price', 'Selling Price', 'Stock', 'Status'
+        ])
+        
+        for product in products_queryset.select_related('category', 'brand', 'supplier'):
+            writer.writerow([
+                product.sku,
+                product.name,
+                product.category.name if product.category else '',
+                product.brand.name if product.brand else '',
+                product.supplier.name if product.supplier else '',
+                float(product.cost_price or 0),
+                float(product.selling_price or 0),
+                product.current_stock,
+                'Active' if product.is_active else 'Inactive'
+            ])
+        
+        return response
+    
+    @staticmethod
+    def generate_stock_valuation_report(products_qs, as_of_date=None):
+        """Generate stock valuation report"""
+        from django.utils import timezone
+        
+        report_data = {
+            'as_of_date': (as_of_date or timezone.now()).date(),
+            'total_products': products_qs.count(),
+            'categories': [],
+            'summary': {}
+        }
+        
+        # Calculate by category
+        from django.db.models import Count
+        categories = Category.objects.filter(
+            products__in=products_qs
+        ).annotate(
+            product_count=Count('products'),
+            total_value=Sum(F('products__current_stock') * F('products__cost_price'))
+        ).order_by('-total_value')
+        
+        total_value = Decimal('0.00')
+        total_items = 0
+        
+        for category in categories:
+            category_data = {
+                'name': category.name,
+                'product_count': category.product_count,
+                'total_value': float(category.total_value or 0)
+            }
+            report_data['categories'].append(category_data)
+            total_value += category.total_value or 0
+        
+        total_items = products_qs.aggregate(
+            total=Sum('current_stock')
+        )['total'] or 0
+        
+        report_data['summary'] = {
+            'total_value': float(total_value),
+            'total_items': total_items,
+            'average_value_per_item': float(total_value / total_items) if total_items > 0 else 0
+        }
+        
+        return report_data
 
 class DataManager:
     """
@@ -1233,131 +1231,83 @@ class IntegrationHelper:
             return []
     
     @staticmethod
-    def check_stock_availability(product_requests: List[Dict]) -> Dict:
-        """
-        Check stock availability for multiple products
+    def check_stock_availability(quote_items):
+        """Check stock availability for quote items"""
+        results = {
+            'available': [],
+            'partially_available': [],
+            'unavailable': []
+        }
         
-        Args:
-            product_requests: List of {'product_id': int, 'quantity': int}
+        for item in quote_items:
+            product_id = item.get('product_id')
+            quantity = item.get('quantity', 1)
             
-        Returns:
-            Availability results
-        """
-        try:
-            from .models import Product
-            
-            results = {
-                'available': [],
-                'partially_available': [],
-                'unavailable': [],
-                'total_value': Decimal('0.00')
-            }
-            
-            for request in product_requests:
-                try:
-                    product = Product.objects.get(
-                        id=request['product_id'],
-                        is_active=True
-                    )
+            try:
+                from .models import Product
+                product = Product.objects.get(id=product_id, is_active=True)
+                available_stock = StockManager.calculate_available_stock(product)
+                
+                item_data = {
+                    'product_id': product_id,
+                    'product_name': product.name,
+                    'requested_quantity': quantity,
+                    'available_quantity': available_stock
+                }
+                
+                if available_stock >= quantity:
+                    results['available'].append(item_data)
+                elif available_stock > 0:
+                    results['partially_available'].append(item_data)
+                else:
+                    results['unavailable'].append(item_data)
                     
-                    requested_qty = request['quantity']
-                    available_qty = product.available_stock
-                    
-                    item_data = {
-                        'product_id': product.id,
-                        'sku': product.sku,
-                        'name': product.name,
-                        'requested_quantity': requested_qty,
-                        'available_quantity': available_qty,
-                        'unit_price': float(product.selling_price),
-                        'lead_time_days': product.supplier_lead_time_days
-                    }
-                    
-                    if available_qty >= requested_qty:
-                        results['available'].append(item_data)
-                        results['total_value'] += Decimal(str(product.selling_price)) * requested_qty
-                    elif available_qty > 0:
-                        results['partially_available'].append(item_data)
-                        results['total_value'] += Decimal(str(product.selling_price)) * available_qty
-                    else:
-                        results['unavailable'].append(item_data)
-                        
-                except Product.DoesNotExist:
-                    results['unavailable'].append({
-                        'product_id': request['product_id'],
-                        'error': 'Product not found'
-                    })
-            
-            results['total_value'] = float(results['total_value'])
-            
-            return results
-            
-        except Exception as e:
-            logger.error(f"Error checking stock availability: {str(e)}")
-            return {'error': str(e)}
+            except Product.DoesNotExist:
+                results['unavailable'].append({
+                    'product_id': product_id,
+                    'error': 'Product not found'
+                })
+        
+        return results
     
     @staticmethod
-    def reserve_stock(reservations: List[Dict], reference: str = None) -> Dict:
-        """
-        Reserve stock for pending orders/quotes
+    def reserve_stock(quote_items, reference=None):
+        """Reserve stock for a quote or order"""
+        reserved_items = []
         
-        Args:
-            reservations: List of {'product_id': int, 'quantity': int}
-            reference: Reference number (quote, order, etc.)
-            
-        Returns:
-            Reservation results
-        """
         try:
-            from .models import Product, ProductStockLevel
-            from django.db import transaction
-            
-            reserved_items = []
-            
             with transaction.atomic():
-                for reservation in reservations:
-                    try:
-                        product = Product.objects.select_for_update().get(
-                            id=reservation['product_id'],
-                            is_active=True
-                        )
+                for item in quote_items:
+                    product_id = item.get('product_id')
+                    quantity = item.get('quantity', 1)
+                    
+                    from .models import Product
+                    product = Product.objects.select_for_update().get(
+                        id=product_id, is_active=True
+                    )
+                    
+                    # Reserve from locations with stock (FIFO)
+                    remaining_to_reserve = quantity
+                    for stock_level in product.stock_levels.filter(quantity__gt=0):
+                        if remaining_to_reserve <= 0:
+                            break
                         
-                        quantity = reservation['quantity']
-                        
-                        if product.available_stock >= quantity:
-                            # Reserve stock
-                            product.reserved_stock += quantity
-                            product.save(update_fields=['reserved_stock'])
-                            
-                            reserved_items.append({
-                                'product_id': product.id,
-                                'sku': product.sku,
-                                'quantity_reserved': quantity,
-                                'reference': reference
-                            })
-                            
-                        else:
-                            return {
-                                'success': False,
-                                'error': f'Insufficient stock for product {product.sku}',
-                                'available': product.available_stock,
-                                'requested': quantity
-                            }
-                            
-                    except Product.DoesNotExist:
-                        return {
-                            'success': False,
-                            'error': f'Product not found: {reservation["product_id"]}'
-                        }
-            
-            return {
-                'success': True,
-                'reserved_items': reserved_items,
-                'reference': reference
-            }
-            
+                        available = stock_level.quantity - stock_level.reserved_quantity
+                        if available > 0:
+                            reserve_qty = min(available, remaining_to_reserve)
+                            stock_level.reserved_quantity += reserve_qty
+                            stock_level.save()
+                            remaining_to_reserve -= reserve_qty
+                    
+                    reserved_items.append({
+                        'product_id': product_id,
+                        'reserved_quantity': quantity - remaining_to_reserve
+                    })
+                
+                return {'success': True, 'reserved_items': reserved_items}
+                
         except Exception as e:
-            logger.error(f"Error reserving stock: {str(e)}")
+            logger.error(f"Stock reservation failed: {str(e)}")
             return {'success': False, 'error': str(e)}
 
 # =====================================
@@ -1368,45 +1318,6 @@ class AnalyticsCalculator:
     """
     Business intelligence and analytics calculations
     """
-    
-    @staticmethod
-    def calculate_inventory_turnover(product, period_days: int = 365) -> Dict:
-        """
-        Calculate inventory turnover ratio
-        
-        Args:
-            product: Product instance
-            period_days: Period for calculation (default: 365 days)
-            
-        Returns:
-            Turnover metrics
-        """
-        try:
-            # Cost of goods sold (estimate)
-            cogs = product.total_sold * product.total_cost_price_usd
-            
-            # Average inventory value
-            avg_inventory_value = product.stock_value_usd
-            
-            # Inventory turnover ratio
-            if avg_inventory_value > 0:
-                turnover_ratio = float(cogs / avg_inventory_value)
-                days_to_turn = period_days / turnover_ratio if turnover_ratio > 0 else 0
-            else:
-                turnover_ratio = 0
-                days_to_turn = 0
-            
-            return {
-                'turnover_ratio': round(turnover_ratio, 2),
-                'days_to_turn': round(days_to_turn, 1),
-                'cogs': float(cogs),
-                'avg_inventory_value': float(avg_inventory_value),
-                'performance': AnalyticsCalculator._evaluate_turnover_performance(turnover_ratio)
-            }
-            
-        except Exception as e:
-            logger.error(f"Error calculating inventory turnover: {str(e)}")
-            return {'error': str(e)}
     
     @staticmethod
     def _evaluate_turnover_performance(turnover_ratio: float) -> str:
@@ -1526,6 +1437,83 @@ class AnalyticsCalculator:
         except Exception as e:
             logger.error(f"Error calculating category performance: {str(e)}")
             return {'error': str(e)}
+
+class InventoryAnalytics:
+    """Analytics and reporting utilities"""
+    
+    @staticmethod
+    def calculate_inventory_turnover(product, period_days=365):
+        """Calculate inventory turnover ratio"""
+        from django.utils import timezone
+        
+        period_start = timezone.now() - timezone.timedelta(days=period_days)
+        
+        # This would integrate with sales data when available
+        # For now, return a placeholder calculation
+        average_inventory = product.current_stock
+        cost_of_goods_sold = Decimal('0.00')  # Placeholder
+        
+        if average_inventory > 0:
+            return cost_of_goods_sold / average_inventory
+        return Decimal('0.00')
+    
+    @staticmethod
+    def get_abc_classification(products_queryset):
+        """Classify products using ABC analysis"""
+        products = list(products_queryset.annotate(
+            stock_value=F('current_stock') * F('cost_price')
+        ).order_by('-stock_value'))
+        
+        total_value = sum(p.stock_value for p in products)
+        
+        if total_value == 0:
+            return {'A': [], 'B': [], 'C': []}
+        
+        cumulative_value = 0
+        classification = {'A': [], 'B': [], 'C': []}
+        
+        for product in products:
+            cumulative_value += product.stock_value
+            percentage = (cumulative_value / total_value) * 100
+            
+            if percentage <= 80:
+                classification['A'].append(product)
+            elif percentage <= 95:
+                classification['B'].append(product)
+            else:
+                classification['C'].append(product)
+        
+        return classification
+    
+    @staticmethod
+    def generate_reorder_recommendations(supplier=None):
+        """Generate reorder recommendations"""
+        from .models import Product
+        
+        products = Product.objects.filter(
+            is_active=True,
+            current_stock__lte=F('reorder_level')
+        )
+        
+        if supplier:
+            products = products.filter(supplier=supplier)
+        
+        recommendations = []
+        for product in products:
+            recommended_qty = max(
+                product.reorder_level * 2 - product.current_stock,
+                product.minimum_order_quantity or 1
+            )
+            
+            recommendations.append({
+                'product': product,
+                'current_stock': product.current_stock,
+                'reorder_level': product.reorder_level,
+                'recommended_quantity': recommended_qty,
+                'estimated_cost': recommended_qty * product.cost_price
+            })
+        
+        return recommendations
 
 # =====================================
 # NOTIFICATION UTILITIES
@@ -1692,75 +1680,57 @@ class MobileDataManager:
             logger.error(f"Error syncing mobile data: {str(e)}")
             return {'error': str(e)}
 
-def get_stock_status(product, location=None):
-    """
-    Wrapper so views can import this. Falls back to Product.stock_status.
-    If a location is provided, compute status from that location's available qty.
-    """
-    try:
-        if location:
-            from .models import StockLevel
-            sl = StockLevel.objects.filter(product=product, location=location).first()
-            qty = sl.available_quantity if sl else 0
-            threshold = product.reorder_level or 0
-            if qty <= 0:
-                return "out_of_stock"
-            if qty <= threshold:
-                return "low_stock"
-            return "in_stock"
-        # default to the model property
-        return getattr(product, "stock_status", "in_stock")
-    except Exception:
-        return getattr(product, "stock_status", "in_stock")
+# =====================================
+# UTILITY FUNCTIONS
+# =====================================
 
-def get_products_for_quote_system(search_term: str = None,
-                                  category=None,
-                                  supplier=None,
-                                  limit: int = 50):
-    """
-    Wrapper that supports optional category/supplier filters expected by views.
-    Returns list[dict] in the same shape used by the quote API.
-    """
+def get_low_stock_products(threshold_multiplier=1.0):
+    """Get products that are at or below reorder level"""
     from .models import Product
-    qs = Product.objects.filter(is_active=True).select_related(
-        'category', 'supplier', 'brand', 'supplier_currency'
-    )
-    if category:
-        qs = qs.filter(category=category)
-    if supplier:
-        qs = qs.filter(supplier=supplier)
-    if search_term:
-        qs = qs.filter(
-            Q(name__icontains=search_term) |
-            Q(sku__icontains=search_term) |
-            Q(manufacturer_part_number__icontains=search_term) |
-            Q(supplier_sku__icontains=search_term)
-        )
-    qs = qs[:max(1, min(limit, 100))]
+    
+    return Product.objects.filter(
+        is_active=True,
+        current_stock__lte=F('reorder_level') * threshold_multiplier
+    ).select_related('category', 'supplier').order_by('current_stock')
 
-    out = []
-    for p in qs:
-        out.append({
-            'id': p.id,
-            'sku': p.sku,
-            'name': p.name,
-            'description': (p.short_description or (p.description or '')[:100]),
-            'category': p.category.name if p.category else '',
-            'brand': p.brand.name if getattr(p, 'brand', None) else '',
-            'supplier': p.supplier.name if p.supplier else '',
-            'cost_price': float(p.total_cost_price_usd),
-            'selling_price': float(p.selling_price or 0),
-            'currency': p.selling_currency.code if p.selling_currency else 'USD',
-            'current_stock': getattr(p, 'total_stock', p.current_stock),
-            'available_stock': getattr(p, 'available_stock', 0),
-            'stock_status': get_stock_status(p),
-            'lead_time_days': getattr(p, 'supplier_lead_time_days', None),
-            'minimum_quantity': getattr(p, 'supplier_minimum_order_quantity', None),
-            'specifications': getattr(p, 'dynamic_attributes', {}),
-            'datasheet_url': getattr(p, 'datasheet_url', ''),
-            'images': getattr(p, 'product_images', []),
-        })
-    return out
+def calculate_days_of_stock(product, daily_usage_rate=None):
+    """Calculate estimated days of stock remaining"""
+    if product.current_stock <= 0:
+        return 0
+    
+    if daily_usage_rate is None:
+        # Estimate based on historical data or use default
+        daily_usage_rate = 1  # Placeholder - would be calculated from historical data
+    
+    if daily_usage_rate > 0:
+        return int(product.current_stock / daily_usage_rate)
+    
+    return float('inf')
+
+def generate_sku(name, category=None, counter=None):
+    """Generate a unique SKU for a product"""
+    base = ""
+    
+    if category:
+        base += category.name[:3].upper()
+    
+    # Add product name part
+    name_part = ''.join(c for c in name.upper() if c.isalnum())[:6]
+    base += name_part
+    
+    if counter:
+        base += f"-{counter:03d}"
+    
+    return base
+
+def validate_stock_movement(product, movement_type, quantity):
+    """Validate if a stock movement is allowed"""
+    if movement_type == 'decrease':
+        available_stock = StockManager.calculate_available_stock(product)
+        if quantity > available_stock:
+            return False, f"Insufficient stock. Available: {available_stock}, Requested: {quantity}"
+    
+    return True, "Valid movement"
 
 def check_stock_availability_for_quote(quote_items: Iterable[dict]) -> dict:
     """
@@ -1802,50 +1772,6 @@ def reserve_stock_for_quote(quote_items: Iterable[dict], quote_reference: str, u
         reqs.append({'product_id': int(pid), 'quantity': int(qty)})
 
     return IntegrationHelper.reserve_stock(reqs, reference=quote_reference)
-
-def calculate_inventory_turnover(product, period_days: int = 365):
-    """
-    Thin wrapper to the AnalyticsCalculator so the symbol exists at module level.
-    """
-    return AnalyticsCalculator.calculate_inventory_turnover(product, period_days)
-
-def generate_stock_valuation_report(products_qs, as_of_date=None) -> dict:
-    """
-    Simple valuation report (sum of current_stock * cost_price) + counts.
-    """
-    agg = products_qs.aggregate(
-        total_value=Sum(F('current_stock') * F('cost_price')),
-        total_items=Sum('current_stock')
-    )
-    return {
-        'as_of': (as_of_date or timezone.now()).isoformat(),
-        'total_value': float(agg.get('total_value') or 0),
-        'total_items': int(agg.get('total_items') or 0),
-        'product_count': products_qs.count(),
-    }
-
-def export_products_to_csv(products_qs) -> HttpResponse:
-    """
-    Minimal CSV export so the import exists for views; returns HttpResponse(csv).
-    """
-    import csv
-    from io import StringIO
-    buffer = StringIO()
-    writer = csv.writer(buffer)
-    writer.writerow(['SKU', 'Name', 'Category', 'Supplier', 'Current Stock', 'Cost Price', 'Selling Price'])
-    for p in products_qs:
-        writer.writerow([
-            p.sku,
-            p.name,
-            p.category.name if p.category else '',
-            p.supplier.name if p.supplier else '',
-            getattr(p, 'total_stock', p.current_stock),
-            float(p.cost_price or 0),
-            float(p.selling_price or 0),
-        ])
-    resp = HttpResponse(buffer.getvalue(), content_type='text/csv')
-    resp['Content-Disposition'] = 'attachment; filename="products.csv"'
-    return resp
 
 def import_products_from_csv(file_obj, user=None) -> dict:
     """
