@@ -83,7 +83,6 @@ class EntityManagementForm(InventoryBaseForm):
     
     class Meta:
         abstract = True
-        fields = ['name', 'description', 'is_active']
     
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -106,14 +105,15 @@ class EntityManagementForm(InventoryBaseForm):
             name = name.strip()
             
             # Check for uniqueness
-            queryset = self._meta.model.objects.filter(name__iexact=name)
-            if self.instance.pk:
-                queryset = queryset.exclude(pk=self.instance.pk)
-            
-            if queryset.exists():
-                raise ValidationError(
-                    f'A {self._meta.model._meta.verbose_name.lower()} with this name already exists.'
-                )
+            if 'name' in self.fields:
+                queryset = self._meta.model.objects.filter(name__iexact=name)
+                if self.instance.pk:
+                    queryset = queryset.exclude(pk=self.instance.pk)
+                
+                if queryset.exists():
+                    raise ValidationError(
+                        f'A {self._meta.model._meta.verbose_name.lower()} with this name already exists.'
+                    )
         
         return name
 
@@ -719,10 +719,11 @@ class SupplierForm(EntityManagementForm, ContactFieldsMixin):
     class Meta:
         model = Supplier
         fields = [
-            'name', 'supplier_code', 'description', 'supplier_type',
-            'email', 'phone', 'website', 'address', 'country',
-            'currency', 'payment_terms', 'lead_time_days',
-            'minimum_order_value', 'is_preferred', 'is_active'
+            'name', 'supplier_code', 'supplier_type','email', 'phone',
+            'website', 'contact_person', 'whatsapp', 'is_preferred',
+            'is_active', 'address_line_1', 'address_line_2', 'city',
+            'state_province', 'postal_code', 'country', 'currency',
+            'payment_terms', 'typical_lead_time_days', 'minimum_order_value',
         ]
     
     def __init__(self, *args, **kwargs):
@@ -738,8 +739,29 @@ class SupplierForm(EntityManagementForm, ContactFieldsMixin):
             'placeholder': 'e.g., Net 30, COD, etc.'
         })
         
-        self.fields['lead_time_days'].widget.attrs.update({
+        self.fields['typical_lead_time_days'].widget.attrs.update({
             'min': '0', 'max': '365'
+        })
+        
+        # Address field customizations
+        self.fields['address_line_1'].widget.attrs.update({
+            'placeholder': 'Street address'
+        })
+        
+        self.fields['address_line_2'].widget.attrs.update({
+            'placeholder': 'Apartment, suite, etc. (optional)'
+        })
+        
+        self.fields['city'].widget.attrs.update({
+            'placeholder': 'City'
+        })
+        
+        self.fields['state_province'].widget.attrs.update({
+            'placeholder': 'State/Province (optional)'
+        })
+        
+        self.fields['postal_code'].widget.attrs.update({
+            'placeholder': 'Postal/ZIP code'
         })
     
     def clean_supplier_code(self):
