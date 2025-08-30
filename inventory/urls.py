@@ -87,13 +87,44 @@ product_patterns = [
 # =====================================
 
 configuration_patterns = [
-    # Standard CRUD patterns with configuration prefix
-    *generate_config_crud_patterns('currencies', 'Currency'),
-    *generate_config_crud_patterns('overhead-factors', 'OverheadFactor'), 
-    *generate_config_crud_patterns('attributes', 'ProductAttribute'),
-    *generate_config_crud_patterns('component-families', 'ComponentFamily'),
-    *generate_config_crud_patterns('locations', 'StorageLocation'),
-    *generate_config_crud_patterns('bins', 'StorageBin'),
+    # Currency management (complete CRUD)
+    path('configuration/currencies/', views.CurrencyListView.as_view(), name='currencies_list'),
+    path('configuration/currencies/<int:pk>/', views.CurrencyDetailView.as_view(), name='currencies_detail'),
+    path('configuration/currencies/create/', views.CurrencyCreateView.as_view(), name='currencies_create'),
+    path('configuration/currencies/<int:pk>/edit/', views.CurrencyUpdateView.as_view(), name='currencies_edit'),
+    path('configuration/currencies/<int:pk>/delete/', views.CurrencyDeleteView.as_view(), name='currencies_delete'),
+    
+    # Overhead factors
+    path('configuration/overhead-factors/', views.OverheadFactorListView.as_view(), name='overhead_factors_list'),
+    path('configuration/overhead-factors/create/', views.OverheadFactorCreateView.as_view(), name='overhead_factors_create'),
+    path('configuration/overhead-factors/<int:pk>/edit/', views.OverheadFactorUpdateView.as_view(), name='overhead_factors_edit'),
+    path('configuration/overhead-factors/<int:pk>/delete/', views.OverheadFactorDeleteView.as_view(), name='overhead_factors_delete'),
+    
+    # Product attributes  
+    path('configuration/attributes/', views.ProductAttributeListView.as_view(), name='attributes_list'),
+    path('configuration/attributes/create/', views.ProductAttributeCreateView.as_view(), name='attributes_create'),
+    path('configuration/attributes/<int:pk>/edit/', views.ProductAttributeUpdateView.as_view(), name='attributes_edit'),
+    path('configuration/attributes/<int:pk>/delete/', views.ProductAttributeDeleteView.as_view(), name='attributes_delete'),
+    
+    # Component families (complete CRUD)
+    path('configuration/component-families/', views.ComponentFamilyListView.as_view(), name='component_families_list'),
+    path('configuration/component-families/<int:pk>/', views.ComponentFamilyDetailView.as_view(), name='component_families_detail'),
+    path('configuration/component-families/create/', views.ComponentFamilyCreateView.as_view(), name='component_families_create'),
+    path('configuration/component-families/<int:pk>/edit/', views.ComponentFamilyUpdateView.as_view(), name='component_families_edit'),
+    path('configuration/component-families/<int:pk>/delete/', views.ComponentFamilyDeleteView.as_view(), name='component_families_delete'),
+    
+    # Storage locations (complete CRUD)
+    path('configuration/locations/', views.StorageLocationListView.as_view(), name='locations_list'),
+    path('configuration/locations/<int:pk>/', views.StorageLocationDetailView.as_view(), name='locations_detail'),
+    path('configuration/locations/create/', views.StorageLocationCreateView.as_view(), name='locations_create'),
+    path('configuration/locations/<int:pk>/edit/', views.StorageLocationUpdateView.as_view(), name='locations_edit'),
+    path('configuration/locations/<int:pk>/delete/', views.StorageLocationDeleteView.as_view(), name='locations_delete'),
+    
+    # Storage bins
+    path('configuration/bins/', views.StorageBinListView.as_view(), name='bins_list'),
+    path('configuration/bins/create/', views.StorageBinCreateView.as_view(), name='bins_create'),
+    path('configuration/bins/<int:pk>/edit/', views.StorageBinUpdateView.as_view(), name='bins_edit'),
+    path('configuration/bins/<int:pk>/delete/', views.StorageBinDeleteView.as_view(), name='bins_delete'),
     
     # Custom patterns that don't fit standard CRUD
     path('configuration/currencies/update-rates/', views.update_exchange_rates_view, name='update_exchange_rates'),
@@ -139,7 +170,9 @@ stock_patterns = [
     path('stock/bulk-adjust/', views.BulkStockAdjustmentView.as_view(), name='bulk_stock_adjustment'),
     
     # Stock takes (physical counting)
-    *generate_crud_patterns('stock/takes', 'StockTake'),
+    path('stock/takes/', views.StockTakeListView.as_view(), name='stock_takes_list'),
+    path('stock/takes/<int:pk>/', views.StockTakeDetailView.as_view(), name='stock_takes_detail'),
+    path('stock/takes/create/', views.StockTakeCreateView.as_view(), name='stock_takes_create'),
     path('stock/takes/<int:pk>/complete/', views.stock_take_complete_view, name='stock_take_complete'),
 ]
 
@@ -171,8 +204,9 @@ pricing_patterns = [
     path('pricing/margin-analysis/', views.MarginAnalysisView.as_view(), name='margin_analysis'),
     path('pricing/competitive-analysis/', views.CompetitivePricingView.as_view(), name='competitive_pricing'),
     
-    # Markup management with CRUD
-    *generate_crud_patterns('pricing/markup-rules', 'MarkupRule'),
+    # Manual markup rule patterns (only for views that exist)
+    path('pricing/markup-rules/', views.MarkupRuleListView.as_view(), name='markup_rule_list'),
+    path('pricing/markup-rules/create/', views.MarkupRuleCreateView.as_view(), name='markup_rule_create'),
     
     # Overhead cost management
     path('pricing/overhead-analysis/', views.OverheadAnalysisView.as_view(), name='overhead_analysis'),

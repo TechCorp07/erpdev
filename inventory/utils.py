@@ -42,6 +42,8 @@ import requests
 import re
 import math
 
+from inventory.models import Category
+
 logger = logging.getLogger(__name__)
 
 # =====================================
@@ -838,7 +840,7 @@ def transfer_stock_between_locations(product, from_location, to_location,
                 )
             
             # Create outgoing movement
-            outgoing = create_stock_movement(
+            outgoing = StockManager.create_stock_movement(
                 product=product,
                 movement_type='transfer',
                 quantity=-quantity,
@@ -850,7 +852,7 @@ def transfer_stock_between_locations(product, from_location, to_location,
             )
             
             # Create incoming movement
-            incoming = create_stock_movement(
+            incoming = StockManager.create_stock_movement(
                 product=product,
                 movement_type='transfer',
                 quantity=quantity,

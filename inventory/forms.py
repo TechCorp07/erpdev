@@ -1209,7 +1209,11 @@ class ProductForm(InventoryBaseForm, PricingFieldsMixin, StockFieldsMixin):
         self.fields['dimensions'].widget.attrs.update({
             'placeholder': 'L x W x H (optional)'
         })
-    
+        
+        self.fields['unit_of_measure'].widget.attrs.update({
+            'class': 'form-select'
+        })
+        
     def clean_sku(self):
         """Generate unique SKU if not provided"""
         sku = self.cleaned_data.get('sku')

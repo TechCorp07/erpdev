@@ -63,9 +63,9 @@ from .decorators import (
     purchase_order_permission, stock_take_permission, cost_data_access, bulk_operation_permission
 )
 from .utils import (
-    ExportManager, InventoryAnalytics, PricingCalculator, calculate_available_stock,
-    calculate_days_of_stock, get_low_stock_products, get_stock_status, create_stock_movement,
-    BarcodeManager, validate_stock_movement
+    ExportManager, InventoryAnalytics, PricingCalculator, StockManager,
+    calculate_days_of_stock, get_low_stock_products, BarcodeManager,
+    validate_stock_movement
 )
 
 logger = logging.getLogger(__name__)
@@ -238,7 +238,7 @@ class StockOperationMixin:
     
     def create_stock_movement(self, product, movement_type, quantity, **kwargs):
         """Helper to create stock movement records"""
-        return create_stock_movement(
+        return StockManager.create_stock_movement(
             product=product,
             movement_type=movement_type,
             quantity=quantity,
@@ -577,7 +577,7 @@ class ProductDetailView(BaseInventoryDetailView):
             'stock_levels': stock_levels,
             'recent_movements': recent_movements,
             'total_cost': total_cost,
-            'stock_status': get_stock_status(product),
+            'stock_status': StockManager.get_stock_status(product),
         })
         return context
 
@@ -693,6 +693,25 @@ class ProductAttributeCreateView(BaseInventoryCreateView):
     template_name = 'inventory/configuration/product_attribute_form.html'
     success_url = reverse_lazy('inventory:product_attribute_list')
 
+class ProductAttributeDetailView(BaseInventoryDetailView):
+    """Display product attribute details"""
+    model = ProductAttributeDefinition
+    template_name = 'inventory/configuration/product_attribute_detail.html'
+    context_object_name = 'attribute'
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        attribute = self.object
+        
+        # Count component families using this attribute
+        families_count = attribute.component_families.filter(is_active=True).count()
+        
+        context.update({
+            'page_title': f'Attribute - {attribute.name}',
+            'families_count': families_count,
+        })
+        return context
+
 class ProductAttributeUpdateView(BaseInventoryUpdateView):
     """Update product attribute"""
     model = ProductAttributeDefinition
@@ -725,6 +744,28 @@ class OverheadFactorUpdateView(BaseInventoryUpdateView):
     form_class = OverheadFactorForm
     template_name = 'inventory/configuration/overhead_factor_form.html'
     success_url = reverse_lazy('inventory:overhead_factor_list')
+
+class OverheadFactorDetailView(BaseInventoryDetailView):
+    """Display overhead factor details and impact analysis"""
+    model = OverheadFactor
+    template_name = 'inventory/configuration/overhead_factor_detail.html'
+    context_object_name = 'overhead_factor'
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        overhead_factor = self.object
+        
+        # Calculate impact on products
+        affected_products = Product.objects.filter(
+            category__overhead_factors=overhead_factor,
+            is_active=True
+        ).count()
+        
+        context.update({
+            'page_title': f'Overhead Factor - {overhead_factor.name}',
+            'affected_products': affected_products,
+        })
+        return context
 
 class OverheadFactorDeleteView(BaseInventoryDeleteView):
     """Delete overhead factor"""
@@ -1015,7 +1056,7 @@ def product_details_api(request, product_id):
                 'reorder_level': product.reorder_level,
                 'economic_order_quantity': product.economic_order_quantity,
                 'last_restocked': product.last_restocked_date.isoformat() if product.last_restocked_date else None,
-                'stock_status': get_stock_status(product),
+                'stock_status': StockManager.get_stock_status(product),
                 'stock_levels_by_location': stock_levels,
             },
             'barcode': product.barcode,
@@ -1368,7 +1409,7 @@ def stock_adjustment_view(request):
             adjustment.save()
             
             # Create stock movement record
-            create_stock_movement(
+            StockManager.create_stock_movement(
                 product=adjustment.product,
                 movement_type='adjustment',
                 quantity=adjustment.adjustment_quantity,
@@ -1947,6 +1988,29 @@ class StorageBinCreateView(BaseInventoryCreateView):
     template_name = 'inventory/configuration/storage_bin_form.html'
     success_url = reverse_lazy('inventory:storage_location_list')
 
+class StorageBinDetailView(BaseInventoryDetailView):
+    """Display storage bin details and contents"""
+    model = StorageBin
+    template_name = 'inventory/configuration/storage_bin_detail.html'
+    context_object_name = 'storage_bin'
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        storage_bin = self.object
+        
+        # Get current capacity usage (if implemented)
+        current_items = 0  # Placeholder - implement based on your stock tracking
+        capacity_percentage = 0
+        if storage_bin.max_capacity_items and storage_bin.max_capacity_items > 0:
+            capacity_percentage = (current_items / storage_bin.max_capacity_items) * 100
+        
+        context.update({
+            'page_title': f'Storage Bin - {storage_bin.bin_code}',
+            'current_items': current_items,
+            'capacity_percentage': capacity_percentage,
+        })
+        return context
+
 class StorageBinUpdateView(BaseInventoryUpdateView):
     """Update storage bin"""
     model = StorageBin
@@ -2152,7 +2216,7 @@ def product_search_api(request):
                 'selling_price': float(product.selling_price),
                 'current_stock': product.current_stock,
                 'available_stock': product.available_stock,
-                'stock_status': get_stock_status(product),
+                'stock_status': StockManager.get_stock_status(product),
                 'barcode': product.barcode
             })
         
@@ -2214,7 +2278,7 @@ def stock_adjust_api(request):
             })
         
         # Create stock movement
-        movement = create_stock_movement(
+        movement = StockManager.create_stock_movement(
             product=product,
             movement_type='adjustment',
             quantity=actual_adjustment,
@@ -2538,7 +2602,7 @@ def product_stock_levels_api(request, product_id):
             'total_available': total_available,
             'total_reserved': total_reserved,
             'reorder_level': product.reorder_level,
-            'stock_status': get_stock_status(product),
+            'stock_status': StockManager.get_stock_status(product),
             'locations': stock_levels,
             'checked_at': timezone.now().isoformat(),
         }
@@ -2580,7 +2644,7 @@ def reserve_stock_api(request):
             
         else:
             # Reserve from total stock
-            available_stock = calculate_available_stock(product)
+            available_stock = StockManager.calculate_available_stock(product)
             if available_stock < quantity:
                 return JsonResponse({
                     'success': False,
@@ -2682,7 +2746,7 @@ def product_availability_api(request):
             try:
                 product = Product.objects.get(id=req['product_id'], is_active=True)
                 requested_qty = int(req['quantity'])
-                available_qty = calculate_available_stock(product)
+                available_qty = StockManager.calculate_available_stock(product)
                 
                 is_available = available_qty >= requested_qty
                 shortage = max(0, requested_qty - available_qty)
@@ -2834,7 +2898,7 @@ def stock_adjustment_api(request):
         product.save()
         
         # Create movement record
-        create_stock_movement(
+        StockManager.create_stock_movement(
             product=product,
             movement_type='adjustment',
             quantity=adjustment,
@@ -2882,7 +2946,7 @@ def stock_transfer_api(request):
         to_stock.save()
         
         # Create movement records
-        create_stock_movement(
+        StockManager.create_stock_movement(
             product=product,
             movement_type='transfer_out',
             quantity=-quantity,
@@ -2891,7 +2955,7 @@ def stock_transfer_api(request):
             to_location=to_location
         )
         
-        create_stock_movement(
+        StockManager.create_stock_movement(
             product=product,
             movement_type='transfer_in',
             quantity=quantity,
@@ -4076,6 +4140,76 @@ class StockTakeDetailView(LoginRequiredMixin, DetailView):
         })
         return context
 
+class StockTakeUpdateView(LoginRequiredMixin, UpdateView):
+    """
+    Update stock take information.
+    Only allows updating basic info, not the items.
+    """
+    model = StockTake
+    form_class = StockTakeForm
+    template_name = 'inventory/stock_take/stock_take_form.html'
+    
+    @method_decorator(stock_take_permission)
+    def dispatch(self, *args, **kwargs):
+        return super().dispatch(*args, **kwargs)
+    
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context.update({
+            'page_title': f'Edit Stock Take - {self.object.reference}',
+            'is_update': True,
+        })
+        return context
+    
+    def form_valid(self, form):
+        # Only allow updates if stock take is not completed
+        if self.object.status == 'completed':
+            messages.error(self.request, 'Cannot edit completed stock takes')
+            return self.form_invalid(form)
+        
+        messages.success(self.request, 'Stock take updated successfully')
+        return super().form_valid(form)
+    
+    def get_success_url(self):
+        return reverse('inventory:stock_take_detail', kwargs={'pk': self.object.pk})
+
+class StockTakeDeleteView(LoginRequiredMixin, DeleteView):
+    """
+    Delete stock take (admin only).
+    Only allows deletion of draft stock takes.
+    """
+    model = StockTake
+    template_name = 'inventory/stock_take/stock_take_confirm_delete.html'
+    success_url = reverse_lazy('inventory:stock_take_list')
+    
+    @method_decorator(stock_take_permission)
+    def dispatch(self, *args, **kwargs):
+        return super().dispatch(*args, **kwargs)
+    
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context.update({
+            'page_title': f'Delete Stock Take - {self.object.reference}',
+        })
+        return context
+    
+    def delete(self, request, *args, **kwargs):
+        self.object = self.get_object()
+        
+        # Only allow deletion of draft stock takes
+        if self.object.status != 'draft':
+            messages.error(request, 'Only draft stock takes can be deleted')
+            return redirect('inventory:stock_take_detail', pk=self.object.pk)
+        
+        # Check if there are any counted items
+        counted_items = self.object.items.filter(counted_quantity__isnull=False).count()
+        if counted_items > 0:
+            messages.error(request, 'Cannot delete stock take with counted items')
+            return redirect('inventory:stock_take_detail', pk=self.object.pk)
+        
+        messages.success(request, f'Stock take "{self.object.reference}" deleted successfully')
+        return super().delete(request, *args, **kwargs)
+
 @login_required
 @stock_take_permission
 @require_POST
@@ -4533,7 +4667,7 @@ class MobileStockCheckView(LoginRequiredMixin, TemplateView):
             context.update({
                 'product': product,
                 'stock_levels': stock_levels,
-                'stock_status': get_stock_status(product),
+                'stock_status': StockManager.get_stock_status(product),
             })
         
         context.update({
@@ -4914,7 +5048,7 @@ def barcode_lookup_api(request):
                 'selling_price': float(product.selling_price),
                 'current_stock': product.current_stock,
                 'reorder_level': product.reorder_level,
-                'stock_status': get_stock_status(product),
+                'stock_status': StockManager.get_stock_status(product),
                 'stock_levels': stock_levels,
                 'last_restocked': product.last_restocked_date.isoformat() if product.last_restocked_date else None,
             }
@@ -4996,6 +5130,42 @@ class CurrencyCreateView(LoginRequiredMixin, CreateView):
         messages.success(self.request, f'Currency "{form.instance.code}" created successfully.')
         return super().form_valid(form)
 
+class CurrencyDetailView(LoginRequiredMixin, DetailView):
+    """Display currency details and exchange rate history."""
+    model = Currency
+    template_name = 'inventory/configuration/currency_detail.html'
+    context_object_name = 'currency'
+
+    @method_decorator(inventory_permission_required('view'))
+    def dispatch(self, *args, **kwargs):
+        return super().dispatch(*args, **kwargs)
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        currency = self.object
+        
+        # Get products using this currency
+        products_count = Product.objects.filter(
+            supplier_currency=currency,
+            is_active=True
+        ).count()
+        
+        # Calculate total value in this currency
+        total_value = Product.objects.filter(
+            supplier_currency=currency,
+            is_active=True
+        ).aggregate(
+            total=Sum(F('cost_price') * F('total_stock'))
+        )['total'] or 0
+        
+        context.update({
+            'page_title': f'Currency Details - {currency.code}',
+            'products_count': products_count,
+            'total_value': total_value,
+            'exchange_rate_age': (timezone.now() - currency.last_updated).days if currency.last_updated else None,
+        })
+        return context
+
 class CurrencyUpdateView(LoginRequiredMixin, UpdateView):
     """Edit an existing currency."""
     model = Currency
@@ -5045,7 +5215,7 @@ def quick_stock_check_view(request):
                 'product': product,
                 'stock_levels': stock_levels,
                 'total_stock': product.current_stock,
-                'stock_status': get_stock_status(product),
+                'stock_status': StockManager.get_stock_status(product),
             }
             
         except Product.DoesNotExist:
@@ -5155,7 +5325,7 @@ def global_inventory_search(request):
                 'subtitle': f"SKU: {product.sku} | Stock: {product.current_stock}",
                 'category': product.category.name if product.category else '',
                 'url': reverse('inventory:product_detail', args=[product.id]),
-                'stock_status': get_stock_status(product),
+                'stock_status': StockManager.get_stock_status(product),
             })
         
         # Search suppliers if query is longer

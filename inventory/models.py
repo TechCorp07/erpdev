@@ -25,8 +25,9 @@ from django.utils import timezone
 from django.core.validators import MinValueValidator, MaxValueValidator
 from django.urls import reverse
 from decimal import Decimal
-import uuid
-from django.db.models import Sum, Count, F, Q
+from django.db.models.signals import post_save, pre_save
+from django.dispatch import receiver
+from django.db.models import Sum, F, Q
 import logging
 
 logger = logging.getLogger(__name__)
@@ -855,6 +856,18 @@ class Product(models.Model):
         ('pre_order', 'Pre-order'),
     )
     
+    # Unit of measure
+    UNIT_CHOICES = (
+        ('pcs', 'Pieces'),
+        ('meter', 'Meters'),
+        ('kg', 'Kilograms'),
+        ('liter', 'Liters'),
+        ('box', 'Box'),
+        ('set', 'Set'),
+        ('roll', 'Roll'),
+        ('pack', 'Pack'),
+    )
+    
     # Basic product information
     name = models.CharField(max_length=200)
     sku = models.CharField(max_length=50, unique=True)
@@ -887,6 +900,13 @@ class Product(models.Model):
         null=True,
         blank=True,
         help_text="Component family (auto-filled from category)"
+    )
+    
+    unit_of_measure = models.CharField(
+        max_length=10,
+        choices=UNIT_CHOICES,
+        default='pcs',
+        help_text="Unit of measurement for this product"
     )
     
     # Product specifications - electronics specific
@@ -1106,6 +1126,11 @@ class Product(models.Model):
         default=list,
         blank=True,
         help_text="Price breaks: [{'quantity': 100, 'price': 1.50}, {'quantity': 500, 'price': 1.25}]"
+    )
+    # Minimum order quantity (separate from supplier MOQ)
+    minimum_order_quantity = models.PositiveIntegerField(
+        default=1,
+        help_text="Minimum quantity that can be ordered internally"
     )
     
     # Quality and compliance
@@ -1501,11 +1526,14 @@ class Location(models.Model):
     name = models.CharField(max_length=100)
     location_code = models.CharField(max_length=20, unique=True)
     location_type = models.CharField(max_length=20, choices=LOCATION_TYPES)
+    description = models.TextField(blank=True)
     
     # Address details
     address = models.TextField(blank=True)
     contact_person = models.CharField(max_length=100, blank=True)
+    manager_name = models.CharField(max_length=100, blank=True)
     phone = models.CharField(max_length=20, blank=True)
+    email = models.EmailField(blank=True)
     
     # Operational settings
     is_active = models.BooleanField(default=True)
@@ -2019,10 +2047,6 @@ class ReorderAlert(models.Model):
             self.status = 'ordered'
         self.save()
 
-# Signal handlers to maintain data integrity and automation
-from django.db.models.signals import post_save, pre_save
-from django.dispatch import receiver
-
 @receiver(post_save, sender=Product)
 def update_stock_levels_on_product_save(sender, instance, **kwargs):
     """Ensure stock levels exist for all active locations"""
@@ -2090,4 +2114,3 @@ def check_reorder_level(sender, instance, **kwargs):
             )
             
             logger.info(f"Reorder alert created for {instance.sku} - {priority} priority")
-
