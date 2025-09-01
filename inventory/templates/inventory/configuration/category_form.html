@@ -1,0 +1,539 @@
+{% extends "dashboard_base.html" %}
+{% load static %}
+{% load crispy_forms_tags %}
+
+{% block page_title %}
+  {% if form.instance.pk %}Edit Category{% else %}Add Category{% endif %}
+{% endblock %}
+
+{% block dashboard_content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+  <div>
+    <nav aria-label="breadcrumb">
+      <ol class="breadcrumb mb-1">
+        <li class="breadcrumb-item"><a href="{% url 'inventory:dashboard' %}">Inventory</a></li>
+        <li class="breadcrumb-item"><a href="{% url 'inventory:configuration' %}">Configuration</a></li>
+        <li class="breadcrumb-item"><a href="{% url 'inventory:category_list' %}">Categories</a></li>
+        <li class="breadcrumb-item active">
+          {% if form.instance.pk %}Edit Category{% else %}Add Category{% endif %}
+        </li>
+      </ol>
+    </nav>
+    <h1 class="h3 mb-0 text-gray-800">
+      {% if form.instance.pk %}
+        <i class="bi bi-pencil me-2"></i>Edit Category: {{ form.instance.name }}
+      {% else %}
+        <i class="bi bi-plus me-2"></i>Add New Category
+      {% endif %}
+    </h1>
+    <p class="text-muted mb-0">
+      {% if form.instance.pk %}
+        Update category information and business settings
+      {% else %}
+        Create a new product category with business rules
+      {% endif %}
+    </p>
+  </div>
+  
+  <div class="btn-group" role="group">
+    <a href="{% url 'inventory:category_list' %}" class="btn btn-outline-secondary">
+      <i class="bi bi-arrow-left me-2"></i>Back to List
+    </a>
+    {% if form.instance.pk %}
+    <a href="{% url 'inventory:category_detail' form.instance.pk %}" class="btn btn-outline-info">
+      <i class="bi bi-eye me-2"></i>View Details
+    </a>
+    {% endif %}
+  </div>
+</div>
+
+<form method="post" novalidate>
+  {% csrf_token %}
+  
+  <div class="row">
+    <!-- Main Form -->
+    <div class="col-lg-8">
+      <!-- Basic Information -->
+      <div class="card shadow mb-4">
+        <div class="card-header py-3">
+          <h6 class="m-0 font-weight-bold text-primary">
+            <i class="bi bi-tags me-2"></i>Basic Information
+          </h6>
+        </div>
+        <div class="card-body">
+          <div class="row">
+            <div class="col-md-6 mb-3">
+              <label for="{{ form.name.id_for_label }}" class="form-label">
+                Category Name <span class="text-danger">*</span>
+              </label>
+              <input type="text" 
+                     class="form-control {% if form.name.errors %}is-invalid{% endif %}" 
+                     id="{{ form.name.id_for_label }}"
+                     name="{{ form.name.name }}"
+                     value="{{ form.name.value|default:'' }}"
+                     placeholder="e.g., Microcontrollers, Resistors, Capacitors"
+                     required>
+              {% if form.name.errors %}
+                <div class="invalid-feedback">{{ form.name.errors.0 }}</div>
+              {% endif %}
+            </div>
+            
+            <div class="col-md-6 mb-3">
+              <label for="{{ form.slug.id_for_label }}" class="form-label">
+                URL Slug
+              </label>
+              <input type="text" 
+                     class="form-control {% if form.slug.errors %}is-invalid{% endif %}" 
+                     id="{{ form.slug.id_for_label }}"
+                     name="{{ form.slug.name }}"
+                     value="{{ form.slug.value|default:'' }}"
+                     placeholder="auto-generated from name">
+              {% if form.slug.errors %}
+                <div class="invalid-feedback">{{ form.slug.errors.0 }}</div>
+              {% endif %}
+              <div class="form-text">Leave blank to auto-generate from category name</div>
+            </div>
+          </div>
+          
+          <div class="row">
+            <div class="col-md-6 mb-3">
+              <label for="{{ form.parent.id_for_label }}" class="form-label">
+                Parent Category
+              </label>
+              <select class="form-select {% if form.parent.errors %}is-invalid{% endif %}"
+                      id="{{ form.parent.id_for_label }}"
+                      name="{{ form.parent.name }}">
+                <option value="">No parent (top-level category)</option>
+                {% for category in available_categories %}
+                  <option value="{{ category.id }}" 
+                          {% if form.parent.value == category.id %}selected{% endif %}>
+                    {% for i in category.level|make_list %}—{% endfor %} {{ category.name }}
+                  </option>
+                {% endfor %}
+              </select>
+              {% if form.parent.errors %}
+                <div class="invalid-feedback">{{ form.parent.errors.0 }}</div>
+              {% endif %}
+              <div class="form-text">Choose a parent to create hierarchical categories</div>
+            </div>
+            
+            <div class="col-md-6 mb-3">
+              <label for="{{ form.component_family.id_for_label }}" class="form-label">
+                Component Family
+              </label>
+              <select class="form-select {% if form.component_family.errors %}is-invalid{% endif %}"
+                      id="{{ form.component_family.id_for_label }}"
+                      name="{{ form.component_family.name }}">
+                <option value="">Select component family...</option>
+                {% for family in component_families %}
+                  <option value="{{ family.id }}" 
+                          {% if form.component_family.value == family.id %}selected{% endif %}>
+                    {{ family.name }}
+                  </option>
+                {% endfor %}
+              </select>
+              {% if form.component_family.errors %}
+                <div class="invalid-feedback">{{ form.component_family.errors.0 }}</div>
+              {% endif %}
+              <div class="form-text">Electronics component family for specialized attributes</div>
+            </div>
+          </div>
+          
+          <div class="mb-3">
+            <label for="{{ form.description.id_for_label }}" class="form-label">
+              Description
+            </label>
+            <textarea class="form-control {% if form.description.errors %}is-invalid{% endif %}"
+                      id="{{ form.description.id_for_label }}"
+                      name="{{ form.description.name }}"
+                      rows="4"
+                      placeholder="Detailed description of products that belong to this category">{{ form.description.value|default:'' }}</textarea>
+            {% if form.description.errors %}
+              <div class="invalid-feedback">{{ form.description.errors.0 }}</div>
+            {% endif %}
+          </div>
+
+          <div class="form-check">
+            <input class="form-check-input" 
+                   type="checkbox" 
+                   id="{{ form.is_active.id_for_label }}"
+                   name="{{ form.is_active.name }}"
+                   {% if form.is_active.value %}checked{% endif %}>
+            <label class="form-check-label" for="{{ form.is_active.id_for_label }}">
+              <strong>Active Category</strong>
+            </label>
+            <div class="form-text">Inactive categories won't appear in product creation dropdowns</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Business Rules -->
+      <div class="card shadow mb-4">
+        <div class="card-header py-3">
+          <h6 class="m-0 font-weight-bold text-success">
+            <i class="bi bi-calculator me-2"></i>Business Rules & Defaults
+          </h6>
+        </div>
+        <div class="card-body">
+          <div class="row">
+            <div class="col-md-6 mb-3">
+              <label for="{{ form.default_markup_percentage.id_for_label }}" class="form-label">
+                Default Markup Percentage (%)
+              </label>
+              <div class="input-group">
+                <input type="number" 
+                       class="form-control {% if form.default_markup_percentage.errors %}is-invalid{% endif %}" 
+                       id="{{ form.default_markup_percentage.id_for_label }}"
+                       name="{{ form.default_markup_percentage.name }}"
+                       value="{{ form.default_markup_percentage.value|default:30 }}"
+                       step="0.01"
+                       min="0"
+                       max="1000"
+                       placeholder="30.00">
+                <span class="input-group-text">%</span>
+                {% if form.default_markup_percentage.errors %}
+                  <div class="invalid-feedback">{{ form.default_markup_percentage.errors.0 }}</div>
+                {% endif %}
+              </div>
+              <div class="form-text">Default profit margin for products in this category</div>
+            </div>
+            
+            <div class="col-md-6 mb-3">
+              <div class="row">
+                <div class="col-6">
+                  <label for="{{ form.default_reorder_level.id_for_label }}" class="form-label">
+                    Reorder Level
+                  </label>
+                  <input type="number" 
+                         class="form-control {% if form.default_reorder_level.errors %}is-invalid{% endif %}" 
+                         id="{{ form.default_reorder_level.id_for_label }}"
+                         name="{{ form.default_reorder_level.name }}"
+                         value="{{ form.default_reorder_level.value|default:10 }}"
+                         min="0"
+                         placeholder="10">
+                  {% if form.default_reorder_level.errors %}
+                    <div class="invalid-feedback">{{ form.default_reorder_level.errors.0 }}</div>
+                  {% endif %}
+                </div>
+                <div class="col-6">
+                  <label for="{{ form.default_reorder_quantity.id_for_label }}" class="form-label">
+                    Reorder Quantity
+                  </label>
+                  <input type="number" 
+                         class="form-control {% if form.default_reorder_quantity.errors %}is-invalid{% endif %}" 
+                         id="{{ form.default_reorder_quantity.id_for_label }}"
+                         name="{{ form.default_reorder_quantity.name }}"
+                         value="{{ form.default_reorder_quantity.value|default:50 }}"
+                         min="1"
+                         placeholder="50">
+                  {% if form.default_reorder_quantity.errors %}
+                    <div class="invalid-feedback">{{ form.default_reorder_quantity.errors.0 }}</div>
+                  {% endif %}
+                </div>
+              </div>
+              <div class="form-text">Default stock management settings</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Electronics-Specific Settings -->
+      <div class="card shadow mb-4">
+        <div class="card-header py-3">
+          <h6 class="m-0 font-weight-bold text-warning">
+            <i class="bi bi-cpu me-2"></i>Electronics-Specific Settings
+          </h6>
+        </div>
+        <div class="card-body">
+          <div class="row">
+            <div class="col-md-6">
+              <div class="form-check mb-3">
+                <input class="form-check-input" 
+                       type="checkbox" 
+                       id="{{ form.requires_datasheet.id_for_label }}"
+                       name="{{ form.requires_datasheet.name }}"
+                       {% if form.requires_datasheet.value %}checked{% endif %}>
+                <label class="form-check-label" for="{{ form.requires_datasheet.id_for_label }}">
+                  <strong>Requires Datasheet</strong>
+                </label>
+                <div class="form-text">Products in this category typically need datasheets</div>
+              </div>
+
+              <div class="form-check mb-3">
+                <input class="form-check-input" 
+                       type="checkbox" 
+                       id="{{ form.requires_certification.id_for_label }}"
+                       name="{{ form.requires_certification.name }}"
+                       {% if form.requires_certification.value %}checked{% endif %}>
+                <label class="form-check-label" for="{{ form.requires_certification.id_for_label }}">
+                  <strong>Requires Certification</strong>
+                </label>
+                <div class="form-text">Products require certification (CE, FCC, SABS, etc.)</div>
+              </div>
+            </div>
+            
+            <div class="col-md-6">
+              <label for="{{ form.preferred_storage_bins.id_for_label }}" class="form-label">
+                Preferred Storage Bins
+              </label>
+              <select class="form-select" 
+                      id="{{ form.preferred_storage_bins.id_for_label }}"
+                      name="{{ form.preferred_storage_bins.name }}"
+                      multiple
+                      size="4">
+                {% for bin in storage_bins %}
+                  <option value="{{ bin.id }}"
+                          {% if bin.id in form.preferred_storage_bins.value %}selected{% endif %}>
+                    {{ bin.location.name }} - {{ bin.bin_code }}
+                  </option>
+                {% endfor %}
+              </select>
+              <div class="form-text">Hold Ctrl/Cmd to select multiple bins</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Form Actions -->
+      <div class="card shadow mb-4">
+        <div class="card-body">
+          <div class="d-flex justify-content-between">
+            <div>
+              <button type="submit" class="btn btn-primary">
+                <i class="bi bi-check me-2"></i>
+                {% if form.instance.pk %}Update Category{% else %}Create Category{% endif %}
+              </button>
+              <a href="{% url 'inventory:category_list' %}" class="btn btn-outline-secondary ms-2">
+                <i class="bi bi-x me-2"></i>Cancel
+              </a>
+            </div>
+            
+            {% if form.instance.pk %}
+            <div>
+              <a href="{% url 'inventory:category_delete' form.instance.pk %}" 
+                 class="btn btn-outline-danger"
+                 onclick="return confirm('Are you sure you want to delete this category?')">
+                <i class="bi bi-trash me-2"></i>Delete Category
+              </a>
+            </div>
+            {% endif %}
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Sidebar -->
+    <div class="col-lg-4">
+      {% if form.instance.pk %}
+      <!-- Category Statistics -->
+      <div class="card shadow mb-4">
+        <div class="card-header py-3">
+          <h6 class="m-0 font-weight-bold text-info">
+            <i class="bi bi-bar-chart me-2"></i>Category Statistics
+          </h6>
+        </div>
+        <div class="card-body">
+          <div class="row text-center">
+            <div class="col-6 mb-3">
+              <div class="h4 mb-0 text-primary">{{ form.instance.products.count|default:0 }}</div>
+              <small class="text-muted">Products</small>
+            </div>
+            <div class="col-6 mb-3">
+              <div class="h4 mb-0 text-success">{{ form.instance.subcategories.count|default:0 }}</div>
+              <small class="text-muted">Subcategories</small>
+            </div>
+          </div>
+          
+          {% if form.instance.subcategories.exists %}
+          <hr>
+          <div class="small">
+            <strong>Subcategories:</strong>
+            <ul class="list-unstyled mt-2">
+              {% for sub in form.instance.subcategories.all|slice:":5" %}
+              <li class="mb-1">
+                <a href="{% url 'inventory:category_detail' sub.pk %}" class="text-decoration-none">
+                  {{ sub.name }}
+                </a>
+                <small class="text-muted">({{ sub.products.count }} products)</small>
+              </li>
+              {% endfor %}
+            </ul>
+          </div>
+          {% endif %}
+        </div>
+      </div>
+
+      <!-- Category Hierarchy -->
+      {% if form.instance.parent %}
+      <div class="card shadow mb-4">
+        <div class="card-header py-3">
+          <h6 class="m-0 font-weight-bold text-secondary">
+            <i class="bi bi-diagram-3 me-2"></i>Category Hierarchy
+          </h6>
+        </div>
+        <div class="card-body">
+          <div class="small">
+            {% with current=form.instance %}
+            {% if current.parent.parent %}
+              <a href="{% url 'inventory:category_detail' current.parent.parent.pk %}">{{ current.parent.parent.name }}</a>
+              <i class="bi bi-arrow-right mx-2"></i>
+            {% endif %}
+            {% if current.parent %}
+              <a href="{% url 'inventory:category_detail' current.parent.pk %}">{{ current.parent.name }}</a>
+              <i class="bi bi-arrow-right mx-2"></i>
+            {% endif %}
+            <strong>{{ current.name }}</strong>
+            {% endwith %}
+          </div>
+        </div>
+      </div>
+      {% endif %}
+      {% endif %}
+
+      <!-- Category Tips -->
+      <div class="card shadow mb-4">
+        <div class="card-header py-3">
+          <h6 class="m-0 font-weight-bold text-secondary">
+            <i class="bi bi-lightbulb me-2"></i>Category Management Tips
+          </h6>
+        </div>
+        <div class="card-body">
+          <div class="small">
+            <ul class="list-unstyled">
+              <li class="mb-2">
+                <i class="bi bi-check-circle text-success me-2"></i>
+                Use clear, descriptive category names
+              </li>
+              <li class="mb-2">
+                <i class="bi bi-check-circle text-success me-2"></i>
+                Create logical hierarchies (max 3-4 levels)
+              </li>
+              <li class="mb-2">
+                <i class="bi bi-check-circle text-success me-2"></i>
+                Set realistic markup percentages
+              </li>
+              <li class="mb-2">
+                <i class="bi bi-check-circle text-success me-2"></i>
+                Configure reorder levels based on demand
+              </li>
+              <li class="mb-2">
+                <i class="bi bi-check-circle text-success me-2"></i>
+                Use component families for specialized attributes
+              </li>
+            </ul>
+          </div>
+        </div>
+      </div>
+
+      <!-- Markup Calculator -->
+      <div class="card shadow mb-4">
+        <div class="card-header py-3">
+          <h6 class="m-0 font-weight-bold text-warning">
+            <i class="bi bi-calculator-fill me-2"></i>Markup Calculator
+          </h6>
+        </div>
+        <div class="card-body">
+          <div class="mb-3">
+            <label class="form-label small">Cost Price (USD)</label>
+            <input type="number" class="form-control form-control-sm" id="costPrice" step="0.01" placeholder="10.00">
+          </div>
+          <div class="mb-3">
+            <label class="form-label small">Markup %</label>
+            <input type="number" class="form-control form-control-sm" id="markupPercent" step="0.01" 
+                   value="{{ form.default_markup_percentage.value|default:30 }}">
+          </div>
+          <div class="border-top pt-2">
+            <div class="d-flex justify-content-between">
+              <small class="text-muted">Selling Price:</small>
+              <small class="fw-bold" id="sellingPrice">$0.00</small>
+            </div>
+            <div class="d-flex justify-content-between">
+              <small class="text-muted">Profit:</small>
+              <small class="fw-bold text-success" id="profit">$0.00</small>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</form>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // Auto-generate slug from name
+    const nameField = document.getElementById('{{ form.name.id_for_label }}');
+    const slugField = document.getElementById('{{ form.slug.id_for_label }}');
+    
+    if (nameField && slugField && !slugField.value) {
+        nameField.addEventListener('blur', function() {
+            if (!slugField.value && nameField.value) {
+                const slug = nameField.value
+                    .toLowerCase()
+                    .replace(/[^a-z0-9]/g, '-')
+                    .replace(/-+/g, '-')
+                    .replace(/^-|-$/g, '');
+                slugField.value = slug;
+            }
+        });
+    }
+    
+    // Auto-focus on name field
+    if (nameField && !nameField.value) {
+        nameField.focus();
+    }
+    
+    // Markup calculator
+    const costPriceField = document.getElementById('costPrice');
+    const markupPercentField = document.getElementById('markupPercent');
+    const sellingPriceEl = document.getElementById('sellingPrice');
+    const profitEl = document.getElementById('profit');
+    
+    function calculateMarkup() {
+        const costPrice = parseFloat(costPriceField.value) || 0;
+        const markupPercent = parseFloat(markupPercentField.value) || 0;
+        
+        const profit = costPrice * (markupPercent / 100);
+        const sellingPrice = costPrice + profit;
+        
+        sellingPriceEl.textContent = '$' + sellingPrice.toFixed(2);
+        profitEl.textContent = '$' + profit.toFixed(2);
+    }
+    
+    if (costPriceField && markupPercentField) {
+        costPriceField.addEventListener('input', calculateMarkup);
+        markupPercentField.addEventListener('input', calculateMarkup);
+        
+        // Sync markup percentage with form field
+        const mainMarkupField = document.getElementById('{{ form.default_markup_percentage.id_for_label }}');
+        if (mainMarkupField) {
+            mainMarkupField.addEventListener('input', function() {
+                markupPercentField.value = mainMarkupField.value;
+                calculateMarkup();
+            });
+        }
+    }
+    
+    // Parent category validation
+    const parentField = document.getElementById('{{ form.parent.id_for_label }}');
+    if (parentField && '{{ form.instance.pk }}') {
+        parentField.addEventListener('change', function() {
+            if (parentField.value === '{{ form.instance.pk }}') {
+                alert('A category cannot be its own parent!');
+                parentField.value = '';
+            }
+        });
+    }
+    
+    // Storage bins multi-select helper
+    const storageBinsField = document.getElementById('{{ form.preferred_storage_bins.id_for_label }}');
+    if (storageBinsField) {
+        const helpText = document.createElement('div');
+        helpText.className = 'form-text';
+        helpText.innerHTML = '<small><kbd>Ctrl/Cmd + Click</kbd> to select multiple bins</small>';
+        storageBinsField.parentNode.appendChild(helpText);
+    }
+});
+</script>
+{% endblock %}

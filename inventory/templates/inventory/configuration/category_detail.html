@@ -1,0 +1,708 @@
+{% extends "dashboard_base.html" %}
+{% load static %}
+
+{% block page_title %}Category: {{ category.name }}{% endblock %}
+
+{% block dashboard_content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+  <div>
+    <nav aria-label="breadcrumb">
+      <ol class="breadcrumb mb-1">
+        <li class="breadcrumb-item"><a href="{% url 'inventory:dashboard' %}">Inventory</a></li>
+        <li class="breadcrumb-item"><a href="{% url 'inventory:configuration' %}">Configuration</a></li>
+        <li class="breadcrumb-item"><a href="{% url 'inventory:category_list' %}">Categories</a></li>
+        <li class="breadcrumb-item active">{{ category.name }}</li>
+      </ol>
+    </nav>
+    <h1 class="h3 mb-0 text-gray-800">
+      <i class="bi bi-tags me-2"></i>{{ category.name }}
+      {% if category.is_active %}
+        <span class="badge bg-success ms-2">Active</span>
+      {% else %}
+        <span class="badge bg-secondary ms-2">Inactive</span>
+      {% endif %}
+    </h1>
+    <p class="text-muted mb-0">Category details, hierarchy, and business rules</p>
+  </div>
+  
+  <div class="btn-group" role="group">
+    <a href="{% url 'inventory:category_list' %}" class="btn btn-outline-secondary">
+      <i class="bi bi-arrow-left me-2"></i>Back to List
+    </a>
+    <a href="{% url 'inventory:category_edit' category.pk %}" class="btn btn-primary">
+      <i class="bi bi-pencil me-2"></i>Edit Category
+    </a>
+    <div class="btn-group" role="group">
+      <button class="btn btn-outline-secondary dropdown-toggle" type="button" data-bs-toggle="dropdown">
+        <i class="bi bi-three-dots"></i>
+      </button>
+      <ul class="dropdown-menu">
+        <li><a class="dropdown-item" href="{% url 'inventory:category_products' category.pk %}">
+          <i class="bi bi-box-seam me-2"></i>View All Products
+        </a></li>
+        <li><hr class="dropdown-divider"></li>
+        <li><a class="dropdown-item" href="{% url 'inventory:product_create' %}?category={{ category.pk }}">
+          <i class="bi bi-plus me-2"></i>Add Product to Category
+        </a></li>
+        <li><a class="dropdown-item" href="{% url 'inventory:category_create' %}?parent={{ category.pk }}">
+          <i class="bi bi-diagram-3 me-2"></i>Add Subcategory
+        </a></li>
+        <li><hr class="dropdown-divider"></li>
+        <li><a class="dropdown-item text-danger" href="{% url 'inventory:category_delete' category.pk %}">
+          <i class="bi bi-trash me-2"></i>Delete Category
+        </a></li>
+      </ul>
+    </div>
+  </div>
+</div>
+
+<!-- Statistics Cards -->
+<div class="row mb-4">
+  <div class="col-lg-3 col-md-6 mb-4">
+    <div class="card bg-primary text-white shadow h-100 py-2">
+      <div class="card-body">
+        <div class="row no-gutters align-items-center">
+          <div class="col mr-2">
+            <div class="text-xs font-weight-bold text-white-50 text-uppercase mb-1">
+              Direct Products
+            </div>
+            <div class="h5 mb-0 font-weight-bold">{{ category.products.count|default:0 }}</div>
+          </div>
+          <div class="col-auto">
+            <i class="bi bi-box-seam fa-2x text-white-50"></i>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="col-lg-3 col-md-6 mb-4">
+    <div class="card bg-success text-white shadow h-100 py-2">
+      <div class="card-body">
+        <div class="row no-gutters align-items-center">
+          <div class="col mr-2">
+            <div class="text-xs font-weight-bold text-white-50 text-uppercase mb-1">
+              Subcategories
+            </div>
+            <div class="h5 mb-0 font-weight-bold">{{ category.subcategories.count|default:0 }}</div>
+          </div>
+          <div class="col-auto">
+            <i class="bi bi-diagram-3 fa-2x text-white-50"></i>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="col-lg-3 col-md-6 mb-4">
+    <div class="card bg-info text-white shadow h-100 py-2">
+      <div class="card-body">
+        <div class="row no-gutters align-items-center">
+          <div class="col mr-2">
+            <div class="text-xs font-weight-bold text-white-50 text-uppercase mb-1">
+              Total Stock Value
+            </div>
+            <div class="h5 mb-0 font-weight-bold">
+              ${{ category.total_stock_value|floatformat:0|default:0 }}
+            </div>
+          </div>
+          <div class="col-auto">
+            <i class="bi bi-currency-dollar fa-2x text-white-50"></i>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="col-lg-3 col-md-6 mb-4">
+    <div class="card bg-warning text-white shadow h-100 py-2">
+      <div class="card-body">
+        <div class="row no-gutters align-items-center">
+          <div class="col mr-2">
+            <div class="text-xs font-weight-bold text-white-50 text-uppercase mb-1">
+              Low Stock Items
+            </div>
+            <div class="h5 mb-0 font-weight-bold">
+              {{ category.low_stock_count|default:0 }}
+            </div>
+          </div>
+          <div class="col-auto">
+            <i class="bi bi-exclamation-triangle fa-2x text-white-50"></i>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="row">
+  <!-- Main Content -->
+  <div class="col-lg-8 mb-4">
+    <!-- Basic Information -->
+    <div class="card shadow mb-4">
+      <div class="card-header py-3">
+        <h6 class="m-0 font-weight-bold text-primary">
+          <i class="bi bi-info-circle me-2"></i>Category Information
+        </h6>
+      </div>
+      <div class="card-body">
+        <div class="row">
+          <div class="col-md-6">
+            <table class="table table-borderless">
+              <tr>
+                <td class="fw-bold">Category Name:</td>
+                <td>{{ category.name }}</td>
+              </tr>
+              <tr>
+                <td class="fw-bold">Slug:</td>
+                <td><code>{{ category.slug }}</code></td>
+              </tr>
+              <tr>
+                <td class="fw-bold">Parent Category:</td>
+                <td>
+                  {% if category.parent %}
+                    <a href="{% url 'inventory:category_detail' category.parent.pk %}" class="text-decoration-none">
+                      {{ category.parent.name }}
+                    </a>
+                  {% else %}
+                    <span class="text-muted">Top-level category</span>
+                  {% endif %}
+                </td>
+              </tr>
+              <tr>
+                <td class="fw-bold">Component Family:</td>
+                <td>
+                  {% if category.component_family %}
+                    <span class="badge bg-light text-dark">{{ category.component_family.name }}</span>
+                  {% else %}
+                    <span class="text-muted">Not set</span>
+                  {% endif %}
+                </td>
+              </tr>
+              <tr>
+                <td class="fw-bold">Status:</td>
+                <td>
+                  {% if category.is_active %}
+                    <span class="badge bg-success">Active</span>
+                  {% else %}
+                    <span class="badge bg-secondary">Inactive</span>
+                  {% endif %}
+                </td>
+              </tr>
+            </table>
+          </div>
+          <div class="col-md-6">
+            <h6 class="text-muted">Description</h6>
+            {% if category.description %}
+              <p class="text-muted">{{ category.description|linebreaks }}</p>
+            {% else %}
+              <p class="text-muted fst-italic">No description provided</p>
+            {% endif %}
+            
+            <h6 class="text-muted mt-3">Category Path</h6>
+            <nav aria-label="category-path">
+              <ol class="breadcrumb">
+                {% for ancestor in category.get_ancestors %}
+                  <li class="breadcrumb-item">
+                    <a href="{% url 'inventory:category_detail' ancestor.pk %}">{{ ancestor.name }}</a>
+                  </li>
+                {% endfor %}
+                <li class="breadcrumb-item active">{{ category.name }}</li>
+              </ol>
+            </nav>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Business Rules -->
+    <div class="card shadow mb-4">
+      <div class="card-header py-3">
+        <h6 class="m-0 font-weight-bold text-success">
+          <i class="bi bi-gear me-2"></i>Business Rules & Defaults
+        </h6>
+      </div>
+      <div class="card-body">
+        <div class="row">
+          <div class="col-md-4">
+            <h6 class="small text-muted text-uppercase mb-2">Pricing</h6>
+            <div class="border rounded p-3 text-center">
+              <div class="h3 mb-0 text-success">{{ category.default_markup_percentage }}%</div>
+              <small class="text-muted">Default Markup</small>
+            </div>
+          </div>
+          <div class="col-md-4">
+            <h6 class="small text-muted text-uppercase mb-2">Reorder Level</h6>
+            <div class="border rounded p-3 text-center">
+              <div class="h3 mb-0 text-warning">{{ category.default_reorder_level }}</div>
+              <small class="text-muted">Minimum Stock</small>
+            </div>
+          </div>
+          <div class="col-md-4">
+            <h6 class="small text-muted text-uppercase mb-2">Reorder Quantity</h6>
+            <div class="border rounded p-3 text-center">
+              <div class="h3 mb-0 text-info">{{ category.default_reorder_quantity }}</div>
+              <small class="text-muted">Order Amount</small>
+            </div>
+          </div>
+        </div>
+        
+        <hr>
+        
+        <div class="row">
+          <div class="col-md-6">
+            <h6 class="small text-muted text-uppercase mb-2">Electronics Requirements</h6>
+            <ul class="list-unstyled">
+              <li class="mb-1">
+                <i class="bi bi-{% if category.requires_datasheet %}check-circle text-success{% else %}x-circle text-muted{% endif %} me-2"></i>
+                Requires Datasheet
+              </li>
+              <li class="mb-1">
+                <i class="bi bi-{% if category.requires_certification %}check-circle text-success{% else %}x-circle text-muted{% endif %} me-2"></i>
+                Requires Certification
+              </li>
+            </ul>
+          </div>
+          <div class="col-md-6">
+            <h6 class="small text-muted text-uppercase mb-2">Storage Configuration</h6>
+            {% if category.preferred_storage_bins.exists %}
+              <div class="small">
+                <strong>Preferred Bins ({{ category.preferred_storage_bins.count }}):</strong>
+                <ul class="list-unstyled mt-1">
+                  {% for bin in category.preferred_storage_bins.all|slice:":3" %}
+                  <li class="mb-1">
+                    <i class="bi bi-box me-1"></i>
+                    {{ bin.location.name }} - {{ bin.bin_code }}
+                  </li>
+                  {% endfor %}
+                  {% if category.preferred_storage_bins.count > 3 %}
+                  <li class="text-muted small">... and {{ category.preferred_storage_bins.count|add:"-3" }} more</li>
+                  {% endif %}
+                </ul>
+              </div>
+            {% else %}
+              <p class="text-muted small">No preferred storage bins configured</p>
+            {% endif %}
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Subcategories -->
+    {% if category.subcategories.exists %}
+    <div class="card shadow mb-4">
+      <div class="card-header py-3 d-flex justify-content-between align-items-center">
+        <h6 class="m-0 font-weight-bold text-primary">
+          <i class="bi bi-diagram-3 me-2"></i>Subcategories ({{ category.subcategories.count }})
+        </h6>
+        <a href="{% url 'inventory:category_create' %}?parent={{ category.pk }}" class="btn btn-sm btn-outline-primary">
+          <i class="bi bi-plus"></i> Add Subcategory
+        </a>
+      </div>
+      <div class="card-body">
+        <div class="row">
+          {% for subcategory in category.subcategories.all %}
+          <div class="col-md-6 mb-3">
+            <div class="card h-100">
+              <div class="card-header d-flex justify-content-between align-items-center py-2">
+                <h6 class="mb-0">
+                  <a href="{% url 'inventory:category_detail' subcategory.pk %}" class="text-decoration-none">
+                    {{ subcategory.name }}
+                  </a>
+                </h6>
+                {% if subcategory.is_active %}
+                  <span class="badge bg-success">Active</span>
+                {% else %}
+                  <span class="badge bg-secondary">Inactive</span>
+                {% endif %}
+              </div>
+              <div class="card-body py-2">
+                <div class="row text-center">
+                  <div class="col-4">
+                    <div class="small text-muted">Products</div>
+                    <div class="fw-bold text-primary">{{ subcategory.products.count|default:0 }}</div>
+                  </div>
+                  <div class="col-4">
+                    <div class="small text-muted">Children</div>
+                    <div class="fw-bold text-success">{{ subcategory.subcategories.count|default:0 }}</div>
+                  </div>
+                  <div class="col-4">
+                    <div class="small text-muted">Markup</div>
+                    <div class="fw-bold text-info">{{ subcategory.default_markup_percentage }}%</div>
+                  </div>
+                </div>
+                {% if subcategory.description %}
+                <hr class="my-2">
+                <p class="small text-muted mb-0">{{ subcategory.description|truncatechars:80 }}</p>
+                {% endif %}
+              </div>
+              <div class="card-footer py-2">
+                <div class="btn-group btn-group-sm w-100" role="group">
+                  <a href="{% url 'inventory:category_detail' subcategory.pk %}" class="btn btn-outline-info">
+                    <i class="bi bi-eye"></i>
+                  </a>
+                  <a href="{% url 'inventory:category_edit' subcategory.pk %}" class="btn btn-outline-primary">
+                    <i class="bi bi-pencil"></i>
+                  </a>
+                  <a href="{% url 'inventory:category_products' subcategory.pk %}" class="btn btn-outline-secondary">
+                    <i class="bi bi-box-seam"></i>
+                  </a>
+                </div>
+              </div>
+            </div>
+          </div>
+          {% endfor %}
+        </div>
+      </div>
+    </div>
+    {% endif %}
+
+    <!-- Recent Products -->
+    {% if category.products.exists %}
+    <div class="card shadow mb-4">
+      <div class="card-header py-3 d-flex justify-content-between align-items-center">
+        <h6 class="m-0 font-weight-bold text-primary">
+          <i class="bi bi-box-seam me-2"></i>Products ({{ category.products.count }})
+        </h6>
+        <div class="btn-group btn-group-sm" role="group">
+          <a href="{% url 'inventory:category_products' category.pk %}" class="btn btn-outline-primary">
+            View All <i class="bi bi-arrow-right"></i>
+          </a>
+          <a href="{% url 'inventory:product_create' %}?category={{ category.pk }}" class="btn btn-outline-success">
+            <i class="bi bi-plus"></i> Add Product
+          </a>
+        </div>
+      </div>
+      <div class="card-body">
+        <div class="table-responsive">
+          <table class="table table-hover">
+            <thead>
+              <tr>
+                <th>Product</th>
+                <th>SKU</th>
+                <th>Brand</th>
+                <th>Stock</th>
+                <th>Price</th>
+                <th>Status</th>
+                <th>Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for product in category.products.all|slice:":10" %}
+              <tr>
+                <td>
+                  <div>
+                    <div class="fw-bold">{{ product.name|truncatechars:35 }}</div>
+                    {% if product.description %}
+                      <small class="text-muted">{{ product.description|truncatechars:50 }}</small>
+                    {% endif %}
+                  </div>
+                </td>
+                <td>
+                  <code class="small">{{ product.sku }}</code>
+                </td>
+                <td>
+                  {% if product.brand %}
+                    <span class="badge bg-light text-dark">{{ product.brand.name }}</span>
+                  {% else %}
+                    <span class="text-muted">-</span>
+                  {% endif %}
+                </td>
+                <td>
+                  <div class="d-flex align-items-center">
+                    <span class="me-2">{{ product.current_stock|default:0 }}</span>
+                    {% if product.current_stock <= 0 %}
+                      <i class="bi bi-x-circle text-danger" title="Out of stock"></i>
+                    {% elif product.current_stock <= product.reorder_level %}
+                      <i class="bi bi-exclamation-triangle text-warning" title="Low stock"></i>
+                    {% else %}
+                      <i class="bi bi-check-circle text-success" title="In stock"></i>
+                    {% endif %}
+                  </div>
+                </td>
+                <td>
+                  <div class="small">
+                    <div class="text-muted">Cost: ${{ product.cost_price|floatformat:2|default:"0.00" }}</div>
+                    <div class="fw-bold">Sell: ${{ product.selling_price|floatformat:2|default:"0.00" }}</div>
+                  </div>
+                </td>
+                <td>
+                  {% if product.is_active %}
+                    <span class="badge bg-success">Active</span>
+                  {% else %}
+                    <span class="badge bg-secondary">Inactive</span>
+                  {% endif %}
+                </td>
+                <td>
+                  <div class="btn-group btn-group-sm" role="group">
+                    <a href="{% url 'inventory:product_detail' product.pk %}" 
+                       class="btn btn-outline-info" 
+                       title="View Details">
+                      <i class="bi bi-eye"></i>
+                    </a>
+                    <a href="{% url 'inventory:product_edit' product.pk %}" 
+                       class="btn btn-outline-primary" 
+                       title="Edit Product">
+                      <i class="bi bi-pencil"></i>
+                    </a>
+                  </div>
+                </td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+          
+          {% if category.products.count > 10 %}
+          <div class="text-center">
+            <a href="{% url 'inventory:category_products' category.pk %}" class="btn btn-outline-primary">
+              View All {{ category.products.count }} Products <i class="bi bi-arrow-right"></i>
+            </a>
+          </div>
+          {% endif %}
+        </div>
+      </div>
+    </div>
+    {% else %}
+    <!-- No Products Message -->
+    <div class="card shadow mb-4">
+      <div class="card-header py-3">
+        <h6 class="m-0 font-weight-bold text-primary">
+          <i class="bi bi-box-seam me-2"></i>Products
+        </h6>
+      </div>
+      <div class="card-body text-center py-5">
+        <i class="bi bi-box fa-3x text-muted mb-3"></i>
+        <h5>No Products Yet</h5>
+        <p class="text-muted mb-4">This category doesn't have any products assigned to it yet.</p>
+        <a href="{% url 'inventory:product_create' %}?category={{ category.pk }}" class="btn btn-primary">
+          <i class="bi bi-plus me-2"></i>Add First Product
+        </a>
+      </div>
+    </div>
+    {% endif %}
+  </div>
+
+  <!-- Sidebar -->
+  <div class="col-lg-4">
+    <!-- Quick Actions -->
+    <div class="card shadow mb-4">
+      <div class="card-header py-3">
+        <h6 class="m-0 font-weight-bold text-success">
+          <i class="bi bi-lightning me-2"></i>Quick Actions
+        </h6>
+      </div>
+      <div class="card-body">
+        <div class="d-grid gap-2">
+          <a href="{% url 'inventory:product_create' %}?category={{ category.pk }}" class="btn btn-success">
+            <i class="bi bi-plus me-2"></i>Add Product
+          </a>
+          
+          <a href="{% url 'inventory:category_create' %}?parent={{ category.pk }}" class="btn btn-outline-primary">
+            <i class="bi bi-diagram-3 me-2"></i>Add Subcategory
+          </a>
+          
+          {% if category.products.exists %}
+          <a href="{% url 'inventory:category_products' category.pk %}" class="btn btn-outline-info">
+            <i class="bi bi-list me-2"></i>View All Products
+          </a>
+          {% endif %}
+          
+          <a href="{% url 'inventory:category_edit' category.pk %}" class="btn btn-outline-primary">
+            <i class="bi bi-pencil me-2"></i>Edit Category
+          </a>
+          
+          <hr>
+          
+          <a href="{% url 'inventory:category_delete' category.pk %}" class="btn btn-outline-danger">
+            <i class="bi bi-trash me-2"></i>Delete Category
+          </a>
+        </div>
+      </div>
+    </div>
+
+    <!-- Category Analytics -->
+    {% if category.products.exists %}
+    <div class="card shadow mb-4">
+      <div class="card-header py-3">
+        <h6 class="m-0 font-weight-bold text-info">
+          <i class="bi bi-pie-chart me-2"></i>Category Analytics
+        </h6>
+      </div>
+      <div class="card-body">
+        <!-- Stock Status Distribution -->
+        <h6 class="small text-muted text-uppercase mb-3">Stock Status</h6>
+        <div class="mb-4">
+          {% with in_stock_count=category.products.filter.current_stock__gt=F.reorder_level.count out_of_stock_count=category.products.filter.current_stock=0.count low_stock_count=category.products.filter.current_stock__lte=F.reorder_level,current_stock__gt=0.count %}
+          <div class="row text-center">
+            <div class="col-4">
+              <div class="h6 mb-0 text-success">{{ in_stock_count|default:0 }}</div>
+              <small class="text-muted">In Stock</small>
+            </div>
+            <div class="col-4">
+              <div class="h6 mb-0 text-warning">{{ low_stock_count|default:0 }}</div>
+              <small class="text-muted">Low Stock</small>
+            </div>
+            <div class="col-4">
+              <div class="h6 mb-0 text-danger">{{ out_of_stock_count|default:0 }}</div>
+              <small class="text-muted">Out of Stock</small>
+            </div>
+          </div>
+          {% endwith %}
+        </div>
+
+        <!-- Brand Distribution -->
+        <h6 class="small text-muted text-uppercase mb-3">Top Brands</h6>
+        {% with brand_stats=category.products.values.brand__name.annotate.count=Count.id.order_by.-count|slice.:5 %}
+        {% if brand_stats %}
+        <div class="list-group list-group-flush">
+          {% for brand in brand_stats %}
+          <div class="list-group-item d-flex justify-content-between align-items-center px-0 py-2">
+            <span class="small">{{ brand.brand__name|default:"No Brand" }}</span>
+            <span class="badge bg-primary rounded-pill">{{ brand.count }}</span>
+          </div>
+          {% endfor %}
+        </div>
+        {% else %}
+        <p class="text-muted small">No brand data available</p>
+        {% endif %}
+        {% endwith %}
+      </div>
+    </div>
+    {% endif %}
+
+    <!-- Category Hierarchy -->
+    {% if category.parent or category.subcategories.exists or category.get_descendants %}
+    <div class="card shadow mb-4">
+      <div class="card-header py-3">
+        <h6 class="m-0 font-weight-bold text-secondary">
+          <i class="bi bi-diagram-2 me-2"></i>Category Hierarchy
+        </h6>
+      </div>
+      <div class="card-body">
+        <div class="small">
+          <!-- Ancestors -->
+          {% if category.get_ancestors %}
+          <div class="mb-2">
+            <strong>Path:</strong>
+            {% for ancestor in category.get_ancestors %}
+              <a href="{% url 'inventory:category_detail' ancestor.pk %}" class="text-decoration-none">{{ ancestor.name }}</a>
+              <i class="bi bi-chevron-right mx-1"></i>
+            {% endfor %}
+            <strong>{{ category.name }}</strong>
+          </div>
+          {% endif %}
+          
+          <!-- Parent -->
+          {% if category.parent %}
+          <div class="mb-2">
+            <strong>Parent:</strong>
+            <a href="{% url 'inventory:category_detail' category.parent.pk %}" class="text-decoration-none">
+              {{ category.parent.name }}
+            </a>
+          </div>
+          {% endif %}
+          
+          <!-- Direct Children -->
+          {% if category.subcategories.exists %}
+          <div class="mb-2">
+            <strong>Direct Children ({{ category.subcategories.count }}):</strong>
+            <ul class="list-unstyled mt-1 ms-3">
+              {% for child in category.subcategories.all %}
+              <li>
+                <a href="{% url 'inventory:category_detail' child.pk %}" class="text-decoration-none">{{ child.name }}</a>
+                <small class="text-muted">({{ child.products.count }} products)</small>
+              </li>
+              {% endfor %}
+            </ul>
+          </div>
+          {% endif %}
+          
+          <!-- Descendants Count -->
+          {% if category.get_descendants %}
+          <div class="mb-2">
+            <strong>Total Descendants:</strong> {{ category.get_descendants.count }}
+            <small class="text-muted">(all levels below)</small>
+          </div>
+          {% endif %}
+        </div>
+      </div>
+    </div>
+    {% endif %}
+
+    <!-- Category Management Tips -->
+    <div class="card shadow mb-4">
+      <div class="card-header py-3">
+        <h6 class="m-0 font-weight-bold text-secondary">
+          <i class="bi bi-lightbulb me-2"></i>Management Tips
+        </h6>
+      </div>
+      <div class="card-body">
+        <div class="small">
+          <ul class="list-unstyled">
+            <li class="mb-2">
+              <i class="bi bi-check-circle text-success me-2"></i>
+              Regular review of business rules
+            </li>
+            <li class="mb-2">
+              <i class="bi bi-check-circle text-success me-2"></i>
+              Monitor stock levels by category
+            </li>
+            <li class="mb-2">
+              <i class="bi bi-check-circle text-success me-2"></i>
+              Use subcategories for better organization
+            </li>
+            <li class="mb-2">
+              <i class="bi bi-check-circle text-success me-2"></i>
+              Keep markup percentages competitive
+            </li>
+            <li class="mb-2">
+              <i class="bi bi-check-circle text-success me-2"></i>
+              Configure preferred storage locations
+            </li>
+          </ul>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // Add tooltips to stock status icons
+    const tooltipTriggerList = [].slice.call(document.querySelectorAll('[title]'));
+    tooltipTriggerList.map(function (tooltipTriggerEl) {
+        return new bootstrap.Tooltip(tooltipTriggerEl);
+    });
+    
+    // Highlight low stock and out of stock items in product table
+    const productRows = document.querySelectorAll('tbody tr');
+    productRows.forEach(row => {
+        const stockIcon = row.querySelector('.bi-exclamation-triangle');
+        if (stockIcon) {
+            row.classList.add('table-warning');
+        }
+        
+        const outOfStockIcon = row.querySelector('.bi-x-circle');
+        if (outOfStockIcon) {
+            row.classList.add('table-danger');
+        }
+    });
+    
+    // Smooth scroll to sections when clicking navigation
+    document.querySelectorAll('a[href^="#"]').forEach(anchor => {
+        anchor.addEventListener('click', function (e) {
+            e.preventDefault();
+            const target = document.querySelector(this.getAttribute('href'));
+            if (target) {
+                target.scrollIntoView({
+                    behavior: 'smooth',
+                    block: 'start'
+                });
+            }
+        });
+    });
+});
+</script>
+{% endblock %}

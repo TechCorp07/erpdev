@@ -1,0 +1,442 @@
+{% extends "dashboard_base.html" %}
+{% load static %}
+
+{% block page_title %}Brand: {{ brand.name }}{% endblock %}
+
+{% block dashboard_content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+  <div>
+    <nav aria-label="breadcrumb">
+      <ol class="breadcrumb mb-1">
+        <li class="breadcrumb-item"><a href="{% url 'inventory:dashboard' %}">Inventory</a></li>
+        <li class="breadcrumb-item"><a href="{% url 'inventory:configuration' %}">Configuration</a></li>
+        <li class="breadcrumb-item"><a href="{% url 'inventory:brand_list' %}">Brands</a></li>
+        <li class="breadcrumb-item active">{{ brand.name }}</li>
+      </ol>
+    </nav>
+    <h1 class="h3 mb-0 text-gray-800">
+      <i class="bi bi-tag me-2"></i>{{ brand.name }}
+      {% if brand.is_active %}
+        <span class="badge bg-success ms-2">Active</span>
+      {% else %}
+        <span class="badge bg-secondary ms-2">Inactive</span>
+      {% endif %}
+    </h1>
+    <p class="text-muted mb-0">Brand details and associated products</p>
+  </div>
+  
+  <div class="btn-group" role="group">
+    <a href="{% url 'inventory:brand_list' %}" class="btn btn-outline-secondary">
+      <i class="bi bi-arrow-left me-2"></i>Back to List
+    </a>
+    <a href="{% url 'inventory:brand_edit' brand.pk %}" class="btn btn-primary">
+      <i class="bi bi-pencil me-2"></i>Edit Brand
+    </a>
+    <div class="btn-group" role="group">
+      <button class="btn btn-outline-secondary dropdown-toggle" type="button" data-bs-toggle="dropdown">
+        <i class="bi bi-three-dots"></i>
+      </button>
+      <ul class="dropdown-menu">
+        <li><a class="dropdown-item" href="{% url 'inventory:brand_products' brand.pk %}">
+          <i class="bi bi-box-seam me-2"></i>View All Products
+        </a></li>
+        <li><hr class="dropdown-divider"></li>
+        <li><a class="dropdown-item" href="{% url 'inventory:product_create' %}?brand={{ brand.pk }}">
+          <i class="bi bi-plus me-2"></i>Add Product for This Brand
+        </a></li>
+        <li><hr class="dropdown-divider"></li>
+        <li><a class="dropdown-item text-danger" href="{% url 'inventory:brand_delete' brand.pk %}">
+          <i class="bi bi-trash me-2"></i>Delete Brand
+        </a></li>
+      </ul>
+    </div>
+  </div>
+</div>
+
+<!-- Statistics Cards -->
+<div class="row mb-4">
+  <div class="col-lg-3 col-md-6 mb-4">
+    <div class="card bg-primary text-white shadow h-100 py-2">
+      <div class="card-body">
+        <div class="row no-gutters align-items-center">
+          <div class="col mr-2">
+            <div class="text-xs font-weight-bold text-white-50 text-uppercase mb-1">
+              Total Products
+            </div>
+            <div class="h5 mb-0 font-weight-bold">{{ brand.products.count|default:0 }}</div>
+          </div>
+          <div class="col-auto">
+            <i class="bi bi-box-seam fa-2x text-white-50"></i>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="col-lg-3 col-md-6 mb-4">
+    <div class="card bg-success text-white shadow h-100 py-2">
+      <div class="card-body">
+        <div class="row no-gutters align-items-center">
+          <div class="col mr-2">
+            <div class="text-xs font-weight-bold text-white-50 text-uppercase mb-1">
+              Active Products
+            </div>
+            <div class="h5 mb-0 font-weight-bold">{{ brand.products.filter.is_active=True.count|default:0 }}</div>
+          </div>
+          <div class="col-auto">
+            <i class="bi bi-check-circle fa-2x text-white-50"></i>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="col-lg-3 col-md-6 mb-4">
+    <div class="card bg-info text-white shadow h-100 py-2">
+      <div class="card-body">
+        <div class="row no-gutters align-items-center">
+          <div class="col mr-2">
+            <div class="text-xs font-weight-bold text-white-50 text-uppercase mb-1">
+              Stock Value
+            </div>
+            <div class="h5 mb-0 font-weight-bold">
+              ${{ brand.products.aggregate.total_stock_value|floatformat:0|default:0 }}
+            </div>
+          </div>
+          <div class="col-auto">
+            <i class="bi bi-currency-dollar fa-2x text-white-50"></i>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="col-lg-3 col-md-6 mb-4">
+    <div class="card bg-warning text-white shadow h-100 py-2">
+      <div class="card-body">
+        <div class="row no-gutters align-items-center">
+          <div class="col mr-2">
+            <div class="text-xs font-weight-bold text-white-50 text-uppercase mb-1">
+              Low Stock Items
+            </div>
+            <div class="h5 mb-0 font-weight-bold">
+              {{ brand.products.filter.current_stock__lte=F.reorder_level.count|default:0 }}
+            </div>
+          </div>
+          <div class="col-auto">
+            <i class="bi bi-exclamation-triangle fa-2x text-white-50"></i>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="row">
+  <!-- Brand Information -->
+  <div class="col-lg-8 mb-4">
+    <!-- Basic Information -->
+    <div class="card shadow mb-4">
+      <div class="card-header py-3">
+        <h6 class="m-0 font-weight-bold text-primary">
+          <i class="bi bi-info-circle me-2"></i>Brand Information
+        </h6>
+      </div>
+      <div class="card-body">
+        <div class="row">
+          <div class="col-md-6">
+            <table class="table table-borderless">
+              <tr>
+                <td class="fw-bold">Brand Name:</td>
+                <td>{{ brand.name }}</td>
+              </tr>
+              <tr>
+                <td class="fw-bold">Status:</td>
+                <td>
+                  {% if brand.is_active %}
+                    <span class="badge bg-success">Active</span>
+                  {% else %}
+                    <span class="badge bg-secondary">Inactive</span>
+                  {% endif %}
+                </td>
+              </tr>
+              <tr>
+                <td class="fw-bold">Created:</td>
+                <td>{{ brand.created_at|date:"M d, Y" }}</td>
+              </tr>
+              <tr>
+                <td class="fw-bold">Last Updated:</td>
+                <td>{{ brand.updated_at|date:"M d, Y" }}</td>
+              </tr>
+            </table>
+          </div>
+          <div class="col-md-6">
+            <h6 class="text-muted">Description</h6>
+            {% if brand.description %}
+              <p class="text-muted">{{ brand.description|linebreaks }}</p>
+            {% else %}
+              <p class="text-muted fst-italic">No description provided</p>
+            {% endif %}
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Recent Products -->
+    {% if brand.products.exists %}
+    <div class="card shadow mb-4">
+      <div class="card-header py-3 d-flex justify-content-between align-items-center">
+        <h6 class="m-0 font-weight-bold text-primary">
+          <i class="bi bi-box-seam me-2"></i>Products ({{ brand.products.count }})
+        </h6>
+        <a href="{% url 'inventory:brand_products' brand.pk %}" class="btn btn-sm btn-outline-primary">
+          View All <i class="bi bi-arrow-right"></i>
+        </a>
+      </div>
+      <div class="card-body">
+        <div class="table-responsive">
+          <table class="table table-hover">
+            <thead>
+              <tr>
+                <th>Product</th>
+                <th>SKU</th>
+                <th>Category</th>
+                <th>Stock</th>
+                <th>Status</th>
+                <th>Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for product in brand.products.all|slice:":10" %}
+              <tr>
+                <td>
+                  <div class="d-flex align-items-center">
+                    <div>
+                      <div class="fw-bold">{{ product.name|truncatechars:40 }}</div>
+                      {% if product.description %}
+                        <small class="text-muted">{{ product.description|truncatechars:60 }}</small>
+                      {% endif %}
+                    </div>
+                  </div>
+                </td>
+                <td>
+                  <code class="small">{{ product.sku }}</code>
+                </td>
+                <td>
+                  {% if product.category %}
+                    <span class="badge bg-light text-dark">{{ product.category.name }}</span>
+                  {% else %}
+                    <span class="text-muted">-</span>
+                  {% endif %}
+                </td>
+                <td>
+                  <div class="d-flex align-items-center">
+                    <span class="me-2">{{ product.current_stock|default:0 }}</span>
+                    {% if product.current_stock <= 0 %}
+                      <i class="bi bi-x-circle text-danger" title="Out of stock"></i>
+                    {% elif product.current_stock <= product.reorder_level %}
+                      <i class="bi bi-exclamation-triangle text-warning" title="Low stock"></i>
+                    {% else %}
+                      <i class="bi bi-check-circle text-success" title="In stock"></i>
+                    {% endif %}
+                  </div>
+                </td>
+                <td>
+                  {% if product.is_active %}
+                    <span class="badge bg-success">Active</span>
+                  {% else %}
+                    <span class="badge bg-secondary">Inactive</span>
+                  {% endif %}
+                </td>
+                <td>
+                  <div class="btn-group btn-group-sm" role="group">
+                    <a href="{% url 'inventory:product_detail' product.pk %}" 
+                       class="btn btn-outline-info" 
+                       title="View Details">
+                      <i class="bi bi-eye"></i>
+                    </a>
+                    <a href="{% url 'inventory:product_edit' product.pk %}" 
+                       class="btn btn-outline-primary" 
+                       title="Edit Product">
+                      <i class="bi bi-pencil"></i>
+                    </a>
+                  </div>
+                </td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+          
+          {% if brand.products.count > 10 %}
+          <div class="text-center">
+            <a href="{% url 'inventory:brand_products' brand.pk %}" class="btn btn-outline-primary">
+              View All {{ brand.products.count }} Products <i class="bi bi-arrow-right"></i>
+            </a>
+          </div>
+          {% endif %}
+        </div>
+      </div>
+    </div>
+    {% else %}
+    <!-- No Products Message -->
+    <div class="card shadow mb-4">
+      <div class="card-header py-3">
+        <h6 class="m-0 font-weight-bold text-primary">
+          <i class="bi bi-box-seam me-2"></i>Products
+        </h6>
+      </div>
+      <div class="card-body text-center py-5">
+        <i class="bi bi-box fa-3x text-muted mb-3"></i>
+        <h5>No Products Yet</h5>
+        <p class="text-muted mb-4">This brand doesn't have any products assigned to it yet.</p>
+        <a href="{% url 'inventory:product_create' %}?brand={{ brand.pk }}" class="btn btn-primary">
+          <i class="bi bi-plus me-2"></i>Add First Product
+        </a>
+      </div>
+    </div>
+    {% endif %}
+  </div>
+
+  <!-- Sidebar -->
+  <div class="col-lg-4">
+    <!-- Quick Actions -->
+    <div class="card shadow mb-4">
+      <div class="card-header py-3">
+        <h6 class="m-0 font-weight-bold text-success">
+          <i class="bi bi-lightning me-2"></i>Quick Actions
+        </h6>
+      </div>
+      <div class="card-body">
+        <div class="d-grid gap-2">
+          <a href="{% url 'inventory:product_create' %}?brand={{ brand.pk }}" class="btn btn-success">
+            <i class="bi bi-plus me-2"></i>Add New Product
+          </a>
+          
+          {% if brand.products.exists %}
+          <a href="{% url 'inventory:brand_products' brand.pk %}" class="btn btn-outline-info">
+            <i class="bi bi-list me-2"></i>View All Products
+          </a>
+          {% endif %}
+          
+          <a href="{% url 'inventory:brand_edit' brand.pk %}" class="btn btn-outline-primary">
+            <i class="bi bi-pencil me-2"></i>Edit Brand
+          </a>
+          
+          <hr>
+          
+          <a href="{% url 'inventory:brand_delete' brand.pk %}" class="btn btn-outline-danger">
+            <i class="bi bi-trash me-2"></i>Delete Brand
+          </a>
+        </div>
+      </div>
+    </div>
+
+    <!-- Brand Analytics -->
+    {% if brand.products.exists %}
+    <div class="card shadow mb-4">
+      <div class="card-header py-3">
+        <h6 class="m-0 font-weight-bold text-info">
+          <i class="bi bi-bar-chart me-2"></i>Brand Analytics
+        </h6>
+      </div>
+      <div class="card-body">
+        <!-- Stock Status Distribution -->
+        <h6 class="small text-muted text-uppercase mb-3">Stock Status</h6>
+        <div class="mb-4">
+          {% with in_stock=brand.products.filter.current_stock__gt=F.reorder_level.count out_of_stock=brand.products.filter.current_stock=0.count low_stock=brand.products.filter.current_stock__lte=F.reorder_level,current_stock__gt=0.count %}
+          <div class="row text-center">
+            <div class="col-4">
+              <div class="h6 mb-0 text-success">{{ in_stock|default:0 }}</div>
+              <small class="text-muted">In Stock</small>
+            </div>
+            <div class="col-4">
+              <div class="h6 mb-0 text-warning">{{ low_stock|default:0 }}</div>
+              <small class="text-muted">Low Stock</small>
+            </div>
+            <div class="col-4">
+              <div class="h6 mb-0 text-danger">{{ out_of_stock|default:0 }}</div>
+              <small class="text-muted">Out of Stock</small>
+            </div>
+          </div>
+          {% endwith %}
+        </div>
+
+        <!-- Categories Distribution -->
+        <h6 class="small text-muted text-uppercase mb-3">Top Categories</h6>
+        {% with category_stats=brand.products.values.category__name.annotate.count=Count.id.order_by.-count|slice.:5 %}
+        {% if category_stats %}
+        <div class="list-group list-group-flush">
+          {% for cat in category_stats %}
+          <div class="list-group-item d-flex justify-content-between align-items-center px-0 py-2">
+            <span class="small">{{ cat.category__name|default:"Uncategorized" }}</span>
+            <span class="badge bg-primary rounded-pill">{{ cat.count }}</span>
+          </div>
+          {% endfor %}
+        </div>
+        {% else %}
+        <p class="text-muted small">No category data available</p>
+        {% endif %}
+        {% endwith %}
+      </div>
+    </div>
+    {% endif %}
+
+    <!-- Brand Management Tips -->
+    <div class="card shadow mb-4">
+      <div class="card-header py-3">
+        <h6 class="m-0 font-weight-bold text-secondary">
+          <i class="bi bi-lightbulb me-2"></i>Brand Management
+        </h6>
+      </div>
+      <div class="card-body">
+        <div class="small">
+          <ul class="list-unstyled">
+            <li class="mb-2">
+              <i class="bi bi-check-circle text-success me-2"></i>
+              Keep brand information updated
+            </li>
+            <li class="mb-2">
+              <i class="bi bi-check-circle text-success me-2"></i>
+              Monitor stock levels regularly
+            </li>
+            <li class="mb-2">
+              <i class="bi bi-check-circle text-success me-2"></i>
+              Use brands for filtering and reporting
+            </li>
+            <li class="mb-2">
+              <i class="bi bi-check-circle text-success me-2"></i>
+              Deactivate instead of deleting when possible
+            </li>
+          </ul>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // Add tooltips to stock status icons
+    const tooltipTriggerList = [].slice.call(document.querySelectorAll('[title]'));
+    tooltipTriggerList.map(function (tooltipTriggerEl) {
+        return new bootstrap.Tooltip(tooltipTriggerEl);
+    });
+    
+    // Highlight low stock items
+    const lowStockRows = document.querySelectorAll('tr');
+    lowStockRows.forEach(row => {
+        const stockIcon = row.querySelector('.bi-exclamation-triangle');
+        if (stockIcon) {
+            row.classList.add('table-warning');
+        }
+        
+        const outOfStockIcon = row.querySelector('.bi-x-circle');
+        if (outOfStockIcon) {
+            row.classList.add('table-danger');
+        }
+    });
+});
+</script>
+{% endblock %}

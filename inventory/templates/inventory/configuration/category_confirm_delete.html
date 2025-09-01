@@ -1,0 +1,553 @@
+{% extends "dashboard_base.html" %}
+{% load static %}
+
+{% block page_title %}Delete Category: {{ category.name }}{% endblock %}
+
+{% block dashboard_content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+  <div>
+    <nav aria-label="breadcrumb">
+      <ol class="breadcrumb mb-1">
+        <li class="breadcrumb-item"><a href="{% url 'inventory:dashboard' %}">Inventory</a></li>
+        <li class="breadcrumb-item"><a href="{% url 'inventory:configuration' %}">Configuration</a></li>
+        <li class="breadcrumb-item"><a href="{% url 'inventory:category_list' %}">Categories</a></li>
+        <li class="breadcrumb-item"><a href="{% url 'inventory:category_detail' category.pk %}">{{ category.name }}</a></li>
+        <li class="breadcrumb-item active">Delete</li>
+      </ol>
+    </nav>
+    <h1 class="h3 mb-0 text-gray-800">
+      <i class="bi bi-trash text-danger me-2"></i>Delete Category: {{ category.name }}
+    </h1>
+    <p class="text-muted mb-0">Confirm category deletion and review hierarchical impact</p>
+  </div>
+  
+  <div class="btn-group" role="group">
+    <a href="{% url 'inventory:category_detail' category.pk %}" class="btn btn-outline-secondary">
+      <i class="bi bi-arrow-left me-2"></i>Back to Category
+    </a>
+    <a href="{% url 'inventory:category_list' %}" class="btn btn-outline-info">
+      <i class="bi bi-list me-2"></i>All Categories
+    </a>
+  </div>
+</div>
+
+<!-- Hierarchical Impact Warning -->
+<div class="alert alert-danger d-flex align-items-center mb-4" role="alert">
+  <i class="bi bi-exclamation-triangle-fill fa-2x me-3"></i>
+  <div>
+    <h5 class="alert-heading mb-2">⚠️ Hierarchical Structure Impact Warning</h5>
+    <p class="mb-0">
+      You are about to <strong>permanently delete</strong> a category that may affect products, subcategories, 
+      and business rules. This action will disrupt the category hierarchy and <strong>cannot be undone.</strong>
+    </p>
+  </div>
+</div>
+
+<div class="row">
+  <!-- Deletion Form -->
+  <div class="col-lg-8">
+    <div class="card shadow mb-4">
+      <div class="card-header py-3 bg-danger text-white">
+        <h6 class="m-0 font-weight-bold">
+          <i class="bi bi-trash me-2"></i>Confirm Category Deletion
+        </h6>
+      </div>
+      <div class="card-body">
+        <div class="row mb-4">
+          <div class="col-md-6">
+            <h6 class="text-dark">Category Information</h6>
+            <table class="table table-sm table-borderless">
+              <tr>
+                <td class="fw-bold">Name:</td>
+                <td>{{ category.name }}</td>
+              </tr>
+              <tr>
+                <td class="fw-bold">Slug:</td>
+                <td><code>{{ category.slug }}</code></td>
+              </tr>
+              <tr>
+                <td class="fw-bold">Parent:</td>
+                <td>
+                  {% if category.parent %}
+                    <a href="{% url 'inventory:category_detail' category.parent.pk %}">{{ category.parent.name }}</a>
+                  {% else %}
+                    <span class="text-muted">Top-level category</span>
+                  {% endif %}
+                </td>
+              </tr>
+              <tr>
+                <td class="fw-bold">Component Family:</td>
+                <td>{{ category.component_family.name|default:"Not set" }}</td>
+              </tr>
+              <tr>
+                <td class="fw-bold">Status:</td>
+                <td>
+                  {% if category.is_active %}
+                    <span class="badge bg-success">Active</span>
+                  {% else %}
+                    <span class="badge bg-secondary">Inactive</span>
+                  {% endif %}
+                </td>
+              </tr>
+            </table>
+          </div>
+          
+          <div class="col-md-6">
+            <h6 class="text-dark">Impact Summary</h6>
+            <div class="row text-center">
+              <div class="col-6 mb-3">
+                <div class="h4 mb-0 text-danger">{{ category.products.count|default:0 }}</div>
+                <small class="text-muted">Direct Products</small>
+              </div>
+              <div class="col-6 mb-3">
+                <div class="h4 mb-0 text-warning">{{ category.subcategories.count|default:0 }}</div>
+                <small class="text-muted">Subcategories</small>
+              </div>
+              <div class="col-6 mb-3">
+                <div class="h4 mb-0 text-info">{{ total_descendant_products|default:0 }}</div>
+                <small class="text-muted">All Products (incl. subcategories)</small>
+              </div>
+              <div class="col-6 mb-3">
+                <div class="h4 mb-0 text-secondary">{{ category.get_descendants.count|default:0 }}</div>
+                <small class="text-muted">All Descendants</small>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Business Rules Impact -->
+        <div class="alert alert-info" role="alert">
+          <h6 class="alert-heading">
+            <i class="bi bi-gear me-2"></i>Business Rules Will Be Lost
+          </h6>
+          <div class="row">
+            <div class="col-md-6">
+              <ul class="list-unstyled mb-0">
+                <li><strong>Default Markup:</strong> {{ category.default_markup_percentage }}%</li>
+                <li><strong>Reorder Level:</strong> {{ category.default_reorder_level }} units</li>
+                <li><strong>Reorder Quantity:</strong> {{ category.default_reorder_quantity }} units</li>
+              </ul>
+            </div>
+            <div class="col-md-6">
+              <ul class="list-unstyled mb-0">
+                <li><strong>Requires Datasheet:</strong> {% if category.requires_datasheet %}Yes{% else %}No{% endif %}</li>
+                <li><strong>Requires Certification:</strong> {% if category.requires_certification %}Yes{% else %}No{% endif %}</li>
+                <li><strong>Preferred Storage Bins:</strong> {{ category.preferred_storage_bins.count }} configured</li>
+              </ul>
+            </div>
+          </div>
+        </div>
+
+        <!-- Subcategories Impact -->
+        {% if category.subcategories.exists %}
+        <div class="alert alert-warning" role="alert">
+          <h6 class="alert-heading">
+            <i class="bi bi-diagram-3 me-2"></i>Subcategories Will Be Orphaned
+          </h6>
+          <p class="mb-2">
+            <strong>{{ category.subcategories.count }} subcategor{{ category.subcategories.count|pluralize:"y,ies" }}</strong> 
+            will lose their parent relationship:
+          </p>
+          
+          <div class="row">
+            {% for subcat in category.subcategories.all %}
+            <div class="col-md-6 mb-2">
+              <div class="border rounded p-2">
+                <div class="d-flex justify-content-between align-items-center">
+                  <div>
+                    <strong>{{ subcat.name }}</strong><br>
+                    <small class="text-muted">{{ subcat.products.count }} product{{ subcat.products.count|pluralize }}</small>
+                  </div>
+                  <div class="text-end">
+                    {% if subcat.is_active %}
+                      <span class="badge bg-success">Active</span>
+                    {% else %}
+                      <span class="badge bg-secondary">Inactive</span>
+                    {% endif %}
+                    {% if subcat.subcategories.exists %}
+                      <br><small class="text-muted">{{ subcat.subcategories.count }} child{{ subcat.subcategories.count|pluralize:"ren" }}</small>
+                    {% endif %}
+                  </div>
+                </div>
+              </div>
+            </div>
+            {% endfor %}
+          </div>
+          
+          <hr>
+          <p class="mb-0 small">
+            <strong>What happens:</strong> Subcategories will become top-level categories and lose inherited business rules.
+          </p>
+        </div>
+        {% endif %}
+
+        <!-- Products Impact -->
+        {% if category.products.exists %}
+        <div class="alert alert-warning" role="alert">
+          <h6 class="alert-heading">
+            <i class="bi bi-box-seam me-2"></i>Products Will Lose Category Assignment
+          </h6>
+          <p class="mb-2">
+            <strong>{{ category.products.count }} product{{ category.products.count|pluralize }}</strong> 
+            directly assigned to this category:
+          </p>
+          
+          <div class="row">
+            {% for product in category.products.all|slice:":6" %}
+            <div class="col-md-6 mb-2">
+              <div class="border rounded p-2">
+                <div class="d-flex justify-content-between align-items-center">
+                  <div>
+                    <strong>{{ product.name|truncatechars:25 }}</strong><br>
+                    <small class="text-muted">
+                      SKU: {{ product.sku }} | Stock: {{ product.current_stock|default:0 }}
+                    </small>
+                  </div>
+                  <div class="text-end">
+                    {% if product.is_active %}
+                      <span class="badge bg-success">Active</span>
+                    {% else %}
+                      <span class="badge bg-secondary">Inactive</span>
+                    {% endif %}
+                    <br>
+                    <small class="text-muted">${{ product.cost_price|floatformat:2|default:"0.00" }}</small>
+                  </div>
+                </div>
+              </div>
+            </div>
+            {% endfor %}
+          </div>
+          
+          {% if category.products.count > 6 %}
+          <div class="mt-2">
+            <small class="text-muted">
+              ... and {{ category.products.count|add:"-6" }} more product{{ category.products.count|add:"-6"|pluralize }}
+            </small>
+          </div>
+          {% endif %}
+        </div>
+        {% endif %}
+
+        <!-- Hierarchy Visualization -->
+        {% if category.parent or category.subcategories.exists %}
+        <div class="bg-light rounded p-3 mb-4">
+          <h6 class="text-dark">
+            <i class="bi bi-diagram-2 me-2"></i>Current Hierarchy Structure
+          </h6>
+          <div class="font-monospace small">
+            {% if category.parent.parent %}
+              {{ category.parent.parent.name }}
+              <br>&nbsp;&nbsp;└── {{ category.parent.name }}
+              <br>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;└── <strong class="text-danger">{{ category.name }}</strong> (TO BE DELETED)
+            {% elif category.parent %}
+              {{ category.parent.name }}
+              <br>&nbsp;&nbsp;└── <strong class="text-danger">{{ category.name }}</strong> (TO BE DELETED)
+            {% else %}
+              <strong class="text-danger">{{ category.name }}</strong> (TO BE DELETED)
+            {% endif %}
+            
+            {% for subcat in category.subcategories.all|slice:":5" %}
+              <br>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;└── {{ subcat.name }} <span class="text-warning">(will become top-level)</span>
+              {% for subsubcat in subcat.subcategories.all|slice:":3" %}
+                <br>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;└── {{ subsubcat.name }}
+              {% endfor %}
+            {% endfor %}
+          </div>
+        </div>
+        {% endif %}
+
+        <!-- Consequences Warning -->
+        <div class="bg-light rounded p-3 mb-4">
+          <h6 class="text-dark">
+            <i class="bi bi-info-circle me-2"></i>What happens after deletion:
+          </h6>
+          <ul class="list-unstyled small mb-0">
+            <li class="mb-1">
+              <i class="bi bi-dot text-danger"></i>
+              Category and all its business rules will be permanently deleted
+            </li>
+            <li class="mb-1">
+              <i class="bi bi-dot text-warning"></i>
+              Direct products will lose their category assignment (become uncategorized)
+            </li>
+            <li class="mb-1">
+              <i class="bi bi-dot text-warning"></i>
+              Subcategories will become top-level categories
+            </li>
+            <li class="mb-1">
+              <i class="bi bi-dot text-info"></i>
+              Product filtering and reporting may be affected
+            </li>
+            <li class="mb-1">
+              <i class="bi bi-dot text-secondary"></i>
+              Historical data references will be broken
+            </li>
+          </ul>
+        </div>
+
+        <!-- Confirmation Form -->
+        <form method="post" class="mt-4">
+          {% csrf_token %}
+          
+          <div class="mb-3">
+            <div class="form-check">
+              <input class="form-check-input" type="checkbox" id="confirmDeletion" required>
+              <label class="form-check-label fw-bold text-danger" for="confirmDeletion">
+                I understand this action is permanent and cannot be undone
+              </label>
+            </div>
+          </div>
+          
+          {% if category.products.exists %}
+          <div class="mb-3">
+            <div class="form-check">
+              <input class="form-check-input" type="checkbox" id="confirmProductImpact" required>
+              <label class="form-check-label fw-bold text-warning" for="confirmProductImpact">
+                I acknowledge that {{ category.products.count }} product{{ category.products.count|pluralize }} will become uncategorized
+              </label>
+            </div>
+          </div>
+          {% endif %}
+          
+          {% if category.subcategories.exists %}
+          <div class="mb-3">
+            <div class="form-check">
+              <input class="form-check-input" type="checkbox" id="confirmHierarchyImpact" required>
+              <label class="form-check-label fw-bold text-warning" for="confirmHierarchyImpact">
+                I acknowledge that {{ category.subcategories.count }} subcategor{{ category.subcategories.count|pluralize:"y,ies" }} will become top-level
+              </label>
+            </div>
+          </div>
+          {% endif %}
+          
+          <div class="mb-3">
+            <div class="form-check">
+              <input class="form-check-input" type="checkbox" id="confirmBusinessRules" required>
+              <label class="form-check-label fw-bold text-info" for="confirmBusinessRules">
+                I acknowledge that all business rules and settings will be lost
+              </label>
+            </div>
+          </div>
+
+          <div class="d-flex justify-content-between align-items-center pt-3 border-top">
+            <div>
+              <a href="{% url 'inventory:category_detail' category.pk %}" class="btn btn-outline-secondary">
+                <i class="bi bi-x me-2"></i>Cancel Deletion
+              </a>
+            </div>
+            
+            <div>
+              <button type="submit" 
+                      class="btn btn-danger" 
+                      id="deleteButton"
+                      disabled>
+                <i class="bi bi-trash me-2"></i>
+                Permanently Delete Category
+              </button>
+            </div>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <!-- Alternative Actions Sidebar -->
+  <div class="col-lg-4">
+    <div class="card shadow mb-4">
+      <div class="card-header py-3">
+        <h6 class="m-0 font-weight-bold text-success">
+          <i class="bi bi-lightbulb me-2"></i>Safer Alternatives
+        </h6>
+      </div>
+      <div class="card-body">
+        <p class="small mb-3">
+          Consider these alternatives that preserve data integrity:
+        </p>
+        
+        <div class="list-group list-group-flush">
+          <div class="list-group-item d-flex align-items-start px-0">
+            <i class="bi bi-pause-circle text-warning me-3 mt-1"></i>
+            <div>
+              <h6 class="mb-1">Deactivate Category</h6>
+              <small class="text-muted">
+                Set category to inactive to hide it from product creation while preserving hierarchy and business rules.
+              </small>
+              <div class="mt-2">
+                <a href="{% url 'inventory:category_edit' category.pk %}" class="btn btn-sm btn-outline-warning">
+                  <i class="bi bi-pencil me-1"></i>Edit Category
+                </a>
+              </div>
+            </div>
+          </div>
+          
+          <div class="list-group-item d-flex align-items-start px-0">
+            <i class="bi bi-arrow-left-right text-info me-3 mt-1"></i>
+            <div>
+              <h6 class="mb-1">Merge Categories</h6>
+              <small class="text-muted">
+                Move all products and subcategories to another category before deletion.
+              </small>
+              <div class="mt-2">
+                <button class="btn btn-sm btn-outline-info" disabled>
+                  <i class="bi bi-union me-1"></i>Merge Categories
+                </button>
+                <br><small class="text-muted">Feature coming soon</small>
+              </div>
+            </div>
+          </div>
+          
+          <div class="list-group-item d-flex align-items-start px-0">
+            <i class="bi bi-diagram-3 text-primary me-3 mt-1"></i>
+            <div>
+              <h6 class="mb-1">Restructure Hierarchy</h6>
+              <small class="text-muted">
+                Move products to subcategories or reorganize the category structure before deletion.
+              </small>
+              <div class="mt-2">
+                <a href="{% url 'inventory:product_list' %}?category={{ category.pk }}" class="btn btn-sm btn-outline-primary">
+                  <i class="bi bi-list me-1"></i>Manage Products
+                </a>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Deletion Guidelines -->
+    <div class="card shadow mb-4">
+      <div class="card-header py-3">
+        <h6 class="m-0 font-weight-bold text-danger">
+          <i class="bi bi-shield-exclamation me-2"></i>Safe Deletion Guidelines
+        </h6>
+      </div>
+      <div class="card-body">
+        <div class="small">
+          <p class="mb-2"><strong>Safe to delete when:</strong></p>
+          <ul class="list-unstyled mb-3">
+            <li class="mb-1">
+              <i class="bi bi-check-circle text-success me-2"></i>
+              No products assigned to category
+            </li>
+            <li class="mb-1">
+              <i class="bi bi-check-circle text-success me-2"></i>
+              No subcategories exist
+            </li>
+            <li class="mb-1">
+              <i class="bi bi-check-circle text-success me-2"></i>
+              Category was created by mistake
+            </li>
+            <li class="mb-1">
+              <i class="bi bi-check-circle text-success me-2"></i>
+              Category is duplicate or obsolete
+            </li>
+          </ul>
+          
+          <p class="mb-2"><strong>Avoid deletion when:</strong></p>
+          <ul class="list-unstyled">
+            <li class="mb-1">
+              <i class="bi bi-x-circle text-danger me-2"></i>
+              Products or subcategories exist
+            </li>
+            <li class="mb-1">
+              <i class="bi bi-x-circle text-danger me-2"></i>
+              Category has business rules configured
+            </li>
+            <li class="mb-1">
+              <i class="bi bi-x-circle text-danger me-2"></i>
+              Used in filtering or reporting
+            </li>
+            <li class="mb-1">
+              <i class="bi bi-x-circle text-danger me-2"></i>
+              Part of important hierarchy
+            </li>
+          </ul>
+        </div>
+      </div>
+    </div>
+
+    <!-- Category Hierarchy -->
+    {% if category.parent or category.subcategories.exists %}
+    <div class="card shadow mb-4">
+      <div class="card-header py-3">
+        <h6 class="m-0 font-weight-bold text-info">
+          <i class="bi bi-diagram-2 me-2"></i>Category Tree
+        </h6>
+      </div>
+      <div class="card-body">
+        <div class="small">
+          {% if category.get_root %}
+          <strong>Root:</strong> 
+          <a href="{% url 'inventory:category_detail' category.get_root.pk %}">{{ category.get_root.name }}</a>
+          <br>
+          {% endif %}
+          
+          {% if category.parent %}
+          <strong>Parent:</strong> 
+          <a href="{% url 'inventory:category_detail' category.parent.pk %}">{{ category.parent.name }}</a>
+          <br>
+          {% endif %}
+          
+          {% if category.subcategories.exists %}
+          <strong>Children:</strong>
+          <ul class="list-unstyled mt-1 ms-3">
+            {% for child in category.subcategories.all %}
+            <li>
+              <a href="{% url 'inventory:category_detail' child.pk %}">{{ child.name }}</a>
+              <small class="text-muted">({{ child.products.count }} products)</small>
+            </li>
+            {% endfor %}
+          </ul>
+          {% endif %}
+        </div>
+      </div>
+    </div>
+    {% endif %}
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const checkboxes = [
+        document.getElementById('confirmDeletion'),
+        document.getElementById('confirmProductImpact'),
+        document.getElementById('confirmHierarchyImpact'),
+        document.getElementById('confirmBusinessRules')
+    ].filter(Boolean); // Remove null elements
+    
+    const deleteButton = document.getElementById('deleteButton');
+    
+    function updateButtonState() {
+        const allChecked = checkboxes.every(checkbox => checkbox.checked);
+        deleteButton.disabled = !allChecked;
+    }
+    
+    checkboxes.forEach(checkbox => {
+        checkbox.addEventListener('change', updateButtonState);
+    });
+    
+    // Final confirmation dialog
+    deleteButton.addEventListener('click', function(e) {
+        const categoryName = '{{ category.name }}';
+        const productCount = {{ category.products.count|default:0 }};
+        const subcatCount = {{ category.subcategories.count|default:0 }};
+        const totalDescendants = {{ total_descendant_products|default:0 }};
+        
+        let confirmMessage = `FINAL CONFIRMATION: Are you absolutely sure you want to permanently delete category "${categoryName}"?\n\n`;
+        confirmMessage += `This will affect:\n`;
+        confirmMessage += `• ${productCount} direct product${productCount !== 1 ? 's' : ''}\n`;
+        confirmMessage += `• ${subcatCount} subcategor${subcatCount !== 1 ? 'ies' : 'y'}\n`;
+        confirmMessage += `• ${totalDescendants} total products in hierarchy\n`;
+        confirmMessage += `\nThis action CANNOT be undone and will disrupt your category structure.`;
+        
+        const finalConfirm = confirm(confirmMessage);
+        
+        if (!finalConfirm) {
+            e.preventDefault();
+        }
+    });
+});
+</script>
+{% endblock %}

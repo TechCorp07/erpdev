@@ -1,0 +1,263 @@
+{% extends "dashboard_base.html" %}
+{% load static %}
+{% load crispy_forms_tags %}
+
+{% block page_title %}
+  {% if form.instance.pk %}Edit Brand{% else %}Add Brand{% endif %}
+{% endblock %}
+
+{% block dashboard_content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+  <div>
+    <nav aria-label="breadcrumb">
+      <ol class="breadcrumb mb-1">
+        <li class="breadcrumb-item"><a href="{% url 'inventory:dashboard' %}">Inventory</a></li>
+        <li class="breadcrumb-item"><a href="{% url 'inventory:configuration' %}">Configuration</a></li>
+        <li class="breadcrumb-item"><a href="{% url 'inventory:brand_list' %}">Brands</a></li>
+        <li class="breadcrumb-item active">
+          {% if form.instance.pk %}Edit Brand{% else %}Add Brand{% endif %}
+        </li>
+      </ol>
+    </nav>
+    <h1 class="h3 mb-0 text-gray-800">
+      {% if form.instance.pk %}
+        <i class="bi bi-pencil me-2"></i>Edit Brand: {{ form.instance.name }}
+      {% else %}
+        <i class="bi bi-plus me-2"></i>Add New Brand
+      {% endif %}
+    </h1>
+    <p class="text-muted mb-0">
+      {% if form.instance.pk %}
+        Update brand information and settings
+      {% else %}
+        Create a new brand for your products
+      {% endif %}
+    </p>
+  </div>
+  
+  <div class="btn-group" role="group">
+    <a href="{% url 'inventory:brand_list' %}" class="btn btn-outline-secondary">
+      <i class="bi bi-arrow-left me-2"></i>Back to List
+    </a>
+    {% if form.instance.pk %}
+    <a href="{% url 'inventory:brand_detail' form.instance.pk %}" class="btn btn-outline-info">
+      <i class="bi bi-eye me-2"></i>View Details
+    </a>
+    {% endif %}
+  </div>
+</div>
+
+<!-- Form Card -->
+<div class="row">
+  <div class="col-lg-8">
+    <div class="card shadow mb-4">
+      <div class="card-header py-3">
+        <h6 class="m-0 font-weight-bold text-primary">
+          <i class="bi bi-tag me-2"></i>Brand Information
+        </h6>
+      </div>
+      <div class="card-body">
+        <form method="post" novalidate>
+          {% csrf_token %}
+          
+          <!-- Brand Name -->
+          <div class="mb-3">
+            <label for="{{ form.name.id_for_label }}" class="form-label">
+              Brand Name <span class="text-danger">*</span>
+            </label>
+            <input type="text" 
+                   class="form-control {% if form.name.errors %}is-invalid{% endif %}" 
+                   id="{{ form.name.id_for_label }}"
+                   name="{{ form.name.name }}"
+                   value="{{ form.name.value|default:'' }}"
+                   placeholder="Enter brand name (e.g., Apple, Samsung, Bosch)"
+                   required>
+            {% if form.name.errors %}
+              <div class="invalid-feedback">
+                {{ form.name.errors.0 }}
+              </div>
+            {% endif %}
+            <div class="form-text">
+              Enter the official brand name as it appears on products and documentation.
+            </div>
+          </div>
+
+          <!-- Description -->
+          <div class="mb-3">
+            <label for="{{ form.description.id_for_label }}" class="form-label">
+              Description
+            </label>
+            <textarea class="form-control {% if form.description.errors %}is-invalid{% endif %}"
+                      id="{{ form.description.id_for_label }}"
+                      name="{{ form.description.name }}"
+                      rows="4"
+                      placeholder="Enter brand description, history, or key characteristics">{{ form.description.value|default:'' }}</textarea>
+            {% if form.description.errors %}
+              <div class="invalid-feedback">
+                {{ form.description.errors.0 }}
+              </div>
+            {% endif %}
+            <div class="form-text">
+              Optional description to help identify and categorize this brand.
+            </div>
+          </div>
+
+          <!-- Active Status -->
+          <div class="mb-4">
+            <div class="form-check">
+              <input class="form-check-input" 
+                     type="checkbox" 
+                     id="{{ form.is_active.id_for_label }}"
+                     name="{{ form.is_active.name }}"
+                     {% if form.is_active.value %}checked{% endif %}>
+              <label class="form-check-label" for="{{ form.is_active.id_for_label }}">
+                <strong>Active Brand</strong>
+              </label>
+            </div>
+            {% if form.is_active.errors %}
+              <div class="text-danger small">
+                {{ form.is_active.errors.0 }}
+              </div>
+            {% endif %}
+            <div class="form-text">
+              Inactive brands will not appear in product creation dropdowns but existing products will retain their brand assignment.
+            </div>
+          </div>
+
+          <!-- Form Actions -->
+          <div class="d-flex justify-content-between">
+            <div>
+              <button type="submit" class="btn btn-primary">
+                <i class="bi bi-check me-2"></i>
+                {% if form.instance.pk %}Update Brand{% else %}Create Brand{% endif %}
+              </button>
+              <a href="{% url 'inventory:brand_list' %}" class="btn btn-outline-secondary ms-2">
+                <i class="bi bi-x me-2"></i>Cancel
+              </a>
+            </div>
+            
+            {% if form.instance.pk %}
+            <div>
+              <a href="{% url 'inventory:brand_delete' form.instance.pk %}" 
+                 class="btn btn-outline-danger"
+                 onclick="return confirm('Are you sure you want to delete this brand? This action cannot be undone.')">
+                <i class="bi bi-trash me-2"></i>Delete Brand
+              </a>
+            </div>
+            {% endif %}
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <!-- Side Information Panel -->
+  <div class="col-lg-4">
+    {% if form.instance.pk %}
+    <!-- Brand Statistics -->
+    <div class="card shadow mb-4">
+      <div class="card-header py-3">
+        <h6 class="m-0 font-weight-bold text-success">
+          <i class="bi bi-bar-chart me-2"></i>Brand Statistics
+        </h6>
+      </div>
+      <div class="card-body">
+        <div class="row text-center">
+          <div class="col-6 mb-3">
+            <div class="h4 mb-0 text-primary">{{ form.instance.products.count|default:0 }}</div>
+            <small class="text-muted">Products</small>
+          </div>
+          <div class="col-6 mb-3">
+            <div class="h4 mb-0 text-success">{{ form.instance.products.filter.is_active=True.count|default:0 }}</div>
+            <small class="text-muted">Active Products</small>
+          </div>
+        </div>
+        
+        {% if form.instance.products.exists %}
+        <hr>
+        <div class="small">
+          <strong>Recent Products:</strong>
+          <ul class="list-unstyled mt-2">
+            {% for product in form.instance.products.all|slice:":5" %}
+            <li class="mb-1">
+              <a href="{% url 'inventory:product_detail' product.pk %}" class="text-decoration-none">
+                {{ product.name|truncatechars:30 }}
+              </a>
+            </li>
+            {% endfor %}
+          </ul>
+          {% if form.instance.products.count > 5 %}
+          <a href="{% url 'inventory:brand_products' form.instance.pk %}" class="btn btn-sm btn-outline-primary">
+            View All Products <i class="bi bi-arrow-right"></i>
+          </a>
+          {% endif %}
+        </div>
+        {% endif %}
+      </div>
+    </div>
+    {% endif %}
+
+    <!-- Help Information -->
+    <div class="card shadow mb-4">
+      <div class="card-header py-3">
+        <h6 class="m-0 font-weight-bold text-info">
+          <i class="bi bi-info-circle me-2"></i>Brand Management Tips
+        </h6>
+      </div>
+      <div class="card-body">
+        <div class="small">
+          <ul class="list-unstyled">
+            <li class="mb-2">
+              <i class="bi bi-check-circle text-success me-2"></i>
+              Use official brand names for consistency
+            </li>
+            <li class="mb-2">
+              <i class="bi bi-check-circle text-success me-2"></i>
+              Add descriptions to distinguish similar brands
+            </li>
+            <li class="mb-2">
+              <i class="bi bi-check-circle text-success me-2"></i>
+              Inactive brands remain linked to existing products
+            </li>
+            <li class="mb-2">
+              <i class="bi bi-check-circle text-success me-2"></i>
+              Use brand filtering in product searches
+            </li>
+          </ul>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // Auto-focus on brand name field
+    const nameField = document.getElementById('{{ form.name.id_for_label }}');
+    if (nameField && !nameField.value) {
+        nameField.focus();
+    }
+    
+    // Character counter for description
+    const descriptionField = document.getElementById('{{ form.description.id_for_label }}');
+    if (descriptionField) {
+        const maxLength = 500; // Adjust based on your model
+        const counter = document.createElement('div');
+        counter.className = 'form-text text-end';
+        counter.style.fontSize = '0.875em';
+        descriptionField.parentNode.appendChild(counter);
+        
+        function updateCounter() {
+            const remaining = maxLength - descriptionField.value.length;
+            counter.textContent = `${descriptionField.value.length}/${maxLength} characters`;
+            counter.className = remaining < 50 ? 'form-text text-end text-warning' : 'form-text text-end';
+        }
+        
+        descriptionField.addEventListener('input', updateCounter);
+        updateCounter();
+    }
+});
+</script>
+{% endblock %}

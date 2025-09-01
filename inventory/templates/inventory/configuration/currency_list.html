@@ -1,0 +1,635 @@
+{% extends "dashboard_base.html" %}
+{% load static %}
+
+{% block page_title %}Currencies{% endblock %}
+
+{% block dashboard_content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+  <div>
+    <nav aria-label="breadcrumb">
+      <ol class="breadcrumb mb-1">
+        <li class="breadcrumb-item"><a href="{% url 'inventory:dashboard' %}">Inventory</a></li>
+        <li class="breadcrumb-item"><a href="{% url 'inventory:configuration' %}">Configuration</a></li>
+        <li class="breadcrumb-item active">Currencies</li>
+      </ol>
+    </nav>
+    <h1 class="h3 mb-0 text-gray-800">Currency Management</h1>
+    <p class="text-muted mb-0">Manage currencies and exchange rates for international suppliers</p>
+  </div>
+  
+  <div class="btn-group" role="group">
+    <a href="{% url 'inventory:currency_create' %}" class="btn btn-primary">
+      <i class="bi bi-plus me-2"></i>Add Currency
+    </a>
+    <div class="btn-group" role="group">
+      <button class="btn btn-outline-secondary dropdown-toggle" type="button" data-bs-toggle="dropdown">
+        <i class="bi bi-three-dots"></i>
+      </button>
+      <ul class="dropdown-menu">
+        <li><a class="dropdown-item" href="{% url 'inventory:update_exchange_rates' %}">
+          <i class="bi bi-arrow-repeat me-2"></i>Update Exchange Rates
+        </a></li>
+        <li><hr class="dropdown-divider"></li>
+        <li><a class="dropdown-item" href="{% url 'inventory:currency_bulk_import' %}">
+          <i class="bi bi-upload me-2"></i>Import Currencies
+        </a></li>
+        <li><a class="dropdown-item" href="?export=csv">
+          <i class="bi bi-download me-2"></i>Export to CSV
+        </a></li>
+        <li><hr class="dropdown-divider"></li>
+        <li><a class="dropdown-item" href="{% url 'inventory:exchange_rate_history' %}">
+          <i class="bi bi-graph-up me-2"></i>Exchange Rate History
+        </a></li>
+      </ul>
+    </div>
+  </div>
+</div>
+
+<!-- Exchange Rate Update Alert -->
+{% if last_update_ago %}
+<div class="alert alert-info d-flex align-items-center mb-4" role="alert">
+  <i class="bi bi-info-circle fa-2x me-3"></i>
+  <div>
+    <h5 class="alert-heading mb-2">💱 Exchange Rates Status</h5>
+    <p class="mb-1">
+      Last updated: <strong>{{ last_update_ago }}</strong> 
+      {% if last_update_ago > 24 %}
+        <span class="badge bg-warning">Update Recommended</span>
+      {% endif %}
+    </p>
+    <p class="mb-0">
+      <a href="{% url 'inventory:update_exchange_rates' %}" class="alert-link">Update now</a> to ensure accurate pricing calculations.
+    </p>
+  </div>
+</div>
+{% endif %}
+
+<!-- Summary Cards -->
+<div class="row mb-4">
+  <div class="col-lg-3 col-md-6 mb-4">
+    <div class="card bg-primary text-white shadow h-100 py-2">
+      <div class="card-body">
+        <div class="row no-gutters align-items-center">
+          <div class="col mr-2">
+            <div class="text-xs font-weight-bold text-white-50 text-uppercase mb-1">
+              Total Currencies
+            </div>
+            <div class="h5 mb-0 font-weight-bold">{{ currencies.count|default:0 }}</div>
+          </div>
+          <div class="col-auto">
+            <i class="bi bi-currency-exchange fa-2x text-white-50"></i>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="col-lg-3 col-md-6 mb-4">
+    <div class="card bg-success text-white shadow h-100 py-2">
+      <div class="card-body">
+        <div class="row no-gutters align-items-center">
+          <div class="col mr-2">
+            <div class="text-xs font-weight-bold text-white-50 text-uppercase mb-1">
+              Active Currencies
+            </div>
+            <div class="h5 mb-0 font-weight-bold">{{ active_currencies_count|default:0 }}</div>
+          </div>
+          <div class="col-auto">
+            <i class="bi bi-check-circle fa-2x text-white-50"></i>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="col-lg-3 col-md-6 mb-4">
+    <div class="card bg-info text-white shadow h-100 py-2">
+      <div class="card-body">
+        <div class="row no-gutters align-items-center">
+          <div class="col mr-2">
+            <div class="text-xs font-weight-bold text-white-50 text-uppercase mb-1">
+              Base Currency
+            </div>
+            <div class="h5 mb-0 font-weight-bold">{{ base_currency.code|default:"USD" }}</div>
+          </div>
+          <div class="col-auto">
+            <i class="bi bi-star fa-2x text-white-50"></i>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="col-lg-3 col-md-6 mb-4">
+    <div class="card bg-warning text-white shadow h-100 py-2">
+      <div class="card-body">
+        <div class="row no-gutters align-items-center">
+          <div class="col mr-2">
+            <div class="text-xs font-weight-bold text-white-50 text-uppercase mb-1">
+              Suppliers Using
+            </div>
+            <div class="h5 mb-0 font-weight-bold">{{ suppliers_using_currencies|default:0 }}</div>
+          </div>
+          <div class="col-auto">
+            <i class="bi bi-building fa-2x text-white-50"></i>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Filter Card -->
+<div class="card shadow mb-4">
+  <div class="card-header py-3">
+    <h6 class="m-0 font-weight-bold text-primary">Filter Currencies</h6>
+  </div>
+  <div class="card-body">
+    <form method="get" class="row g-3">
+      <div class="col-md-3">
+        <label class="form-label">Search</label>
+        <input type="text" class="form-control" name="search" value="{{ current_filters.search }}" 
+               placeholder="Currency name or code...">
+      </div>
+      
+      <div class="col-md-2">
+        <label class="form-label">Status</label>
+        <select class="form-select" name="status">
+          <option value="">All Statuses</option>
+          <option value="active" {% if current_filters.status == "active" %}selected{% endif %}>Active</option>
+          <option value="inactive" {% if current_filters.status == "inactive" %}selected{% endif %}>Inactive</option>
+        </select>
+      </div>
+      
+      <div class="col-md-2">
+        <label class="form-label">Rate Status</label>
+        <select class="form-select" name="rate_status">
+          <option value="">All Rates</option>
+          <option value="updated" {% if current_filters.rate_status == "updated" %}selected{% endif %}>Recently Updated</option>
+          <option value="stale" {% if current_filters.rate_status == "stale" %}selected{% endif %}>Needs Update</option>
+        </select>
+      </div>
+      
+      <div class="col-md-2">
+        <label class="form-label">Usage</label>
+        <select class="form-select" name="usage">
+          <option value="">All</option>
+          <option value="used" {% if current_filters.usage == "used" %}selected{% endif %}>In Use</option>
+          <option value="unused" {% if current_filters.usage == "unused" %}selected{% endif %}>Not Used</option>
+        </select>
+      </div>
+      
+      <div class="col-md-2">
+        <label class="form-label">Sort By</label>
+        <select class="form-select" name="sort">
+          <option value="name" {% if current_filters.sort == "name" %}selected{% endif %}>Name</option>
+          <option value="code" {% if current_filters.sort == "code" %}selected{% endif %}>Code</option>
+          <option value="rate" {% if current_filters.sort == "rate" %}selected{% endif %}>Exchange Rate</option>
+          <option value="updated" {% if current_filters.sort == "updated" %}selected{% endif %}>Last Updated</option>
+        </select>
+      </div>
+      
+      <div class="col-md-1 d-flex align-items-end">
+        <div class="btn-group w-100" role="group">
+          <button type="submit" class="btn btn-primary">
+            <i class="bi bi-funnel"></i>
+          </button>
+          <a href="{% url 'inventory:currency_list' %}" class="btn btn-outline-secondary">
+            <i class="bi bi-x"></i>
+          </a>
+        </div>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- Currencies Table -->
+<div class="card shadow mb-4">
+  <div class="card-header py-3 d-flex justify-content-between align-items-center">
+    <h6 class="m-0 font-weight-bold text-primary">
+      Currencies
+      {% if current_filters.search or current_filters.status or current_filters.rate_status %}
+        <small class="text-muted">(filtered)</small>
+      {% endif %}
+    </h6>
+    <div class="text-muted small">
+      Last exchange rate update: {{ last_exchange_update|default:"Never" }}
+    </div>
+  </div>
+  
+  {% if currencies %}
+  <div class="table-responsive">
+    <table class="table table-hover mb-0">
+      <thead class="table-light">
+        <tr>
+          <th>Currency</th>
+          <th>Code</th>
+          <th>Symbol</th>
+          <th>Exchange Rate (to USD)</th>
+          <th>Last Updated</th>
+          <th>Usage</th>
+          <th>Status</th>
+          <th>Actions</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for currency in currencies %}
+        <tr class="{% if not currency.is_active %}table-secondary{% elif currency.needs_update %}table-warning{% endif %}">
+          <td>
+            <div class="d-flex align-items-center">
+              <div class="me-3">
+                {% if currency.flag_emoji %}
+                  <span style="font-size: 1.5em;">{{ currency.flag_emoji }}</span>
+                {% else %}
+                  <i class="bi bi-currency-exchange text-muted fa-2x"></i>
+                {% endif %}
+              </div>
+              <div>
+                <div class="fw-bold">
+                  <a href="{% url 'inventory:currency_detail' currency.pk %}" 
+                     class="text-decoration-none">
+                    {{ currency.name }}
+                  </a>
+                  {% if currency.is_base_currency %}
+                    <span class="badge bg-warning ms-1">Base</span>
+                  {% endif %}
+                </div>
+                {% if currency.description %}
+                  <small class="text-muted">{{ currency.description|truncatechars:50 }}</small>
+                {% endif %}
+              </div>
+            </div>
+          </td>
+          <td>
+            <code class="fw-bold">{{ currency.code }}</code>
+          </td>
+          <td>
+            <span class="h5 mb-0">{{ currency.symbol|default:"N/A" }}</span>
+          </td>
+          <td>
+            {% if currency.is_base_currency %}
+              <span class="fw-bold text-warning">1.0000</span>
+              <small class="text-muted d-block">(Base Currency)</small>
+            {% else %}
+              <div class="fw-bold {% if currency.needs_update %}text-warning{% else %}text-success{% endif %}">
+                {{ currency.exchange_rate_to_usd|floatformat:4|default:"N/A" }}
+              </div>
+              {% if currency.rate_change_indicator %}
+                <small class="{% if currency.rate_change_indicator == 'up' %}text-success{% elif currency.rate_change_indicator == 'down' %}text-danger{% else %}text-muted{% endif %}">
+                  <i class="bi bi-{% if currency.rate_change_indicator == 'up' %}arrow-up{% elif currency.rate_change_indicator == 'down' %}arrow-down{% else %}dash{% endif %}"></i>
+                  {{ currency.rate_change_percentage|default:"0.00" }}%
+                </small>
+              {% endif %}
+            {% endif %}
+          </td>
+          <td>
+            {% if currency.last_updated %}
+              <div class="small">{{ currency.last_updated|date:"M d, Y" }}</div>
+              <div class="small text-muted">{{ currency.last_updated|timesince }} ago</div>
+              {% if currency.needs_update %}
+                <span class="badge bg-warning">Update Needed</span>
+              {% endif %}
+            {% else %}
+              <span class="text-muted">Never updated</span>
+            {% endif %}
+          </td>
+          <td>
+            <div class="small">
+              <div><strong>Products:</strong> {{ currency.products_using|default:0 }}</div>
+              <div><strong>Suppliers:</strong> {{ currency.suppliers_using|default:0 }}</div>
+              {% if currency.total_usage > 0 %}
+                <div class="text-success small">
+                  <i class="bi bi-check-circle me-1"></i>In Use
+                </div>
+              {% else %}
+                <div class="text-muted small">
+                  <i class="bi bi-circle me-1"></i>Not Used
+                </div>
+              {% endif %}
+            </div>
+          </td>
+          <td>
+            {% if currency.is_active %}
+              <span class="badge bg-success">Active</span>
+            {% else %}
+              <span class="badge bg-secondary">Inactive</span>
+            {% endif %}
+          </td>
+          <td>
+            <div class="btn-group btn-group-sm" role="group">
+              <a href="{% url 'inventory:currency_detail' currency.pk %}" 
+                 class="btn btn-outline-info" 
+                 title="View Details">
+                <i class="bi bi-eye"></i>
+              </a>
+              <a href="{% url 'inventory:currency_edit' currency.pk %}" 
+                 class="btn btn-outline-primary" 
+                 title="Edit Currency">
+                <i class="bi bi-pencil"></i>
+              </a>
+              <div class="btn-group" role="group">
+                <button class="btn btn-outline-secondary dropdown-toggle" type="button" data-bs-toggle="dropdown">
+                  <i class="bi bi-three-dots-vertical"></i>
+                </button>
+                <ul class="dropdown-menu">
+                  {% if not currency.is_base_currency %}
+                  <li><a class="dropdown-item" href="#" onclick="updateSingleRate('{{ currency.pk }}')">
+                    <i class="bi bi-arrow-repeat me-2"></i>Update Rate
+                  </a></li>
+                  <li><hr class="dropdown-divider"></li>
+                  <li><a class="dropdown-item" href="#" onclick="setBaseCurrency('{{ currency.pk }}')">
+                    <i class="bi bi-star me-2"></i>Set as Base
+                  </a></li>
+                  <li><hr class="dropdown-divider"></li>
+                  {% endif %}
+                  <li><a class="dropdown-item" href="{% url 'inventory:currency_history' currency.pk %}">
+                    <i class="bi bi-clock-history me-2"></i>Rate History
+                  </a></li>
+                  {% if currency.total_usage == 0 %}
+                  <li><hr class="dropdown-divider"></li>
+                  <li><a class="dropdown-item text-danger" href="{% url 'inventory:currency_delete' currency.pk %}">
+                    <i class="bi bi-trash me-2"></i>Delete
+                  </a></li>
+                  {% endif %}
+                </ul>
+              </div>
+            </div>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+
+  <!-- Bulk Actions -->
+  <div class="card-footer">
+    <div class="row align-items-center">
+      <div class="col">
+        <small class="text-muted">
+          Showing {{ currencies.count }} of {{ total_currencies }} currencies
+        </small>
+      </div>
+      <div class="col-auto">
+        <div class="btn-group btn-group-sm" role="group">
+          <button class="btn btn-outline-primary" onclick="updateAllRates()">
+            <i class="bi bi-arrow-repeat me-1"></i>Update All Rates
+          </button>
+          <button class="btn btn-outline-success" onclick="activateSelected()">
+            <i class="bi bi-check-circle me-1"></i>Activate Selected
+          </button>
+          <button class="btn btn-outline-secondary" onclick="deactivateSelected()">
+            <i class="bi bi-pause-circle me-1"></i>Deactivate Selected
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+  {% else %}
+  <div class="card-body text-center py-5">
+    {% if current_filters.search or current_filters.status or current_filters.rate_status %}
+      <i class="bi bi-search fa-3x text-muted mb-3"></i>
+      <h5>No currencies found</h5>
+      <p class="text-muted mb-4">No currencies match your current filters.</p>
+      <a href="{% url 'inventory:currency_list' %}" class="btn btn-outline-secondary me-2">
+        <i class="bi bi-x me-1"></i>Clear Filters
+      </a>
+    {% else %}
+      <i class="bi bi-currency-exchange fa-3x text-muted mb-3"></i>
+      <h5>No currencies configured</h5>
+      <p class="text-muted mb-4">Get started by adding your first currency for international suppliers.</p>
+    {% endif %}
+    <a href="{% url 'inventory:currency_create' %}" class="btn btn-primary">
+      <i class="bi bi-plus me-2"></i>Add Currency
+    </a>
+  </div>
+  {% endif %}
+</div>
+
+<!-- Pagination -->
+{% if is_paginated %}
+<nav aria-label="Currencies pagination">
+  <ul class="pagination justify-content-center">
+    {% if page_obj.has_previous %}
+      <li class="page-item">
+        <a class="page-link" href="?page=1{% if request.GET.search %}&search={{ request.GET.search }}{% endif %}{% if request.GET.status %}&status={{ request.GET.status }}{% endif %}{% if request.GET.rate_status %}&rate_status={{ request.GET.rate_status }}{% endif %}">&laquo; First</a>
+      </li>
+      <li class="page-item">
+        <a class="page-link" href="?page={{ page_obj.previous_page_number }}{% if request.GET.search %}&search={{ request.GET.search }}{% endif %}{% if request.GET.status %}&status={{ request.GET.status }}{% endif %}{% if request.GET.rate_status %}&rate_status={{ request.GET.rate_status }}{% endif %}">Previous</a>
+      </li>
+    {% endif %}
+    
+    <li class="page-item active">
+      <span class="page-link">
+        Page {{ page_obj.number }} of {{ page_obj.paginator.num_pages }}
+      </span>
+    </li>
+    
+    {% if page_obj.has_next %}
+      <li class="page-item">
+        <a class="page-link" href="?page={{ page_obj.next_page_number }}{% if request.GET.search %}&search={{ request.GET.search }}{% endif %}{% if request.GET.status %}&status={{ request.GET.status }}{% endif %}{% if request.GET.rate_status %}&rate_status={{ request.GET.rate_status }}{% endif %}">Next</a>
+      </li>
+      <li class="page-item">
+        <a class="page-link" href="?page={{ page_obj.paginator.num_pages }}{% if request.GET.search %}&search={{ request.GET.search }}{% endif %}{% if request.GET.status %}&status={{ request.GET.status }}{% endif %}{% if request.GET.rate_status %}&rate_status={{ request.GET.rate_status }}{% endif %}">Last &raquo;</a>
+      </li>
+    {% endif %}
+  </ul>
+</nav>
+{% endif %}
+
+<!-- Exchange Rate Update Modal -->
+<div class="modal fade" id="rateUpdateModal" tabindex="-1">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title">Update Exchange Rates</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <div id="updateProgress" style="display: none;">
+          <div class="d-flex align-items-center mb-3">
+            <div class="spinner-border spinner-border-sm me-3" role="status"></div>
+            <span id="updateStatus">Updating exchange rates...</span>
+          </div>
+          <div class="progress">
+            <div class="progress-bar" role="progressbar" id="progressBar" style="width: 0%"></div>
+          </div>
+        </div>
+        
+        <div id="updateForm">
+          <p>This will update exchange rates for all active currencies using current market data.</p>
+          <div class="alert alert-info">
+            <i class="bi bi-info-circle me-2"></i>
+            <strong>Note:</strong> Exchange rates are updated from external sources and may take a few moments.
+          </div>
+          
+          <div class="form-check">
+            <input class="form-check-input" type="checkbox" id="updateInactive">
+            <label class="form-check-label" for="updateInactive">
+              Also update rates for inactive currencies
+            </label>
+          </div>
+        </div>
+        
+        <div id="updateResults" style="display: none;">
+          <div class="alert alert-success">
+            <i class="bi bi-check-circle me-2"></i>
+            Exchange rates updated successfully!
+          </div>
+          <div id="updateSummary"></div>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+        <button type="button" class="btn btn-primary" id="startUpdate">
+          <i class="bi bi-arrow-repeat me-1"></i>Update Rates
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // Exchange rate update modal
+    const rateUpdateModal = new bootstrap.Modal(document.getElementById('rateUpdateModal'));
+    
+    // Update all rates function
+    window.updateAllRates = function() {
+        rateUpdateModal.show();
+    };
+    
+    // Start update process
+    document.getElementById('startUpdate').addEventListener('click', function() {
+        const updateForm = document.getElementById('updateForm');
+        const updateProgress = document.getElementById('updateProgress');
+        const updateResults = document.getElementById('updateResults');
+        const startButton = this;
+        
+        // Hide form, show progress
+        updateForm.style.display = 'none';
+        updateProgress.style.display = 'block';
+        startButton.disabled = true;
+        
+        // Simulate update process
+        let progress = 0;
+        const progressBar = document.getElementById('progressBar');
+        const statusText = document.getElementById('updateStatus');
+        
+        const updateInterval = setInterval(() => {
+            progress += 10;
+            progressBar.style.width = progress + '%';
+            
+            if (progress === 30) {
+                statusText.textContent = 'Connecting to exchange rate service...';
+            } else if (progress === 60) {
+                statusText.textContent = 'Fetching latest rates...';
+            } else if (progress === 90) {
+                statusText.textContent = 'Updating currency records...';
+            } else if (progress >= 100) {
+                clearInterval(updateInterval);
+                
+                // Show results
+                updateProgress.style.display = 'none';
+                updateResults.style.display = 'block';
+                
+                document.getElementById('updateSummary').innerHTML = `
+                    <ul class="list-unstyled">
+                        <li><i class="bi bi-check text-success me-2"></i>{{ currencies.count }} currencies updated</li>
+                        <li><i class="bi bi-clock text-info me-2"></i>Last update: ${new Date().toLocaleString()}</li>
+                    </ul>
+                `;
+                
+                // Enable close button and refresh page after delay
+                setTimeout(() => {
+                    rateUpdateModal.hide();
+                    location.reload();
+                }, 2000);
+            }
+        }, 300);
+    });
+    
+    // Update single currency rate
+    window.updateSingleRate = function(currencyId) {
+        if (confirm('Update exchange rate for this currency?')) {
+            // Implement single currency rate update
+            console.log('Updating currency:', currencyId);
+            location.reload();
+        }
+    };
+    
+    // Set base currency
+    window.setBaseCurrency = function(currencyId) {
+        if (confirm('Set this currency as the base currency? This will affect all pricing calculations.')) {
+            // Implement set base currency
+            console.log('Setting base currency:', currencyId);
+            location.reload();
+        }
+    };
+    
+    // Bulk operations
+    window.activateSelected = function() {
+        const checkedBoxes = document.querySelectorAll('.currency-checkbox:checked');
+        if (checkedBoxes.length === 0) {
+            alert('Please select currencies to activate.');
+            return;
+        }
+        
+        if (confirm(`Activate ${checkedBoxes.length} selected currencies?`)) {
+            // Implement bulk activation
+            console.log('Activating currencies:', Array.from(checkedBoxes).map(cb => cb.value));
+            location.reload();
+        }
+    };
+    
+    window.deactivateSelected = function() {
+        const checkedBoxes = document.querySelectorAll('.currency-checkbox:checked');
+        if (checkedBoxes.length === 0) {
+            alert('Please select currencies to deactivate.');
+            return;
+        }
+        
+        if (confirm(`Deactivate ${checkedBoxes.length} selected currencies?`)) {
+            // Implement bulk deactivation
+            console.log('Deactivating currencies:', Array.from(checkedBoxes).map(cb => cb.value));
+            location.reload();
+        }
+    };
+    
+    // Highlight stale exchange rates
+    const staleRows = document.querySelectorAll('.table-warning');
+    staleRows.forEach(row => {
+        const badge = row.querySelector('.badge');
+        if (badge && badge.textContent.includes('Update')) {
+            row.style.borderLeft = '4px solid #ffc107';
+        }
+    });
+    
+    // Auto-refresh rates notification
+    if ({{ last_update_ago|default:0 }} > 24) {
+        const notification = document.createElement('div');
+        notification.className = 'toast position-fixed top-0 end-0 m-3';
+        notification.setAttribute('role', 'alert');
+        notification.innerHTML = `
+            <div class="toast-header">
+                <i class="bi bi-exclamation-triangle text-warning me-2"></i>
+                <strong class="me-auto">Exchange Rates</strong>
+                <button type="button" class="btn-close" data-bs-dismiss="toast"></button>
+            </div>
+            <div class="toast-body">
+                Exchange rates are outdated. Consider updating for accurate pricing.
+                <div class="mt-2">
+                    <button class="btn btn-sm btn-warning" onclick="updateAllRates()">Update Now</button>
+                </div>
+            </div>
+        `;
+        
+        document.body.appendChild(notification);
+        
+        const toast = new bootstrap.Toast(notification, { delay: 10000 });
+        toast.show();
+    }
+});
+</script>
+{% endblock %}

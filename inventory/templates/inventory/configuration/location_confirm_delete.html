@@ -1,0 +1,664 @@
+{% extends "dashboard_base.html" %}
+{% load static %}
+
+{% block page_title %}Delete Location: {{ location.name }}{% endblock %}
+
+{% block dashboard_content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+  <div>
+    <nav aria-label="breadcrumb">
+      <ol class="breadcrumb mb-1">
+        <li class="breadcrumb-item"><a href="{% url 'inventory:dashboard' %}">Inventory</a></li>
+        <li class="breadcrumb-item"><a href="{% url 'inventory:configuration' %}">Configuration</a></li>
+        <li class="breadcrumb-item"><a href="{% url 'inventory:location_list' %}">Locations</a></li>
+        <li class="breadcrumb-item"><a href="{% url 'inventory:location_detail' location.pk %}">{{ location.name }}</a></li>
+        <li class="breadcrumb-item active">Delete</li>
+      </ol>
+    </nav>
+    <h1 class="h3 mb-0 text-gray-800">
+      <i class="bi bi-trash text-danger me-2"></i>Delete Location: {{ location.name }}
+    </h1>
+    <p class="text-muted mb-0">Confirm location deletion and review inventory impact</p>
+  </div>
+  
+  <div class="btn-group" role="group">
+    <a href="{% url 'inventory:location_detail' location.pk %}" class="btn btn-outline-secondary">
+      <i class="bi bi-arrow-left me-2"></i>Back to Location
+    </a>
+    <a href="{% url 'inventory:location_list' %}" class="btn btn-outline-info">
+      <i class="bi bi-list me-2"></i>All Locations
+    </a>
+  </div>
+</div>
+
+<!-- Critical Operations Warning -->
+<div class="alert alert-danger d-flex align-items-center mb-4" role="alert">
+  <i class="bi bi-exclamation-triangle-fill fa-2x me-3"></i>
+  <div>
+    <h5 class="alert-heading mb-2">⚠️ Critical Inventory Operations Impact</h5>
+    <p class="mb-0">
+      You are about to <strong>permanently delete</strong> a storage location that may contain inventory, 
+      storage bins, and movement history. This action will severely disrupt inventory tracking and 
+      <strong>cannot be undone.</strong>
+    </p>
+  </div>
+</div>
+
+<div class="row">
+  <!-- Deletion Form -->
+  <div class="col-lg-8">
+    <div class="card shadow mb-4">
+      <div class="card-header py-3 bg-danger text-white">
+        <h6 class="m-0 font-weight-bold">
+          <i class="bi bi-trash me-2"></i>Confirm Location Deletion
+        </h6>
+      </div>
+      <div class="card-body">
+        <div class="row mb-4">
+          <div class="col-md-6">
+            <h6 class="text-dark">Location Information</h6>
+            <table class="table table-sm table-borderless">
+              <tr>
+                <td class="fw-bold">Name:</td>
+                <td>{{ location.name }}</td>
+              </tr>
+              <tr>
+                <td class="fw-bold">Code:</td>
+                <td>
+                  {% if location.location_code %}
+                    <code>{{ location.location_code }}</code>
+                  {% else %}
+                    <span class="text-muted">Not set</span>
+                  {% endif %}
+                </td>
+              </tr>
+              <tr>
+                <td class="fw-bold">Type:</td>
+                <td>{{ location.get_location_type_display|default:"Not specified" }}</td>
+              </tr>
+              <tr>
+                <td class="fw-bold">Address:</td>
+                <td>
+                  {% if location.address %}
+                    {{ location.address|truncatechars:50 }}
+                  {% else %}
+                    <span class="text-muted">Not provided</span>
+                  {% endif %}
+                </td>
+              </tr>
+              <tr>
+                <td class="fw-bold">Manager:</td>
+                <td>{{ location.manager_name|default:"Not assigned" }}</td>
+              </tr>
+              <tr>
+                <td class="fw-bold">Status:</td>
+                <td>
+                  {% if location.is_active %}
+                    {% if location.under_maintenance %}
+                      <span class="badge bg-warning">Under Maintenance</span>
+                    {% else %}
+                      <span class="badge bg-success">Active</span>
+                    {% endif %}
+                  {% else %}
+                    <span class="badge bg-secondary">Inactive</span>
+                  {% endif %}
+                </td>
+              </tr>
+            </table>
+          </div>
+          
+          <div class="col-md-6">
+            <h6 class="text-dark">Impact Summary</h6>
+            <div class="row text-center">
+              <div class="col-6 mb-3">
+                <div class="h4 mb-0 text-danger">{{ location.storage_bins.count|default:0 }}</div>
+                <small class="text-muted">Storage Bins</small>
+              </div>
+              <div class="col-6 mb-3">
+                <div class="h4 mb-0 text-warning">{{ location.stock_levels.count|default:0 }}</div>
+                <small class="text-muted">Product Stock Records</small>
+              </div>
+              <div class="col-6 mb-3">
+                <div class="h4 mb-0 text-info">{{ total_stock_quantity|default:0 }}</div>
+                <small class="text-muted">Total Units Stored</small>
+              </div>
+              <div class="col-6 mb-3">
+                <div class="h4 mb-0 text-secondary">{{ location.stock_movements.count|default:0 }}</div>
+                <small class="text-muted">Movement Records</small>
+              </div>
+            </div>
+            
+            <!-- Capacity Information -->
+            {% if location.total_capacity %}
+            <div class="mt-3">
+              <h6 class="small text-muted text-uppercase">Capacity</h6>
+              <div class="progress mb-2" style="height: 15px;">
+                {% with utilization_percent=location.capacity_utilization_percentage %}
+                <div class="progress-bar {% if utilization_percent >= 90 %}bg-danger{% elif utilization_percent >= 75 %}bg-warning{% else %}bg-success{% endif %}" 
+                     role="progressbar" 
+                     style="width: {{ utilization_percent }}%">
+                  {{ utilization_percent|floatformat:1 }}%
+                </div>
+                {% endwith %}
+              </div>
+              <small class="text-muted">{{ location.used_capacity|default:0 }}m² used of {{ location.total_capacity }}m²</small>
+            </div>
+            {% endif %}
+          </div>
+        </div>
+
+        <!-- Storage Bins Impact -->
+        {% if location.storage_bins.exists %}
+        <div class="alert alert-warning" role="alert">
+          <h6 class="alert-heading">
+            <i class="bi bi-box me-2"></i>Storage Bins Will Be Deleted
+          </h6>
+          <p class="mb-2">
+            <strong>{{ location.storage_bins.count }} storage bin{{ location.storage_bins.count|pluralize }}</strong> 
+            will be permanently deleted:
+          </p>
+          
+          <div class="row">
+            {% for bin in location.storage_bins.all|slice:":6" %}
+            <div class="col-md-6 mb-2">
+              <div class="border rounded p-2">
+                <div class="d-flex justify-content-between align-items-center">
+                  <div>
+                    <strong>{{ bin.bin_code }}</strong><br>
+                    <small class="text-muted">
+                      {{ bin.get_bin_type_display|default:"Standard" }} | 
+                      {% if bin.current_stock_count %}{{ bin.current_stock_count }} items{% else %}Empty{% endif %}
+                    </small>
+                  </div>
+                  <div class="text-end">
+                    {% if bin.is_active %}
+                      <span class="badge bg-success">Active</span>
+                    {% else %}
+                      <span class="badge bg-secondary">Inactive</span>
+                    {% endif %}
+                    {% if bin.is_occupied %}
+                      <br><span class="badge bg-warning">Occupied</span>
+                    {% endif %}
+                  </div>
+                </div>
+              </div>
+            </div>
+            {% endfor %}
+          </div>
+          
+          {% if location.storage_bins.count > 6 %}
+          <div class="mt-2">
+            <small class="text-muted">
+              ... and {{ location.storage_bins.count|add:"-6" }} more storage bin{{ location.storage_bins.count|add:"-6"|pluralize }}
+            </small>
+          </div>
+          {% endif %}
+        </div>
+        {% endif %}
+
+        <!-- Stock Records Impact -->
+        {% if location.stock_levels.exists %}
+        <div class="alert alert-danger" role="alert">
+          <h6 class="alert-heading">
+            <i class="bi bi-archive me-2"></i>Inventory Stock Records Will Be Lost
+          </h6>
+          <p class="mb-2">
+            <strong>{{ location.stock_levels.count }} product stock record{{ location.stock_levels.count|pluralize }}</strong> 
+            at this location will be permanently deleted:
+          </p>
+          
+          <div class="table-responsive">
+            <table class="table table-sm">
+              <thead>
+                <tr>
+                  <th>Product</th>
+                  <th>SKU</th>
+                  <th>Current Stock</th>
+                  <th>Stock Value</th>
+                </tr>
+              </thead>
+              <tbody>
+                {% for stock_level in location.stock_levels.all|slice:":5" %}
+                <tr>
+                  <td>
+                    <div class="fw-bold">{{ stock_level.product.name|truncatechars:30 }}</div>
+                    {% if stock_level.product.brand %}
+                      <small class="text-muted">{{ stock_level.product.brand.name }}</small>
+                    {% endif %}
+                  </td>
+                  <td>
+                    <code class="small">{{ stock_level.product.sku }}</code>
+                  </td>
+                  <td>
+                    <div class="fw-bold {% if stock_level.quantity <= 0 %}text-danger{% elif stock_level.quantity <= stock_level.product.reorder_level %}text-warning{% else %}text-success{% endif %}">
+                      {{ stock_level.quantity|default:0 }}
+                    </div>
+                  </td>
+                  <td>
+                    <div class="fw-bold text-info">
+                      ${{ stock_level.total_value|floatformat:2|default:"0.00" }}
+                    </div>
+                  </td>
+                </tr>
+                {% endfor %}
+              </tbody>
+            </table>
+          </div>
+          
+          {% if location.stock_levels.count > 5 %}
+          <div class="mt-2">
+            <small class="text-muted">
+              ... and {{ location.stock_levels.count|add:"-5" }} more stock record{{ location.stock_levels.count|add:"-5"|pluralize }}
+            </small>
+          </div>
+          {% endif %}
+          
+          <hr>
+          <div class="row text-center">
+            <div class="col-4">
+              <div class="h5 mb-0 text-danger">{{ total_stock_quantity|default:0 }}</div>
+              <small class="text-muted">Total Units</small>
+            </div>
+            <div class="col-4">
+              <div class="h5 mb-0 text-warning">${{ total_stock_value|floatformat:2|default:"0.00" }}</div>
+              <small class="text-muted">Total Value</small>
+            </div>
+            <div class="col-4">
+              <div class="h5 mb-0 text-info">{{ unique_products_count|default:0 }}</div>
+              <small class="text-muted">Unique Products</small>
+            </div>
+          </div>
+        </div>
+        {% endif %}
+
+        <!-- Stock Movements History -->
+        {% if location.stock_movements.exists or location.source_movements.exists or location.destination_movements.exists %}
+        <div class="alert alert-info" role="alert">
+          <h6 class="alert-heading">
+            <i class="bi bi-arrow-left-right me-2"></i>Stock Movement History Will Be Affected
+          </h6>
+          <p class="mb-2">
+            This location has historical stock movement records:
+          </p>
+          
+          <div class="row text-center">
+            <div class="col-4">
+              <div class="h6 mb-0 text-primary">{{ location.source_movements.count|default:0 }}</div>
+              <small class="text-muted">Outbound Movements</small>
+            </div>
+            <div class="col-4">
+              <div class="h6 mb-0 text-success">{{ location.destination_movements.count|default:0 }}</div>
+              <small class="text-muted">Inbound Movements</small>
+            </div>
+            <div class="col-4">
+              <div class="h6 mb-0 text-info">{{ total_movements_count|default:0 }}</div>
+              <small class="text-muted">Total Movements</small>
+            </div>
+          </div>
+          
+          <hr>
+          <p class="mb-0 small">
+            <strong>What happens:</strong> Movement records will remain in the system but location references will be broken, 
+            affecting inventory tracking and audit trails.
+          </p>
+        </div>
+        {% endif %}
+
+        <!-- Active Operations Warning -->
+        {% if location.is_active and not location.under_maintenance %}
+        <div class="alert alert-danger" role="alert">
+          <h6 class="alert-heading">
+            <i class="bi bi-exclamation-circle me-2"></i>Active Location Warning
+          </h6>
+          <p class="mb-0">
+            This location is currently <strong>active</strong> and may be used in ongoing inventory operations, 
+            purchase orders, or stock transfers. Deleting an active location can cause immediate operational disruptions.
+          </p>
+        </div>
+        {% endif %}
+
+        <!-- Special Features Impact -->
+        {% if location.climate_controlled or location.security_system or location.has_loading_dock %}
+        <div class="bg-light rounded p-3 mb-4">
+          <h6 class="text-dark">
+            <i class="bi bi-gear me-2"></i>Special Features Will Be Lost
+          </h6>
+          <ul class="list-unstyled small mb-0">
+            {% if location.climate_controlled %}
+            <li class="mb-1">
+              <i class="bi bi-thermometer-half text-info me-2"></i>
+              Climate controlled environment settings
+            </li>
+            {% endif %}
+            {% if location.security_system %}
+            <li class="mb-1">
+              <i class="bi bi-shield-check text-success me-2"></i>
+              Security system configuration
+            </li>
+            {% endif %}
+            {% if location.has_loading_dock %}
+            <li class="mb-1">
+              <i class="bi bi-truck text-primary me-2"></i>
+              Loading dock facilities
+            </li>
+            {% endif %}
+            {% if location.requires_special_handling %}
+            <li class="mb-1">
+              <i class="bi bi-exclamation-triangle text-warning me-2"></i>
+              Special handling procedures
+            </li>
+            {% endif %}
+          </ul>
+        </div>
+        {% endif %}
+
+        <!-- Consequences Warning -->
+        <div class="bg-light rounded p-3 mb-4">
+          <h6 class="text-dark">
+            <i class="bi bi-info-circle me-2"></i>What happens after deletion:
+          </h6>
+          <ul class="list-unstyled small mb-0">
+            <li class="mb-1">
+              <i class="bi bi-dot text-danger"></i>
+              Location and all storage bins will be permanently deleted
+            </li>
+            <li class="mb-1">
+              <i class="bi bi-dot text-danger"></i>
+              All stock levels at this location will be lost
+            </li>
+            <li class="mb-1">
+              <i class="bi bi-dot text-warning"></i>
+              Stock movement history will have broken location references
+            </li>
+            <li class="mb-1">
+              <i class="bi bi-dot text-info"></i>
+              Products may become "locationless" in inventory
+            </li>
+            <li class="mb-1">
+              <i class="bi bi-dot text-secondary"></i>
+              Inventory reports and analytics will be affected
+            </li>
+            <li class="mb-1">
+              <i class="bi bi-dot text-secondary"></i>
+              Audit trails will be compromised
+            </li>
+          </ul>
+        </div>
+
+        <!-- Confirmation Form -->
+        <form method="post" class="mt-4">
+          {% csrf_token %}
+          
+          <div class="mb-3">
+            <div class="form-check">
+              <input class="form-check-input" type="checkbox" id="confirmDeletion" required>
+              <label class="form-check-label fw-bold text-danger" for="confirmDeletion">
+                I understand this action is permanent and cannot be undone
+              </label>
+            </div>
+          </div>
+          
+          {% if location.storage_bins.exists %}
+          <div class="mb-3">
+            <div class="form-check">
+              <input class="form-check-input" type="checkbox" id="confirmBinsImpact" required>
+              <label class="form-check-label fw-bold text-warning" for="confirmBinsImpact">
+                I acknowledge that {{ location.storage_bins.count }} storage bin{{ location.storage_bins.count|pluralize }} will be deleted
+              </label>
+            </div>
+          </div>
+          {% endif %}
+          
+          {% if location.stock_levels.exists %}
+          <div class="mb-3">
+            <div class="form-check">
+              <input class="form-check-input" type="checkbox" id="confirmStockImpact" required>
+              <label class="form-check-label fw-bold text-danger" for="confirmStockImpact">
+                I acknowledge that stock records worth ${{ total_stock_value|floatformat:2|default:"0.00" }} will be lost
+              </label>
+            </div>
+          </div>
+          {% endif %}
+          
+          {% if total_movements_count %}
+          <div class="mb-3">
+            <div class="form-check">
+              <input class="form-check-input" type="checkbox" id="confirmMovementsImpact" required>
+              <label class="form-check-label fw-bold text-info" for="confirmMovementsImpact">
+                I acknowledge the impact on {{ total_movements_count }} historical movement{{ total_movements_count|pluralize }}
+              </label>
+            </div>
+          </div>
+          {% endif %}
+          
+          {% if location.is_active %}
+          <div class="mb-3">
+            <div class="form-check">
+              <input class="form-check-input" type="checkbox" id="confirmOperationalImpact" required>
+              <label class="form-check-label fw-bold text-danger" for="confirmOperationalImpact">
+                I understand this may disrupt current inventory operations
+              </label>
+            </div>
+          </div>
+          {% endif %}
+
+          <div class="d-flex justify-content-between align-items-center pt-3 border-top">
+            <div>
+              <a href="{% url 'inventory:location_detail' location.pk %}" class="btn btn-outline-secondary">
+                <i class="bi bi-x me-2"></i>Cancel Deletion
+              </a>
+            </div>
+            
+            <div>
+              <button type="submit" 
+                      class="btn btn-danger" 
+                      id="deleteButton"
+                      disabled>
+                <i class="bi bi-trash me-2"></i>
+                Permanently Delete Location
+              </button>
+            </div>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <!-- Alternative Actions Sidebar -->
+  <div class="col-lg-4">
+    <div class="card shadow mb-4">
+      <div class="card-header py-3">
+        <h6 class="m-0 font-weight-bold text-success">
+          <i class="bi bi-lightbulb me-2"></i>Safer Alternatives
+        </h6>
+      </div>
+      <div class="card-body">
+        <p class="small mb-3">
+          Consider these alternatives that preserve inventory data:
+        </p>
+        
+        <div class="list-group list-group-flush">
+          <div class="list-group-item d-flex align-items-start px-0">
+            <i class="bi bi-pause-circle text-warning me-3 mt-1"></i>
+            <div>
+              <h6 class="mb-1">Deactivate Location</h6>
+              <small class="text-muted">
+                Set location to inactive to stop new operations while preserving all historical data and inventory.
+              </small>
+              <div class="mt-2">
+                <a href="{% url 'inventory:location_edit' location.pk %}" class="btn btn-sm btn-outline-warning">
+                  <i class="bi bi-pencil me-1"></i>Edit Location
+                </a>
+              </div>
+            </div>
+          </div>
+          
+          <div class="list-group-item d-flex align-items-start px-0">
+            <i class="bi bi-tools text-info me-3 mt-1"></i>
+            <div>
+              <h6 class="mb-1">Set Under Maintenance</h6>
+              <small class="text-muted">
+                Temporarily disable the location for maintenance while keeping all inventory data intact.
+              </small>
+              <div class="mt-2">
+                <a href="{% url 'inventory:location_edit' location.pk %}" class="btn btn-sm btn-outline-info">
+                  <i class="bi bi-wrench me-1"></i>Maintenance Mode
+                </a>
+              </div>
+            </div>
+          </div>
+          
+          <div class="list-group-item d-flex align-items-start px-0">
+            <i class="bi bi-arrow-left-right text-primary me-3 mt-1"></i>
+            <div>
+              <h6 class="mb-1">Transfer Inventory</h6>
+              <small class="text-muted">
+                Move all stock and bins to another location before deletion to preserve inventory continuity.
+              </small>
+              <div class="mt-2">
+                <button class="btn btn-sm btn-outline-primary" disabled>
+                  <i class="bi bi-box-arrow-right me-1"></i>Transfer Stock
+                </button>
+                <br><small class="text-muted">Feature coming soon</small>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Deletion Guidelines -->
+    <div class="card shadow mb-4">
+      <div class="card-header py-3">
+        <h6 class="m-0 font-weight-bold text-danger">
+          <i class="bi bi-shield-exclamation me-2"></i>Safe Deletion Guidelines
+        </h6>
+      </div>
+      <div class="card-body">
+        <div class="small">
+          <p class="mb-2"><strong>Safe to delete when:</strong></p>
+          <ul class="list-unstyled mb-3">
+            <li class="mb-1">
+              <i class="bi bi-check-circle text-success me-2"></i>
+              No inventory stored at location
+            </li>
+            <li class="mb-1">
+              <i class="bi bi-check-circle text-success me-2"></i>
+              No storage bins configured
+            </li>
+            <li class="mb-1">
+              <i class="bi bi-check-circle text-success me-2"></i>
+              Location is inactive for extended period
+            </li>
+            <li class="mb-1">
+              <i class="bi bi-check-circle text-success me-2"></i>
+              Created by mistake or duplicate
+            </li>
+          </ul>
+          
+          <p class="mb-2"><strong>Avoid deletion when:</strong></p>
+          <ul class="list-unstyled">
+            <li class="mb-1">
+              <i class="bi bi-x-circle text-danger me-2"></i>
+              Contains inventory or stock records
+            </li>
+            <li class="mb-1">
+              <i class="bi bi-x-circle text-danger me-2"></i>
+              Has storage bins with items
+            </li>
+            <li class="mb-1">
+              <i class="bi bi-x-circle text-danger me-2"></i>
+              Currently active in operations
+            </li>
+            <li class="mb-1">
+              <i class="bi bi-x-circle text-danger me-2"></i>
+              Historical movements exist
+            </li>
+            <li class="mb-1">
+              <i class="bi bi-x-circle text-danger me-2"></i>
+              Audit compliance requires records
+            </li>
+          </ul>
+        </div>
+      </div>
+    </div>
+
+    <!-- Emergency Contact -->
+    <div class="card shadow mb-4 bg-light">
+      <div class="card-header py-3">
+        <h6 class="m-0 font-weight-bold text-secondary">
+          <i class="bi bi-telephone me-2"></i>Emergency Contact
+        </h6>
+      </div>
+      <div class="card-body">
+        {% if location.manager_name or location.phone_number or location.email %}
+        <div class="small">
+          {% if location.manager_name %}
+          <p class="mb-1"><strong>Manager:</strong> {{ location.manager_name }}</p>
+          {% endif %}
+          {% if location.phone_number %}
+          <p class="mb-1"><strong>Phone:</strong> {{ location.phone_number }}</p>
+          {% endif %}
+          {% if location.email %}
+          <p class="mb-1"><strong>Email:</strong> {{ location.email }}</p>
+          {% endif %}
+        </div>
+        <hr>
+        {% endif %}
+        <p class="small mb-0">
+          Contact the location manager before deletion to ensure no critical operations will be affected.
+        </p>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const checkboxes = [
+        document.getElementById('confirmDeletion'),
+        document.getElementById('confirmBinsImpact'),
+        document.getElementById('confirmStockImpact'),
+        document.getElementById('confirmMovementsImpact'),
+        document.getElementById('confirmOperationalImpact')
+    ].filter(Boolean); // Remove null elements
+    
+    const deleteButton = document.getElementById('deleteButton');
+    
+    function updateButtonState() {
+        const allChecked = checkboxes.every(checkbox => checkbox.checked);
+        deleteButton.disabled = !allChecked;
+    }
+    
+    checkboxes.forEach(checkbox => {
+        checkbox.addEventListener('change', updateButtonState);
+    });
+    
+    // Final confirmation dialog
+    deleteButton.addEventListener('click', function(e) {
+        const locationName = '{{ location.name }}';
+        const binCount = {{ location.storage_bins.count|default:0 }};
+        const stockRecords = {{ location.stock_levels.count|default:0 }};
+        const stockValue = '{{ total_stock_value|floatformat:2|default:"0.00" }}';
+        const movementCount = {{ total_movements_count|default:0 }};
+        
+        let confirmMessage = `FINAL CONFIRMATION: Are you absolutely sure you want to permanently delete location "${locationName}"?\n\n`;
+        confirmMessage += `This will immediately affect:\n`;
+        confirmMessage += `• ${binCount} storage bin${binCount !== 1 ? 's' : ''}\n`;
+        confirmMessage += `• ${stockRecords} stock record${stockRecords !== 1 ? 's' : ''} worth $${stockValue}\n`;
+        confirmMessage += `• ${movementCount} movement record${movementCount !== 1 ? 's' : ''}\n`;
+        confirmMessage += `\nThis action CANNOT be undone and will cause immediate inventory tracking disruptions.`;
+        confirmMessage += `\n\nType "DELETE" to confirm:`;
+        
+        const userConfirmation = prompt(confirmMessage);
+        
+        if (userConfirmation !== 'DELETE') {
+            e.preventDefault();
+            alert('Deletion cancelled. You must type "DELETE" to confirm this critical action.');
+        }
+    });
+});
+</script>
+{% endblock %}

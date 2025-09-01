@@ -1,0 +1,572 @@
+{% extends "dashboard_base.html" %}
+{% load static %}
+{% load crispy_forms_tags %}
+
+{% block page_title %}
+  {% if form.instance.pk %}Edit Supplier{% else %}Add Supplier{% endif %}
+{% endblock %}
+
+{% block dashboard_content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+  <div>
+    <nav aria-label="breadcrumb">
+      <ol class="breadcrumb mb-1">
+        <li class="breadcrumb-item"><a href="{% url 'inventory:dashboard' %}">Inventory</a></li>
+        <li class="breadcrumb-item"><a href="{% url 'inventory:configuration' %}">Configuration</a></li>
+        <li class="breadcrumb-item"><a href="{% url 'inventory:supplier_list' %}">Suppliers</a></li>
+        <li class="breadcrumb-item active">
+          {% if form.instance.pk %}Edit Supplier{% else %}Add Supplier{% endif %}
+        </li>
+      </ol>
+    </nav>
+    <h1 class="h3 mb-0 text-gray-800">
+      {% if form.instance.pk %}
+        <i class="bi bi-pencil me-2"></i>Edit Supplier: {{ form.instance.name }}
+      {% else %}
+        <i class="bi bi-plus me-2"></i>Add New Supplier
+      {% endif %}
+    </h1>
+    <p class="text-muted mb-0">
+      {% if form.instance.pk %}
+        Update supplier information and business terms
+      {% else %}
+        Create a new supplier for your inventory
+      {% endif %}
+    </p>
+  </div>
+  
+  <div class="btn-group" role="group">
+    <a href="{% url 'inventory:supplier_list' %}" class="btn btn-outline-secondary">
+      <i class="bi bi-arrow-left me-2"></i>Back to List
+    </a>
+    {% if form.instance.pk %}
+    <a href="{% url 'inventory:supplier_detail' form.instance.pk %}" class="btn btn-outline-info">
+      <i class="bi bi-eye me-2"></i>View Details
+    </a>
+    {% endif %}
+  </div>
+</div>
+
+<form method="post" novalidate>
+  {% csrf_token %}
+  
+  <div class="row">
+    <!-- Main Form -->
+    <div class="col-lg-8">
+      <!-- Basic Information -->
+      <div class="card shadow mb-4">
+        <div class="card-header py-3">
+          <h6 class="m-0 font-weight-bold text-primary">
+            <i class="bi bi-building me-2"></i>Basic Information
+          </h6>
+        </div>
+        <div class="card-body">
+          <div class="row">
+            <div class="col-md-6 mb-3">
+              <label for="{{ form.name.id_for_label }}" class="form-label">
+                Supplier Name <span class="text-danger">*</span>
+              </label>
+              <input type="text" 
+                     class="form-control {% if form.name.errors %}is-invalid{% endif %}" 
+                     id="{{ form.name.id_for_label }}"
+                     name="{{ form.name.name }}"
+                     value="{{ form.name.value|default:'' }}"
+                     placeholder="Enter supplier company name"
+                     required>
+              {% if form.name.errors %}
+                <div class="invalid-feedback">{{ form.name.errors.0 }}</div>
+              {% endif %}
+            </div>
+            
+            <div class="col-md-6 mb-3">
+              <label for="{{ form.supplier_code.id_for_label }}" class="form-label">
+                Supplier Code
+              </label>
+              <input type="text" 
+                     class="form-control {% if form.supplier_code.errors %}is-invalid{% endif %}" 
+                     id="{{ form.supplier_code.id_for_label }}"
+                     name="{{ form.supplier_code.name }}"
+                     value="{{ form.supplier_code.value|default:'' }}"
+                     placeholder="SUP001">
+              {% if form.supplier_code.errors %}
+                <div class="invalid-feedback">{{ form.supplier_code.errors.0 }}</div>
+              {% endif %}
+              <div class="form-text">Internal code for easy reference</div>
+            </div>
+          </div>
+          
+          <div class="mb-3">
+            <label for="{{ form.description.id_for_label }}" class="form-label">
+              Description
+            </label>
+            <textarea class="form-control {% if form.description.errors %}is-invalid{% endif %}"
+                      id="{{ form.description.id_for_label }}"
+                      name="{{ form.description.name }}"
+                      rows="3"
+                      placeholder="Brief description of supplier and their specialties">{{ form.description.value|default:'' }}</textarea>
+            {% if form.description.errors %}
+              <div class="invalid-feedback">{{ form.description.errors.0 }}</div>
+            {% endif %}
+          </div>
+          
+          <div class="row">
+            <div class="col-md-6 mb-3">
+              <label for="{{ form.supplier_type.id_for_label }}" class="form-label">
+                Supplier Type
+              </label>
+              <select class="form-select {% if form.supplier_type.errors %}is-invalid{% endif %}"
+                      id="{{ form.supplier_type.id_for_label }}"
+                      name="{{ form.supplier_type.name }}">
+                <option value="">Select type...</option>
+                {% for value, label in form.supplier_type.field.choices %}
+                  <option value="{{ value }}" {% if form.supplier_type.value == value %}selected{% endif %}>
+                    {{ label }}
+                  </option>
+                {% endfor %}
+              </select>
+              {% if form.supplier_type.errors %}
+                <div class="invalid-feedback">{{ form.supplier_type.errors.0 }}</div>
+              {% endif %}
+            </div>
+            
+            <div class="col-md-6 mb-3">
+              <div class="form-check mt-4">
+                <input class="form-check-input" 
+                       type="checkbox" 
+                       id="{{ form.is_active.id_for_label }}"
+                       name="{{ form.is_active.name }}"
+                       {% if form.is_active.value %}checked{% endif %}>
+                <label class="form-check-label" for="{{ form.is_active.id_for_label }}">
+                  <strong>Active Supplier</strong>
+                </label>
+              </div>
+              <div class="form-text">Inactive suppliers won't appear in product creation</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Contact Information -->
+      <div class="card shadow mb-4">
+        <div class="card-header py-3">
+          <h6 class="m-0 font-weight-bold text-success">
+            <i class="bi bi-person-badge me-2"></i>Contact Information
+          </h6>
+        </div>
+        <div class="card-body">
+          <div class="row">
+            <div class="col-md-6 mb-3">
+              <label for="{{ form.contact_person.id_for_label }}" class="form-label">
+                Contact Person
+              </label>
+              <input type="text" 
+                     class="form-control {% if form.contact_person.errors %}is-invalid{% endif %}" 
+                     id="{{ form.contact_person.id_for_label }}"
+                     name="{{ form.contact_person.name }}"
+                     value="{{ form.contact_person.value|default:'' }}"
+                     placeholder="Primary contact name">
+              {% if form.contact_person.errors %}
+                <div class="invalid-feedback">{{ form.contact_person.errors.0 }}</div>
+              {% endif %}
+            </div>
+            
+            <div class="col-md-6 mb-3">
+              <label for="{{ form.email.id_for_label }}" class="form-label">
+                Email Address
+              </label>
+              <input type="email" 
+                     class="form-control {% if form.email.errors %}is-invalid{% endif %}" 
+                     id="{{ form.email.id_for_label }}"
+                     name="{{ form.email.name }}"
+                     value="{{ form.email.value|default:'' }}"
+                     placeholder="supplier@example.com">
+              {% if form.email.errors %}
+                <div class="invalid-feedback">{{ form.email.errors.0 }}</div>
+              {% endif %}
+            </div>
+          </div>
+          
+          <div class="row">
+            <div class="col-md-6 mb-3">
+              <label for="{{ form.phone.id_for_label }}" class="form-label">
+                Phone Number
+              </label>
+              <input type="tel" 
+                     class="form-control {% if form.phone.errors %}is-invalid{% endif %}" 
+                     id="{{ form.phone.id_for_label }}"
+                     name="{{ form.phone.name }}"
+                     value="{{ form.phone.value|default:'' }}"
+                     placeholder="+1 (555) 123-4567">
+              {% if form.phone.errors %}
+                <div class="invalid-feedback">{{ form.phone.errors.0 }}</div>
+              {% endif %}
+            </div>
+            
+            <div class="col-md-6 mb-3">
+              <label for="{{ form.website.id_for_label }}" class="form-label">
+                Website
+              </label>
+              <input type="url" 
+                     class="form-control {% if form.website.errors %}is-invalid{% endif %}" 
+                     id="{{ form.website.id_for_label }}"
+                     name="{{ form.website.name }}"
+                     value="{{ form.website.value|default:'' }}"
+                     placeholder="https://www.supplier.com">
+              {% if form.website.errors %}
+                <div class="invalid-feedback">{{ form.website.errors.0 }}</div>
+              {% endif %}
+            </div>
+          </div>
+          
+          <div class="mb-3">
+            <label for="{{ form.address.id_for_label }}" class="form-label">
+              Address
+            </label>
+            <textarea class="form-control {% if form.address.errors %}is-invalid{% endif %}"
+                      id="{{ form.address.id_for_label }}"
+                      name="{{ form.address.name }}"
+                      rows="3"
+                      placeholder="Full business address">{{ form.address.value|default:'' }}</textarea>
+            {% if form.address.errors %}
+              <div class="invalid-feedback">{{ form.address.errors.0 }}</div>
+            {% endif %}
+          </div>
+          
+          <div class="row">
+            <div class="col-md-4 mb-3">
+              <label for="{{ form.city.id_for_label }}" class="form-label">
+                City
+              </label>
+              <input type="text" 
+                     class="form-control {% if form.city.errors %}is-invalid{% endif %}" 
+                     id="{{ form.city.id_for_label }}"
+                     name="{{ form.city.name }}"
+                     value="{{ form.city.value|default:'' }}"
+                     placeholder="City">
+              {% if form.city.errors %}
+                <div class="invalid-feedback">{{ form.city.errors.0 }}</div>
+              {% endif %}
+            </div>
+            
+            <div class="col-md-4 mb-3">
+              <label for="{{ form.country.id_for_label }}" class="form-label">
+                Country
+              </label>
+              <input type="text" 
+                     class="form-control {% if form.country.errors %}is-invalid{% endif %}" 
+                     id="{{ form.country.id_for_label }}"
+                     name="{{ form.country.name }}"
+                     value="{{ form.country.value|default:'' }}"
+                     placeholder="Country">
+              {% if form.country.errors %}
+                <div class="invalid-feedback">{{ form.country.errors.0 }}</div>
+              {% endif %}
+            </div>
+            
+            <div class="col-md-4 mb-3">
+              <label for="{{ form.postal_code.id_for_label }}" class="form-label">
+                Postal Code
+              </label>
+              <input type="text" 
+                     class="form-control {% if form.postal_code.errors %}is-invalid{% endif %}" 
+                     id="{{ form.postal_code.id_for_label }}"
+                     name="{{ form.postal_code.name }}"
+                     value="{{ form.postal_code.value|default:'' }}"
+                     placeholder="12345">
+              {% if form.postal_code.errors %}
+                <div class="invalid-feedback">{{ form.postal_code.errors.0 }}</div>
+              {% endif %}
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Business Terms -->
+      <div class="card shadow mb-4">
+        <div class="card-header py-3">
+          <h6 class="m-0 font-weight-bold text-warning">
+            <i class="bi bi-handshake me-2"></i>Business Terms
+          </h6>
+        </div>
+        <div class="card-body">
+          <div class="row">
+            <div class="col-md-6 mb-3">
+              <label for="{{ form.payment_terms.id_for_label }}" class="form-label">
+                Payment Terms
+              </label>
+              <select class="form-select {% if form.payment_terms.errors %}is-invalid{% endif %}"
+                      id="{{ form.payment_terms.id_for_label }}"
+                      name="{{ form.payment_terms.name }}">
+                <option value="">Select payment terms...</option>
+                {% for value, label in form.payment_terms.field.choices %}
+                  <option value="{{ value }}" {% if form.payment_terms.value == value %}selected{% endif %}>
+                    {{ label }}
+                  </option>
+                {% endfor %}
+              </select>
+              {% if form.payment_terms.errors %}
+                <div class="invalid-feedback">{{ form.payment_terms.errors.0 }}</div>
+              {% endif %}
+            </div>
+            
+            <div class="col-md-6 mb-3">
+              <label for="{{ form.credit_limit.id_for_label }}" class="form-label">
+                Credit Limit (USD)
+              </label>
+              <input type="number" 
+                     class="form-control {% if form.credit_limit.errors %}is-invalid{% endif %}" 
+                     id="{{ form.credit_limit.id_for_label }}"
+                     name="{{ form.credit_limit.name }}"
+                     value="{{ form.credit_limit.value|default:'' }}"
+                     step="0.01"
+                     placeholder="0.00">
+              {% if form.credit_limit.errors %}
+                <div class="invalid-feedback">{{ form.credit_limit.errors.0 }}</div>
+              {% endif %}
+            </div>
+          </div>
+          
+          <div class="row">
+            <div class="col-md-6 mb-3">
+              <label for="{{ form.lead_time_days.id_for_label }}" class="form-label">
+                Lead Time (Days)
+              </label>
+              <input type="number" 
+                     class="form-control {% if form.lead_time_days.errors %}is-invalid{% endif %}" 
+                     id="{{ form.lead_time_days.id_for_label }}"
+                     name="{{ form.lead_time_days.name }}"
+                     value="{{ form.lead_time_days.value|default:'' }}"
+                     placeholder="0">
+              {% if form.lead_time_days.errors %}
+                <div class="invalid-feedback">{{ form.lead_time_days.errors.0 }}</div>
+              {% endif %}
+            </div>
+            
+            <div class="col-md-6 mb-3">
+              <label for="{{ form.minimum_order_value.id_for_label }}" class="form-label">
+                Minimum Order Value (USD)
+              </label>
+              <input type="number" 
+                     class="form-control {% if form.minimum_order_value.errors %}is-invalid{% endif %}" 
+                     id="{{ form.minimum_order_value.id_for_label }}"
+                     name="{{ form.minimum_order_value.name }}"
+                     value="{{ form.minimum_order_value.value|default:'' }}"
+                     step="0.01"
+                     placeholder="0.00">
+              {% if form.minimum_order_value.errors %}
+                <div class="invalid-feedback">{{ form.minimum_order_value.errors.0 }}</div>
+              {% endif %}
+            </div>
+          </div>
+          
+          <div class="row">
+            <div class="col-md-6 mb-3">
+              <label for="{{ form.tax_id.id_for_label }}" class="form-label">
+                Tax ID / VAT Number
+              </label>
+              <input type="text" 
+                     class="form-control {% if form.tax_id.errors %}is-invalid{% endif %}" 
+                     id="{{ form.tax_id.id_for_label }}"
+                     name="{{ form.tax_id.name }}"
+                     value="{{ form.tax_id.value|default:'' }}"
+                     placeholder="Tax registration number">
+              {% if form.tax_id.errors %}
+                <div class="invalid-feedback">{{ form.tax_id.errors.0 }}</div>
+              {% endif %}
+            </div>
+            
+            <div class="col-md-6 mb-3">
+              <label for="{{ form.rating.id_for_label }}" class="form-label">
+                Supplier Rating
+              </label>
+              <select class="form-select {% if form.rating.errors %}is-invalid{% endif %}"
+                      id="{{ form.rating.id_for_label }}"
+                      name="{{ form.rating.name }}">
+                <option value="">Rate supplier...</option>
+                <option value="1" {% if form.rating.value == "1" %}selected{% endif %}>⭐ Poor</option>
+                <option value="2" {% if form.rating.value == "2" %}selected{% endif %}>⭐⭐ Fair</option>
+                <option value="3" {% if form.rating.value == "3" %}selected{% endif %}>⭐⭐⭐ Good</option>
+                <option value="4" {% if form.rating.value == "4" %}selected{% endif %}>⭐⭐⭐⭐ Very Good</option>
+                <option value="5" {% if form.rating.value == "5" %}selected{% endif %}>⭐⭐⭐⭐⭐ Excellent</option>
+              </select>
+              {% if form.rating.errors %}
+                <div class="invalid-feedback">{{ form.rating.errors.0 }}</div>
+              {% endif %}
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Form Actions -->
+      <div class="card shadow mb-4">
+        <div class="card-body">
+          <div class="d-flex justify-content-between">
+            <div>
+              <button type="submit" class="btn btn-primary">
+                <i class="bi bi-check me-2"></i>
+                {% if form.instance.pk %}Update Supplier{% else %}Create Supplier{% endif %}
+              </button>
+              <a href="{% url 'inventory:supplier_list' %}" class="btn btn-outline-secondary ms-2">
+                <i class="bi bi-x me-2"></i>Cancel
+              </a>
+            </div>
+            
+            {% if form.instance.pk %}
+            <div>
+              <a href="{% url 'inventory:supplier_delete' form.instance.pk %}" 
+                 class="btn btn-outline-danger"
+                 onclick="return confirm('Are you sure you want to delete this supplier?')">
+                <i class="bi bi-trash me-2"></i>Delete Supplier
+              </a>
+            </div>
+            {% endif %}
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Sidebar -->
+    <div class="col-lg-4">
+      {% if form.instance.pk %}
+      <!-- Supplier Statistics -->
+      <div class="card shadow mb-4">
+        <div class="card-header py-3">
+          <h6 class="m-0 font-weight-bold text-info">
+            <i class="bi bi-graph-up me-2"></i>Supplier Statistics
+          </h6>
+        </div>
+        <div class="card-body">
+          <div class="row text-center">
+            <div class="col-6 mb-3">
+              <div class="h4 mb-0 text-primary">{{ form.instance.products.count|default:0 }}</div>
+              <small class="text-muted">Products</small>
+            </div>
+            <div class="col-6 mb-3">
+              <div class="h4 mb-0 text-success">{{ form.instance.purchase_orders.count|default:0 }}</div>
+              <small class="text-muted">Purchase Orders</small>
+            </div>
+          </div>
+        </div>
+      </div>
+      {% endif %}
+
+      <!-- Supplier Tips -->
+      <div class="card shadow mb-4">
+        <div class="card-header py-3">
+          <h6 class="m-0 font-weight-bold text-secondary">
+            <i class="bi bi-lightbulb me-2"></i>Supplier Management Tips
+          </h6>
+        </div>
+        <div class="card-body">
+          <div class="small">
+            <ul class="list-unstyled">
+              <li class="mb-2">
+                <i class="bi bi-check-circle text-success me-2"></i>
+                Keep contact information updated
+              </li>
+              <li class="mb-2">
+                <i class="bi bi-check-circle text-success me-2"></i>
+                Set realistic lead times
+              </li>
+              <li class="mb-2">
+                <i class="bi bi-check-circle text-success me-2"></i>
+                Monitor payment terms compliance
+              </li>
+              <li class="mb-2">
+                <i class="bi bi-check-circle text-success me-2"></i>
+                Rate suppliers based on performance
+              </li>
+              <li class="mb-2">
+                <i class="bi bi-check-circle text-success me-2"></i>
+                Use supplier codes for easy identification
+              </li>
+            </ul>
+          </div>
+        </div>
+      </div>
+
+      <!-- Required Fields -->
+      <div class="card shadow mb-4">
+        <div class="card-header py-3">
+          <h6 class="m-0 font-weight-bold text-danger">
+            <i class="bi bi-asterisk me-2"></i>Required Fields
+          </h6>
+        </div>
+        <div class="card-body">
+          <div class="small">
+            <p class="mb-2">The following fields are required:</p>
+            <ul class="list-unstyled">
+              <li class="mb-1">
+                <i class="bi bi-dot text-danger"></i>
+                Supplier Name
+              </li>
+            </ul>
+            <p class="text-muted mb-0">
+              All other fields are optional but recommended for complete supplier records.
+            </p>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</form>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // Auto-focus on supplier name field
+    const nameField = document.getElementById('{{ form.name.id_for_label }}');
+    if (nameField && !nameField.value) {
+        nameField.focus();
+    }
+    
+    // Format phone number input
+    const phoneField = document.getElementById('{{ form.phone.id_for_label }}');
+    if (phoneField) {
+        phoneField.addEventListener('input', function(e) {
+            // Simple phone number formatting (you can enhance this)
+            let value = e.target.value.replace(/\D/g, '');
+            if (value.length >= 10) {
+                value = value.replace(/(\d{3})(\d{3})(\d{4})/, '($1) $2-$3');
+            } else if (value.length >= 6) {
+                value = value.replace(/(\d{3})(\d{3})/, '($1) $2-');
+            } else if (value.length >= 3) {
+                value = value.replace(/(\d{3})/, '($1) ');
+            }
+            e.target.value = value;
+        });
+    }
+    
+    // Validate email format
+    const emailField = document.getElementById('{{ form.email.id_for_label }}');
+    if (emailField) {
+        emailField.addEventListener('blur', function(e) {
+            const email = e.target.value;
+            if (email && !email.includes('@')) {
+                e.target.classList.add('is-invalid');
+            } else {
+                e.target.classList.remove('is-invalid');
+            }
+        });
+    }
+    
+    // Auto-generate supplier code if not provided
+    const codeField = document.getElementById('{{ form.supplier_code.id_for_label }}');
+    if (codeField && nameField && !codeField.value) {
+        nameField.addEventListener('blur', function() {
+            if (!codeField.value && nameField.value) {
+                // Generate simple code from name
+                const code = nameField.value
+                    .toUpperCase()
+                    .replace(/[^A-Z0-9]/g, '')
+                    .substring(0, 6);
+                if (code.length >= 3) {
+                    codeField.value = 'SUP' + code.substring(0, 3);
+                }
+            }
+        });
+    }
+});
+</script>
+{% endblock %}

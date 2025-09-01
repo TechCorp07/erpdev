@@ -1,0 +1,687 @@
+{% extends "dashboard_base.html" %}
+{% load static %}
+
+{% block page_title %}Delete Currency: {{ currency.name }}{% endblock %}
+
+{% block dashboard_content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+  <div>
+    <nav aria-label="breadcrumb">
+      <ol class="breadcrumb mb-1">
+        <li class="breadcrumb-item"><a href="{% url 'inventory:dashboard' %}">Inventory</a></li>
+        <li class="breadcrumb-item"><a href="{% url 'inventory:configuration' %}">Configuration</a></li>
+        <li class="breadcrumb-item"><a href="{% url 'inventory:currency_list' %}">Currencies</a></li>
+        <li class="breadcrumb-item"><a href="{% url 'inventory:currency_detail' currency.pk %}">{{ currency.name }}</a></li>
+        <li class="breadcrumb-item active">Delete</li>
+      </ol>
+    </nav>
+    <h1 class="h3 mb-0 text-gray-800">
+      <i class="bi bi-trash text-danger me-2"></i>Delete Currency: {{ currency.name }}
+      <code class="ms-2 fs-6">{{ currency.code }}</code>
+    </h1>
+    <p class="text-muted mb-0">Confirm currency deletion and review pricing impact</p>
+  </div>
+  
+  <div class="btn-group" role="group">
+    <a href="{% url 'inventory:currency_detail' currency.pk %}" class="btn btn-outline-secondary">
+      <i class="bi bi-arrow-left me-2"></i>Back to Currency
+    </a>
+    <a href="{% url 'inventory:currency_list' %}" class="btn btn-outline-info">
+      <i class="bi bi-list me-2"></i>All Currencies
+    </a>
+  </div>
+</div>
+
+<!-- Base Currency Protection -->
+{% if currency.is_base_currency %}
+<div class="alert alert-danger d-flex align-items-center mb-4" role="alert">
+  <i class="bi bi-shield-exclamation fa-2x me-3"></i>
+  <div>
+    <h5 class="alert-heading mb-2">🛡️ Base Currency Cannot Be Deleted</h5>
+    <p class="mb-0">
+      <strong>{{ currency.name }} ({{ currency.code }})</strong> is currently set as the base currency 
+      for all pricing calculations. Base currencies cannot be deleted as this would break the entire 
+      pricing system. You must first set another currency as the base currency before deleting this one.
+    </p>
+  </div>
+</div>
+
+<div class="card shadow">
+  <div class="card-body text-center py-5">
+    <i class="bi bi-shield-exclamation fa-3x text-danger mb-3"></i>
+    <h4>Deletion Not Allowed</h4>
+    <p class="text-muted mb-4">This currency serves as the foundation for all price calculations and cannot be removed.</p>
+    <div class="btn-group" role="group">
+      <a href="{% url 'inventory:currency_detail' currency.pk %}" class="btn btn-primary">
+        <i class="bi bi-arrow-left me-2"></i>Return to Currency
+      </a>
+      <a href="{% url 'inventory:currency_list' %}" class="btn btn-outline-secondary">
+        <i class="bi bi-list me-2"></i>View All Currencies
+      </a>
+    </div>
+  </div>
+</div>
+
+{% else %}
+<!-- Financial Impact Warning -->
+<div class="alert alert-danger d-flex align-items-center mb-4" role="alert">
+  <i class="bi bi-exclamation-triangle-fill fa-2x me-3"></i>
+  <div>
+    <h5 class="alert-heading mb-2">💰 Critical Financial Impact Warning</h5>
+    <p class="mb-0">
+      You are about to <strong>permanently delete</strong> a currency that may be used in pricing, 
+      supplier agreements, and financial calculations. This action will affect cost accuracy and 
+      <strong>cannot be undone.</strong>
+    </p>
+  </div>
+</div>
+
+<div class="row">
+  <!-- Deletion Form -->
+  <div class="col-lg-8">
+    <div class="card shadow mb-4">
+      <div class="card-header py-3 bg-danger text-white">
+        <h6 class="m-0 font-weight-bold">
+          <i class="bi bi-trash me-2"></i>Confirm Currency Deletion
+        </h6>
+      </div>
+      <div class="card-body">
+        <div class="row mb-4">
+          <div class="col-md-6">
+            <h6 class="text-dark">Currency Information</h6>
+            <table class="table table-sm table-borderless">
+              <tr>
+                <td class="fw-bold">Name:</td>
+                <td>
+                  {% if currency.flag_emoji %}
+                    {{ currency.flag_emoji }} {{ currency.name }}
+                  {% else %}
+                    {{ currency.name }}
+                  {% endif %}
+                </td>
+              </tr>
+              <tr>
+                <td class="fw-bold">Code:</td>
+                <td><code class="fw-bold">{{ currency.code }}</code></td>
+              </tr>
+              <tr>
+                <td class="fw-bold">Symbol:</td>
+                <td>
+                  {% if currency.symbol %}
+                    <span class="h6 mb-0">{{ currency.symbol }}</span>
+                  {% else %}
+                    <span class="text-muted">Not set</span>
+                  {% endif %}
+                </td>
+              </tr>
+              <tr>
+                <td class="fw-bold">Exchange Rate:</td>
+                <td>{{ currency.exchange_rate_to_usd|floatformat:4|default:"N/A" }} USD</td>
+              </tr>
+              <tr>
+                <td class="fw-bold">Last Updated:</td>
+                <td>
+                  {% if currency.last_updated %}
+                    {{ currency.last_updated|date:"M d, Y" }}
+                  {% else %}
+                    <span class="text-muted">Never</span>
+                  {% endif %}
+                </td>
+              </tr>
+              <tr>
+                <td class="fw-bold">Status:</td>
+                <td>
+                  {% if currency.is_active %}
+                    <span class="badge bg-success">Active</span>
+                  {% else %}
+                    <span class="badge bg-secondary">Inactive</span>
+                  {% endif %}
+                </td>
+              </tr>
+            </table>
+          </div>
+          
+          <div class="col-md-6">
+            <h6 class="text-dark">Financial Impact Summary</h6>
+            <div class="row text-center">
+              <div class="col-6 mb-3">
+                <div class="h4 mb-0 text-danger">{{ currency.products_count|default:0 }}</div>
+                <small class="text-muted">Products Affected</small>
+              </div>
+              <div class="col-6 mb-3">
+                <div class="h4 mb-0 text-warning">{{ currency.suppliers_count|default:0 }}</div>
+                <small class="text-muted">Suppliers Affected</small>
+              </div>
+              <div class="col-6 mb-3">
+                <div class="h4 mb-0 text-info">{{ currency.purchase_orders_count|default:0 }}</div>
+                <small class="text-muted">Purchase Orders</small>
+              </div>
+              <div class="col-6 mb-3">
+                <div class="h4 mb-0 text-secondary">{{ currency.total_transaction_value|floatformat:2|default:"0.00" }}</div>
+                <small class="text-muted">Total Value ({{ currency.symbol|default:currency.code }})</small>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Products Impact -->
+        {% if currency.products_count > 0 %}
+        <div class="alert alert-warning" role="alert">
+          <h6 class="alert-heading">
+            <i class="bi bi-box-seam me-2"></i>Product Pricing Will Be Affected
+          </h6>
+          <p class="mb-2">
+            <strong>{{ currency.products_count }} product{{ currency.products_count|pluralize }}</strong> 
+            currently use this currency for cost pricing:
+          </p>
+          
+          <div class="row">
+            {% for product in currency.products.all|slice:":6" %}
+            <div class="col-md-6 mb-2">
+              <div class="border rounded p-2">
+                <div class="d-flex justify-content-between align-items-center">
+                  <div>
+                    <strong>{{ product.name|truncatechars:25 }}</strong><br>
+                    <small class="text-muted">
+                      SKU: {{ product.sku }} | Stock: {{ product.current_stock|default:0 }}
+                    </small>
+                  </div>
+                  <div class="text-end">
+                    <div class="fw-bold text-warning">{{ currency.symbol|default:"" }}{{ product.supplier_cost|floatformat:currency.decimal_places|default:"0.00" }}</div>
+                    <small class="text-muted">Supplier Cost</small>
+                  </div>
+                </div>
+              </div>
+            </div>
+            {% endfor %}
+          </div>
+          
+          {% if currency.products_count > 6 %}
+          <div class="mt-2">
+            <small class="text-muted">
+              ... and {{ currency.products_count|add:"-6" }} more product{{ currency.products_count|add:"-6"|pluralize }}
+            </small>
+          </div>
+          {% endif %}
+          
+          <hr>
+          <p class="mb-0 small">
+            <strong>What happens:</strong> Products will lose their original currency cost information. 
+            You'll need to manually update cost prices in USD or another currency.
+          </p>
+        </div>
+        {% endif %}
+
+        <!-- Suppliers Impact -->
+        {% if currency.suppliers_count > 0 %}
+        <div class="alert alert-info" role="alert">
+          <h6 class="alert-heading">
+            <i class="bi bi-building me-2"></i>Supplier Agreements May Be Affected
+          </h6>
+          <p class="mb-2">
+            <strong>{{ currency.suppliers_count }} supplier{{ currency.suppliers_count|pluralize }}</strong> 
+            currently operate in this currency:
+          </p>
+          
+          <div class="table-responsive">
+            <table class="table table-sm">
+              <thead>
+                <tr>
+                  <th>Supplier</th>
+                  <th>Country</th>
+                  <th>Products</th>
+                  <th>Credit Limit</th>
+                </tr>
+              </thead>
+              <tbody>
+                {% for supplier in currency.suppliers.all|slice:":5" %}
+                <tr>
+                  <td>
+                    <div class="fw-bold">{{ supplier.name|truncatechars:25 }}</div>
+                    {% if supplier.supplier_code %}
+                      <small class="text-muted">{{ supplier.supplier_code }}</small>
+                    {% endif %}
+                  </td>
+                  <td>{{ supplier.country|default:"Not specified" }}</td>
+                  <td>{{ supplier.products_in_currency_count|default:0 }}</td>
+                  <td>
+                    {% if supplier.credit_limit_in_currency %}
+                      {{ currency.symbol|default:"" }}{{ supplier.credit_limit_in_currency|floatformat:2 }}
+                    {% else %}
+                      <span class="text-muted">Not set</span>
+                    {% endif %}
+                  </td>
+                </tr>
+                {% endfor %}
+              </tbody>
+            </table>
+          </div>
+          
+          {% if currency.suppliers_count > 5 %}
+          <div class="mt-2">
+            <small class="text-muted">... and {{ currency.suppliers_count|add:"-5" }} more supplier{{ currency.suppliers_count|add:"-5"|pluralize }}</small>
+          </div>
+          {% endif %}
+        </div>
+        {% endif %}
+
+        <!-- Purchase Orders Impact -->
+        {% if currency.purchase_orders_count > 0 %}
+        <div class="alert alert-secondary" role="alert">
+          <h6 class="alert-heading">
+            <i class="bi bi-receipt me-2"></i>Historical Purchase Orders
+          </h6>
+          <p class="mb-2">
+            This currency appears in <strong>{{ currency.purchase_orders_count }} purchase order{{ currency.purchase_orders_count|pluralize }}</strong>:
+          </p>
+          
+          <div class="row text-center">
+            <div class="col-3">
+              <div class="h6 mb-0 text-primary">{{ currency.active_pos_count|default:0 }}</div>
+              <small class="text-muted">Active</small>
+            </div>
+            <div class="col-3">
+              <div class="h6 mb-0 text-success">{{ currency.completed_pos_count|default:0 }}</div>
+              <small class="text-muted">Completed</small>
+            </div>
+            <div class="col-3">
+              <div class="h6 mb-0 text-warning">{{ currency.pending_pos_count|default:0 }}</div>
+              <small class="text-muted">Pending</small>
+            </div>
+            <div class="col-3">
+              <div class="h6 mb-0 text-info">{{ currency.total_po_value|floatformat:2|default:"0.00" }}</div>
+              <small class="text-muted">Total Value</small>
+            </div>
+          </div>
+          
+          <hr>
+          <p class="mb-0 small">
+            <strong>What happens:</strong> Purchase order records will remain but currency references 
+            will be broken, affecting financial reporting and audit trails.
+          </p>
+        </div>
+        {% endif %}
+
+        <!-- Exchange Rate Impact -->
+        <div class="alert alert-warning" role="alert">
+          <h6 class="alert-heading">
+            <i class="bi bi-graph-down me-2"></i>Exchange Rate History Will Be Lost
+          </h6>
+          <p class="mb-2">
+            Deleting this currency will permanently remove:
+          </p>
+          <ul class="mb-2">
+            <li>All historical exchange rate data</li>
+            <li>Rate change tracking and analytics</li>
+            <li>Automatic update configurations</li>
+            <li>Currency conversion history</li>
+          </ul>
+          <p class="mb-0 small">
+            <strong>Current Rate:</strong> 1 {{ currency.code }} = {{ currency.exchange_rate_to_usd|floatformat:4|default:"N/A" }} USD
+            {% if currency.last_updated %}
+              (updated {{ currency.last_updated|timesince }} ago)
+            {% endif %}
+          </p>
+        </div>
+
+        <!-- Consequences Warning -->
+        <div class="bg-light rounded p-3 mb-4">
+          <h6 class="text-dark">
+            <i class="bi bi-info-circle me-2"></i>What happens after deletion:
+          </h6>
+          <ul class="list-unstyled small mb-0">
+            <li class="mb-1">
+              <i class="bi bi-dot text-danger"></i>
+              Currency and all its settings will be permanently deleted
+            </li>
+            <li class="mb-1">
+              <i class="bi bi-dot text-warning"></i>
+              Products will lose their original currency cost information
+            </li>
+            <li class="mb-1">
+              <i class="bi bi-dot text-warning"></i>
+              Supplier currency preferences will be reset
+            </li>
+            <li class="mb-1">
+              <i class="bi bi-dot text-info"></i>
+              Historical exchange rate data will be lost
+            </li>
+            <li class="mb-1">
+              <i class="bi bi-dot text-secondary"></i>
+              Purchase order currency references will be broken
+            </li>
+            <li class="mb-1">
+              <i class="bi bi-dot text-secondary"></i>
+              Financial reports may show inconsistent data
+            </li>
+          </ul>
+        </div>
+
+        <!-- Confirmation Form -->
+        <form method="post" class="mt-4">
+          {% csrf_token %}
+          
+          <div class="mb-3">
+            <div class="form-check">
+              <input class="form-check-input" type="checkbox" id="confirmDeletion" required>
+              <label class="form-check-label fw-bold text-danger" for="confirmDeletion">
+                I understand this action is permanent and cannot be undone
+              </label>
+            </div>
+          </div>
+          
+          {% if currency.products_count > 0 %}
+          <div class="mb-3">
+            <div class="form-check">
+              <input class="form-check-input" type="checkbox" id="confirmProductImpact" required>
+              <label class="form-check-label fw-bold text-warning" for="confirmProductImpact">
+                I acknowledge that {{ currency.products_count }} product{{ currency.products_count|pluralize }} will lose currency cost information
+              </label>
+            </div>
+          </div>
+          {% endif %}
+          
+          {% if currency.suppliers_count > 0 %}
+          <div class="mb-3">
+            <div class="form-check">
+              <input class="form-check-input" type="checkbox" id="confirmSupplierImpact" required>
+              <label class="form-check-label fw-bold text-info" for="confirmSupplierImpact">
+                I acknowledge the impact on {{ currency.suppliers_count }} supplier{{ currency.suppliers_count|pluralize }}
+              </label>
+            </div>
+          </div>
+          {% endif %}
+          
+          {% if currency.purchase_orders_count > 0 %}
+          <div class="mb-3">
+            <div class="form-check">
+              <input class="form-check-input" type="checkbox" id="confirmPOImpact" required>
+              <label class="form-check-label fw-bold text-secondary" for="confirmPOImpact">
+                I understand the impact on {{ currency.purchase_orders_count }} purchase order record{{ currency.purchase_orders_count|pluralize }}
+              </label>
+            </div>
+          </div>
+          {% endif %}
+          
+          <div class="mb-3">
+            <div class="form-check">
+              <input class="form-check-input" type="checkbox" id="confirmFinancialImpact" required>
+              <label class="form-check-label fw-bold text-danger" for="confirmFinancialImpact">
+                I acknowledge this may affect financial reporting and audit trails
+              </label>
+            </div>
+          </div>
+
+          <div class="d-flex justify-content-between align-items-center pt-3 border-top">
+            <div>
+              <a href="{% url 'inventory:currency_detail' currency.pk %}" class="btn btn-outline-secondary">
+                <i class="bi bi-x me-2"></i>Cancel Deletion
+              </a>
+            </div>
+            
+            <div>
+              <button type="submit" 
+                      class="btn btn-danger" 
+                      id="deleteButton"
+                      disabled>
+                <i class="bi bi-trash me-2"></i>
+                Permanently Delete Currency
+              </button>
+            </div>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <!-- Alternative Actions Sidebar -->
+  <div class="col-lg-4">
+    <div class="card shadow mb-4">
+      <div class="card-header py-3">
+        <h6 class="m-0 font-weight-bold text-success">
+          <i class="bi bi-lightbulb me-2"></i>Safer Alternatives
+        </h6>
+      </div>
+      <div class="card-body">
+        <p class="small mb-3">
+          Consider these alternatives that preserve financial data:
+        </p>
+        
+        <div class="list-group list-group-flush">
+          <div class="list-group-item d-flex align-items-start px-0">
+            <i class="bi bi-pause-circle text-warning me-3 mt-1"></i>
+            <div>
+              <h6 class="mb-1">Deactivate Currency</h6>
+              <small class="text-muted">
+                Set currency to inactive to prevent new use while preserving all historical data and relationships.
+              </small>
+              <div class="mt-2">
+                <a href="{% url 'inventory:currency_edit' currency.pk %}" class="btn btn-sm btn-outline-warning">
+                  <i class="bi bi-pencil me-1"></i>Edit Currency
+                </a>
+              </div>
+            </div>
+          </div>
+          
+          <div class="list-group-item d-flex align-items-start px-0">
+            <i class="bi bi-arrow-left-right text-info me-3 mt-1"></i>
+            <div>
+              <h6 class="mb-1">Convert to Base Currency</h6>
+              <small class="text-muted">
+                Convert all costs and prices to USD or your base currency before deletion.
+              </small>
+              <div class="mt-2">
+                <button class="btn btn-sm btn-outline-info" disabled>
+                  <i class="bi bi-currency-exchange me-1"></i>Convert All
+                </button>
+                <br><small class="text-muted">Feature coming soon</small>
+              </div>
+            </div>
+          </div>
+          
+          <div class="list-group-item d-flex align-items-start px-0">
+            <i class="bi bi-download text-primary me-3 mt-1"></i>
+            <div>
+              <h6 class="mb-1">Export Data First</h6>
+              <small class="text-muted">
+                Export all currency-related data for backup before deletion.
+              </small>
+              <div class="mt-2">
+                <a href="?export=csv" class="btn btn-sm btn-outline-primary">
+                  <i class="bi bi-download me-1"></i>Export Data
+                </a>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Deletion Guidelines -->
+    <div class="card shadow mb-4">
+      <div class="card-header py-3">
+        <h6 class="m-0 font-weight-bold text-danger">
+          <i class="bi bi-shield-exclamation me-2"></i>Safe Deletion Guidelines
+        </h6>
+      </div>
+      <div class="card-body">
+        <div class="small">
+          <p class="mb-2"><strong>Safe to delete when:</strong></p>
+          <ul class="list-unstyled mb-3">
+            <li class="mb-1">
+              <i class="bi bi-check-circle text-success me-2"></i>
+              No products use this currency
+            </li>
+            <li class="mb-1">
+              <i class="bi bi-check-circle text-success me-2"></i>
+              No suppliers operate in this currency
+            </li>
+            <li class="mb-1">
+              <i class="bi bi-check-circle text-success me-2"></i>
+              No historical purchase orders exist
+            </li>
+            <li class="mb-1">
+              <i class="bi bi-check-circle text-success me-2"></i>
+              Currency was created by mistake
+            </li>
+            <li class="mb-1">
+              <i class="bi bi-check-circle text-success me-2"></i>
+              Not the base currency
+            </li>
+          </ul>
+          
+          <p class="mb-2"><strong>Avoid deletion when:</strong></p>
+          <ul class="list-unstyled">
+            <li class="mb-1">
+              <i class="bi bi-x-circle text-danger me-2"></i>
+              Products have costs in this currency
+            </li>
+            <li class="mb-1">
+              <i class="bi bi-x-circle text-danger me-2"></i>
+              Suppliers operate in this currency
+            </li>
+            <li class="mb-1">
+              <i class="bi bi-x-circle text-danger me-2"></i>
+              Historical financial records exist
+            </li>
+            <li class="mb-1">
+              <i class="bi bi-x-circle text-danger me-2"></i>
+              Audit compliance requires records
+            </li>
+            <li class="mb-1">
+              <i class="bi bi-x-circle text-danger me-2"></i>
+              Active purchase orders exist
+            </li>
+          </ul>
+        </div>
+      </div>
+    </div>
+
+    <!-- Financial Impact Calculator -->
+    <div class="card shadow mb-4">
+      <div class="card-header py-3">
+        <h6 class="m-0 font-weight-bold text-info">
+          <i class="bi bi-calculator me-2"></i>Financial Impact
+        </h6>
+      </div>
+      <div class="card-body">
+        <div class="small">
+          <div class="row text-center mb-3">
+            <div class="col-6">
+              <div class="h6 mb-0 text-warning">{{ currency.symbol|default:"" }}{{ currency.total_cost_impact|floatformat:2|default:"0.00" }}</div>
+              <small class="text-muted">Cost Impact</small>
+            </div>
+            <div class="col-6">
+              <div class="h6 mb-0 text-danger">${{ currency.usd_equivalent_impact|floatformat:2|default:"0.00" }}</div>
+              <small class="text-muted">USD Equivalent</small>
+            </div>
+          </div>
+          
+          <div class="mb-2">
+            <strong>Affected Areas:</strong>
+          </div>
+          <ul class="list-unstyled">
+            {% if currency.products_count > 0 %}
+            <li class="mb-1">
+              <i class="bi bi-dot text-warning"></i>
+              Product cost calculations
+            </li>
+            {% endif %}
+            {% if currency.suppliers_count > 0 %}
+            <li class="mb-1">
+              <i class="bi bi-dot text-info"></i>
+              Supplier payment terms
+            </li>
+            {% endif %}
+            {% if currency.purchase_orders_count > 0 %}
+            <li class="mb-1">
+              <i class="bi bi-dot text-secondary"></i>
+              Purchase order history
+            </li>
+            {% endif %}
+            <li class="mb-1">
+              <i class="bi bi-dot text-danger"></i>
+              Financial reporting accuracy
+            </li>
+          </ul>
+        </div>
+      </div>
+    </div>
+
+    <!-- Contact Information -->
+    <div class="card shadow mb-4 bg-light">
+      <div class="card-header py-3">
+        <h6 class="m-0 font-weight-bold text-secondary">
+          <i class="bi bi-headset me-2"></i>Need Assistance?
+        </h6>
+      </div>
+      <div class="card-body">
+        <p class="small mb-2">
+          If you're unsure about deleting this currency, consider consulting with:
+        </p>
+        <ul class="small list-unstyled">
+          <li class="mb-1">• Your accounting department</li>
+          <li class="mb-1">• Financial controller</li>
+          <li class="mb-1">• System administrator</li>
+          <li class="mb-1">• External auditor (if applicable)</li>
+        </ul>
+        <div class="small text-muted mt-2">
+          <strong>Remember:</strong> Currency deletion affects financial accuracy and compliance.
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+{% endif %}
+{% endblock %}
+
+{% block extra_js %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    {% if not currency.is_base_currency %}
+    const checkboxes = [
+        document.getElementById('confirmDeletion'),
+        document.getElementById('confirmProductImpact'),
+        document.getElementById('confirmSupplierImpact'),
+        document.getElementById('confirmPOImpact'),
+        document.getElementById('confirmFinancialImpact')
+    ].filter(Boolean); // Remove null elements
+    
+    const deleteButton = document.getElementById('deleteButton');
+    
+    function updateButtonState() {
+        const allChecked = checkboxes.every(checkbox => checkbox.checked);
+        deleteButton.disabled = !allChecked;
+    }
+    
+    checkboxes.forEach(checkbox => {
+        checkbox.addEventListener('change', updateButtonState);
+    });
+    
+    // Final confirmation dialog
+    deleteButton.addEventListener('click', function(e) {
+        const currencyName = '{{ currency.name }}';
+        const currencyCode = '{{ currency.code }}';
+        const productCount = {{ currency.products_count|default:0 }};
+        const supplierCount = {{ currency.suppliers_count|default:0 }};
+        const poCount = {{ currency.purchase_orders_count|default:0 }};
+        
+        let confirmMessage = `FINAL CONFIRMATION: Are you absolutely sure you want to permanently delete currency "${currencyName} (${currencyCode})"?\n\n`;
+        confirmMessage += `This will immediately affect:\n`;
+        confirmMessage += `• ${productCount} product${productCount !== 1 ? 's' : ''} (cost pricing)\n`;
+        confirmMessage += `• ${supplierCount} supplier${supplierCount !== 1 ? 's' : ''} (payment terms)\n`;
+        confirmMessage += `• ${poCount} purchase order${poCount !== 1 ? 's' : ''} (historical records)\n`;
+        confirmMessage += `\nThis action CANNOT be undone and will cause immediate financial data inconsistencies.`;
+        confirmMessage += `\n\nType "${currencyCode}" to confirm:`;
+        
+        const userConfirmation = prompt(confirmMessage);
+        
+        if (userConfirmation !== currencyCode) {
+            e.preventDefault();
+            alert(`Deletion cancelled. You must type "${currencyCode}" to confirm this critical financial action.`);
+        }
+    });
+    {% endif %}
+});
+</script>
+{% endblock %}
