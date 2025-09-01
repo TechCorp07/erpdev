@@ -1,0 +1,553 @@
+{% extends "dashboard_base.html" %}
+{% load static %}
+
+{% block page_title %}Stock Levels by Location{% endblock %}
+
+{% block extra_css %}
+<link href="{% static 'inventory/css/inventory.css' %}" rel="stylesheet">
+<style>
+.location-selector {
+    background: white;
+    border-radius: 0.75rem;
+    padding: 1.5rem;
+    margin-bottom: 2rem;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+}
+
+.location-tabs {
+    border-bottom: 2px solid #e5e7eb;
+    margin-bottom: 2rem;
+}
+
+.location-tab {
+    background: none;
+    border: none;
+    padding: 1rem 1.5rem;
+    color: #6b7280;
+    font-weight: 600;
+    cursor: pointer;
+    border-bottom: 3px solid transparent;
+    transition: all 0.3s ease;
+}
+
+.location-tab.active {
+    color: var(--inventory-primary);
+    border-bottom-color: var(--inventory-primary);
+}
+
+.location-tab:hover {
+    background-color: #f3f4f6;
+}
+
+.stock-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+    gap: 1.5rem;
+    margin-bottom: 2rem;
+}
+
+.stock-item {
+    background: white;
+    border: 1px solid #e5e7eb;
+    border-radius: 0.75rem;
+    padding: 1.25rem;
+    transition: all 0.2s ease;
+}
+
+.stock-item:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+    border-color: var(--inventory-primary);
+}
+
+.stock-item.low-stock {
+    border-left: 4px solid var(--inventory-warning);
+    background-color: rgba(245, 158, 11, 0.02);
+}
+
+.stock-item.out-stock {
+    border-left: 4px solid var(--inventory-danger);
+    background-color: rgba(239, 68, 68, 0.02);
+}
+
+.stock-item.critical-stock {
+    border-left: 4px solid var(--stock-critical);
+    background-color: rgba(153, 27, 27, 0.02);
+}
+
+.stock-summary {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 1rem;
+    margin-bottom: 2rem;
+}
+
+.summary-card {
+    background: white;
+    padding: 1.5rem;
+    border-radius: 0.75rem;
+    text-align: center;
+    border: 1px solid #e5e7eb;
+}
+
+.summary-value {
+    font-size: 2rem;
+    font-weight: 700;
+    margin-bottom: 0.5rem;
+}
+
+.summary-label {
+    color: #6b7280;
+    font-size: 0.875rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.025em;
+}
+
+.movement-indicator {
+    font-size: 0.75rem;
+    padding: 0.25rem 0.5rem;
+    border-radius: 1rem;
+    margin-left: 0.5rem;
+}
+
+.movement-in {
+    background-color: #dcfce7;
+    color: #15803d;
+}
+
+.movement-out {
+    background-color: #fee2e2;
+    color: #dc2626;
+}
+
+.filter-bar {
+    background: white;
+    border-radius: 0.75rem;
+    padding: 1rem 1.5rem;
+    margin-bottom: 2rem;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+}
+
+.bulk-actions {
+    position: fixed;
+    bottom: 2rem;
+    right: 2rem;
+    z-index: 1000;
+}
+
+.bulk-action-fab {
+    width: 56px;
+    height: 56px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.15);
+    border: none;
+    transition: all 0.3s ease;
+}
+
+.bulk-action-fab:hover {
+    transform: scale(1.1);
+    box-shadow: 0 6px 20px rgba(0, 0, 0, 0.2);
+}
+
+@media (max-width: 768px) {
+    .stock-grid {
+        grid-template-columns: 1fr;
+    }
+    
+    .location-tab {
+        padding: 0.75rem 1rem;
+        font-size: 0.875rem;
+    }
+    
+    .bulk-actions {
+        position: relative;
+        bottom: auto;
+        right: auto;
+        margin-top: 2rem;
+    }
+}
+</style>
+{% endblock %}
+
+{% block page_header %}
+<div class="inventory-header">
+    <div class="container">
+        <div class="row">
+            <div class="col-md-8">
+                <h1><i class="bi bi-geo-alt me-2"></i>Stock Levels by Location</h1>
+                <p class="lead">Monitor inventory distribution across all storage locations</p>
+            </div>
+            <div class="col-md-4 text-end">
+                <div class="btn-group" role="group">
+                    <a href="{% url 'inventory:stock_adjustment' %}" class="btn btn-outline-primary">
+                        <i class="bi bi-plus-minus me-1"></i> Adjust Stock
+                    </a>
+                    <a href="{% url 'inventory:stock_transfer' %}" class="btn btn-primary">
+                        <i class="bi bi-arrow-left-right me-1"></i> Transfer Stock
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <!-- Stock Summary -->
+    <div class="stock-summary">
+        <div class="summary-card">
+            <div class="summary-value text-primary">{{ total_locations|default:0 }}</div>
+            <div class="summary-label">Total Locations</div>
+        </div>
+        
+        <div class="summary-card">
+            <div class="summary-value text-success">{{ total_products|default:0 }}</div>
+            <div class="summary-label">Products Tracked</div>
+        </div>
+        
+        <div class="summary-card">
+            <div class="summary-value text-info">${{ total_stock_value|floatformat:0|default:"0" }}</div>
+            <div class="summary-label">Total Stock Value</div>
+        </div>
+        
+        <div class="summary-card">
+            <div class="summary-value text-warning">{{ low_stock_count|default:0 }}</div>
+            <div class="summary-label">Low Stock Items</div>
+        </div>
+        
+        <div class="summary-card">
+            <div class="summary-value text-danger">{{ out_stock_count|default:0 }}</div>
+            <div class="summary-label">Out of Stock</div>
+        </div>
+    </div>
+
+    <!-- Filter Bar -->
+    <div class="filter-bar">
+        <form method="get" class="row g-3 align-items-end">
+            <div class="col-md-3">
+                <label for="location_filter" class="form-label">Filter by Location</label>
+                <select class="form-select" id="location_filter" name="location">
+                    <option value="">All Locations</option>
+                    {% for location in locations %}
+                    <option value="{{ location.id }}" {% if request.GET.location == location.id|stringformat:"s" %}selected{% endif %}>
+                        {{ location.name }}
+                    </option>
+                    {% endfor %}
+                </select>
+            </div>
+            
+            <div class="col-md-3">
+                <label for="status_filter" class="form-label">Stock Status</label>
+                <select class="form-select" id="status_filter" name="status">
+                    <option value="">All Status</option>
+                    <option value="in_stock" {% if request.GET.status == 'in_stock' %}selected{% endif %}>In Stock</option>
+                    <option value="low_stock" {% if request.GET.status == 'low_stock' %}selected{% endif %}>Low Stock</option>
+                    <option value="out_stock" {% if request.GET.status == 'out_stock' %}selected{% endif %}>Out of Stock</option>
+                    <option value="overstocked" {% if request.GET.status == 'overstocked' %}selected{% endif %}>Overstocked</option>
+                </select>
+            </div>
+            
+            <div class="col-md-3">
+                <label for="search" class="form-label">Search Products</label>
+                <input type="text" class="form-control" id="search" name="search" 
+                       value="{{ request.GET.search }}" placeholder="SKU or product name">
+            </div>
+            
+            <div class="col-md-3">
+                <button type="submit" class="btn btn-primary">
+                    <i class="bi bi-search me-1"></i> Filter
+                </button>
+                <a href="{% url 'inventory:stock_level_list' %}" class="btn btn-outline-secondary ms-2">
+                    <i class="bi bi-x me-1"></i> Clear
+                </a>
+            </div>
+        </form>
+    </div>
+
+    <!-- Location Tabs -->
+    <div class="location-tabs">
+        <button class="location-tab active" data-location="all">
+            All Locations
+            <span class="badge bg-primary ms-2">{{ stock_levels.count|default:0 }}</span>
+        </button>
+        {% for location in locations %}
+        <button class="location-tab" data-location="{{ location.id }}">
+            {{ location.name }}
+            <span class="badge bg-secondary ms-2">{{ location.stock_count|default:0 }}</span>
+        </button>
+        {% endfor %}
+    </div>
+
+    <!-- Stock Levels Grid -->
+    <div class="stock-levels-content">
+        {% if stock_levels %}
+        <div class="stock-grid">
+            {% for stock_level in stock_levels %}
+            <div class="stock-item {% if stock_level.current_stock <= 0 %}out-stock{% elif stock_level.current_stock <= stock_level.product.reorder_level %}low-stock{% elif stock_level.current_stock <= stock_level.product.reorder_level|mul:'0.5' %}critical-stock{% endif %}" 
+                 data-location="{{ stock_level.location.id }}">
+                
+                <!-- Product Header -->
+                <div class="d-flex justify-content-between align-items-start mb-3">
+                    <div class="flex-grow-1">
+                        <h6 class="fw-bold mb-1">{{ stock_level.product.name }}</h6>
+                        <div class="d-flex align-items-center">
+                            <span class="product-sku me-2">{{ stock_level.product.sku }}</span>
+                            {% if stock_level.product.category %}
+                            <small class="text-muted">{{ stock_level.product.category.name }}</small>
+                            {% endif %}
+                        </div>
+                    </div>
+                    <div class="dropdown">
+                        <button class="btn btn-link text-muted btn-sm" data-bs-toggle="dropdown">
+                            <i class="bi bi-three-dots-vertical"></i>
+                        </button>
+                        <ul class="dropdown-menu">
+                            <li><a class="dropdown-item" href="{% url 'inventory:product_detail' stock_level.product.id %}">
+                                <i class="bi bi-eye me-2"></i>View Details
+                            </a></li>
+                            <li><a class="dropdown-item" href="{% url 'inventory:stock_adjustment' stock_level.product.id %}">
+                                <i class="bi bi-plus-minus me-2"></i>Adjust Stock
+                            </a></li>
+                            <li><a class="dropdown-item" href="{% url 'inventory:stock_movement_history' stock_level.product.id %}">
+                                <i class="bi bi-clock-history me-2"></i>Movement History
+                            </a></li>
+                        </ul>
+                    </div>
+                </div>
+
+                <!-- Location Info -->
+                <div class="mb-3">
+                    <div class="d-flex align-items-center">
+                        <i class="bi bi-geo-alt text-muted me-2"></i>
+                        <strong>{{ stock_level.location.name }}</strong>
+                        {% if stock_level.storage_bin %}
+                        <span class="badge bg-light text-dark ms-2">{{ stock_level.storage_bin.bin_code }}</span>
+                        {% endif %}
+                    </div>
+                </div>
+
+                <!-- Stock Information -->
+                <div class="row g-2 mb-3">
+                    <div class="col-4 text-center">
+                        <div class="fw-bold fs-5 {% if stock_level.current_stock <= 0 %}text-danger{% elif stock_level.current_stock <= stock_level.product.reorder_level %}text-warning{% else %}text-success{% endif %}">
+                            {{ stock_level.current_stock }}
+                        </div>
+                        <small class="text-muted">Current</small>
+                    </div>
+                    
+                    <div class="col-4 text-center">
+                        <div class="fw-bold text-info">{{ stock_level.product.reorder_level }}</div>
+                        <small class="text-muted">Reorder</small>
+                    </div>
+                    
+                    <div class="col-4 text-center">
+                        <div class="fw-bold text-secondary">{{ stock_level.product.max_stock_level|default:"-" }}</div>
+                        <small class="text-muted">Max</small>
+                    </div>
+                </div>
+
+                <!-- Stock Level Bar -->
+                <div class="mb-3">
+                    {% with stock_percentage=stock_level.current_stock|mul:100|div:stock_level.product.max_stock_level|default:stock_level.product.reorder_level|mul:2 %}
+                    <div class="stock-level-bar">
+                        <div class="stock-level-fill {% if stock_level.current_stock <= 0 %}out-stock{% elif stock_level.current_stock <= stock_level.product.reorder_level %}low-stock{% else %}in-stock{% endif %}" 
+                             style="width: {{ stock_percentage|floatformat:0|default:0 }}%"></div>
+                    </div>
+                    <div class="d-flex justify-content-between">
+                        <small class="text-muted">0</small>
+                        <small class="text-muted">{{ stock_level.product.max_stock_level|default:stock_level.product.reorder_level|mul:2 }}</small>
+                    </div>
+                    {% endwith %}
+                </div>
+
+                <!-- Value & Recent Movement -->
+                <div class="row g-2">
+                    <div class="col-6">
+                        <small class="text-muted">Stock Value</small>
+                        <div class="fw-bold text-success">
+                            ${{ stock_level.current_stock|mul:stock_level.product.cost_price|floatformat:2|default:"0.00" }}
+                        </div>
+                    </div>
+                    
+                    <div class="col-6">
+                        <small class="text-muted">Last Movement</small>
+                        <div class="fw-bold">
+                            {% if stock_level.last_movement %}
+                            {{ stock_level.last_movement.created_at|timesince }} ago
+                            <span class="movement-indicator {% if stock_level.last_movement.quantity > 0 %}movement-in{% else %}movement-out{% endif %}">
+                                {% if stock_level.last_movement.quantity > 0 %}+{% endif %}{{ stock_level.last_movement.quantity }}
+                            </span>
+                            {% else %}
+                            <span class="text-muted">No movement</span>
+                            {% endif %}
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Quick Actions -->
+                <div class="d-flex gap-2 mt-3">
+                    {% if stock_level.current_stock <= stock_level.product.reorder_level %}
+                    <button class="btn btn-primary btn-sm flex-fill create-po-btn" 
+                            data-product="{{ stock_level.product.id }}">
+                        <i class="bi bi-cart-plus me-1"></i>Reorder
+                    </button>
+                    {% endif %}
+                    
+                    <button class="btn btn-outline-primary btn-sm adjust-stock-btn" 
+                            data-product="{{ stock_level.product.id }}" data-location="{{ stock_level.location.id }}">
+                        <i class="bi bi-plus-minus me-1"></i>Adjust
+                    </button>
+                    
+                    <button class="btn btn-outline-secondary btn-sm transfer-stock-btn" 
+                            data-product="{{ stock_level.product.id }}" data-location="{{ stock_level.location.id }}">
+                        <i class="bi bi-arrow-left-right me-1"></i>Transfer
+                    </button>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+
+        <!-- Pagination -->
+        {% if is_paginated %}
+        <nav aria-label="Stock levels pagination" class="mt-4">
+            <ul class="pagination justify-content-center">
+                {% if page_obj.has_previous %}
+                <li class="page-item">
+                    <a class="page-link" href="?page=1{{ request.GET|urlencode|slice:'1:' }}">First</a>
+                </li>
+                <li class="page-item">
+                    <a class="page-link" href="?page={{ page_obj.previous_page_number }}{{ request.GET|urlencode|slice:'1:' }}">Previous</a>
+                </li>
+                {% endif %}
+                
+                <li class="page-item active">
+                    <span class="page-link">{{ page_obj.number }} of {{ page_obj.paginator.num_pages }}</span>
+                </li>
+                
+                {% if page_obj.has_next %}
+                <li class="page-item">
+                    <a class="page-link" href="?page={{ page_obj.next_page_number }}{{ request.GET|urlencode|slice:'1:' }}">Next</a>
+                </li>
+                <li class="page-item">
+                    <a class="page-link" href="?page={{ page_obj.paginator.num_pages }}{{ request.GET|urlencode|slice:'1:' }}">Last</a>
+                </li>
+                {% endif %}
+            </ul>
+        </nav>
+        {% endif %}
+        
+        {% else %}
+        <!-- Empty State -->
+        <div class="text-center py-5">
+            <i class="bi bi-inbox text-muted" style="font-size: 4rem;"></i>
+            <h4 class="mt-3 text-muted">No stock levels found</h4>
+            <p class="text-muted">
+                {% if request.GET.search or request.GET.location or request.GET.status %}
+                No stock levels match your current filters. Try adjusting your search criteria.
+                {% else %}
+                Stock levels will appear here once you add products to your inventory.
+                {% endif %}
+            </p>
+            {% if not request.GET.search and not request.GET.location and not request.GET.status %}
+            <a href="{% url 'inventory:quick_add_product' %}" class="btn btn-primary">
+                <i class="bi bi-plus me-1"></i> Add Your First Product
+            </a>
+            {% endif %}
+        </div>
+        {% endif %}
+    </div>
+
+    <!-- Bulk Actions FAB -->
+    <div class="bulk-actions">
+        <div class="btn-group-vertical" role="group">
+            <button class="btn btn-success bulk-action-fab" title="Bulk Stock Adjustment" id="bulkAdjustBtn">
+                <i class="bi bi-plus-minus"></i>
+            </button>
+            <button class="btn btn-info bulk-action-fab mt-2" title="Export Stock Report" id="exportBtn">
+                <i class="bi bi-download"></i>
+            </button>
+            <button class="btn btn-warning bulk-action-fab mt-2" title="Generate Reorder Report" id="reorderBtn">
+                <i class="bi bi-arrow-repeat"></i>
+            </button>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // Location tab filtering
+    const locationTabs = document.querySelectorAll('.location-tab');
+    const stockItems = document.querySelectorAll('.stock-item');
+    
+    locationTabs.forEach(tab => {
+        tab.addEventListener('click', function() {
+            // Update active tab
+            locationTabs.forEach(t => t.classList.remove('active'));
+            this.classList.add('active');
+            
+            const selectedLocation = this.dataset.location;
+            
+            // Filter stock items
+            stockItems.forEach(item => {
+                if (selectedLocation === 'all' || item.dataset.location === selectedLocation) {
+                    item.style.display = 'block';
+                } else {
+                    item.style.display = 'none';
+                }
+            });
+        });
+    });
+    
+    // Quick action handlers
+    document.querySelectorAll('.adjust-stock-btn').forEach(btn => {
+        btn.addEventListener('click', function() {
+            const productId = this.dataset.product;
+            const locationId = this.dataset.location;
+            window.location.href = `/inventory/stock/adjust/${productId}/?location=${locationId}`;
+        });
+    });
+    
+    document.querySelectorAll('.transfer-stock-btn').forEach(btn => {
+        btn.addEventListener('click', function() {
+            const productId = this.dataset.product;
+            const locationId = this.dataset.location;
+            window.location.href = `/inventory/stock/transfer/?product=${productId}&from_location=${locationId}`;
+        });
+    });
+    
+    document.querySelectorAll('.create-po-btn').forEach(btn => {
+        btn.addEventListener('click', function() {
+            const productId = this.dataset.product;
+            window.location.href = `/inventory/purchase-orders/create/?product=${productId}`;
+        });
+    });
+    
+    // Bulk actions
+    document.getElementById('bulkAdjustBtn').addEventListener('click', function() {
+        window.location.href = '{% url "inventory:bulk_stock_adjustment" %}';
+    });
+    
+    document.getElementById('exportBtn').addEventListener('click', function() {
+        const params = new URLSearchParams(window.location.search);
+        params.set('export', 'xlsx');
+        window.location.href = `${window.location.pathname}?${params.toString()}`;
+    });
+    
+    document.getElementById('reorderBtn').addEventListener('click', function() {
+        window.location.href = '{% url "inventory:reorder_alert_list" %}';
+    });
+    
+    // Auto-refresh every 5 minutes
+    setInterval(function() {
+        location.reload();
+    }, 300000);
+});
+</script>
+{% endblock %}

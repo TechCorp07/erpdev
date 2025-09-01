@@ -1,0 +1,811 @@
+{% extends "dashboard_base.html" %}
+{% load static %}
+
+{% block page_title %}{{ supplier.name }} - Supplier Details{% endblock %}
+
+{% block extra_css %}
+<link href="{% static 'inventory/css/inventory.css' %}" rel="stylesheet">
+<style>
+.supplier-header {
+    background: linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%);
+    color: white;
+    padding: 3rem 0;
+    margin-bottom: 2rem;
+}
+
+.supplier-avatar-xl {
+    width: 120px;
+    height: 120px;
+    border-radius: 1rem;
+    background: rgba(255, 255, 255, 0.2);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: white;
+    font-weight: 700;
+    font-size: 3rem;
+    border: 4px solid rgba(255, 255, 255, 0.3);
+}
+
+.supplier-rating {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.rating-stars {
+    color: #fbbf24;
+}
+
+.metric-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+    gap: 1.5rem;
+    margin-bottom: 2rem;
+}
+
+.performance-metric {
+    background: white;
+    border: 1px solid #e5e7eb;
+    border-radius: 0.75rem;
+    padding: 1.5rem;
+    text-align: center;
+    transition: all 0.2s ease;
+}
+
+.performance-metric:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+}
+
+.metric-icon {
+    width: 60px;
+    height: 60px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin: 0 auto 1rem;
+    font-size: 1.5rem;
+}
+
+.metric-value {
+    font-size: 2rem;
+    font-weight: 700;
+    margin-bottom: 0.5rem;
+}
+
+.metric-label {
+    color: #6b7280;
+    font-size: 0.875rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.025em;
+}
+
+.contact-card {
+    background: white;
+    border: 1px solid #e5e7eb;
+    border-radius: 0.75rem;
+    padding: 2rem;
+}
+
+.contact-item {
+    display: flex;
+    align-items: center;
+    padding: 1rem 0;
+    border-bottom: 1px solid #f3f4f6;
+}
+
+.contact-item:last-child {
+    border-bottom: none;
+}
+
+.contact-icon {
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    background: #f3f4f6;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin-right: 1rem;
+    color: #6b7280;
+}
+
+.recent-orders-timeline {
+    position: relative;
+    padding-left: 2rem;
+}
+
+.recent-orders-timeline::before {
+    content: '';
+    position: absolute;
+    left: 1rem;
+    top: 0;
+    bottom: 0;
+    width: 2px;
+    background: #e5e7eb;
+}
+
+.timeline-order {
+    position: relative;
+    padding-bottom: 2rem;
+}
+
+.timeline-order::before {
+    content: '';
+    position: absolute;
+    left: -0.5rem;
+    top: 0.5rem;
+    width: 1rem;
+    height: 1rem;
+    border-radius: 50%;
+    background: white;
+    border: 3px solid #e5e7eb;
+}
+
+.timeline-order.completed::before {
+    border-color: var(--inventory-success);
+    background: var(--inventory-success);
+}
+
+.timeline-order.pending::before {
+    border-color: var(--inventory-warning);
+    background: var(--inventory-warning);
+}
+
+.timeline-order.overdue::before {
+    border-color: var(--inventory-danger);
+    background: var(--inventory-danger);
+}
+
+.products-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+    gap: 1.5rem;
+}
+
+.product-summary-card {
+    background: white;
+    border: 1px solid #e5e7eb;
+    border-radius: 0.75rem;
+    padding: 1.5rem;
+    transition: all 0.2s ease;
+}
+
+.product-summary-card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+    border-color: var(--inventory-primary);
+}
+
+.chart-container {
+    position: relative;
+    height: 300px;
+}
+
+.nav-tabs .nav-link {
+    border: none;
+    border-bottom: 3px solid transparent;
+    background: none;
+    color: #6b7280;
+    font-weight: 600;
+    padding: 1rem 1.5rem;
+}
+
+.nav-tabs .nav-link.active {
+    color: var(--inventory-primary);
+    border-bottom-color: var(--inventory-primary);
+    background: none;
+}
+
+.supplier-actions {
+    position: sticky;
+    top: 100px;
+    z-index: 100;
+}
+
+@media (max-width: 768px) {
+    .supplier-header {
+        padding: 2rem 0;
+        text-align: center;
+    }
+    
+    .supplier-avatar-xl {
+        width: 80px;
+        height: 80px;
+        font-size: 2rem;
+        margin: 0 auto 1rem;
+    }
+    
+    .metric-grid {
+        grid-template-columns: 1fr 1fr;
+    }
+    
+    .products-grid {
+        grid-template-columns: 1fr;
+    }
+    
+    .supplier-actions {
+        position: relative;
+        top: auto;
+        margin-top: 2rem;
+    }
+}
+</style>
+{% endblock %}
+
+{% block content %}
+<!-- Supplier Header -->
+<div class="supplier-header">
+    <div class="container">
+        <div class="row align-items-center">
+            <div class="col-md-2">
+                <div class="supplier-avatar-xl">
+                    {{ supplier.name|first }}
+                </div>
+            </div>
+            <div class="col-md-7">
+                <h1 class="mb-2">{{ supplier.name }}</h1>
+                {% if supplier.supplier_code %}
+                <p class="mb-2 opacity-90">Code: {{ supplier.supplier_code }}</p>
+                {% endif %}
+                <div class="supplier-rating mb-3">
+                    <div class="rating-stars">
+                        {% for i in "12345" %}
+                            {% if forloop.counter <= supplier.rating|default:0 %}
+                                <i class="bi bi-star-fill"></i>
+                            {% else %}
+                                <i class="bi bi-star"></i>
+                            {% endif %}
+                        {% endfor %}
+                    </div>
+                    <span class="ms-2">{{ supplier.rating|default:0 }}/5 rating</span>
+                    {% if supplier.total_reviews %}
+                        <span class="opacity-75">({{ supplier.total_reviews }} reviews)</span>
+                    {% endif %}
+                </div>
+                <div class="d-flex flex-wrap gap-2">
+                    <span class="badge bg-light bg-opacity-25">
+                        <i class="bi bi-geo-alt me-1"></i>{{ supplier.country|default:"Location not set" }}
+                    </span>
+                    {% if supplier.is_preferred %}
+                    <span class="badge bg-success bg-opacity-25">
+                        <i class="bi bi-star me-1"></i>Preferred Supplier
+                    </span>
+                    {% endif %}
+                    {% if supplier.is_active %}
+                    <span class="badge bg-success bg-opacity-25">Active</span>
+                    {% else %}
+                    <span class="badge bg-danger bg-opacity-25">Inactive</span>
+                    {% endif %}
+                </div>
+            </div>
+            <div class="col-md-3 text-end">
+                <div class="supplier-actions">
+                    <div class="btn-group-vertical d-grid gap-2" role="group">
+                        <a href="{% url 'inventory:po_create' %}?supplier={{ supplier.id }}" class="btn btn-light">
+                            <i class="bi bi-cart-plus me-1"></i>New Purchase Order
+                        </a>
+                        <a href="{% url 'inventory:supplier_update' supplier.id %}" class="btn btn-outline-light">
+                            <i class="bi bi-pencil me-1"></i>Edit Supplier
+                        </a>
+                        <div class="btn-group" role="group">
+                            <button class="btn btn-outline-light dropdown-toggle" data-bs-toggle="dropdown">
+                                <i class="bi bi-three-dots me-1"></i>More Actions
+                            </button>
+                            <ul class="dropdown-menu">
+                                <li><a class="dropdown-item" href="{% url 'inventory:supplier_products' supplier.id %}">
+                                    <i class="bi bi-box me-2"></i>View Products
+                                </a></li>
+                                <li><a class="dropdown-item" href="#" onclick="exportSupplierReport()">
+                                    <i class="bi bi-download me-2"></i>Export Report
+                                </a></li>
+                                <li><a class="dropdown-item" href="#" onclick="contactSupplier()">
+                                    <i class="bi bi-envelope me-2"></i>Send Message
+                                </a></li>
+                                <li><hr class="dropdown-divider"></li>
+                                <li><a class="dropdown-item" href="{% url 'inventory:supplier_performance' supplier.id %}">
+                                    <i class="bi bi-graph-up me-2"></i>Performance Report
+                                </a></li>
+                            </ul>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="container-fluid">
+    <!-- Performance Metrics -->
+    <div class="metric-grid">
+        <div class="performance-metric">
+            <div class="metric-icon bg-primary text-white">
+                <i class="bi bi-cart3"></i>
+            </div>
+            <div class="metric-value text-primary">{{ supplier_stats.total_orders|default:0 }}</div>
+            <div class="metric-label">Total Orders</div>
+        </div>
+        
+        <div class="performance-metric">
+            <div class="metric-icon bg-success text-white">
+                <i class="bi bi-currency-dollar"></i>
+            </div>
+            <div class="metric-value text-success">${{ supplier_stats.total_spent|floatformat:0|default:"0" }}</div>
+            <div class="metric-label">Total Spent</div>
+        </div>
+        
+        <div class="performance-metric">
+            <div class="metric-icon bg-info text-white">
+                <i class="bi bi-clock"></i>
+            </div>
+            <div class="metric-value text-info">{{ supplier.average_lead_time_days|default:0 }}</div>
+            <div class="metric-label">Avg Lead Time (Days)</div>
+        </div>
+        
+        <div class="performance-metric">
+            <div class="metric-icon bg-warning text-white">
+                <i class="bi bi-truck"></i>
+            </div>
+            <div class="metric-value text-warning">{{ supplier_stats.on_time_delivery_rate|default:0 }}%</div>
+            <div class="metric-label">On-Time Delivery</div>
+        </div>
+        
+        <div class="performance-metric">
+            <div class="metric-icon bg-secondary text-white">
+                <i class="bi bi-box"></i>
+            </div>
+            <div class="metric-value text-secondary">{{ supplier_stats.total_products|default:0 }}</div>
+            <div class="metric-label">Products Supplied</div>
+        </div>
+        
+        <div class="performance-metric">
+            <div class="metric-icon bg-danger text-white">
+                <i class="bi bi-exclamation-triangle"></i>
+            </div>
+            <div class="metric-value text-danger">{{ supplier_stats.overdue_orders|default:0 }}</div>
+            <div class="metric-label">Overdue Orders</div>
+        </div>
+    </div>
+
+    <div class="row">
+        <!-- Main Content -->
+        <div class="col-lg-8">
+            <!-- Tabs Navigation -->
+            <ul class="nav nav-tabs mb-4" id="supplierTabs" role="tablist">
+                <li class="nav-item" role="presentation">
+                    <button class="nav-link active" id="overview-tab" data-bs-toggle="tab" 
+                            data-bs-target="#overview" type="button" role="tab">
+                        <i class="bi bi-info-circle me-1"></i>Overview
+                    </button>
+                </li>
+                <li class="nav-item" role="presentation">
+                    <button class="nav-link" id="orders-tab" data-bs-toggle="tab" 
+                            data-bs-target="#orders" type="button" role="tab">
+                        <i class="bi bi-cart3 me-1"></i>Recent Orders
+                        <span class="badge bg-primary ms-1">{{ recent_orders.count|default:0 }}</span>
+                    </button>
+                </li>
+                <li class="nav-item" role="presentation">
+                    <button class="nav-link" id="products-tab" data-bs-toggle="tab" 
+                            data-bs-target="#products" type="button" role="tab">
+                        <i class="bi bi-box me-1"></i>Products
+                        <span class="badge bg-secondary ms-1">{{ supplier_products.count|default:0 }}</span>
+                    </button>
+                </li>
+                <li class="nav-item" role="presentation">
+                    <button class="nav-link" id="performance-tab" data-bs-toggle="tab" 
+                            data-bs-target="#performance" type="button" role="tab">
+                        <i class="bi bi-graph-up me-1"></i>Performance
+                    </button>
+                </li>
+            </ul>
+
+            <!-- Tab Content -->
+            <div class="tab-content" id="supplierTabsContent">
+                <!-- Overview Tab -->
+                <div class="tab-pane fade show active" id="overview" role="tabpanel">
+                    <div class="row g-4">
+                        <!-- Supplier Information -->
+                        <div class="col-md-6">
+                            <div class="inventory-card">
+                                <div class="inventory-card-header">
+                                    <h5><i class="bi bi-building me-2"></i>Company Information</h5>
+                                </div>
+                                <div class="inventory-card-body">
+                                    {% if supplier.description %}
+                                    <div class="mb-3">
+                                        <h6 class="fw-bold">Description</h6>
+                                        <p class="text-muted">{{ supplier.description|linebreaks }}</p>
+                                    </div>
+                                    {% endif %}
+                                    
+                                    <div class="mb-3">
+                                        <h6 class="fw-bold">Business Details</h6>
+                                        <div class="row">
+                                            <div class="col-6">
+                                                <small class="text-muted">Supplier Code</small>
+                                                <div>{{ supplier.supplier_code|default:"-" }}</div>
+                                            </div>
+                                            <div class="col-6">
+                                                <small class="text-muted">Currency</small>
+                                                <div>{{ supplier.currency.code|default:"-" }}</div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    
+                                    <div class="mb-3">
+                                        <h6 class="fw-bold">Payment Terms</h6>
+                                        <p class="text-muted">{{ supplier.payment_terms|default:"Not specified" }}</p>
+                                    </div>
+                                    
+                                    {% if supplier.address %}
+                                    <div>
+                                        <h6 class="fw-bold">Address</h6>
+                                        <address class="text-muted">
+                                            {{ supplier.address|linebreaks }}
+                                        </address>
+                                    </div>
+                                    {% endif %}
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Quick Stats -->
+                        <div class="col-md-6">
+                            <div class="inventory-card">
+                                <div class="inventory-card-header">
+                                    <h5><i class="bi bi-graph-up me-2"></i>Quick Statistics</h5>
+                                </div>
+                                <div class="inventory-card-body">
+                                    <div class="row text-center">
+                                        <div class="col-6 border-end">
+                                            <div class="fw-bold text-primary fs-4">{{ supplier_stats.active_orders|default:0 }}</div>
+                                            <small class="text-muted">Active Orders</small>
+                                        </div>
+                                        <div class="col-6">
+                                            <div class="fw-bold text-success fs-4">${{ supplier_stats.ytd_spent|floatformat:0|default:"0" }}</div>
+                                            <small class="text-muted">YTD Spending</small>
+                                        </div>
+                                    </div>
+                                    
+                                    <hr>
+                                    
+                                    <div class="row">
+                                        <div class="col-12 mb-3">
+                                            <div class="d-flex justify-content-between">
+                                                <span>Quality Score</span>
+                                                <span class="fw-bold">{{ supplier.quality_score|default:0 }}%</span>
+                                            </div>
+                                            <div class="progress mt-1" style="height: 6px;">
+                                                <div class="progress-bar bg-success" style="width: {{ supplier.quality_score|default:0 }}%"></div>
+                                            </div>
+                                        </div>
+                                        
+                                        <div class="col-12">
+                                            <div class="d-flex justify-content-between">
+                                                <span>Reliability Score</span>
+                                                <span class="fw-bold">{{ supplier.reliability_score|default:0 }}%</span>
+                                            </div>
+                                            <div class="progress mt-1" style="height: 6px;">
+                                                <div class="progress-bar bg-info" style="width: {{ supplier.reliability_score|default:0 }}%"></div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Recent Orders Tab -->
+                <div class="tab-pane fade" id="orders" role="tabpanel">
+                    {% if recent_orders %}
+                    <div class="recent-orders-timeline">
+                        {% for order in recent_orders %}
+                        <div class="timeline-order {{ order.status }}">
+                            <div class="d-flex justify-content-between align-items-start">
+                                <div class="flex-grow-1">
+                                    <h6 class="fw-bold mb-1">
+                                        <a href="{% url 'inventory:po_detail' order.id %}">{{ order.po_number }}</a>
+                                    </h6>
+                                    <p class="text-muted mb-2">
+                                        {{ order.items.count }} items • ${{ order.total_amount|floatformat:2 }}
+                                    </p>
+                                    <div class="d-flex gap-3">
+                                        <small class="text-muted">
+                                            <i class="bi bi-calendar me-1"></i>{{ order.order_date|date:"M d, Y" }}
+                                        </small>
+                                        {% if order.expected_delivery_date %}
+                                        <small class="text-muted">
+                                            <i class="bi bi-truck me-1"></i>Expected: {{ order.expected_delivery_date|date:"M d" }}
+                                        </small>
+                                        {% endif %}
+                                    </div>
+                                </div>
+                                <span class="badge bg-{{ order.status }} text-uppercase">
+                                    {{ order.get_status_display }}
+                                </span>
+                            </div>
+                        </div>
+                        {% endfor %}
+                    </div>
+                    {% else %}
+                    <div class="text-center py-5">
+                        <i class="bi bi-cart3 text-muted" style="font-size: 3rem;"></i>
+                        <h5 class="mt-3 text-muted">No recent orders</h5>
+                        <p class="text-muted">No purchase orders found for this supplier.</p>
+                        <a href="{% url 'inventory:po_create' %}?supplier={{ supplier.id }}" class="btn btn-primary">
+                            <i class="bi bi-plus me-1"></i>Create First Order
+                        </a>
+                    </div>
+                    {% endif %}
+                </div>
+
+                <!-- Products Tab -->
+                <div class="tab-pane fade" id="products" role="tabpanel">
+                    {% if supplier_products %}
+                    <div class="products-grid">
+                        {% for product in supplier_products %}
+                        <div class="product-summary-card">
+                            <div class="d-flex justify-content-between align-items-start mb-2">
+                                <h6 class="fw-bold mb-1">{{ product.name }}</h6>
+                                <span class="badge bg-light text-dark">{{ product.category.name|default:"Uncategorized" }}</span>
+                            </div>
+                            <p class="text-muted mb-2">
+                                <span class="product-sku">{{ product.sku }}</span>
+                            </p>
+                            
+                            <div class="row text-center mb-3">
+                                <div class="col-4">
+                                    <div class="fw-bold text-success">${{ product.cost_price|floatformat:2 }}</div>
+                                    <small class="text-muted">Cost</small>
+                                </div>
+                                <div class="col-4">
+                                    <div class="fw-bold text-info">{{ product.current_stock }}</div>
+                                    <small class="text-muted">Stock</small>
+                                </div>
+                                <div class="col-4">
+                                    <div class="fw-bold text-warning">{{ product.reorder_level }}</div>
+                                    <small class="text-muted">Reorder</small>
+                                </div>
+                            </div>
+                            
+                            <div class="d-flex gap-2">
+                                <a href="{% url 'inventory:product_detail' product.id %}" class="btn btn-outline-primary btn-sm flex-fill">
+                                    <i class="bi bi-eye me-1"></i>View
+                                </a>
+                                {% if product.current_stock <= product.reorder_level %}
+                                <a href="{% url 'inventory:po_create' %}?product={{ product.id }}" class="btn btn-primary btn-sm">
+                                    <i class="bi bi-cart-plus me-1"></i>Order
+                                </a>
+                                {% endif %}
+                            </div>
+                        </div>
+                        {% endfor %}
+                    </div>
+                    
+                    <div class="text-center mt-4">
+                        <a href="{% url 'inventory:supplier_products' supplier.id %}" class="btn btn-outline-primary">
+                            <i class="bi bi-box me-1"></i>View All Products
+                        </a>
+                    </div>
+                    {% else %}
+                    <div class="text-center py-5">
+                        <i class="bi bi-box text-muted" style="font-size: 3rem;"></i>
+                        <h5 class="mt-3 text-muted">No products found</h5>
+                        <p class="text-muted">This supplier doesn't have any products assigned yet.</p>
+                    </div>
+                    {% endif %}
+                </div>
+
+                <!-- Performance Tab -->
+                <div class="tab-pane fade" id="performance" role="tabpanel">
+                    <div class="row g-4">
+                        <div class="col-md-6">
+                            <div class="inventory-card">
+                                <div class="inventory-card-header">
+                                    <h5>Monthly Order Volume</h5>
+                                </div>
+                                <div class="inventory-card-body">
+                                    <div class="chart-container">
+                                        <canvas id="orderVolumeChart"></canvas>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="col-md-6">
+                            <div class="inventory-card">
+                                <div class="inventory-card-header">
+                                    <h5>Delivery Performance</h5>
+                                </div>
+                                <div class="inventory-card-body">
+                                    <div class="chart-container">
+                                        <canvas id="deliveryChart"></canvas>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Sidebar -->
+        <div class="col-lg-4">
+            <!-- Contact Information -->
+            <div class="contact-card mb-4">
+                <h5 class="mb-3"><i class="bi bi-person-lines-fill me-2"></i>Contact Information</h5>
+                
+                {% if supplier.contact_person %}
+                <div class="contact-item">
+                    <div class="contact-icon">
+                        <i class="bi bi-person"></i>
+                    </div>
+                    <div>
+                        <div class="fw-medium">{{ supplier.contact_person }}</div>
+                        <small class="text-muted">Primary Contact</small>
+                    </div>
+                </div>
+                {% endif %}
+                
+                {% if supplier.contact_email %}
+                <div class="contact-item">
+                    <div class="contact-icon">
+                        <i class="bi bi-envelope"></i>
+                    </div>
+                    <div>
+                        <div class="fw-medium">
+                            <a href="mailto:{{ supplier.contact_email }}">{{ supplier.contact_email }}</a>
+                        </div>
+                        <small class="text-muted">Email Address</small>
+                    </div>
+                </div>
+                {% endif %}
+                
+                {% if supplier.contact_phone %}
+                <div class="contact-item">
+                    <div class="contact-icon">
+                        <i class="bi bi-telephone"></i>
+                    </div>
+                    <div>
+                        <div class="fw-medium">
+                            <a href="tel:{{ supplier.contact_phone }}">{{ supplier.contact_phone }}</a>
+                        </div>
+                        <small class="text-muted">Phone Number</small>
+                    </div>
+                </div>
+                {% endif %}
+                
+                {% if supplier.website %}
+                <div class="contact-item">
+                    <div class="contact-icon">
+                        <i class="bi bi-globe"></i>
+                    </div>
+                    <div>
+                        <div class="fw-medium">
+                            <a href="{{ supplier.website }}" target="_blank" rel="noopener">{{ supplier.website }}</a>
+                        </div>
+                        <small class="text-muted">Website</small>
+                    </div>
+                </div>
+                {% endif %}
+                
+                {% if not supplier.contact_email and not supplier.contact_phone and not supplier.website %}
+                <div class="text-center py-3">
+                    <i class="bi bi-person-x text-muted" style="font-size: 2rem;"></i>
+                    <p class="text-muted mt-2">No contact information available</p>
+                    <a href="{% url 'inventory:supplier_update' supplier.id %}" class="btn btn-outline-primary btn-sm">
+                        <i class="bi bi-plus me-1"></i>Add Contact Info
+                    </a>
+                </div>
+                {% endif %}
+            </div>
+
+            <!-- Quick Actions -->
+            <div class="inventory-card">
+                <div class="inventory-card-header">
+                    <h5><i class="bi bi-lightning me-2"></i>Quick Actions</h5>
+                </div>
+                <div class="inventory-card-body">
+                    <div class="d-grid gap-2">
+                        <a href="{% url 'inventory:po_create' %}?supplier={{ supplier.id }}" class="btn btn-primary">
+                            <i class="bi bi-cart-plus me-1"></i>Create Purchase Order
+                        </a>
+                        <a href="{% url 'inventory:supplier_products' supplier.id %}" class="btn btn-outline-primary">
+                            <i class="bi bi-box me-1"></i>View All Products
+                        </a>
+                        <button class="btn btn-outline-info" onclick="contactSupplier()">
+                            <i class="bi bi-envelope me-1"></i>Send Message
+                        </button>
+                        <button class="btn btn-outline-secondary" onclick="exportSupplierReport()">
+                            <i class="bi bi-download me-1"></i>Export Report
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // Initialize charts when performance tab is shown
+    document.getElementById('performance-tab').addEventListener('shown.bs.tab', function() {
+        initializeCharts();
+    });
+});
+
+function initializeCharts() {
+    // Order Volume Chart
+    const orderVolumeCtx = document.getElementById('orderVolumeChart').getContext('2d');
+    new Chart(orderVolumeCtx, {
+        type: 'line',
+        data: {
+            labels: ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun'],
+            datasets: [{
+                label: 'Orders',
+                data: {{ order_volume_data|default:"[12, 19, 3, 5, 2, 3]" }},
+                borderColor: 'rgb(79, 70, 229)',
+                backgroundColor: 'rgba(79, 70, 229, 0.1)',
+                tension: 0.1
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                legend: {
+                    display: false
+                }
+            }
+        }
+    });
+
+    // Delivery Performance Chart
+    const deliveryCtx = document.getElementById('deliveryChart').getContext('2d');
+    new Chart(deliveryCtx, {
+        type: 'doughnut',
+        data: {
+            labels: ['On Time', 'Late', 'Early'],
+            datasets: [{
+                data: [{{ supplier_stats.on_time_deliveries|default:70 }}, {{ supplier_stats.late_deliveries|default:20 }}, {{ supplier_stats.early_deliveries|default:10 }}],
+                backgroundColor: [
+                    'rgb(16, 185, 129)',
+                    'rgb(239, 68, 68)',
+                    'rgb(59, 130, 246)'
+                ]
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                legend: {
+                    position: 'bottom'
+                }
+            }
+        }
+    });
+}
+
+function contactSupplier() {
+    const email = '{{ supplier.contact_email }}';
+    if (email) {
+        window.location.href = `mailto:${email}?subject=Inquiry from {{ request.user.company.name|default:"BlitzTech Electronics" }}`;
+    } else {
+        alert('No email address available for this supplier.');
+    }
+}
+
+function exportSupplierReport() {
+    window.location.href = `{% url 'inventory:supplier_report' supplier.id %}?format=pdf`;
+}
+</script>
+{% endblock %}

@@ -1,0 +1,559 @@
+{% extends "dashboard_base.html" %}
+{% load static %}
+
+{% block page_title %}Quick Add Product{% endblock %}
+
+{% block extra_css %}
+<link href="{% static 'inventory/css/inventory.css' %}" rel="stylesheet">
+<style>
+.quick-add-container {
+    max-width: 800px;
+    margin: 0 auto;
+}
+
+.quick-add-form {
+    background: white;
+    border-radius: 1rem;
+    padding: 2rem;
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.1);
+}
+
+.form-grid {
+    display: grid;
+    gap: 1.5rem;
+}
+
+.form-grid-2 {
+    grid-template-columns: 1fr 1fr;
+}
+
+.form-grid-3 {
+    grid-template-columns: 1fr 1fr 1fr;
+}
+
+.quick-suggestions {
+    position: absolute;
+    top: 100%;
+    left: 0;
+    right: 0;
+    background: white;
+    border: 1px solid #dee2e6;
+    border-radius: 0.375rem;
+    max-height: 200px;
+    overflow-y: auto;
+    z-index: 1000;
+    display: none;
+}
+
+.suggestion-item {
+    padding: 0.75rem;
+    cursor: pointer;
+    transition: background-color 0.2s;
+}
+
+.suggestion-item:hover {
+    background-color: #f8f9fa;
+}
+
+.auto-fill-indicator {
+    color: #10b981;
+    font-size: 0.875rem;
+    margin-top: 0.25rem;
+    opacity: 0;
+    transition: opacity 0.3s;
+}
+
+.auto-fill-indicator.show {
+    opacity: 1;
+}
+
+.quick-actions-bar {
+    position: fixed;
+    bottom: 2rem;
+    left: 50%;
+    transform: translateX(-50%);
+    background: white;
+    padding: 1rem 2rem;
+    border-radius: 3rem;
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.15);
+    border: 1px solid #e2e8f0;
+    z-index: 1000;
+}
+
+@media (max-width: 768px) {
+    .form-grid-2,
+    .form-grid-3 {
+        grid-template-columns: 1fr;
+    }
+    
+    .quick-actions-bar {
+        position: relative;
+        bottom: auto;
+        left: auto;
+        transform: none;
+        margin-top: 2rem;
+        border-radius: 0.75rem;
+    }
+}
+</style>
+{% endblock %}
+
+{% block page_header %}
+<div class="inventory-header">
+    <div class="container">
+        <div class="row">
+            <div class="col-md-8">
+                <h1><i class="bi bi-plus-circle me-2"></i>Quick Add Product</h1>
+                <p class="lead">Add new products to your inventory quickly and efficiently</p>
+            </div>
+            <div class="col-md-4 text-end">
+                <a href="{% url 'inventory:product_list' %}" class="btn btn-light">
+                    <i class="bi bi-arrow-left me-1"></i> Back to Products
+                </a>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="quick-add-container">
+        <form method="post" id="quickAddForm" class="quick-add-form">
+            {% csrf_token %}
+            
+            <!-- Basic Information Section -->
+            <div class="form-section">
+                <h4 class="form-section-title">
+                    <i class="bi bi-info-circle text-primary"></i>
+                    Basic Information
+                </h4>
+                
+                <div class="form-grid form-grid-2">
+                    <div class="position-relative">
+                        {{ form.name.label_tag }}
+                        {{ form.name }}
+                        {% if form.name.errors %}
+                            <div class="text-danger small mt-1">{{ form.name.errors.0 }}</div>
+                        {% endif %}
+                        <div class="auto-fill-indicator" id="name-indicator">
+                            <i class="bi bi-magic me-1"></i>Auto-filled from database
+                        </div>
+                    </div>
+                    
+                    <div class="position-relative">
+                        {{ form.sku.label_tag }}
+                        <div class="input-group">
+                            {{ form.sku }}
+                            <button type="button" class="btn btn-outline-secondary" id="generateSku" title="Generate SKU">
+                                <i class="bi bi-magic"></i>
+                            </button>
+                        </div>
+                        {% if form.sku.errors %}
+                            <div class="text-danger small mt-1">{{ form.sku.errors.0 }}</div>
+                        {% endif %}
+                        <div class="auto-fill-indicator" id="sku-indicator">
+                            <i class="bi bi-check me-1"></i>Auto-generated
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="form-grid form-grid-3">
+                    <div>
+                        {{ form.category.label_tag }}
+                        <div class="d-flex">
+                            {{ form.category }}
+                            <button type="button" class="btn btn-outline-primary ms-2" data-bs-toggle="modal" data-bs-target="#newCategoryModal" title="Add New Category">
+                                <i class="bi bi-plus"></i>
+                            </button>
+                        </div>
+                        {% if form.category.errors %}
+                            <div class="text-danger small mt-1">{{ form.category.errors.0 }}</div>
+                        {% endif %}
+                    </div>
+                    
+                    <div>
+                        {{ form.brand.label_tag }}
+                        <div class="d-flex">
+                            {{ form.brand }}
+                            <button type="button" class="btn btn-outline-primary ms-2" data-bs-toggle="modal" data-bs-target="#newBrandModal" title="Add New Brand">
+                                <i class="bi bi-plus"></i>
+                            </button>
+                        </div>
+                        {% if form.brand.errors %}
+                            <div class="text-danger small mt-1">{{ form.brand.errors.0 }}</div>
+                        {% endif %}
+                    </div>
+                    
+                    <div>
+                        {{ form.supplier.label_tag }}
+                        <div class="d-flex">
+                            {{ form.supplier }}
+                            <button type="button" class="btn btn-outline-primary ms-2" data-bs-toggle="modal" data-bs-target="#newSupplierModal" title="Add New Supplier">
+                                <i class="bi bi-plus"></i>
+                            </button>
+                        </div>
+                        {% if form.supplier.errors %}
+                            <div class="text-danger small mt-1">{{ form.supplier.errors.0 }}</div>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+
+            <!-- Pricing & Stock Section -->
+            <div class="form-section">
+                <h4 class="form-section-title">
+                    <i class="bi bi-currency-dollar text-success"></i>
+                    Pricing & Stock
+                </h4>
+                
+                <div class="form-grid form-grid-3">
+                    <div>
+                        {{ form.cost_price.label_tag }}
+                        <div class="input-group">
+                            <span class="input-group-text">$</span>
+                            {{ form.cost_price }}
+                        </div>
+                        {% if form.cost_price.errors %}
+                            <div class="text-danger small mt-1">{{ form.cost_price.errors.0 }}</div>
+                        {% endif %}
+                    </div>
+                    
+                    <div>
+                        {{ form.selling_price.label_tag }}
+                        <div class="input-group">
+                            <span class="input-group-text">$</span>
+                            {{ form.selling_price }}
+                            <button type="button" class="btn btn-outline-secondary" id="calculatePrice" title="Auto-calculate margin">
+                                <i class="bi bi-calculator"></i>
+                            </button>
+                        </div>
+                        {% if form.selling_price.errors %}
+                            <div class="text-danger small mt-1">{{ form.selling_price.errors.0 }}</div>
+                        {% endif %}
+                        <small class="text-muted" id="marginDisplay"></small>
+                    </div>
+                    
+                    <div>
+                        {{ form.current_stock.label_tag }}
+                        {{ form.current_stock }}
+                        {% if form.current_stock.errors %}
+                            <div class="text-danger small mt-1">{{ form.current_stock.errors.0 }}</div>
+                        {% endif %}
+                    </div>
+                </div>
+                
+                <div class="form-grid form-grid-2">
+                    <div>
+                        {{ form.reorder_level.label_tag }}
+                        {{ form.reorder_level }}
+                        {% if form.reorder_level.errors %}
+                            <div class="text-danger small mt-1">{{ form.reorder_level.errors.0 }}</div>
+                        {% endif %}
+                        <small class="form-text text-muted">
+                            System will alert when stock falls below this level
+                        </small>
+                    </div>
+                    
+                    <div>
+                        {{ form.max_stock_level.label_tag }}
+                        {{ form.max_stock_level }}
+                        {% if form.max_stock_level.errors %}
+                            <div class="text-danger small mt-1">{{ form.max_stock_level.errors.0 }}</div>
+                        {% endif %}
+                        <small class="form-text text-muted">
+                            Maximum stock to maintain
+                        </small>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Additional Details Section -->
+            <div class="form-section">
+                <h4 class="form-section-title">
+                    <i class="bi bi-gear text-secondary"></i>
+                    Additional Details
+                </h4>
+                
+                <div class="form-grid">
+                    <div>
+                        {{ form.description.label_tag }}
+                        {{ form.description }}
+                        {% if form.description.errors %}
+                            <div class="text-danger small mt-1">{{ form.description.errors.0 }}</div>
+                        {% endif %}
+                    </div>
+                </div>
+                
+                <div class="form-grid form-grid-2">
+                    <div>
+                        {{ form.unit_of_measurement.label_tag }}
+                        {{ form.unit_of_measurement }}
+                        {% if form.unit_of_measurement.errors %}
+                            <div class="text-danger small mt-1">{{ form.unit_of_measurement.errors.0 }}</div>
+                        {% endif %}
+                    </div>
+                    
+                    <div>
+                        {{ form.storage_location.label_tag }}
+                        {{ form.storage_location }}
+                        {% if form.storage_location.errors %}
+                            <div class="text-danger small mt-1">{{ form.storage_location.errors.0 }}</div>
+                        {% endif %}
+                    </div>
+                </div>
+                
+                <div class="form-check">
+                    {{ form.is_active }}
+                    {{ form.is_active.label_tag }}
+                    {% if form.is_active.errors %}
+                        <div class="text-danger small">{{ form.is_active.errors.0 }}</div>
+                    {% endif %}
+                </div>
+            </div>
+        </form>
+        
+        <!-- Fixed Action Bar -->
+        <div class="quick-actions-bar">
+            <div class="d-flex gap-2 align-items-center">
+                <button type="submit" form="quickAddForm" class="btn btn-primary" id="saveProduct">
+                    <i class="bi bi-check me-1"></i>Save Product
+                </button>
+                
+                <button type="button" class="btn btn-success" id="saveAndNew">
+                    <i class="bi bi-plus me-1"></i>Save & Add Another
+                </button>
+                
+                <button type="button" class="btn btn-outline-secondary" onclick="history.back()">
+                    <i class="bi bi-x me-1"></i>Cancel
+                </button>
+                
+                <div class="vr mx-2"></div>
+                
+                <button type="button" class="btn btn-outline-info" id="previewProduct">
+                    <i class="bi bi-eye me-1"></i>Preview
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Modals for quick entity creation -->
+<!-- New Category Modal -->
+<div class="modal fade" id="newCategoryModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Add New Category</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <form id="newCategoryForm">
+                    <div class="mb-3">
+                        <label for="categoryName" class="form-label">Category Name</label>
+                        <input type="text" class="form-control" id="categoryName" required>
+                    </div>
+                    <div class="mb-3">
+                        <label for="categoryDescription" class="form-label">Description</label>
+                        <textarea class="form-control" id="categoryDescription" rows="3"></textarea>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-primary" id="saveCategoryBtn">Save Category</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Similar modals for Brand and Supplier... -->
+
+{% endblock %}
+
+{% block extra_js %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const form = document.getElementById('quickAddForm');
+    const nameField = document.getElementById('id_name');
+    const skuField = document.getElementById('id_sku');
+    const costField = document.getElementById('id_cost_price');
+    const sellingField = document.getElementById('id_selling_price');
+    
+    // Auto-generate SKU from name
+    document.getElementById('generateSku').addEventListener('click', function() {
+        const name = nameField.value.trim();
+        if (name) {
+            const sku = name.toUpperCase()
+                            .replace(/[^A-Z0-9\s]/g, '')
+                            .replace(/\s+/g, '-')
+                            .substring(0, 15);
+            skuField.value = sku + '-' + Date.now().toString().slice(-4);
+            document.getElementById('sku-indicator').classList.add('show');
+            setTimeout(() => {
+                document.getElementById('sku-indicator').classList.remove('show');
+            }, 2000);
+        }
+    });
+    
+    // Auto-calculate margin
+    document.getElementById('calculatePrice').addEventListener('click', function() {
+        const cost = parseFloat(costField.value) || 0;
+        if (cost > 0) {
+            // Default 30% margin
+            const sellingPrice = cost * 1.3;
+            sellingField.value = sellingPrice.toFixed(2);
+            updateMarginDisplay();
+        }
+    });
+    
+    // Update margin display
+    function updateMarginDisplay() {
+        const cost = parseFloat(costField.value) || 0;
+        const selling = parseFloat(sellingField.value) || 0;
+        const marginDisplay = document.getElementById('marginDisplay');
+        
+        if (cost > 0 && selling > 0) {
+            const margin = ((selling - cost) / selling * 100).toFixed(1);
+            const profit = (selling - cost).toFixed(2);
+            marginDisplay.textContent = `Margin: ${margin}% ($${profit} profit)`;
+            
+            if (margin < 15) {
+                marginDisplay.className = 'text-danger small';
+            } else if (margin < 25) {
+                marginDisplay.className = 'text-warning small';
+            } else {
+                marginDisplay.className = 'text-success small';
+            }
+        } else {
+            marginDisplay.textContent = '';
+        }
+    }
+    
+    // Update margin on price changes
+    costField.addEventListener('input', updateMarginDisplay);
+    sellingField.addEventListener('input', updateMarginDisplay);
+    
+    // Save and add another functionality
+    document.getElementById('saveAndNew').addEventListener('click', function() {
+        const formData = new FormData(form);
+        formData.append('save_and_new', '1');
+        
+        fetch(form.action || window.location.href, {
+            method: 'POST',
+            body: formData,
+            headers: {
+                'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value
+            }
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                // Show success message
+                showNotification('Product saved successfully! Ready for next product.', 'success');
+                
+                // Reset form but keep category, brand, supplier selections
+                const keepers = ['category', 'brand', 'supplier', 'storage_location'];
+                const formElements = form.querySelectorAll('input, select, textarea');
+                
+                formElements.forEach(el => {
+                    if (!keepers.includes(el.name) && el.type !== 'hidden') {
+                        if (el.type === 'checkbox') {
+                            el.checked = el.defaultChecked;
+                        } else {
+                            el.value = '';
+                        }
+                    }
+                });
+                
+                // Focus on name field
+                nameField.focus();
+            } else {
+                showNotification('Error saving product. Please check the form.', 'error');
+            }
+        })
+        .catch(error => {
+            showNotification('Error saving product. Please try again.', 'error');
+        });
+    });
+    
+    // Preview functionality
+    document.getElementById('previewProduct').addEventListener('click', function() {
+        const formData = new FormData(form);
+        const previewData = {
+            name: formData.get('name'),
+            sku: formData.get('sku'),
+            cost: formData.get('cost_price'),
+            selling: formData.get('selling_price'),
+            stock: formData.get('current_stock'),
+            description: formData.get('description')
+        };
+        
+        let previewHtml = '<div class="product-card">';
+        previewHtml += `<h5>${previewData.name || 'Product Name'}</h5>`;
+        previewHtml += `<p class="product-sku">${previewData.sku || 'SKU-XXXX'}</p>`;
+        previewHtml += `<p>${previewData.description || 'No description provided'}</p>`;
+        previewHtml += `<div class="row">`;
+        previewHtml += `<div class="col-6"><strong>Cost:</strong> $${previewData.cost || '0.00'}</div>`;
+        previewHtml += `<div class="col-6"><strong>Selling:</strong> $${previewData.selling || '0.00'}</div>`;
+        previewHtml += `</div>`;
+        previewHtml += `<div class="mt-2"><strong>Stock:</strong> ${previewData.stock || '0'} units</div>`;
+        previewHtml += '</div>';
+        
+        showModal('Product Preview', previewHtml);
+    });
+    
+    // Quick category creation
+    document.getElementById('saveCategoryBtn').addEventListener('click', function() {
+        const name = document.getElementById('categoryName').value.trim();
+        const description = document.getElementById('categoryDescription').value.trim();
+        
+        if (!name) return;
+        
+        fetch('{% url "inventory:category_create" %}', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value
+            },
+            body: JSON.stringify({
+                name: name,
+                description: description,
+                quick_create: true
+            })
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                // Add to category dropdown
+                const categorySelect = document.getElementById('id_category');
+                const option = document.createElement('option');
+                option.value = data.id;
+                option.textContent = data.name;
+                option.selected = true;
+                categorySelect.appendChild(option);
+                
+                // Close modal
+                bootstrap.Modal.getInstance(document.getElementById('newCategoryModal')).hide();
+                
+                showNotification('Category created successfully!', 'success');
+            }
+        })
+        .catch(error => {
+            showNotification('Error creating category', 'error');
+        });
+    });
+    
+    // Utility functions
+    function showNotification(message, type) {
+        // You can implement your notification system here
+        console.log(`${type}: ${message}`);
+    }
+    
+    function showModal(title, content) {
+        // Simple modal implementation
+        alert(`${title}\n\n${content.replace(/<[^>]*>/g, '')}`);
+    }
+});
+</script>
+{% endblock %}

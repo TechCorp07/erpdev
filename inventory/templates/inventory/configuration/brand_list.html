@@ -1,0 +1,662 @@
+{% extends "dashboard_base.html" %}
+{% load static %}
+
+{% block page_title %}Brands Configuration{% endblock %}
+
+{% block extra_css %}
+<link href="{% static 'inventory/css/inventory.css' %}" rel="stylesheet">
+<style>
+.brands-header {
+    background: linear-gradient(135deg, #8b5cf6 0%, #a855f7 100%);
+    color: white;
+    padding: 2rem 0;
+    margin-bottom: 2rem;
+}
+
+.brands-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+    gap: 1.5rem;
+}
+
+.brand-card {
+    background: white;
+    border: 1px solid #e5e7eb;
+    border-radius: 0.75rem;
+    padding: 2rem;
+    transition: all 0.3s ease;
+    position: relative;
+    overflow: hidden;
+}
+
+.brand-card:hover {
+    transform: translateY(-4px);
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.15);
+    border-color: var(--inventory-primary);
+}
+
+.brand-card::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 4px;
+    background: linear-gradient(90deg, #8b5cf6, #a855f7);
+    transform: scaleX(0);
+    transition: transform 0.3s ease;
+}
+
+.brand-card:hover::before {
+    transform: scaleX(1);
+}
+
+.brand-logo {
+    width: 80px;
+    height: 80px;
+    border-radius: 0.75rem;
+    object-fit: contain;
+    background: #f8fafc;
+    border: 2px solid #e2e8f0;
+    padding: 0.5rem;
+    margin-bottom: 1.5rem;
+}
+
+.brand-logo-placeholder {
+    width: 80px;
+    height: 80px;
+    border-radius: 0.75rem;
+    background: linear-gradient(135deg, #f3f4f6, #e5e7eb);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: #6b7280;
+    font-size: 2rem;
+    font-weight: 700;
+    margin-bottom: 1.5rem;
+}
+
+.brand-name {
+    font-size: 1.5rem;
+    font-weight: 700;
+    color: #111827;
+    margin-bottom: 0.5rem;
+    line-height: 1.2;
+}
+
+.brand-description {
+    color: #6b7280;
+    font-size: 0.875rem;
+    line-height: 1.5;
+    margin-bottom: 1.5rem;
+    display: -webkit-box;
+    -webkit-line-clamp: 3;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+}
+
+.brand-stats {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 1rem;
+    margin-bottom: 1.5rem;
+    padding-top: 1rem;
+    border-top: 1px solid #f3f4f6;
+}
+
+.stat-item {
+    text-align: center;
+}
+
+.stat-value {
+    font-size: 1.5rem;
+    font-weight: 700;
+    color: #059669;
+    margin-bottom: 0.25rem;
+}
+
+.stat-label {
+    font-size: 0.75rem;
+    color: #6b7280;
+    text-transform: uppercase;
+    letter-spacing: 0.025em;
+    font-weight: 600;
+}
+
+.brand-status {
+    position: absolute;
+    top: 1rem;
+    right: 1rem;
+    width: 12px;
+    height: 12px;
+    border-radius: 50%;
+    border: 2px solid white;
+}
+
+.brand-status.active {
+    background-color: var(--inventory-success);
+}
+
+.brand-status.inactive {
+    background-color: var(--inventory-danger);
+}
+
+.brand-actions {
+    display: flex;
+    gap: 0.5rem;
+    margin-top: 1rem;
+}
+
+.filter-bar {
+    background: white;
+    border-radius: 0.75rem;
+    padding: 1.5rem;
+    margin-bottom: 2rem;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+}
+
+.quick-stats {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 1.5rem;
+    margin-bottom: 2rem;
+}
+
+.stat-card {
+    background: white;
+    border: 1px solid #e5e7eb;
+    border-radius: 0.75rem;
+    padding: 1.5rem;
+    text-align: center;
+}
+
+.stat-card-icon {
+    width: 48px;
+    height: 48px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin: 0 auto 1rem;
+    font-size: 1.25rem;
+}
+
+.stat-card-value {
+    font-size: 2rem;
+    font-weight: 700;
+    margin-bottom: 0.5rem;
+}
+
+.stat-card-label {
+    color: #6b7280;
+    font-size: 0.875rem;
+    font-weight: 600;
+}
+
+.bulk-actions-fab {
+    position: fixed;
+    bottom: 2rem;
+    right: 2rem;
+    z-index: 1000;
+}
+
+.fab-button {
+    width: 56px;
+    height: 56px;
+    border-radius: 50%;
+    background: var(--inventory-primary);
+    color: white;
+    border: none;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.25rem;
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.15);
+    transition: all 0.3s ease;
+    margin-bottom: 1rem;
+}
+
+.fab-button:hover {
+    transform: scale(1.1);
+    box-shadow: 0 6px 20px rgba(0, 0, 0, 0.2);
+}
+
+.fab-button:last-child {
+    margin-bottom: 0;
+}
+
+@media (max-width: 768px) {
+    .brands-grid {
+        grid-template-columns: 1fr;
+    }
+    
+    .quick-stats {
+        grid-template-columns: 1fr 1fr;
+    }
+    
+    .bulk-actions-fab {
+        position: relative;
+        bottom: auto;
+        right: auto;
+        margin-top: 2rem;
+        display: flex;
+        flex-direction: row;
+        gap: 1rem;
+        justify-content: center;
+    }
+    
+    .fab-button {
+        margin-bottom: 0;
+    }
+}
+</style>
+{% endblock %}
+
+{% block page_header %}
+<div class="brands-header">
+    <div class="container">
+        <div class="row">
+            <div class="col-md-8">
+                <h1><i class="bi bi-award me-2"></i>Brand Management</h1>
+                <p class="lead opacity-90">Manage product brands and manufacturers</p>
+            </div>
+            <div class="col-md-4 text-end">
+                <div class="btn-group" role="group">
+                    <a href="{% url 'inventory:configuration' %}" class="btn btn-light">
+                        <i class="bi bi-arrow-left me-1"></i>Configuration
+                    </a>
+                    <a href="{% url 'inventory:brand_create' %}" class="btn btn-success">
+                        <i class="bi bi-plus me-1"></i>Add Brand
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <!-- Quick Statistics -->
+    <div class="quick-stats">
+        <div class="stat-card">
+            <div class="stat-card-icon bg-primary text-white">
+                <i class="bi bi-award"></i>
+            </div>
+            <div class="stat-card-value text-primary">{{ brand_stats.total|default:0 }}</div>
+            <div class="stat-card-label">Total Brands</div>
+        </div>
+        
+        <div class="stat-card">
+            <div class="stat-card-icon bg-success text-white">
+                <i class="bi bi-check-circle"></i>
+            </div>
+            <div class="stat-card-value text-success">{{ brand_stats.active|default:0 }}</div>
+            <div class="stat-card-label">Active Brands</div>
+        </div>
+        
+        <div class="stat-card">
+            <div class="stat-card-icon bg-info text-white">
+                <i class="bi bi-box"></i>
+            </div>
+            <div class="stat-card-value text-info">{{ brand_stats.with_products|default:0 }}</div>
+            <div class="stat-card-label">Brands with Products</div>
+        </div>
+        
+        <div class="stat-card">
+            <div class="stat-card-icon bg-warning text-white">
+                <i class="bi bi-star"></i>
+            </div>
+            <div class="stat-card-value text-warning">{{ brand_stats.top_selling|default:0 }}</div>
+            <div class="stat-card-label">Top Performing</div>
+        </div>
+    </div>
+
+    <!-- Filter Bar -->
+    <div class="filter-bar">
+        <form method="get" class="row g-3 align-items-end">
+            <div class="col-md-3">
+                <label class="form-label">Filter by Status</label>
+                <select class="form-select" name="status">
+                    <option value="">All Brands</option>
+                    <option value="active" {% if request.GET.status == 'active' %}selected{% endif %}>Active Only</option>
+                    <option value="inactive" {% if request.GET.status == 'inactive' %}selected{% endif %}>Inactive Only</option>
+                    <option value="with_products" {% if request.GET.status == 'with_products' %}selected{% endif %}>With Products</option>
+                    <option value="without_products" {% if request.GET.status == 'without_products' %}selected{% endif %}>Without Products</option>
+                </select>
+            </div>
+            
+            <div class="col-md-3">
+                <label class="form-label">Sort by</label>
+                <select class="form-select" name="sort">
+                    <option value="name" {% if request.GET.sort == 'name' or not request.GET.sort %}selected{% endif %}>Name A-Z</option>
+                    <option value="-name" {% if request.GET.sort == '-name' %}selected{% endif %}>Name Z-A</option>
+                    <option value="product_count" {% if request.GET.sort == 'product_count' %}selected{% endif %}>Product Count</option>
+                    <option value="-created_at" {% if request.GET.sort == '-created_at' %}selected{% endif %}>Newest First</option>
+                    <option value="created_at" {% if request.GET.sort == 'created_at' %}selected{% endif %}>Oldest First</option>
+                </select>
+            </div>
+            
+            <div class="col-md-4">
+                <label class="form-label">Search Brands</label>
+                <input type="text" class="form-control" name="search" value="{{ request.GET.search }}" 
+                       placeholder="Brand name or description...">
+            </div>
+            
+            <div class="col-md-2">
+                <div class="d-flex gap-2">
+                    <button type="submit" class="btn btn-primary">
+                        <i class="bi bi-search me-1"></i>Filter
+                    </button>
+                    <a href="{% url 'inventory:brand_list' %}" class="btn btn-outline-secondary">
+                        <i class="bi bi-x me-1"></i>Clear
+                    </a>
+                </div>
+            </div>
+        </form>
+    </div>
+
+    <!-- Brands Grid -->
+    {% if brands %}
+    <div class="brands-grid">
+        {% for brand in brands %}
+        <div class="brand-card" data-brand-id="{{ brand.id }}">
+            <!-- Brand Status Indicator -->
+            <div class="brand-status {% if brand.is_active %}active{% else %}inactive{% endif %}" 
+                 title="{% if brand.is_active %}Active{% else %}Inactive{% endif %}"></div>
+            
+            <!-- Brand Logo -->
+            {% if brand.logo %}
+            <img src="{{ brand.logo.url }}" alt="{{ brand.name }}" class="brand-logo">
+            {% else %}
+            <div class="brand-logo-placeholder">
+                {{ brand.name|first|upper }}
+            </div>
+            {% endif %}
+            
+            <!-- Brand Info -->
+            <h3 class="brand-name">{{ brand.name }}</h3>
+            
+            {% if brand.description %}
+            <p class="brand-description">{{ brand.description }}</p>
+            {% else %}
+            <p class="brand-description text-muted">No description available</p>
+            {% endif %}
+            
+            <!-- Brand Statistics -->
+            <div class="brand-stats">
+                <div class="stat-item">
+                    <div class="stat-value">{{ brand.product_count|default:0 }}</div>
+                    <div class="stat-label">Products</div>
+                </div>
+                
+                <div class="stat-item">
+                    <div class="stat-value">{{ brand.total_stock|default:0 }}</div>
+                    <div class="stat-label">Total Stock</div>
+                </div>
+            </div>
+            
+            <!-- Brand Actions -->
+            <div class="brand-actions">
+                <a href="{% url 'inventory:brand_detail' brand.id %}" class="btn btn-outline-primary btn-sm flex-fill">
+                    <i class="bi bi-eye me-1"></i>View
+                </a>
+                
+                {% if brand.product_count > 0 %}
+                <a href="{% url 'inventory:brand_products' brand.id %}" class="btn btn-primary btn-sm flex-fill">
+                    <i class="bi bi-box me-1"></i>Products
+                </a>
+                {% else %}
+                <a href="{% url 'inventory:product_create' %}?brand={{ brand.id }}" class="btn btn-success btn-sm flex-fill">
+                    <i class="bi bi-plus me-1"></i>Add Product
+                </a>
+                {% endif %}
+                
+                <div class="dropdown">
+                    <button class="btn btn-outline-secondary btn-sm dropdown-toggle" data-bs-toggle="dropdown">
+                        <i class="bi bi-three-dots"></i>
+                    </button>
+                    <ul class="dropdown-menu">
+                        <li><a class="dropdown-item" href="{% url 'inventory:brand_update' brand.id %}">
+                            <i class="bi bi-pencil me-2"></i>Edit Brand
+                        </a></li>
+                        {% if brand.product_count > 0 %}
+                        <li><a class="dropdown-item" href="{% url 'inventory:brand_products' brand.id %}">
+                            <i class="bi bi-list me-2"></i>View Products
+                        </a></li>
+                        <li><a class="dropdown-item" href="#" onclick="exportBrandReport({{ brand.id }})">
+                            <i class="bi bi-download me-2"></i>Export Report
+                        </a></li>
+                        {% endif %}
+                        <li><hr class="dropdown-divider"></li>
+                        {% if brand.is_active %}
+                        <li><a class="dropdown-item text-warning" href="#" onclick="toggleBrandStatus({{ brand.id }}, false)">
+                            <i class="bi bi-pause-circle me-2"></i>Deactivate
+                        </a></li>
+                        {% else %}
+                        <li><a class="dropdown-item text-success" href="#" onclick="toggleBrandStatus({{ brand.id }}, true)">
+                            <i class="bi bi-play-circle me-2"></i>Activate
+                        </a></li>
+                        {% endif %}
+                        {% if brand.product_count == 0 %}
+                        <li><a class="dropdown-item text-danger" href="{% url 'inventory:brand_delete' brand.id %}">
+                            <i class="bi bi-trash me-2"></i>Delete Brand
+                        </a></li>
+                        {% endif %}
+                    </ul>
+                </div>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+
+    <!-- Pagination -->
+    {% if is_paginated %}
+    <nav aria-label="Brands pagination" class="mt-4">
+        <ul class="pagination justify-content-center">
+            {% if page_obj.has_previous %}
+            <li class="page-item">
+                <a class="page-link" href="?page=1{{ request.GET.urlencode|slice:'1:' }}">First</a>
+            </li>
+            <li class="page-item">
+                <a class="page-link" href="?page={{ page_obj.previous_page_number }}{{ request.GET.urlencode|slice:'1:' }}">Previous</a>
+            </li>
+            {% endif %}
+            
+            {% for num in page_obj.paginator.page_range %}
+            {% if page_obj.number == num %}
+            <li class="page-item active">
+                <span class="page-link">{{ num }}</span>
+            </li>
+            {% elif num > page_obj.number|add:'-3' and num < page_obj.number|add:'3' %}
+            <li class="page-item">
+                <a class="page-link" href="?page={{ num }}{{ request.GET.urlencode|slice:'1:' }}">{{ num }}</a>
+            </li>
+            {% endif %}
+            {% endfor %}
+            
+            {% if page_obj.has_next %}
+            <li class="page-item">
+                <a class="page-link" href="?page={{ page_obj.next_page_number }}{{ request.GET.urlencode|slice:'1:' }}">Next</a>
+            </li>
+            <li class="page-item">
+                <a class="page-link" href="?page={{ page_obj.paginator.num_pages }}{{ request.GET.urlencode|slice:'1:' }}">Last</a>
+            </li>
+            {% endif %}
+        </ul>
+    </nav>
+    {% endif %}
+    
+    {% else %}
+    <!-- Empty State -->
+    <div class="text-center py-5">
+        <i class="bi bi-award text-muted" style="font-size: 4rem;"></i>
+        <h4 class="mt-3 text-muted">No brands found</h4>
+        <p class="text-muted">
+            {% if request.GET.search or request.GET.status %}
+            No brands match your current filters. Try adjusting your search criteria.
+            {% else %}
+            Get started by adding your first brand to organize your products.
+            {% endif %}
+        </p>
+        {% if not request.GET.search and not request.GET.status %}
+        <a href="{% url 'inventory:brand_create' %}" class="btn btn-primary">
+            <i class="bi bi-plus me-1"></i>Add Your First Brand
+        </a>
+        {% endif %}
+    </div>
+    {% endif %}
+
+    <!-- Bulk Actions FAB -->
+    <div class="bulk-actions-fab">
+        <button class="fab-button btn btn-success" title="Add New Brand" onclick="location.href='{% url 'inventory:brand_create' %}'">
+            <i class="bi bi-plus"></i>
+        </button>
+        
+        <button class="fab-button btn btn-info" title="Import Brands" onclick="importBrands()">
+            <i class="bi bi-upload"></i>
+        </button>
+        
+        <button class="fab-button btn btn-secondary" title="Export All Brands" onclick="exportAllBrands()">
+            <i class="bi bi-download"></i>
+        </button>
+    </div>
+</div>
+
+<!-- Brand Import Modal -->
+<div class="modal fade" id="importBrandsModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Import Brands</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <form id="importForm" enctype="multipart/form-data">
+                    <div class="mb-3">
+                        <label class="form-label">Upload CSV File</label>
+                        <input type="file" class="form-control" name="brands_file" accept=".csv" required>
+                        <div class="form-text">
+                            CSV should include columns: name, description, is_active
+                        </div>
+                    </div>
+                    
+                    <div class="alert alert-info">
+                        <h6><i class="bi bi-info-circle me-1"></i>Import Guidelines:</h6>
+                        <ul class="mb-0">
+                            <li>File must be in CSV format</li>
+                            <li>Maximum 1000 brands per import</li>
+                            <li>Brand names must be unique</li>
+                            <li>is_active should be true/false</li>
+                        </ul>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-primary" onclick="submitImport()">Import Brands</button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // Auto-refresh stats every 5 minutes
+    setInterval(function() {
+        location.reload();
+    }, 300000);
+});
+
+function toggleBrandStatus(brandId, newStatus) {
+    const action = newStatus ? 'activate' : 'deactivate';
+    const confirmMessage = `Are you sure you want to ${action} this brand?`;
+    
+    if (confirm(confirmMessage)) {
+        fetch(`/inventory/brands/${brandId}/toggle-status/`, {
+            method: 'POST',
+            headers: {
+                'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value,
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({ is_active: newStatus })
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                location.reload();
+            } else {
+                alert('Error updating brand status: ' + data.error);
+            }
+        })
+        .catch(error => {
+            alert('Error updating brand status. Please try again.');
+        });
+    }
+}
+
+function exportBrandReport(brandId) {
+    window.open(`/inventory/brands/${brandId}/report/?format=pdf`, '_blank');
+}
+
+function exportAllBrands() {
+    const params = new URLSearchParams(window.location.search);
+    params.set('export', 'xlsx');
+    window.location.href = `${window.location.pathname}?${params.toString()}`;
+}
+
+function importBrands() {
+    const modal = new bootstrap.Modal(document.getElementById('importBrandsModal'));
+    modal.show();
+}
+
+function submitImport() {
+    const form = document.getElementById('importForm');
+    const formData = new FormData(form);
+    
+    if (!formData.get('brands_file')) {
+        alert('Please select a file to import.');
+        return;
+    }
+    
+    fetch('/inventory/brands/import/', {
+        method: 'POST',
+        body: formData,
+        headers: {
+            'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value
+        }
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            alert(`Successfully imported ${data.imported_count} brands!`);
+            location.reload();
+        } else {
+            alert('Import failed: ' + data.error);
+        }
+    })
+    .catch(error => {
+        alert('Import failed. Please check your file format and try again.');
+    });
+    
+    bootstrap.Modal.getInstance(document.getElementById('importBrandsModal')).hide();
+}
+
+// Keyboard shortcuts
+document.addEventListener('keydown', function(e) {
+    // Ctrl/Cmd + N for new brand
+    if ((e.ctrlKey || e.metaKey) && e.key === 'n') {
+        e.preventDefault();
+        location.href = '{% url "inventory:brand_create" %}';
+    }
+    
+    // Ctrl/Cmd + I for import
+    if ((e.ctrlKey || e.metaKey) && e.key === 'i') {
+        e.preventDefault();
+        importBrands();
+    }
+});
+</script>
+{% endblock %}

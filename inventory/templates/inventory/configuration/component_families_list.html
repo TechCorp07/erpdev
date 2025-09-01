@@ -1,0 +1,731 @@
+{% extends "dashboard_base.html" %}
+{% load static %}
+
+{% block page_title %}Component Families Configuration{% endblock %}
+
+{% block extra_css %}
+<link href="{% static 'inventory/css/inventory.css' %}" rel="stylesheet">
+<style>
+.component-families-header {
+    background: linear-gradient(135deg, #0ea5e9 0%, #0284c7 100%);
+    color: white;
+    padding: 2rem 0;
+    margin-bottom: 2rem;
+}
+
+.families-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(350px, 1fr));
+    gap: 1.5rem;
+}
+
+.family-card {
+    background: white;
+    border: 1px solid #e5e7eb;
+    border-radius: 0.75rem;
+    padding: 2rem;
+    transition: all 0.3s ease;
+    position: relative;
+    overflow: hidden;
+}
+
+.family-card:hover {
+    transform: translateY(-4px);
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.15);
+    border-color: var(--inventory-primary);
+}
+
+.family-card::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 4px;
+    background: linear-gradient(90deg, #0ea5e9, #0284c7);
+    transform: scaleX(0);
+    transition: transform 0.3s ease;
+}
+
+.family-card:hover::before {
+    transform: scaleX(1);
+}
+
+.family-icon {
+    width: 80px;
+    height: 80px;
+    border-radius: 0.75rem;
+    background: linear-gradient(135deg, #0ea5e9, #0284c7);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: white;
+    font-size: 2rem;
+    margin-bottom: 1.5rem;
+    position: relative;
+}
+
+.family-icon::after {
+    content: '';
+    position: absolute;
+    inset: -2px;
+    background: linear-gradient(45deg, #0ea5e9, #0284c7, #0ea5e9);
+    border-radius: inherit;
+    z-index: -1;
+    opacity: 0;
+    transition: opacity 0.3s ease;
+}
+
+.family-card:hover .family-icon::after {
+    opacity: 1;
+}
+
+.family-name {
+    font-size: 1.5rem;
+    font-weight: 700;
+    color: #111827;
+    margin-bottom: 0.5rem;
+    line-height: 1.2;
+}
+
+.family-code {
+    background: #f0f9ff;
+    color: #0284c7;
+    padding: 0.25rem 0.75rem;
+    border-radius: 2rem;
+    font-size: 0.75rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.025em;
+    display: inline-block;
+    margin-bottom: 1rem;
+}
+
+.family-description {
+    color: #6b7280;
+    font-size: 0.875rem;
+    line-height: 1.5;
+    margin-bottom: 1.5rem;
+    display: -webkit-box;
+    -webkit-line-clamp: 3;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+}
+
+.family-stats {
+    display: grid;
+    grid-template-columns: 1fr 1fr 1fr;
+    gap: 1rem;
+    margin-bottom: 1.5rem;
+    padding-top: 1rem;
+    border-top: 1px solid #f3f4f6;
+}
+
+.stat-item {
+    text-align: center;
+}
+
+.stat-value {
+    font-size: 1.5rem;
+    font-weight: 700;
+    color: #0284c7;
+    margin-bottom: 0.25rem;
+}
+
+.stat-label {
+    font-size: 0.75rem;
+    color: #6b7280;
+    text-transform: uppercase;
+    letter-spacing: 0.025em;
+    font-weight: 600;
+}
+
+.family-status {
+    position: absolute;
+    top: 1rem;
+    right: 1rem;
+    width: 12px;
+    height: 12px;
+    border-radius: 50%;
+    border: 2px solid white;
+}
+
+.family-status.active {
+    background-color: var(--inventory-success);
+}
+
+.family-status.inactive {
+    background-color: var(--inventory-danger);
+}
+
+.family-actions {
+    display: flex;
+    gap: 0.5rem;
+    margin-top: 1rem;
+}
+
+.attributes-preview {
+    background: #f8fafc;
+    border-radius: 0.5rem;
+    padding: 1rem;
+    margin-bottom: 1rem;
+}
+
+.attribute-tag {
+    background: #e0f2fe;
+    color: #0277bd;
+    padding: 0.25rem 0.5rem;
+    border-radius: 0.375rem;
+    font-size: 0.75rem;
+    font-weight: 500;
+    margin-right: 0.5rem;
+    margin-bottom: 0.25rem;
+    display: inline-block;
+}
+
+.filter-bar {
+    background: white;
+    border-radius: 0.75rem;
+    padding: 1.5rem;
+    margin-bottom: 2rem;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+}
+
+.quick-stats {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 1.5rem;
+    margin-bottom: 2rem;
+}
+
+.stat-card {
+    background: white;
+    border: 1px solid #e5e7eb;
+    border-radius: 0.75rem;
+    padding: 1.5rem;
+    text-align: center;
+}
+
+.stat-card-icon {
+    width: 48px;
+    height: 48px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin: 0 auto 1rem;
+    font-size: 1.25rem;
+}
+
+.stat-card-value {
+    font-size: 2rem;
+    font-weight: 700;
+    margin-bottom: 0.5rem;
+}
+
+.stat-card-label {
+    color: #6b7280;
+    font-size: 0.875rem;
+    font-weight: 600;
+}
+
+.component-type-icons {
+    resistor: 'bi-lightning',
+    capacitor: 'bi-battery',
+    inductor: 'bi-magnet',
+    transistor: 'bi-triangle',
+    diode: 'bi-arrow-right',
+    ic: 'bi-cpu',
+    connector: 'bi-plug',
+    switch: 'bi-toggle-on',
+    sensor: 'bi-speedometer',
+    display: 'bi-display',
+    memory: 'bi-memory',
+    processor: 'bi-processor',
+    power: 'bi-lightning-charge',
+    mechanical: 'bi-gear'
+}
+
+@media (max-width: 768px) {
+    .families-grid {
+        grid-template-columns: 1fr;
+    }
+    
+    .quick-stats {
+        grid-template-columns: 1fr 1fr;
+    }
+    
+    .family-stats {
+        grid-template-columns: 1fr 1fr;
+    }
+}
+</style>
+{% endblock %}
+
+{% block page_header %}
+<div class="component-families-header">
+    <div class="container">
+        <div class="row">
+            <div class="col-md-8">
+                <h1><i class="bi bi-diagram-3 me-2"></i>Component Families</h1>
+                <p class="lead opacity-90">Organize electronic components by their technical characteristics</p>
+            </div>
+            <div class="col-md-4 text-end">
+                <div class="btn-group" role="group">
+                    <a href="{% url 'inventory:configuration' %}" class="btn btn-light">
+                        <i class="bi bi-arrow-left me-1"></i>Configuration
+                    </a>
+                    <a href="{% url 'inventory:component_family_create' %}" class="btn btn-success">
+                        <i class="bi bi-plus me-1"></i>Add Family
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <!-- Quick Statistics -->
+    <div class="quick-stats">
+        <div class="stat-card">
+            <div class="stat-card-icon bg-primary text-white">
+                <i class="bi bi-diagram-3"></i>
+            </div>
+            <div class="stat-card-value text-primary">{{ family_stats.total|default:0 }}</div>
+            <div class="stat-card-label">Component Families</div>
+        </div>
+        
+        <div class="stat-card">
+            <div class="stat-card-icon bg-success text-white">
+                <i class="bi bi-check-circle"></i>
+            </div>
+            <div class="stat-card-value text-success">{{ family_stats.active|default:0 }}</div>
+            <div class="stat-card-label">Active Families</div>
+        </div>
+        
+        <div class="stat-card">
+            <div class="stat-card-icon bg-info text-white">
+                <i class="bi bi-box"></i>
+            </div>
+            <div class="stat-card-value text-info">{{ family_stats.with_products|default:0 }}</div>
+            <div class="stat-card-label">With Products</div>
+        </div>
+        
+        <div class="stat-card">
+            <div class="stat-card-icon bg-warning text-white">
+                <i class="bi bi-tags"></i>
+            </div>
+            <div class="stat-card-value text-warning">{{ family_stats.total_attributes|default:0 }}</div>
+            <div class="stat-card-label">Total Attributes</div>
+        </div>
+    </div>
+
+    <!-- Filter Bar -->
+    <div class="filter-bar">
+        <form method="get" class="row g-3 align-items-end">
+            <div class="col-md-3">
+                <label class="form-label">Filter by Status</label>
+                <select class="form-select" name="status">
+                    <option value="">All Families</option>
+                    <option value="active" {% if request.GET.status == 'active' %}selected{% endif %}>Active Only</option>
+                    <option value="inactive" {% if request.GET.status == 'inactive' %}selected{% endif %}>Inactive Only</option>
+                    <option value="with_products" {% if request.GET.status == 'with_products' %}selected{% endif %}>With Products</option>
+                    <option value="without_products" {% if request.GET.status == 'without_products' %}selected{% endif %}>Without Products</option>
+                </select>
+            </div>
+            
+            <div class="col-md-2">
+                <label class="form-label">Component Type</label>
+                <select class="form-select" name="component_type">
+                    <option value="">All Types</option>
+                    <option value="passive" {% if request.GET.component_type == 'passive' %}selected{% endif %}>Passive</option>
+                    <option value="active" {% if request.GET.component_type == 'active' %}selected{% endif %}>Active</option>
+                    <option value="digital" {% if request.GET.component_type == 'digital' %}selected{% endif %}>Digital</option>
+                    <option value="analog" {% if request.GET.component_type == 'analog' %}selected{% endif %}>Analog</option>
+                    <option value="mechanical" {% if request.GET.component_type == 'mechanical' %}selected{% endif %}>Mechanical</option>
+                </select>
+            </div>
+            
+            <div class="col-md-2">
+                <label class="form-label">Sort by</label>
+                <select class="form-select" name="sort">
+                    <option value="name" {% if request.GET.sort == 'name' or not request.GET.sort %}selected{% endif %}>Name A-Z</option>
+                    <option value="-name" {% if request.GET.sort == '-name' %}selected{% endif %}>Name Z-A</option>
+                    <option value="product_count" {% if request.GET.sort == 'product_count' %}selected{% endif %}>Product Count</option>
+                    <option value="-created_at" {% if request.GET.sort == '-created_at' %}selected{% endif %}>Newest First</option>
+                </select>
+            </div>
+            
+            <div class="col-md-3">
+                <label class="form-label">Search Families</label>
+                <input type="text" class="form-control" name="search" value="{{ request.GET.search }}" 
+                       placeholder="Family name or description...">
+            </div>
+            
+            <div class="col-md-2">
+                <div class="d-flex gap-2">
+                    <button type="submit" class="btn btn-primary">
+                        <i class="bi bi-search me-1"></i>Filter
+                    </button>
+                    <a href="{% url 'inventory:component_families_list' %}" class="btn btn-outline-secondary">
+                        <i class="bi bi-x me-1"></i>Clear
+                    </a>
+                </div>
+            </div>
+        </form>
+    </div>
+
+    <!-- Component Families Grid -->
+    {% if component_families %}
+    <div class="families-grid">
+        {% for family in component_families %}
+        <div class="family-card" data-family-id="{{ family.id }}">
+            <!-- Family Status Indicator -->
+            <div class="family-status {% if family.is_active %}active{% else %}inactive{% endif %}" 
+                 title="{% if family.is_active %}Active{% else %}Inactive{% endif %}"></div>
+            
+            <!-- Family Icon -->
+            <div class="family-icon">
+                {% if family.icon_class %}
+                <i class="bi bi-{{ family.icon_class }}"></i>
+                {% elif family.component_type == 'resistor' %}
+                <i class="bi bi-lightning"></i>
+                {% elif family.component_type == 'capacitor' %}
+                <i class="bi bi-battery"></i>
+                {% elif family.component_type == 'inductor' %}
+                <i class="bi bi-magnet"></i>
+                {% elif family.component_type == 'ic' %}
+                <i class="bi bi-cpu"></i>
+                {% elif family.component_type == 'connector' %}
+                <i class="bi bi-plug"></i>
+                {% elif family.component_type == 'sensor' %}
+                <i class="bi bi-speedometer"></i>
+                {% else %}
+                <i class="bi bi-diagram-3"></i>
+                {% endif %}
+            </div>
+            
+            <!-- Family Info -->
+            <h3 class="family-name">{{ family.name }}</h3>
+            
+            {% if family.family_code %}
+            <span class="family-code">{{ family.family_code }}</span>
+            {% endif %}
+            
+            {% if family.description %}
+            <p class="family-description">{{ family.description }}</p>
+            {% else %}
+            <p class="family-description text-muted">No description available</p>
+            {% endif %}
+            
+            <!-- Attributes Preview -->
+            {% if family.attributes.exists %}
+            <div class="attributes-preview">
+                <h6 class="fw-bold mb-2 text-muted">Attributes:</h6>
+                {% for attr in family.attributes.all|slice:":5" %}
+                <span class="attribute-tag">{{ attr.name }}</span>
+                {% endfor %}
+                {% if family.attributes.count > 5 %}
+                <span class="text-muted small">+{{ family.attributes.count|add:"-5" }} more</span>
+                {% endif %}
+            </div>
+            {% endif %}
+            
+            <!-- Family Statistics -->
+            <div class="family-stats">
+                <div class="stat-item">
+                    <div class="stat-value">{{ family.product_count|default:0 }}</div>
+                    <div class="stat-label">Products</div>
+                </div>
+                
+                <div class="stat-item">
+                    <div class="stat-value">{{ family.attributes.count|default:0 }}</div>
+                    <div class="stat-label">Attributes</div>
+                </div>
+                
+                <div class="stat-item">
+                    <div class="stat-value">{{ family.total_stock|default:0 }}</div>
+                    <div class="stat-label">Total Stock</div>
+                </div>
+            </div>
+            
+            <!-- Family Actions -->
+            <div class="family-actions">
+                <a href="{% url 'inventory:component_family_detail' family.id %}" class="btn btn-outline-primary btn-sm flex-fill">
+                    <i class="bi bi-eye me-1"></i>View
+                </a>
+                
+                {% if family.product_count > 0 %}
+                <a href="{% url 'inventory:family_products' family.id %}" class="btn btn-primary btn-sm flex-fill">
+                    <i class="bi bi-box me-1"></i>Products
+                </a>
+                {% else %}
+                <a href="{% url 'inventory:product_create' %}?family={{ family.id }}" class="btn btn-success btn-sm flex-fill">
+                    <i class="bi bi-plus me-1"></i>Add Product
+                </a>
+                {% endif %}
+                
+                <div class="dropdown">
+                    <button class="btn btn-outline-secondary btn-sm dropdown-toggle" data-bs-toggle="dropdown">
+                        <i class="bi bi-three-dots"></i>
+                    </button>
+                    <ul class="dropdown-menu">
+                        <li><a class="dropdown-item" href="{% url 'inventory:component_family_update' family.id %}">
+                            <i class="bi bi-pencil me-2"></i>Edit Family
+                        </a></li>
+                        <li><a class="dropdown-item" href="{% url 'inventory:family_attributes' family.id %}">
+                            <i class="bi bi-tags me-2"></i>Manage Attributes
+                        </a></li>
+                        {% if family.product_count > 0 %}
+                        <li><a class="dropdown-item" href="{% url 'inventory:family_products' family.id %}">
+                            <i class="bi bi-list me-2"></i>View Products
+                        </a></li>
+                        <li><a class="dropdown-item" href="#" onclick="exportFamilyReport({{ family.id }})">
+                            <i class="bi bi-download me-2"></i>Export Report
+                        </a></li>
+                        {% endif %}
+                        <li><hr class="dropdown-divider"></li>
+                        <li><a class="dropdown-item" href="{% url 'inventory:component_family_duplicate' family.id %}">
+                            <i class="bi bi-files me-2"></i>Duplicate Family
+                        </a></li>
+                        {% if family.is_active %}
+                        <li><a class="dropdown-item text-warning" href="#" onclick="toggleFamilyStatus({{ family.id }}, false)">
+                            <i class="bi bi-pause-circle me-2"></i>Deactivate
+                        </a></li>
+                        {% else %}
+                        <li><a class="dropdown-item text-success" href="#" onclick="toggleFamilyStatus({{ family.id }}, true)">
+                            <i class="bi bi-play-circle me-2"></i>Activate
+                        </a></li>
+                        {% endif %}
+                        {% if family.product_count == 0 %}
+                        <li><a class="dropdown-item text-danger" href="{% url 'inventory:component_family_delete' family.id %}">
+                            <i class="bi bi-trash me-2"></i>Delete Family
+                        </a></li>
+                        {% endif %}
+                    </ul>
+                </div>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+
+    <!-- Pagination -->
+    {% if is_paginated %}
+    <nav aria-label="Component families pagination" class="mt-4">
+        <ul class="pagination justify-content-center">
+            {% if page_obj.has_previous %}
+            <li class="page-item">
+                <a class="page-link" href="?page=1{{ request.GET.urlencode|slice:'1:' }}">First</a>
+            </li>
+            <li class="page-item">
+                <a class="page-link" href="?page={{ page_obj.previous_page_number }}{{ request.GET.urlencode|slice:'1:' }}">Previous</a>
+            </li>
+            {% endif %}
+            
+            {% for num in page_obj.paginator.page_range %}
+            {% if page_obj.number == num %}
+            <li class="page-item active">
+                <span class="page-link">{{ num }}</span>
+            </li>
+            {% elif num > page_obj.number|add:'-3' and num < page_obj.number|add:'3' %}
+            <li class="page-item">
+                <a class="page-link" href="?page={{ num }}{{ request.GET.urlencode|slice:'1:' }}">{{ num }}</a>
+            </li>
+            {% endif %}
+            {% endfor %}
+            
+            {% if page_obj.has_next %}
+            <li class="page-item">
+                <a class="page-link" href="?page={{ page_obj.next_page_number }}{{ request.GET.urlencode|slice:'1:' }}">Next</a>
+            </li>
+            <li class="page-item">
+                <a class="page-link" href="?page={{ page_obj.paginator.num_pages }}{{ request.GET.urlencode|slice:'1:' }}">Last</a>
+            </li>
+            {% endif %}
+        </ul>
+    </nav>
+    {% endif %}
+    
+    {% else %}
+    <!-- Empty State -->
+    <div class="text-center py-5">
+        <i class="bi bi-diagram-3 text-muted" style="font-size: 4rem;"></i>
+        <h4 class="mt-3 text-muted">No component families found</h4>
+        <p class="text-muted">
+            {% if request.GET.search or request.GET.status %}
+            No component families match your current filters. Try adjusting your search criteria.
+            {% else %}
+            Component families help organize electronic components by their technical characteristics and attributes.
+            {% endif %}
+        </p>
+        {% if not request.GET.search and not request.GET.status %}
+        <a href="{% url 'inventory:component_family_create' %}" class="btn btn-primary">
+            <i class="bi bi-plus me-1"></i>Create Your First Component Family
+        </a>
+        {% endif %}
+    </div>
+    {% endif %}
+</div>
+
+<!-- Quick Creation Modal -->
+<div class="modal fade" id="quickCreateModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Quick Create Component Family</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <form id="quickCreateForm">
+                    <div class="mb-3">
+                        <label class="form-label">Family Name</label>
+                        <input type="text" class="form-control" name="name" required>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label class="form-label">Component Type</label>
+                        <select class="form-select" name="component_type" required>
+                            <option value="">Select type...</option>
+                            <option value="passive">Passive Components</option>
+                            <option value="active">Active Components</option>
+                            <option value="digital">Digital Components</option>
+                            <option value="analog">Analog Components</option>
+                            <option value="mechanical">Mechanical Components</option>
+                        </select>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label class="form-label">Description</label>
+                        <textarea class="form-control" name="description" rows="3"></textarea>
+                    </div>
+                    
+                    <div class="form-check">
+                        <input class="form-check-input" type="checkbox" name="is_active" id="isActive" checked>
+                        <label class="form-check-label" for="isActive">
+                            Active (can be used for products)
+                        </label>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-primary" onclick="submitQuickCreate()">Create Family</button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // Auto-refresh stats every 5 minutes
+    setInterval(function() {
+        location.reload();
+    }, 300000);
+});
+
+function toggleFamilyStatus(familyId, newStatus) {
+    const action = newStatus ? 'activate' : 'deactivate';
+    const confirmMessage = `Are you sure you want to ${action} this component family?`;
+    
+    if (confirm(confirmMessage)) {
+        fetch(`/inventory/component-families/${familyId}/toggle-status/`, {
+            method: 'POST',
+            headers: {
+                'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value,
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({ is_active: newStatus })
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                location.reload();
+            } else {
+                alert('Error updating family status: ' + data.error);
+            }
+        })
+        .catch(error => {
+            alert('Error updating family status. Please try again.');
+        });
+    }
+}
+
+function exportFamilyReport(familyId) {
+    window.open(`/inventory/component-families/${familyId}/report/?format=pdf`, '_blank');
+}
+
+function quickCreateFamily() {
+    const modal = new bootstrap.Modal(document.getElementById('quickCreateModal'));
+    modal.show();
+}
+
+function submitQuickCreate() {
+    const form = document.getElementById('quickCreateForm');
+    const formData = new FormData(form);
+    
+    if (!formData.get('name') || !formData.get('component_type')) {
+        alert('Please fill in all required fields.');
+        return;
+    }
+    
+    fetch('/inventory/component-families/quick-create/', {
+        method: 'POST',
+        body: formData,
+        headers: {
+            'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value
+        }
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            alert('Component family created successfully!');
+            location.reload();
+        } else {
+            alert('Creation failed: ' + data.error);
+        }
+    })
+    .catch(error => {
+        alert('Creation failed. Please try again.');
+    });
+    
+    bootstrap.Modal.getInstance(document.getElementById('quickCreateModal')).hide();
+}
+
+// Keyboard shortcuts
+document.addEventListener('keydown', function(e) {
+    // Ctrl/Cmd + N for new family
+    if ((e.ctrlKey || e.metaKey) && e.key === 'n') {
+        e.preventDefault();
+        location.href = '{% url "inventory:component_family_create" %}';
+    }
+    
+    // Ctrl/Cmd + Shift + N for quick create
+    if ((e.ctrlKey || e.metaKey) && e.shiftKey && e.key === 'N') {
+        e.preventDefault();
+        quickCreateFamily();
+    }
+});
+
+// Add floating action button
+document.addEventListener('DOMContentLoaded', function() {
+    const fabContainer = document.createElement('div');
+    fabContainer.className = 'position-fixed';
+    fabContainer.style.cssText = 'bottom: 2rem; right: 2rem; z-index: 1000;';
+    
+    fabContainer.innerHTML = `
+        <button class="btn btn-primary rounded-circle shadow" 
+                style="width: 56px; height: 56px;" 
+                title="Quick Create Family"
+                onclick="quickCreateFamily()">
+            <i class="bi bi-plus fs-4"></i>
+        </button>
+    `;
+    
+    document.body.appendChild(fabContainer);
+});
+</script>
+{% endblock %}

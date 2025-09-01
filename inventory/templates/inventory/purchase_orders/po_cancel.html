@@ -1,0 +1,599 @@
+{% extends "dashboard_base.html" %}
+{% load static %}
+
+{% block page_title %}Cancel Purchase Order - {{ object.po_number }}{% endblock %}
+
+{% block extra_css %}
+<link href="{% static 'inventory/css/inventory.css' %}" rel="stylesheet">
+<style>
+.cancel-confirmation-container {
+    max-width: 900px;
+    margin: 3rem auto;
+    padding: 0 1rem;
+}
+
+.cancel-warning-card {
+    background: white;
+    border: 1px solid #e5e7eb;
+    border-radius: 1rem;
+    overflow: hidden;
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.12);
+}
+
+.cancel-warning-header {
+    background: linear-gradient(135deg, #f59e0b, #fbbf24);
+    color: white;
+    padding: 2rem;
+    text-align: center;
+}
+
+.warning-icon {
+    width: 80px;
+    height: 80px;
+    background: rgba(255, 255, 255, 0.2);
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin: 0 auto 1rem;
+    font-size: 2.5rem;
+}
+
+.cancel-details {
+    padding: 2rem;
+}
+
+.po-summary {
+    background: #fef3c7;
+    border: 1px solid #f59e0b;
+    border-radius: 0.75rem;
+    padding: 1.5rem;
+    margin-bottom: 2rem;
+}
+
+.summary-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 0.5rem 0;
+    border-bottom: 1px solid rgba(245, 158, 11, 0.2);
+}
+
+.summary-row:last-child {
+    border-bottom: none;
+}
+
+.impact-section {
+    background: #f8fafc;
+    border: 1px solid #e2e8f0;
+    border-radius: 0.75rem;
+    padding: 1.5rem;
+    margin-bottom: 2rem;
+}
+
+.impact-item {
+    display: flex;
+    align-items: flex-start;
+    margin-bottom: 1rem;
+}
+
+.impact-item:last-child {
+    margin-bottom: 0;
+}
+
+.impact-icon {
+    width: 32px;
+    height: 32px;
+    background: #f59e0b;
+    color: white;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin-right: 1rem;
+    font-size: 1rem;
+    flex-shrink: 0;
+}
+
+.cancellation-form {
+    background: #f9fafb;
+    border: 1px solid #e5e7eb;
+    border-radius: 0.75rem;
+    padding: 2rem;
+    margin-bottom: 2rem;
+}
+
+.reason-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+    gap: 1rem;
+    margin-bottom: 1.5rem;
+}
+
+.reason-option {
+    background: white;
+    border: 2px solid #e5e7eb;
+    border-radius: 0.75rem;
+    padding: 1rem;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    position: relative;
+}
+
+.reason-option:hover {
+    border-color: #f59e0b;
+    background: #fef3c7;
+}
+
+.reason-option.selected {
+    border-color: #f59e0b;
+    background: #fef3c7;
+}
+
+.reason-option input[type="radio"] {
+    position: absolute;
+    opacity: 0;
+}
+
+.reason-title {
+    font-weight: 600;
+    margin-bottom: 0.5rem;
+    color: #111827;
+}
+
+.reason-description {
+    color: #6b7280;
+    font-size: 0.875rem;
+    line-height: 1.4;
+}
+
+.supplier-notification {
+    background: #eff6ff;
+    border: 1px solid #3b82f6;
+    border-radius: 0.75rem;
+    padding: 1.5rem;
+    margin-bottom: 2rem;
+}
+
+.notification-option {
+    margin-bottom: 1rem;
+}
+
+.notification-option:last-child {
+    margin-bottom: 0;
+}
+
+.custom-reason {
+    display: none;
+    margin-top: 1rem;
+}
+
+.custom-reason.show {
+    display: block;
+}
+
+.action-buttons {
+    display: flex;
+    gap: 1rem;
+    justify-content: center;
+    padding-top: 2rem;
+    border-top: 1px solid #e2e8f0;
+}
+
+.items-preview {
+    background: white;
+    border: 1px solid #e5e7eb;
+    border-radius: 0.5rem;
+    max-height: 200px;
+    overflow-y: auto;
+    margin-top: 1rem;
+}
+
+.item-row {
+    padding: 0.75rem 1rem;
+    border-bottom: 1px solid #f3f4f6;
+    display: flex;
+    justify-content: between;
+    align-items: center;
+}
+
+.item-row:last-child {
+    border-bottom: none;
+}
+
+@media (max-width: 768px) {
+    .cancel-confirmation-container {
+        margin: 1rem auto;
+    }
+    
+    .cancel-warning-header {
+        padding: 1.5rem;
+    }
+    
+    .cancel-details {
+        padding: 1.5rem;
+    }
+    
+    .reason-grid {
+        grid-template-columns: 1fr;
+    }
+    
+    .action-buttons {
+        flex-direction: column;
+    }
+}
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="cancel-confirmation-container">
+    <div class="cancel-warning-card">
+        <!-- Warning Header -->
+        <div class="cancel-warning-header">
+            <div class="warning-icon">
+                <i class="bi bi-exclamation-triangle"></i>
+            </div>
+            <h2 class="mb-2">Cancel Purchase Order</h2>
+            <p class="mb-0 opacity-90">{{ object.po_number }} from {{ object.supplier.name }}</p>
+        </div>
+        
+        <!-- Cancel Details -->
+        <div class="cancel-details">
+            <!-- Purchase Order Summary -->
+            <div class="po-summary">
+                <h5 class="fw-bold mb-3 text-warning">
+                    <i class="bi bi-file-earmark-text me-2"></i>Order Summary
+                </h5>
+                
+                <div class="summary-row">
+                    <span class="text-muted">PO Number:</span>
+                    <span class="fw-bold font-mono">{{ object.po_number }}</span>
+                </div>
+                
+                <div class="summary-row">
+                    <span class="text-muted">Current Status:</span>
+                    <span class="badge bg-{{ object.status }} text-uppercase">{{ object.get_status_display }}</span>
+                </div>
+                
+                <div class="summary-row">
+                    <span class="text-muted">Order Date:</span>
+                    <span>{{ object.order_date|date:"F d, Y" }}</span>
+                </div>
+                
+                <div class="summary-row">
+                    <span class="text-muted">Expected Delivery:</span>
+                    <span>{{ object.expected_delivery_date|date:"F d, Y"|default:"Not set" }}</span>
+                </div>
+                
+                <div class="summary-row">
+                    <span class="text-muted">Total Items:</span>
+                    <span class="fw-bold">{{ object.items.count }} item{{ object.items.count|pluralize }}</span>
+                </div>
+                
+                <div class="summary-row">
+                    <span class="text-muted">Total Value:</span>
+                    <span class="fw-bold text-success">${{ object.total_amount|floatformat:2 }}</span>
+                </div>
+                
+                <!-- Items Preview -->
+                <div class="mt-3">
+                    <h6 class="fw-bold mb-2">Items in this order:</h6>
+                    <div class="items-preview">
+                        {% for item in object.items.all %}
+                        <div class="item-row">
+                            <div class="flex-grow-1">
+                                <div class="fw-medium">{{ item.product.name }}</div>
+                                <small class="text-muted">{{ item.product.sku }}</small>
+                            </div>
+                            <div class="text-end">
+                                <div class="fw-bold">{{ item.quantity_ordered }} units</div>
+                                <small class="text-muted">${{ item.total_price|floatformat:2 }}</small>
+                            </div>
+                        </div>
+                        {% endfor %}
+                    </div>
+                </div>
+            </div>
+
+            <!-- Impact Information -->
+            <div class="impact-section">
+                <h5 class="fw-bold mb-3 text-primary">
+                    <i class="bi bi-info-circle me-2"></i>Impact of Cancellation
+                </h5>
+                
+                {% if object.status != 'draft' %}
+                <div class="impact-item">
+                    <div class="impact-icon">
+                        <i class="bi bi-building"></i>
+                    </div>
+                    <div>
+                        <strong>Supplier will be notified</strong>
+                        <div class="text-muted small">The supplier has already received this order and will need to be informed of the cancellation</div>
+                    </div>
+                </div>
+                {% endif %}
+                
+                {% if object.has_received_items %}
+                <div class="impact-item">
+                    <div class="impact-icon">
+                        <i class="bi bi-exclamation-triangle"></i>
+                    </div>
+                    <div>
+                        <strong>Some items have already been received</strong>
+                        <div class="text-muted small">{{ object.received_items_count }} of {{ object.total_items_count }} items have been received. You may need to return these items.</div>
+                    </div>
+                </div>
+                {% endif %}
+                
+                <div class="impact-item">
+                    <div class="impact-icon">
+                        <i class="bi bi-box"></i>
+                    </div>
+                    <div>
+                        <strong>Inventory planning affected</strong>
+                        <div class="text-muted small">Products expecting to be restocked will remain at current levels</div>
+                    </div>
+                </div>
+                
+                <div class="impact-item">
+                    <div class="impact-icon">
+                        <i class="bi bi-exclamation-circle"></i>
+                    </div>
+                    <div>
+                        <strong>Reorder alerts may trigger</strong>
+                        <div class="text-muted small">Products below reorder levels will generate new alerts</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Cancellation Form -->
+            <form method="post" id="cancelForm" class="cancellation-form">
+                {% csrf_token %}
+                
+                <h5 class="fw-bold mb-3">Cancellation Details</h5>
+                
+                <!-- Cancellation Reason -->
+                <div class="mb-4">
+                    <h6 class="fw-bold mb-3">Reason for cancellation:</h6>
+                    <div class="reason-grid">
+                        <label class="reason-option">
+                            <input type="radio" name="cancel_reason" value="supplier_delay" required>
+                            <div class="reason-title">Supplier Delay</div>
+                            <div class="reason-description">Supplier cannot deliver on time or has excessive delays</div>
+                        </label>
+                        
+                        <label class="reason-option">
+                            <input type="radio" name="cancel_reason" value="budget_constraints">
+                            <div class="reason-title">Budget Constraints</div>
+                            <div class="reason-description">Budget has been reallocated or reduced</div>
+                        </label>
+                        
+                        <label class="reason-option">
+                            <input type="radio" name="cancel_reason" value="no_longer_needed">
+                            <div class="reason-title">No Longer Needed</div>
+                            <div class="reason-description">Products are no longer required for business operations</div>
+                        </label>
+                        
+                        <label class="reason-option">
+                            <input type="radio" name="cancel_reason" value="better_supplier">
+                            <div class="reason-title">Better Supplier Found</div>
+                            <div class="reason-description">Found a better deal or more reliable supplier</div>
+                        </label>
+                        
+                        <label class="reason-option">
+                            <input type="radio" name="cancel_reason" value="quality_concerns">
+                            <div class="reason-title">Quality Concerns</div>
+                            <div class="reason-description">Concerns about product quality or supplier reliability</div>
+                        </label>
+                        
+                        <label class="reason-option">
+                            <input type="radio" name="cancel_reason" value="other">
+                            <div class="reason-title">Other Reason</div>
+                            <div class="reason-description">Specify a custom reason for cancellation</div>
+                        </label>
+                    </div>
+                    
+                    <!-- Custom Reason Input -->
+                    <div class="custom-reason" id="customReasonInput">
+                        <label class="form-label fw-bold">Please specify the reason:</label>
+                        <textarea class="form-control" name="custom_cancel_reason" rows="3" 
+                                  placeholder="Enter the specific reason for cancelling this purchase order..."></textarea>
+                    </div>
+                </div>
+                
+                <!-- Additional Notes -->
+                <div class="mb-4">
+                    <label class="form-label fw-bold">Additional Notes (Optional):</label>
+                    <textarea class="form-control" name="cancel_notes" rows="3" 
+                              placeholder="Any additional information about the cancellation..."></textarea>
+                </div>
+                
+                <!-- Effective Date -->
+                <div class="row g-3 mb-4">
+                    <div class="col-md-6">
+                        <label class="form-label fw-bold">Cancellation Effective Date:</label>
+                        <input type="date" class="form-control" name="cancel_date" 
+                               value="{{ today|date:'Y-m-d' }}" required>
+                    </div>
+                    
+                    <div class="col-md-6">
+                        <label class="form-label fw-bold">Cancel Remaining Items Only:</label>
+                        <div class="form-check mt-2">
+                            <input class="form-check-input" type="checkbox" name="cancel_remaining_only" 
+                                   id="cancelRemainingOnly" {% if object.has_received_items %}checked{% endif %}>
+                            <label class="form-check-label" for="cancelRemainingOnly">
+                                Only cancel items not yet received
+                            </label>
+                        </div>
+                    </div>
+                </div>
+            </form>
+
+            <!-- Supplier Notification -->
+            {% if object.status != 'draft' %}
+            <div class="supplier-notification">
+                <h5 class="fw-bold mb-3 text-primary">
+                    <i class="bi bi-envelope me-2"></i>Supplier Notification
+                </h5>
+                
+                <p class="text-muted mb-3">
+                    Since this order has been sent to the supplier, they should be notified of the cancellation.
+                </p>
+                
+                <div class="notification-option">
+                    <div class="form-check">
+                        <input class="form-check-input" type="checkbox" form="cancelForm" 
+                               name="notify_supplier" value="true" id="notifySupplier" checked>
+                        <label class="form-check-label fw-medium" for="notifySupplier">
+                            Send cancellation notice to {{ object.supplier.name }}
+                        </label>
+                    </div>
+                    <small class="text-muted ms-4">
+                        {% if object.supplier.contact_email %}
+                        Email will be sent to: {{ object.supplier.contact_email }}
+                        {% else %}
+                        No email on file - you'll need to contact them manually
+                        {% endif %}
+                    </small>
+                </div>
+                
+                <div class="notification-option">
+                    <div class="form-check">
+                        <input class="form-check-input" type="checkbox" form="cancelForm" 
+                               name="request_confirmation" value="true" id="requestConfirmation">
+                        <label class="form-check-label fw-medium" for="requestConfirmation">
+                            Request cancellation confirmation from supplier
+                        </label>
+                    </div>
+                    <small class="text-muted ms-4">Ask supplier to confirm receipt of cancellation</small>
+                </div>
+            </div>
+            {% endif %}
+
+            <!-- Action Buttons -->
+            <div class="action-buttons">
+                <a href="{% url 'inventory:po_detail' object.id %}" class="btn btn-outline-secondary btn-lg">
+                    <i class="bi bi-arrow-left me-2"></i>Keep Order Active
+                </a>
+                
+                <button type="submit" form="cancelForm" class="btn btn-warning btn-lg" id="confirmCancelBtn">
+                    <i class="bi bi-x-circle me-2"></i>Cancel Purchase Order
+                </button>
+            </div>
+
+            <!-- Alternative Actions -->
+            <div class="mt-4 pt-4 border-top text-center">
+                <h6 class="fw-bold text-muted mb-2">Alternative Actions</h6>
+                <p class="text-muted small mb-3">
+                    Instead of cancelling completely, you might want to:
+                </p>
+                <div class="d-flex flex-wrap gap-2 justify-content-center">
+                    {% if object.status == 'sent' or object.status == 'acknowledged' %}
+                    <a href="{% url 'inventory:po_update' object.id %}" class="btn btn-outline-primary btn-sm">
+                        <i class="bi bi-pencil me-1"></i>Modify Order
+                    </a>
+                    {% endif %}
+                    
+                    <a href="#" onclick="postponeOrder()" class="btn btn-outline-info btn-sm">
+                        <i class="bi bi-calendar-plus me-1"></i>Postpone Delivery
+                    </a>
+                    
+                    <a href="{% url 'inventory:po_split' object.id %}" class="btn btn-outline-secondary btn-sm">
+                        <i class="bi bi-scissors me-1"></i>Split Order
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const reasonOptions = document.querySelectorAll('.reason-option');
+    const customReasonInput = document.getElementById('customReasonInput');
+    const cancelForm = document.getElementById('cancelForm');
+    
+    // Handle reason selection
+    reasonOptions.forEach(option => {
+        option.addEventListener('click', function() {
+            // Clear previous selections
+            reasonOptions.forEach(opt => opt.classList.remove('selected'));
+            
+            // Select current option
+            this.classList.add('selected');
+            const radio = this.querySelector('input[type="radio"]');
+            radio.checked = true;
+            
+            // Show/hide custom reason input
+            if (radio.value === 'other') {
+                customReasonInput.classList.add('show');
+                customReasonInput.querySelector('textarea').required = true;
+            } else {
+                customReasonInput.classList.remove('show');
+                customReasonInput.querySelector('textarea').required = false;
+            }
+        });
+    });
+    
+    // Form validation
+    cancelForm.addEventListener('submit', function(e) {
+        const selectedReason = document.querySelector('input[name="cancel_reason"]:checked');
+        
+        if (!selectedReason) {
+            e.preventDefault();
+            alert('Please select a reason for cancellation.');
+            return;
+        }
+        
+        if (selectedReason.value === 'other') {
+            const customReason = document.querySelector('textarea[name="custom_cancel_reason"]');
+            if (!customReason.value.trim()) {
+                e.preventDefault();
+                alert('Please specify the reason for cancellation.');
+                customReason.focus();
+                return;
+            }
+        }
+        
+        // Final confirmation
+        const confirmationMessage = `Are you sure you want to cancel purchase order {{ object.po_number }}?\n\n` +
+                                  `This will change the order status to "Cancelled" and may trigger supplier notifications.`;
+        
+        if (!confirm(confirmationMessage)) {
+            e.preventDefault();
+        }
+    });
+    
+    // Auto-focus on custom reason when selected
+    document.querySelector('input[value="other"]').addEventListener('change', function() {
+        if (this.checked) {
+            setTimeout(() => {
+                document.querySelector('textarea[name="custom_cancel_reason"]').focus();
+            }, 100);
+        }
+    });
+});
+
+function postponeOrder() {
+    const newDate = prompt('Enter new expected delivery date (YYYY-MM-DD):');
+    if (newDate) {
+        // This would normally make an AJAX call to update the delivery date
+        alert(`Order postponed to ${newDate}. You can update this in the order details.`);
+    }
+}
+
+// Warn user before leaving if they've selected a reason
+window.addEventListener('beforeunload', function(e) {
+    const selectedReason = document.querySelector('input[name="cancel_reason"]:checked');
+    const hasNotes = document.querySelector('textarea[name="cancel_notes"]').value.trim();
+    
+    if (selectedReason || hasNotes) {
+        e.preventDefault();
+        e.returnValue = 'You have unsaved cancellation details. Are you sure you want to leave?';
+        return e.returnValue;
+    }
+});
+</script>
+{% endblock %}

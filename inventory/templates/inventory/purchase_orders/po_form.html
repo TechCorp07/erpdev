@@ -1,0 +1,858 @@
+{% extends "dashboard_base.html" %}
+{% load static %}
+
+{% block page_title %}
+    {% if object %}Edit Purchase Order - {{ object.po_number }}{% else %}Create Purchase Order{% endif %}
+{% endblock %}
+
+{% block extra_css %}
+<link href="{% static 'inventory/css/inventory.css' %}" rel="stylesheet">
+<style>
+.po-form-container {
+    max-width: 1200px;
+    margin: 0 auto;
+}
+
+.po-form-section {
+    background: white;
+    border-radius: 0.75rem;
+    padding: 2rem;
+    margin-bottom: 2rem;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+    border: 1px solid #e5e7eb;
+}
+
+.section-header {
+    display: flex;
+    align-items: center;
+    margin-bottom: 1.5rem;
+    padding-bottom: 1rem;
+    border-bottom: 2px solid #f3f4f6;
+}
+
+.section-icon {
+    width: 40px;
+    height: 40px;
+    border-radius: 0.5rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin-right: 1rem;
+    font-size: 1.25rem;
+}
+
+.section-title {
+    margin: 0;
+    font-size: 1.25rem;
+    font-weight: 600;
+    color: #111827;
+}
+
+.items-table {
+    margin: 0;
+    border-collapse: separate;
+    border-spacing: 0;
+}
+
+.items-table th {
+    background: #f8fafc;
+    border: 1px solid #e5e7eb;
+    padding: 0.875rem;
+    font-weight: 600;
+    color: #374151;
+    position: sticky;
+    top: 0;
+    z-index: 10;
+}
+
+.items-table td {
+    border: 1px solid #e5e7eb;
+    padding: 0.75rem;
+    vertical-align: middle;
+}
+
+.items-table th:first-child,
+.items-table td:first-child {
+    border-left: none;
+}
+
+.items-table th:last-child,
+.items-table td:last-child {
+    border-right: none;
+}
+
+.item-row {
+    transition: background-color 0.2s ease;
+}
+
+.item-row:hover {
+    background-color: #f8fafc;
+}
+
+.item-row.removing {
+    opacity: 0.5;
+    background-color: #fee2e2;
+}
+
+.product-search-container {
+    position: relative;
+}
+
+.product-suggestions {
+    position: absolute;
+    top: 100%;
+    left: 0;
+    right: 0;
+    background: white;
+    border: 1px solid #d1d5db;
+    border-top: none;
+    border-radius: 0 0 0.375rem 0.375rem;
+    max-height: 200px;
+    overflow-y: auto;
+    z-index: 1000;
+    display: none;
+}
+
+.suggestion-item {
+    padding: 0.75rem;
+    cursor: pointer;
+    border-bottom: 1px solid #f3f4f6;
+    transition: background-color 0.2s;
+}
+
+.suggestion-item:hover {
+    background-color: #f8fafc;
+}
+
+.suggestion-item:last-child {
+    border-bottom: none;
+}
+
+.quantity-input,
+.price-input {
+    width: 100px;
+    text-align: center;
+}
+
+.total-cell {
+    font-weight: 600;
+    color: #059669;
+}
+
+.add-item-btn {
+    border: 2px dashed #d1d5db;
+    color: #6b7280;
+    transition: all 0.2s ease;
+}
+
+.add-item-btn:hover {
+    border-color: var(--inventory-primary);
+    color: var(--inventory-primary);
+    background-color: rgba(79, 70, 229, 0.05);
+}
+
+.form-actions {
+    position: sticky;
+    bottom: 2rem;
+    z-index: 100;
+    background: white;
+    padding: 1.5rem 2rem;
+    border-radius: 3rem;
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.15);
+    border: 1px solid #e2e8f0;
+    margin-top: 2rem;
+}
+
+.totals-sidebar {
+    position: sticky;
+    top: 120px;
+    background: white;
+    border-radius: 0.75rem;
+    padding: 1.5rem;
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.1);
+    border: 1px solid #e5e7eb;
+}
+
+.totals-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 0.75rem 0;
+    border-bottom: 1px solid #f3f4f6;
+}
+
+.totals-row:last-child {
+    border-bottom: 2px solid #e5e7eb;
+    font-weight: 700;
+    font-size: 1.125rem;
+    color: #059669;
+}
+
+.supplier-info-card {
+    background: #f8fafc;
+    border: 1px solid #e5e7eb;
+    border-radius: 0.5rem;
+    padding: 1rem;
+    margin-top: 1rem;
+}
+
+@media (max-width: 768px) {
+    .po-form-section {
+        padding: 1.5rem 1rem;
+    }
+    
+    .items-table th,
+    .items-table td {
+        padding: 0.5rem 0.25rem;
+        font-size: 0.875rem;
+    }
+    
+    .quantity-input,
+    .price-input {
+        width: 80px;
+    }
+    
+    .form-actions {
+        position: relative;
+        bottom: auto;
+        border-radius: 0.75rem;
+    }
+    
+    .totals-sidebar {
+        position: relative;
+        top: auto;
+        margin-top: 2rem;
+    }
+}
+</style>
+{% endblock %}
+
+{% block page_header %}
+<div class="inventory-header">
+    <div class="container">
+        <div class="row">
+            <div class="col-md-8">
+                <h1>
+                    <i class="bi bi-{% if object %}pencil{% else %}plus-circle{% endif %} me-2"></i>
+                    {% if object %}Edit Purchase Order{% else %}Create Purchase Order{% endif %}
+                </h1>
+                <p class="lead">
+                    {% if object %}
+                    Modify order details and items
+                    {% else %}
+                    Create a new purchase order for your suppliers
+                    {% endif %}
+                </p>
+            </div>
+            <div class="col-md-4 text-end">
+                <a href="{% if object %}{% url 'inventory:po_detail' object.id %}{% else %}{% url 'inventory:po_list' %}{% endif %}" class="btn btn-light">
+                    <i class="bi bi-arrow-left me-1"></i> 
+                    {% if object %}Back to Order{% else %}Back to List{% endif %}
+                </a>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <form method="post" id="poForm" class="po-form-container">
+        {% csrf_token %}
+        
+        <div class="row">
+            <!-- Main Form Content -->
+            <div class="col-lg-8">
+                <!-- Basic Information -->
+                <div class="po-form-section">
+                    <div class="section-header">
+                        <div class="section-icon bg-primary text-white">
+                            <i class="bi bi-info-circle"></i>
+                        </div>
+                        <div>
+                            <h3 class="section-title">Order Information</h3>
+                            <p class="text-muted mb-0">Basic purchase order details</p>
+                        </div>
+                    </div>
+                    
+                    <div class="row g-3">
+                        <div class="col-md-4">
+                            <label class="form-label">{{ form.po_number.label }}</label>
+                            {{ form.po_number }}
+                            {% if form.po_number.errors %}
+                                <div class="text-danger small mt-1">{{ form.po_number.errors.0 }}</div>
+                            {% endif %}
+                            <small class="form-text text-muted">Auto-generated if left blank</small>
+                        </div>
+                        
+                        <div class="col-md-4">
+                            <label class="form-label">{{ form.supplier.label }} *</label>
+                            {{ form.supplier }}
+                            {% if form.supplier.errors %}
+                                <div class="text-danger small mt-1">{{ form.supplier.errors.0 }}</div>
+                            {% endif %}
+                        </div>
+                        
+                        <div class="col-md-4">
+                            <label class="form-label">{{ form.currency.label }}</label>
+                            {{ form.currency }}
+                            {% if form.currency.errors %}
+                                <div class="text-danger small mt-1">{{ form.currency.errors.0 }}</div>
+                            {% endif %}
+                        </div>
+                    </div>
+                    
+                    <!-- Supplier Info Display -->
+                    <div id="supplierInfo" class="supplier-info-card" style="display: none;">
+                        <div class="row">
+                            <div class="col-md-6">
+                                <strong>Contact:</strong>
+                                <div id="supplierContact"></div>
+                            </div>
+                            <div class="col-md-6">
+                                <strong>Payment Terms:</strong>
+                                <div id="supplierPaymentTerms"></div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Delivery Information -->
+                <div class="po-form-section">
+                    <div class="section-header">
+                        <div class="section-icon bg-info text-white">
+                            <i class="bi bi-truck"></i>
+                        </div>
+                        <div>
+                            <h3 class="section-title">Delivery Details</h3>
+                            <p class="text-muted mb-0">Where and when to deliver</p>
+                        </div>
+                    </div>
+                    
+                    <div class="row g-3">
+                        <div class="col-md-6">
+                            <label class="form-label">{{ form.delivery_location.label }}</label>
+                            {{ form.delivery_location }}
+                            {% if form.delivery_location.errors %}
+                                <div class="text-danger small mt-1">{{ form.delivery_location.errors.0 }}</div>
+                            {% endif %}
+                        </div>
+                        
+                        <div class="col-md-6">
+                            <label class="form-label">{{ form.expected_delivery_date.label }}</label>
+                            {{ form.expected_delivery_date }}
+                            {% if form.expected_delivery_date.errors %}
+                                <div class="text-danger small mt-1">{{ form.expected_delivery_date.errors.0 }}</div>
+                            {% endif %}
+                        </div>
+                    </div>
+                    
+                    <div class="mt-3">
+                        <label class="form-label">{{ form.delivery_instructions.label }}</label>
+                        {{ form.delivery_instructions }}
+                        {% if form.delivery_instructions.errors %}
+                            <div class="text-danger small mt-1">{{ form.delivery_instructions.errors.0 }}</div>
+                        {% endif %}
+                    </div>
+                </div>
+
+                <!-- Order Items -->
+                <div class="po-form-section">
+                    <div class="section-header">
+                        <div class="section-icon bg-success text-white">
+                            <i class="bi bi-list-ul"></i>
+                        </div>
+                        <div class="flex-grow-1">
+                            <h3 class="section-title">Order Items</h3>
+                            <p class="text-muted mb-0">Products to order from supplier</p>
+                        </div>
+                        <button type="button" class="btn btn-success" id="addItemBtn">
+                            <i class="bi bi-plus me-1"></i>Add Item
+                        </button>
+                    </div>
+                    
+                    <div class="table-responsive">
+                        <table class="table items-table" id="itemsTable">
+                            <thead>
+                                <tr>
+                                    <th width="300px">Product</th>
+                                    <th width="100px">Quantity</th>
+                                    <th width="120px">Unit Price</th>
+                                    <th width="120px">Total</th>
+                                    <th width="200px">Notes</th>
+                                    <th width="80px">Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody id="itemsTableBody">
+                                <!-- Existing items will be populated here -->
+                                {% for item in object.items.all %}
+                                <tr class="item-row" data-item-id="{{ item.id }}">
+                                    <td>
+                                        <div class="fw-medium">{{ item.product.name }}</div>
+                                        <small class="text-muted">{{ item.product.sku }}</small>
+                                        <input type="hidden" name="item_product_{{ forloop.counter0 }}" value="{{ item.product.id }}">
+                                    </td>
+                                    <td>
+                                        <input type="number" class="form-control quantity-input" 
+                                               name="item_quantity_{{ forloop.counter0 }}" 
+                                               value="{{ item.quantity_ordered }}" min="1" step="1">
+                                    </td>
+                                    <td>
+                                        <input type="number" class="form-control price-input" 
+                                               name="item_price_{{ forloop.counter0 }}" 
+                                               value="{{ item.unit_price }}" min="0" step="0.01">
+                                    </td>
+                                    <td class="total-cell">
+                                        <span class="item-total">${{ item.total_price|floatformat:2 }}</span>
+                                    </td>
+                                    <td>
+                                        <input type="text" class="form-control" 
+                                               name="item_notes_{{ forloop.counter0 }}" 
+                                               value="{{ item.notes }}" placeholder="Optional notes">
+                                    </td>
+                                    <td>
+                                        <button type="button" class="btn btn-outline-danger btn-sm remove-item-btn">
+                                            <i class="bi bi-trash"></i>
+                                        </button>
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                                
+                                <!-- Add item row template (hidden) -->
+                                <tr class="add-item-row" style="display: none;">
+                                    <td colspan="6">
+                                        <button type="button" class="btn add-item-btn w-100 py-3" id="addItemBtnInTable">
+                                            <i class="bi bi-plus me-2"></i>Add Item to Order
+                                        </button>
+                                    </td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                    
+                    <!-- No items message -->
+                    <div id="noItemsMessage" class="text-center py-5" style="{% if object.items.exists %}display: none;{% endif %}">
+                        <i class="bi bi-inbox text-muted" style="font-size: 3rem;"></i>
+                        <h5 class="mt-3 text-muted">No items added yet</h5>
+                        <p class="text-muted">Click "Add Item" to start building your purchase order</p>
+                    </div>
+                </div>
+
+                <!-- Financial Information -->
+                <div class="po-form-section">
+                    <div class="section-header">
+                        <div class="section-icon bg-warning text-white">
+                            <i class="bi bi-currency-dollar"></i>
+                        </div>
+                        <div>
+                            <h3 class="section-title">Financial Details</h3>
+                            <p class="text-muted mb-0">Additional costs and terms</p>
+                        </div>
+                    </div>
+                    
+                    <div class="row g-3">
+                        <div class="col-md-4">
+                            <label class="form-label">{{ form.tax_amount.label }}</label>
+                            <div class="input-group">
+                                <span class="input-group-text">$</span>
+                                {{ form.tax_amount }}
+                            </div>
+                            {% if form.tax_amount.errors %}
+                                <div class="text-danger small mt-1">{{ form.tax_amount.errors.0 }}</div>
+                            {% endif %}
+                        </div>
+                        
+                        <div class="col-md-4">
+                            <label class="form-label">{{ form.shipping_cost.label }}</label>
+                            <div class="input-group">
+                                <span class="input-group-text">$</span>
+                                {{ form.shipping_cost }}
+                            </div>
+                            {% if form.shipping_cost.errors %}
+                                <div class="text-danger small mt-1">{{ form.shipping_cost.errors.0 }}</div>
+                            {% endif %}
+                        </div>
+                        
+                        <div class="col-md-4">
+                            <label class="form-label">{{ form.payment_terms.label }}</label>
+                            {{ form.payment_terms }}
+                            {% if form.payment_terms.errors %}
+                                <div class="text-danger small mt-1">{{ form.payment_terms.errors.0 }}</div>
+                            {% endif %}
+                        </div>
+                    </div>
+                    
+                    <div class="mt-3">
+                        <label class="form-label">{{ form.notes.label }}</label>
+                        {{ form.notes }}
+                        {% if form.notes.errors %}
+                            <div class="text-danger small mt-1">{{ form.notes.errors.0 }}</div>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+
+            <!-- Sidebar with Totals -->
+            <div class="col-lg-4">
+                <div class="totals-sidebar">
+                    <h5 class="mb-3"><i class="bi bi-calculator me-2"></i>Order Summary</h5>
+                    
+                    <div class="totals-row">
+                        <span>Items:</span>
+                        <span id="itemCount">{{ object.items.count|default:0 }}</span>
+                    </div>
+                    
+                    <div class="totals-row">
+                        <span>Subtotal:</span>
+                        <span id="subtotalDisplay">${{ object.subtotal|floatformat:2|default:"0.00" }}</span>
+                    </div>
+                    
+                    <div class="totals-row">
+                        <span>Tax:</span>
+                        <span id="taxDisplay">${{ object.tax_amount|floatformat:2|default:"0.00" }}</span>
+                    </div>
+                    
+                    <div class="totals-row">
+                        <span>Shipping:</span>
+                        <span id="shippingDisplay">${{ object.shipping_cost|floatformat:2|default:"0.00" }}</span>
+                    </div>
+                    
+                    <div class="totals-row">
+                        <span>Total Amount:</span>
+                        <span id="totalDisplay">${{ object.total_amount|floatformat:2|default:"0.00" }}</span>
+                    </div>
+                    
+                    <div class="mt-4 pt-3 border-top">
+                        <div class="d-grid gap-2">
+                            <button type="button" class="btn btn-outline-info" onclick="previewPO()">
+                                <i class="bi bi-eye me-1"></i>Preview Order
+                            </button>
+                            <button type="button" class="btn btn-outline-secondary" onclick="saveDraft()">
+                                <i class="bi bi-floppy me-1"></i>Save as Draft
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Form Actions -->
+        <div class="form-actions">
+            <div class="d-flex justify-content-between align-items-center">
+                <div>
+                    <small class="text-muted">
+                        <i class="bi bi-info-circle me-1"></i>
+                        Changes are automatically saved as you work
+                    </small>
+                </div>
+                
+                <div class="d-flex gap-2">
+                    <button type="button" class="btn btn-outline-secondary" onclick="history.back()">
+                        <i class="bi bi-x me-1"></i>Cancel
+                    </button>
+                    
+                    <button type="submit" class="btn btn-primary" name="action" value="save">
+                        <i class="bi bi-check me-1"></i>
+                        {% if object %}Update Order{% else %}Create Order{% endif %}
+                    </button>
+                    
+                    {% if not object or object.status == 'draft' %}
+                    <button type="submit" class="btn btn-success" name="action" value="save_and_send">
+                        <i class="bi bi-send me-1"></i>Save & Send
+                    </button>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </form>
+</div>
+
+<!-- Product Selection Modal -->
+<div class="modal fade" id="productSelectionModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Select Product</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div class="mb-3">
+                    <input type="text" class="form-control" id="productSearch" 
+                           placeholder="Search products by name, SKU, or description...">
+                </div>
+                <div id="productList" class="row g-2" style="max-height: 400px; overflow-y: auto;">
+                    <!-- Products will be loaded here -->
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+let itemCounter = {{ object.items.count|default:0 }};
+let selectedSupplierData = null;
+
+document.addEventListener('DOMContentLoaded', function() {
+    const itemsTableBody = document.getElementById('itemsTableBody');
+    const addItemBtn = document.getElementById('addItemBtn');
+    const addItemBtnInTable = document.getElementById('addItemBtnInTable');
+    const productSelectionModal = new bootstrap.Modal(document.getElementById('productSelectionModal'));
+    
+    // Add event listeners
+    addItemBtn.addEventListener('click', openProductSelection);
+    addItemBtnInTable.addEventListener('click', openProductSelection);
+    
+    // Supplier change handler
+    document.getElementById('id_supplier').addEventListener('change', handleSupplierChange);
+    
+    // Auto-calculate totals when inputs change
+    document.addEventListener('input', function(e) {
+        if (e.target.matches('.quantity-input, .price-input, #id_tax_amount, #id_shipping_cost')) {
+            updateTotals();
+        }
+    });
+    
+    // Initial calculations
+    updateTotals();
+    showAddItemRow();
+});
+
+function openProductSelection() {
+    const supplierId = document.getElementById('id_supplier').value;
+    if (!supplierId) {
+        alert('Please select a supplier first.');
+        return;
+    }
+    
+    loadProducts(supplierId);
+    const productSelectionModal = new bootstrap.Modal(document.getElementById('productSelectionModal'));
+    productSelectionModal.show();
+}
+
+function loadProducts(supplierId) {
+    const productList = document.getElementById('productList');
+    productList.innerHTML = '<div class="text-center"><div class="spinner-border"></div></div>';
+    
+    fetch(`/inventory/api/products/?supplier=${supplierId}`)
+        .then(response => response.json())
+        .then(products => {
+            productList.innerHTML = '';
+            products.forEach(product => {
+                const productCard = createProductCard(product);
+                productList.appendChild(productCard);
+            });
+        })
+        .catch(error => {
+            productList.innerHTML = '<div class="text-center text-danger">Error loading products</div>';
+        });
+}
+
+function createProductCard(product) {
+    const col = document.createElement('div');
+    col.className = 'col-md-6';
+    
+    col.innerHTML = `
+        <div class="card product-card" style="cursor: pointer;" onclick="selectProduct(${product.id})">
+            <div class="card-body p-3">
+                <h6 class="card-title mb-1">${product.name}</h6>
+                <p class="card-text text-muted small mb-2">${product.sku}</p>
+                <div class="d-flex justify-content-between align-items-center">
+                    <small class="text-success">$${parseFloat(product.cost_price || 0).toFixed(2)}</small>
+                    <small class="text-muted">${product.current_stock} in stock</small>
+                </div>
+            </div>
+        </div>
+    `;
+    
+    return col;
+}
+
+function selectProduct(productId) {
+    fetch(`/inventory/api/products/${productId}/`)
+        .then(response => response.json())
+        .then(product => {
+            addItemToTable(product);
+            bootstrap.Modal.getInstance(document.getElementById('productSelectionModal')).hide();
+        });
+}
+
+function addItemToTable(product) {
+    const tbody = document.getElementById('itemsTableBody');
+    const addItemRow = tbody.querySelector('.add-item-row');
+    
+    const newRow = document.createElement('tr');
+    newRow.className = 'item-row';
+    newRow.innerHTML = `
+        <td>
+            <div class="fw-medium">${product.name}</div>
+            <small class="text-muted">${product.sku}</small>
+            <input type="hidden" name="item_product_${itemCounter}" value="${product.id}">
+        </td>
+        <td>
+            <input type="number" class="form-control quantity-input" 
+                   name="item_quantity_${itemCounter}" 
+                   value="1" min="1" step="1">
+        </td>
+        <td>
+            <input type="number" class="form-control price-input" 
+                   name="item_price_${itemCounter}" 
+                   value="${product.cost_price || 0}" min="0" step="0.01">
+        </td>
+        <td class="total-cell">
+            <span class="item-total">$${parseFloat(product.cost_price || 0).toFixed(2)}</span>
+        </td>
+        <td>
+            <input type="text" class="form-control" 
+                   name="item_notes_${itemCounter}" 
+                   placeholder="Optional notes">
+        </td>
+        <td>
+            <button type="button" class="btn btn-outline-danger btn-sm remove-item-btn" onclick="removeItem(this)">
+                <i class="bi bi-trash"></i>
+            </button>
+        </td>
+    `;
+    
+    tbody.insertBefore(newRow, addItemRow);
+    itemCounter++;
+    
+    document.getElementById('noItemsMessage').style.display = 'none';
+    updateTotals();
+}
+
+function removeItem(button) {
+    const row = button.closest('tr');
+    row.classList.add('removing');
+    setTimeout(() => {
+        row.remove();
+        updateTotals();
+        showAddItemRow();
+    }, 300);
+}
+
+function showAddItemRow() {
+    const tbody = document.getElementById('itemsTableBody');
+    const itemRows = tbody.querySelectorAll('.item-row:not(.add-item-row)');
+    const addItemRow = tbody.querySelector('.add-item-row');
+    const noItemsMessage = document.getElementById('noItemsMessage');
+    
+    if (itemRows.length === 0) {
+        addItemRow.style.display = 'none';
+        noItemsMessage.style.display = 'block';
+    } else {
+        addItemRow.style.display = 'table-row';
+        noItemsMessage.style.display = 'none';
+    }
+}
+
+function updateTotals() {
+    let subtotal = 0;
+    let itemCount = 0;
+    
+    document.querySelectorAll('.item-row:not(.add-item-row)').forEach(row => {
+        const quantity = parseFloat(row.querySelector('.quantity-input').value) || 0;
+        const price = parseFloat(row.querySelector('.price-input').value) || 0;
+        const total = quantity * price;
+        
+        row.querySelector('.item-total').textContent = `$${total.toFixed(2)}`;
+        subtotal += total;
+        itemCount++;
+    });
+    
+    const tax = parseFloat(document.getElementById('id_tax_amount').value) || 0;
+    const shipping = parseFloat(document.getElementById('id_shipping_cost').value) || 0;
+    const grandTotal = subtotal + tax + shipping;
+    
+    document.getElementById('itemCount').textContent = itemCount;
+    document.getElementById('subtotalDisplay').textContent = `$${subtotal.toFixed(2)}`;
+    document.getElementById('taxDisplay').textContent = `$${tax.toFixed(2)}`;
+    document.getElementById('shippingDisplay').textContent = `$${shipping.toFixed(2)}`;
+    document.getElementById('totalDisplay').textContent = `$${grandTotal.toFixed(2)}`;
+}
+
+function handleSupplierChange() {
+    const supplierId = this.value;
+    if (supplierId) {
+        fetch(`/inventory/api/suppliers/${supplierId}/`)
+            .then(response => response.json())
+            .then(supplier => {
+                selectedSupplierData = supplier;
+                displaySupplierInfo(supplier);
+                
+                // Auto-fill payment terms if available
+                const paymentTermsField = document.getElementById('id_payment_terms');
+                if (supplier.payment_terms && !paymentTermsField.value) {
+                    paymentTermsField.value = supplier.payment_terms;
+                }
+                
+                // Set currency if supplier has a default
+                const currencyField = document.getElementById('id_currency');
+                if (supplier.currency && !currencyField.value) {
+                    currencyField.value = supplier.currency.id;
+                }
+            });
+    } else {
+        document.getElementById('supplierInfo').style.display = 'none';
+    }
+}
+
+function displaySupplierInfo(supplier) {
+    const supplierInfo = document.getElementById('supplierInfo');
+    const contact = document.getElementById('supplierContact');
+    const paymentTerms = document.getElementById('supplierPaymentTerms');
+    
+    contact.innerHTML = `
+        ${supplier.contact_email ? `<div><i class="bi bi-envelope me-1"></i>${supplier.contact_email}</div>` : ''}
+        ${supplier.contact_phone ? `<div><i class="bi bi-phone me-1"></i>${supplier.contact_phone}</div>` : ''}
+    `;
+    
+    paymentTerms.textContent = supplier.payment_terms || 'Not specified';
+    
+    supplierInfo.style.display = 'block';
+}
+
+function previewPO() {
+    // Implementation for preview functionality
+    alert('Preview functionality would show a PDF preview of the purchase order.');
+}
+
+function saveDraft() {
+    const form = document.getElementById('poForm');
+    const formData = new FormData(form);
+    formData.append('action', 'draft');
+    
+    fetch(form.action || window.location.href, {
+        method: 'POST',
+        body: formData,
+        headers: {
+            'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value
+        }
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            alert('Purchase order saved as draft!');
+            if (data.redirect) {
+                window.location.href = data.redirect;
+            }
+        } else {
+            alert('Error saving purchase order. Please check your inputs.');
+        }
+    })
+    .catch(error => {
+        alert('Error saving purchase order. Please try again.');
+    });
+}
+
+// Auto-save functionality
+let autoSaveTimeout;
+document.addEventListener('input', function(e) {
+    if (e.target.form && e.target.form.id === 'poForm') {
+        clearTimeout(autoSaveTimeout);
+        autoSaveTimeout = setTimeout(saveDraft, 5000); // Auto-save after 5 seconds of inactivity
+    }
+});
+</script>
+{% endblock %}

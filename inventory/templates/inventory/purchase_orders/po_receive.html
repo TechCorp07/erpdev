@@ -1,0 +1,752 @@
+{% extends "dashboard_base.html" %}
+{% load static %}
+
+{% block page_title %}Receive Items - {{ purchase_order.po_number }}{% endblock %}
+
+{% block extra_css %}
+<link href="{% static 'inventory/css/inventory.css' %}" rel="stylesheet">
+<style>
+.receive-header {
+    background: linear-gradient(135deg, #059669 0%, #10b981 100%);
+    color: white;
+    padding: 2rem 0;
+    margin-bottom: 2rem;
+}
+
+.receive-container {
+    max-width: 1200px;
+    margin: 0 auto;
+}
+
+.receive-progress-bar {
+    background: rgba(255, 255, 255, 0.2);
+    height: 8px;
+    border-radius: 4px;
+    overflow: hidden;
+    margin-bottom: 1rem;
+}
+
+.receive-progress-fill {
+    height: 100%;
+    background: rgba(255, 255, 255, 0.9);
+    transition: width 0.3s ease;
+}
+
+.receiving-form {
+    background: white;
+    border-radius: 1rem;
+    padding: 2rem;
+    margin-bottom: 2rem;
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.1);
+}
+
+.item-receive-row {
+    background: white;
+    border: 2px solid #e5e7eb;
+    border-radius: 0.75rem;
+    padding: 1.5rem;
+    margin-bottom: 1.5rem;
+    transition: all 0.3s ease;
+}
+
+.item-receive-row:hover {
+    border-color: var(--inventory-success);
+    box-shadow: 0 4px 12px rgba(16, 185, 129, 0.15);
+}
+
+.item-receive-row.receiving {
+    border-color: var(--inventory-success);
+    background: rgba(16, 185, 129, 0.05);
+}
+
+.item-receive-row.received {
+    border-color: var(--inventory-success);
+    background: rgba(16, 185, 129, 0.1);
+    opacity: 0.7;
+}
+
+.quantity-controls {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.quantity-input {
+    width: 100px;
+    text-align: center;
+    font-weight: 600;
+    font-size: 1.125rem;
+    border: 2px solid #d1d5db;
+    border-radius: 0.5rem;
+    padding: 0.75rem;
+}
+
+.quantity-input:focus {
+    border-color: var(--inventory-success);
+    box-shadow: 0 0 0 3px rgba(16, 185, 129, 0.1);
+}
+
+.quantity-btn {
+    width: 40px;
+    height: 40px;
+    border: 2px solid #d1d5db;
+    background: white;
+    border-radius: 0.5rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.quantity-btn:hover {
+    border-color: var(--inventory-success);
+    background: var(--inventory-success);
+    color: white;
+}
+
+.quick-receive-buttons {
+    display: flex;
+    gap: 0.5rem;
+    margin-top: 1rem;
+}
+
+.quick-receive-btn {
+    padding: 0.5rem 1rem;
+    border: 1px solid #d1d5db;
+    background: #f9fafb;
+    border-radius: 2rem;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    font-size: 0.875rem;
+}
+
+.quick-receive-btn:hover {
+    background: var(--inventory-success);
+    color: white;
+    border-color: var(--inventory-success);
+}
+
+.receive-summary {
+    position: sticky;
+    top: 100px;
+    background: white;
+    border-radius: 1rem;
+    padding: 2rem;
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.1);
+    border: 1px solid #e5e7eb;
+}
+
+.summary-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 0.75rem 0;
+    border-bottom: 1px solid #f3f4f6;
+}
+
+.summary-row:last-child {
+    border-bottom: 2px solid #e5e7eb;
+    font-weight: 700;
+    font-size: 1.125rem;
+    color: var(--inventory-success);
+}
+
+.location-selector {
+    background: #f8fafc;
+    border: 1px solid #e5e7eb;
+    border-radius: 0.75rem;
+    padding: 1.5rem;
+    margin-bottom: 2rem;
+}
+
+.damage-report {
+    background: #fef3c7;
+    border: 1px solid #f59e0b;
+    border-radius: 0.75rem;
+    padding: 1rem;
+    margin-top: 1rem;
+    display: none;
+}
+
+.barcode-scanner {
+    background: #eff6ff;
+    border: 2px dashed #3b82f6;
+    border-radius: 0.75rem;
+    padding: 2rem;
+    text-align: center;
+    margin-bottom: 2rem;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.barcode-scanner:hover {
+    background: #dbeafe;
+    border-color: #2563eb;
+}
+
+.scanner-icon {
+    font-size: 3rem;
+    color: #3b82f6;
+    margin-bottom: 1rem;
+}
+
+.receive-actions {
+    position: sticky;
+    bottom: 2rem;
+    z-index: 100;
+    background: white;
+    padding: 1.5rem 2rem;
+    border-radius: 3rem;
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.15);
+    border: 1px solid #e2e8f0;
+    margin-top: 2rem;
+}
+
+@media (max-width: 768px) {
+    .receive-container {
+        padding: 0 1rem;
+    }
+    
+    .receiving-form {
+        padding: 1.5rem;
+    }
+    
+    .item-receive-row {
+        padding: 1rem;
+    }
+    
+    .quantity-controls {
+        flex-direction: column;
+        gap: 1rem;
+    }
+    
+    .receive-summary {
+        position: relative;
+        top: auto;
+        margin-top: 2rem;
+    }
+    
+    .receive-actions {
+        position: relative;
+        bottom: auto;
+        border-radius: 0.75rem;
+    }
+}
+</style>
+{% endblock %}
+
+{% block content %}
+<!-- Receive Header -->
+<div class="receive-header">
+    <div class="container">
+        <div class="row align-items-center">
+            <div class="col-md-8">
+                <h1><i class="bi bi-box-seam me-2"></i>Receive Items</h1>
+                <p class="lead opacity-90">{{ purchase_order.po_number }} from {{ purchase_order.supplier.name }}</p>
+                
+                <!-- Progress Bar -->
+                <div class="receive-progress-bar">
+                    <div class="receive-progress-fill" style="width: {{ receive_progress|default:0 }}%"></div>
+                </div>
+                <small class="opacity-75">
+                    {{ items_received|default:0 }} of {{ total_items|default:0 }} items received ({{ receive_progress|default:0 }}%)
+                </small>
+            </div>
+            <div class="col-md-4 text-end">
+                <div class="btn-group-vertical" role="group">
+                    <a href="{% url 'inventory:po_detail' purchase_order.id %}" class="btn btn-light">
+                        <i class="bi bi-arrow-left me-1"></i>Back to Order
+                    </a>
+                    <button class="btn btn-outline-light" onclick="printReceiptLabels()">
+                        <i class="bi bi-printer me-1"></i>Print Labels
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="container-fluid">
+    <div class="receive-container">
+        <!-- Barcode Scanner (Optional) -->
+        <div class="barcode-scanner" onclick="openBarcodeScanner()">
+            <div class="scanner-icon">
+                <i class="bi bi-upc-scan"></i>
+            </div>
+            <h5 class="mb-2">Scan Barcode to Receive</h5>
+            <p class="text-muted mb-0">Click here to use barcode scanner for quick receiving</p>
+        </div>
+
+        <div class="row">
+            <!-- Main Receiving Form -->
+            <div class="col-lg-8">
+                <!-- Delivery Information -->
+                <div class="location-selector">
+                    <h5 class="mb-3"><i class="bi bi-geo-alt me-2"></i>Delivery Information</h5>
+                    
+                    <form id="receiveForm" method="post">
+                        {% csrf_token %}
+                        
+                        <div class="row g-3 mb-3">
+                            <div class="col-md-6">
+                                <label class="form-label">Delivery Location</label>
+                                <select class="form-select" name="delivery_location" required>
+                                    <option value="">Select location...</option>
+                                    {% for location in locations %}
+                                    <option value="{{ location.id }}" 
+                                            {% if location.id == purchase_order.delivery_location.id %}selected{% endif %}>
+                                        {{ location.name }}
+                                    </option>
+                                    {% endfor %}
+                                </select>
+                            </div>
+                            
+                            <div class="col-md-6">
+                                <label class="form-label">Received Date</label>
+                                <input type="date" class="form-control" name="received_date" 
+                                       value="{{ today|date:'Y-m-d' }}" required>
+                            </div>
+                        </div>
+                        
+                        <div class="mb-3">
+                            <label class="form-label">Delivery Notes</label>
+                            <textarea class="form-control" name="delivery_notes" rows="2" 
+                                      placeholder="Any notes about the delivery condition, packaging, etc."></textarea>
+                        </div>
+
+                        <!-- Items to Receive -->
+                        <div class="items-to-receive">
+                            <h5 class="mb-3"><i class="bi bi-list-check me-2"></i>Items to Receive</h5>
+                            
+                            {% for item in po_items %}
+                            <div class="item-receive-row {% if item.quantity_received >= item.quantity_ordered %}received{% endif %}" 
+                                 data-item-id="{{ item.id }}">
+                                
+                                <div class="row align-items-center">
+                                    <!-- Product Info -->
+                                    <div class="col-md-4">
+                                        <div class="d-flex align-items-center">
+                                            {% if item.product.image %}
+                                            <img src="{{ item.product.image.url }}" alt="{{ item.product.name }}" 
+                                                 class="me-3" style="width: 64px; height: 64px; object-fit: cover; border-radius: 0.5rem;">
+                                            {% else %}
+                                            <div class="me-3 d-flex align-items-center justify-content-center" 
+                                                 style="width: 64px; height: 64px; background: #f3f4f6; border-radius: 0.5rem; color: #6b7280;">
+                                                <i class="bi bi-box"></i>
+                                            </div>
+                                            {% endif %}
+                                            
+                                            <div>
+                                                <h6 class="fw-bold mb-1">{{ item.product.name }}</h6>
+                                                <div class="text-muted small">
+                                                    <span class="product-sku">{{ item.product.sku }}</span>
+                                                    {% if item.product.category %}
+                                                    • {{ item.product.category.name }}
+                                                    {% endif %}
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    
+                                    <!-- Ordered vs Received -->
+                                    <div class="col-md-3">
+                                        <div class="text-center">
+                                            <div class="fw-bold text-primary">{{ item.quantity_ordered }}</div>
+                                            <small class="text-muted">Ordered</small>
+                                        </div>
+                                        <div class="text-center mt-2">
+                                            <div class="fw-bold {% if item.quantity_received >= item.quantity_ordered %}text-success{% elif item.quantity_received > 0 %}text-warning{% else %}text-muted{% endif %}">
+                                                {{ item.quantity_received }}
+                                            </div>
+                                            <small class="text-muted">Previously Received</small>
+                                        </div>
+                                    </div>
+                                    
+                                    <!-- Quantity to Receive -->
+                                    <div class="col-md-3">
+                                        <label class="form-label fw-bold">Receiving Now:</label>
+                                        <div class="quantity-controls">
+                                            <button type="button" class="quantity-btn" onclick="adjustQuantity({{ item.id }}, -1)">
+                                                <i class="bi bi-dash"></i>
+                                            </button>
+                                            
+                                            <input type="number" class="quantity-input" 
+                                                   name="item_{{ item.id }}_quantity" 
+                                                   value="{% if item.quantity_received < item.quantity_ordered %}{{ item.quantity_ordered|sub:item.quantity_received }}{% else %}0{% endif %}"
+                                                   min="0" 
+                                                   max="{{ item.quantity_ordered|sub:item.quantity_received }}"
+                                                   onchange="updateItemReceiving({{ item.id }})">
+                                            
+                                            <button type="button" class="quantity-btn" onclick="adjustQuantity({{ item.id }}, 1)">
+                                                <i class="bi bi-plus"></i>
+                                            </button>
+                                        </div>
+                                        
+                                        <!-- Quick Receive Buttons -->
+                                        <div class="quick-receive-buttons">
+                                            <button type="button" class="quick-receive-btn" 
+                                                    onclick="setQuantity({{ item.id }}, {{ item.quantity_ordered|sub:item.quantity_received }})">
+                                                All
+                                            </button>
+                                            {% if item.quantity_ordered|sub:item.quantity_received > 1 %}
+                                            <button type="button" class="quick-receive-btn" 
+                                                    onclick="setQuantity({{ item.id }}, {% widthratio item.quantity_ordered|sub:item.quantity_received 2 1 %})">
+                                                Half
+                                            </button>
+                                            {% endif %}
+                                            <button type="button" class="quick-receive-btn" onclick="setQuantity({{ item.id }}, 0)">
+                                                None
+                                            </button>
+                                        </div>
+                                    </div>
+                                    
+                                    <!-- Condition & Notes -->
+                                    <div class="col-md-2">
+                                        <div class="form-check">
+                                            <input class="form-check-input" type="checkbox" 
+                                                   name="item_{{ item.id }}_damaged" value="true">
+                                            <label class="form-check-label text-warning">
+                                                <i class="bi bi-exclamation-triangle me-1"></i>Damaged
+                                            </label>
+                                        </div>
+                                        
+                                        <div class="form-check mt-2">
+                                            <input class="form-check-input" type="checkbox" 
+                                                   name="item_{{ item.id }}_partial" value="true">
+                                            <label class="form-check-label text-info">
+                                                <i class="bi bi-box me-1"></i>Partial
+                                            </label>
+                                        </div>
+                                    </div>
+                                </div>
+                                
+                                <!-- Damage Report (Hidden by default) -->
+                                <div class="damage-report" id="damageReport{{ item.id }}">
+                                    <label class="form-label fw-bold text-warning">Damage Report:</label>
+                                    <textarea class="form-control" name="item_{{ item.id }}_damage_notes" rows="2" 
+                                              placeholder="Describe the damage condition..."></textarea>
+                                </div>
+                                
+                                <!-- Item Notes -->
+                                <div class="mt-3">
+                                    <label class="form-label">Receiving Notes:</label>
+                                    <input type="text" class="form-control" name="item_{{ item.id }}_notes" 
+                                           placeholder="Optional notes for this item...">
+                                </div>
+                            </div>
+                            {% endfor %}
+                        </div>
+                    </form>
+                </div>
+            </div>
+            
+            <!-- Receiving Summary Sidebar -->
+            <div class="col-lg-4">
+                <div class="receive-summary">
+                    <h5 class="mb-3"><i class="bi bi-clipboard-check me-2"></i>Receiving Summary</h5>
+                    
+                    <div class="summary-row">
+                        <span>PO Number:</span>
+                        <span class="fw-bold font-mono">{{ purchase_order.po_number }}</span>
+                    </div>
+                    
+                    <div class="summary-row">
+                        <span>Supplier:</span>
+                        <span class="fw-bold">{{ purchase_order.supplier.name }}</span>
+                    </div>
+                    
+                    <div class="summary-row">
+                        <span>Expected Date:</span>
+                        <span>{{ purchase_order.expected_delivery_date|date:"M d, Y"|default:"Not set" }}</span>
+                    </div>
+                    
+                    <div class="summary-row">
+                        <span>Total Items to Receive:</span>
+                        <span class="fw-bold" id="totalItemsReceiving">0</span>
+                    </div>
+                    
+                    <div class="summary-row">
+                        <span>Items Previously Received:</span>
+                        <span class="text-success">{{ items_received|default:0 }}</span>
+                    </div>
+                    
+                    <div class="summary-row">
+                        <span>Items Remaining:</span>
+                        <span id="itemsRemaining">{{ total_items|default:0 }}</span>
+                    </div>
+                    
+                    <div class="summary-row">
+                        <span>Estimated Value Receiving:</span>
+                        <span class="text-success fw-bold" id="valueReceiving">$0.00</span>
+                    </div>
+                    
+                    <!-- Quick Actions -->
+                    <div class="mt-4 pt-3 border-top">
+                        <div class="d-grid gap-2">
+                            <button class="btn btn-outline-primary" onclick="receiveAll()">
+                                <i class="bi bi-check-all me-1"></i>Receive All Items
+                            </button>
+                            <button class="btn btn-outline-secondary" onclick="clearAll()">
+                                <i class="bi bi-x-circle me-1"></i>Clear All Quantities
+                            </button>
+                            <button class="btn btn-outline-info" onclick="saveAsDraft()">
+                                <i class="bi bi-floppy me-1"></i>Save as Draft
+                            </button>
+                        </div>
+                    </div>
+                    
+                    <!-- Receiving History -->
+                    {% if receiving_history %}
+                    <div class="mt-4 pt-3 border-top">
+                        <h6 class="fw-bold mb-2">Recent Receipts</h6>
+                        {% for receipt in receiving_history %}
+                        <div class="small mb-2">
+                            <div class="fw-medium">{{ receipt.date|date:"M d, g:i A" }}</div>
+                            <div class="text-muted">{{ receipt.items_count }} items • ${{ receipt.value|floatformat:2 }}</div>
+                        </div>
+                        {% endfor %}
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+
+        <!-- Action Buttons -->
+        <div class="receive-actions">
+            <div class="d-flex justify-content-between align-items-center">
+                <div>
+                    <small class="text-muted">
+                        <i class="bi bi-info-circle me-1"></i>
+                        Review quantities before confirming receipt
+                    </small>
+                </div>
+                
+                <div class="d-flex gap-2">
+                    <button type="button" class="btn btn-outline-secondary" onclick="history.back()">
+                        <i class="bi bi-x me-1"></i>Cancel
+                    </button>
+                    
+                    <button type="submit" form="receiveForm" class="btn btn-success" id="confirmReceiveBtn" disabled>
+                        <i class="bi bi-check me-1"></i>Confirm Receipt
+                    </button>
+                    
+                    <button type="button" class="btn btn-primary" onclick="partialReceive()">
+                        <i class="bi bi-box-seam me-1"></i>Partial Receipt
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Barcode Scanner Modal -->
+<div class="modal fade" id="barcodeScannerModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Barcode Scanner</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div class="text-center py-5">
+                    <i class="bi bi-upc-scan" style="font-size: 4rem; color: #3b82f6;"></i>
+                    <h5 class="mt-3">Barcode Scanner</h5>
+                    <p class="text-muted">Point your camera at a barcode to automatically receive the item</p>
+                    <div id="scanner" class="mx-auto" style="max-width: 500px; height: 300px; background: #f3f4f6; border-radius: 0.5rem;"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+let itemPrices = {};
+
+document.addEventListener('DOMContentLoaded', function() {
+    // Initialize item prices from server data
+    {% for item in po_items %}
+    itemPrices[{{ item.id }}] = {{ item.unit_price }};
+    {% endfor %}
+    
+    // Add event listeners for damage checkboxes
+    document.querySelectorAll('[name$="_damaged"]').forEach(checkbox => {
+        checkbox.addEventListener('change', function() {
+            const itemId = this.name.match(/item_(\d+)_damaged/)[1];
+            const damageReport = document.getElementById(`damageReport${itemId}`);
+            damageReport.style.display = this.checked ? 'block' : 'none';
+        });
+    });
+    
+    // Initial calculation
+    updateReceivingSummary();
+    
+    // Enable/disable confirm button based on quantities
+    document.addEventListener('input', function(e) {
+        if (e.target.matches('.quantity-input')) {
+            updateReceivingSummary();
+        }
+    });
+});
+
+function adjustQuantity(itemId, delta) {
+    const input = document.querySelector(`input[name="item_${itemId}_quantity"]`);
+    const currentValue = parseInt(input.value) || 0;
+    const maxValue = parseInt(input.getAttribute('max')) || 0;
+    const newValue = Math.max(0, Math.min(maxValue, currentValue + delta));
+    
+    input.value = newValue;
+    updateItemReceiving(itemId);
+    updateReceivingSummary();
+}
+
+function setQuantity(itemId, quantity) {
+    const input = document.querySelector(`input[name="item_${itemId}_quantity"]`);
+    const maxValue = parseInt(input.getAttribute('max')) || 0;
+    const safeQuantity = Math.max(0, Math.min(maxValue, quantity));
+    
+    input.value = safeQuantity;
+    updateItemReceiving(itemId);
+    updateReceivingSummary();
+}
+
+function updateItemReceiving(itemId) {
+    const row = document.querySelector(`.item-receive-row[data-item-id="${itemId}"]`);
+    const quantityInput = document.querySelector(`input[name="item_${itemId}_quantity"]`);
+    const quantity = parseInt(quantityInput.value) || 0;
+    
+    if (quantity > 0) {
+        row.classList.add('receiving');
+    } else {
+        row.classList.remove('receiving');
+    }
+}
+
+function updateReceivingSummary() {
+    let totalItemsReceiving = 0;
+    let totalValueReceiving = 0;
+    
+    document.querySelectorAll('.quantity-input').forEach(input => {
+        const quantity = parseInt(input.value) || 0;
+        totalItemsReceiving += quantity;
+        
+        const itemId = input.name.match(/item_(\d+)_quantity/)[1];
+        if (itemPrices[itemId]) {
+            totalValueReceiving += quantity * itemPrices[itemId];
+        }
+    });
+    
+    document.getElementById('totalItemsReceiving').textContent = totalItemsReceiving;
+    document.getElementById('valueReceiving').textContent = `$${totalValueReceiving.toFixed(2)}`;
+    
+    // Enable/disable confirm button
+    const confirmBtn = document.getElementById('confirmReceiveBtn');
+    confirmBtn.disabled = totalItemsReceiving === 0;
+}
+
+function receiveAll() {
+    document.querySelectorAll('.quantity-input').forEach(input => {
+        const maxValue = parseInt(input.getAttribute('max')) || 0;
+        input.value = maxValue;
+        
+        const itemId = input.name.match(/item_(\d+)_quantity/)[1];
+        updateItemReceiving(itemId);
+    });
+    
+    updateReceivingSummary();
+}
+
+function clearAll() {
+    document.querySelectorAll('.quantity-input').forEach(input => {
+        input.value = 0;
+        
+        const itemId = input.name.match(/item_(\d+)_quantity/)[1];
+        updateItemReceiving(itemId);
+    });
+    
+    updateReceivingSummary();
+}
+
+function partialReceive() {
+    const form = document.getElementById('receiveForm');
+    const partialField = document.createElement('input');
+    partialField.type = 'hidden';
+    partialField.name = 'partial_receive';
+    partialField.value = 'true';
+    form.appendChild(partialField);
+    
+    form.submit();
+}
+
+function saveAsDraft() {
+    const form = document.getElementById('receiveForm');
+    const draftField = document.createElement('input');
+    draftField.type = 'hidden';
+    draftField.name = 'save_as_draft';
+    draftField.value = 'true';
+    form.appendChild(draftField);
+    
+    // Save to localStorage for recovery
+    const formData = new FormData(form);
+    const draftData = {};
+    for (let [key, value] of formData.entries()) {
+        draftData[key] = value;
+    }
+    sessionStorage.setItem(`po_receive_draft_{{ purchase_order.id }}`, JSON.stringify(draftData));
+    
+    alert('Draft saved successfully!');
+}
+
+function openBarcodeScanner() {
+    const modal = new bootstrap.Modal(document.getElementById('barcodeScannerModal'));
+    modal.show();
+    
+    // Initialize barcode scanner here
+    // This would integrate with a barcode scanning library
+    console.log('Barcode scanner would be initialized here');
+}
+
+function printReceiptLabels() {
+    window.open(`{% url 'inventory:po_receipt_labels' purchase_order.id %}`, '_blank');
+}
+
+// Auto-save draft every 30 seconds
+setInterval(function() {
+    const hasQuantities = Array.from(document.querySelectorAll('.quantity-input')).some(input => parseInt(input.value) > 0);
+    if (hasQuantities) {
+        const form = document.getElementById('receiveForm');
+        const formData = new FormData(form);
+        const draftData = {};
+        for (let [key, value] of formData.entries()) {
+            draftData[key] = value;
+        }
+        sessionStorage.setItem(`po_receive_draft_{{ purchase_order.id }}`, JSON.stringify(draftData));
+    }
+}, 30000);
+
+// Restore draft on page load
+window.addEventListener('load', function() {
+    const draftData = sessionStorage.getItem(`po_receive_draft_{{ purchase_order.id }}`);
+    if (draftData) {
+        try {
+            const data = JSON.parse(draftData);
+            Object.keys(data).forEach(key => {
+                const input = document.querySelector(`[name="${key}"]`);
+                if (input) {
+                    if (input.type === 'checkbox') {
+                        input.checked = data[key] === 'true';
+                    } else {
+                        input.value = data[key];
+                    }
+                }
+            });
+            updateReceivingSummary();
+        } catch (e) {
+            console.error('Error restoring draft:', e);
+        }
+    }
+});
+</script>
+{% endblock %}

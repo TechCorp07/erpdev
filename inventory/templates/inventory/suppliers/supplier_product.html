@@ -1,0 +1,685 @@
+{% extends "dashboard_base.html" %}
+{% load static %}
+
+{% block page_title %}{{ supplier.name }} - Products{% endblock %}
+
+{% block extra_css %}
+<link href="{% static 'inventory/css/inventory.css' %}" rel="stylesheet">
+<style>
+.supplier-products-header {
+    background: linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%);
+    color: white;
+    padding: 2rem 0;
+    margin-bottom: 2rem;
+}
+
+.supplier-breadcrumb {
+    background: rgba(255, 255, 255, 0.1);
+    padding: 0.5rem 1rem;
+    border-radius: 2rem;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    margin-bottom: 1rem;
+}
+
+.supplier-breadcrumb a {
+    color: rgba(255, 255, 255, 0.8);
+    text-decoration: none;
+}
+
+.supplier-breadcrumb a:hover {
+    color: white;
+}
+
+.products-filter-bar {
+    background: white;
+    border-radius: 0.75rem;
+    padding: 1.5rem;
+    margin-bottom: 2rem;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+}
+
+.product-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+    gap: 1.5rem;
+}
+
+.supplier-product-card {
+    background: white;
+    border: 1px solid #e5e7eb;
+    border-radius: 0.75rem;
+    padding: 1.5rem;
+    transition: all 0.2s ease;
+    position: relative;
+    overflow: hidden;
+}
+
+.supplier-product-card:hover {
+    transform: translateY(-4px);
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.15);
+    border-color: var(--inventory-primary);
+}
+
+.supplier-product-card::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 4px;
+    background: var(--inventory-primary);
+    transform: scaleX(0);
+    transition: transform 0.3s ease;
+}
+
+.supplier-product-card:hover::before {
+    transform: scaleX(1);
+}
+
+.product-image {
+    width: 80px;
+    height: 80px;
+    border-radius: 0.5rem;
+    object-fit: cover;
+    background: #f3f4f6;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: #6b7280;
+    font-size: 1.5rem;
+    margin-bottom: 1rem;
+}
+
+.product-stock-indicator {
+    position: absolute;
+    top: 1rem;
+    right: 1rem;
+    width: 12px;
+    height: 12px;
+    border-radius: 50%;
+    border: 2px solid white;
+}
+
+.stock-in { background-color: var(--inventory-success); }
+.stock-low { background-color: var(--inventory-warning); }
+.stock-out { background-color: var(--inventory-danger); }
+
+.product-metrics {
+    display: grid;
+    grid-template-columns: 1fr 1fr 1fr;
+    gap: 0.75rem;
+    margin-top: 1rem;
+    padding-top: 1rem;
+    border-top: 1px solid #f3f4f6;
+}
+
+.metric-item {
+    text-align: center;
+}
+
+.metric-value {
+    font-weight: 700;
+    font-size: 1.125rem;
+    margin-bottom: 0.25rem;
+}
+
+.metric-label {
+    font-size: 0.75rem;
+    color: #6b7280;
+    text-transform: uppercase;
+    letter-spacing: 0.025em;
+}
+
+.product-actions {
+    display: flex;
+    gap: 0.5rem;
+    margin-top: 1rem;
+}
+
+.bulk-actions-bar {
+    position: fixed;
+    bottom: 2rem;
+    left: 50%;
+    transform: translateX(-50%);
+    background: white;
+    padding: 1rem 2rem;
+    border-radius: 3rem;
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.15);
+    border: 1px solid #e2e8f0;
+    z-index: 1000;
+    display: none;
+    align-items: center;
+    gap: 1rem;
+}
+
+.bulk-actions-bar.show {
+    display: flex;
+}
+
+.view-controls {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+}
+
+.view-toggle {
+    display: flex;
+    background: #f3f4f6;
+    border-radius: 0.5rem;
+    padding: 0.25rem;
+}
+
+.view-toggle button {
+    background: none;
+    border: none;
+    padding: 0.5rem;
+    border-radius: 0.25rem;
+    color: #6b7280;
+    transition: all 0.2s ease;
+}
+
+.view-toggle button.active {
+    background: white;
+    color: var(--inventory-primary);
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+}
+
+.product-list-view {
+    display: none;
+}
+
+.product-list-view.active {
+    display: block;
+}
+
+.product-grid-view.active {
+    display: grid;
+}
+
+.product-list-item {
+    background: white;
+    border: 1px solid #e5e7eb;
+    border-radius: 0.75rem;
+    padding: 1.5rem;
+    margin-bottom: 1rem;
+    transition: all 0.2s ease;
+}
+
+.product-list-item:hover {
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.10);
+    border-color: var(--inventory-primary);
+}
+
+@media (max-width: 768px) {
+    .product-grid {
+        grid-template-columns: 1fr;
+    }
+    
+    .bulk-actions-bar {
+        position: relative;
+        bottom: auto;
+        left: auto;
+        transform: none;
+        margin-top: 2rem;
+        border-radius: 0.75rem;
+    }
+    
+    .view-controls {
+        flex-direction: column;
+        align-items: stretch;
+    }
+}
+</style>
+{% endblock %}
+
+{% block content %}
+<!-- Supplier Products Header -->
+<div class="supplier-products-header">
+    <div class="container">
+        <div class="supplier-breadcrumb">
+            <a href="{% url 'inventory:supplier_list' %}">
+                <i class="bi bi-building"></i> Suppliers
+            </a>
+            <i class="bi bi-chevron-right"></i>
+            <a href="{% url 'inventory:supplier_detail' supplier.id %}">{{ supplier.name }}</a>
+            <i class="bi bi-chevron-right"></i>
+            <span>Products</span>
+        </div>
+        
+        <div class="row align-items-center">
+            <div class="col-md-8">
+                <h1><i class="bi bi-box me-2"></i>{{ supplier.name }} Products</h1>
+                <p class="lead opacity-90">{{ products.count|default:0 }} product{{ products.count|pluralize }} from this supplier</p>
+            </div>
+            <div class="col-md-4 text-end">
+                <div class="btn-group" role="group">
+                    <a href="{% url 'inventory:supplier_detail' supplier.id %}" class="btn btn-light">
+                        <i class="bi bi-arrow-left me-1"></i>Back to Supplier
+                    </a>
+                    <a href="{% url 'inventory:po_create' %}?supplier={{ supplier.id }}" class="btn btn-success">
+                        <i class="bi bi-cart-plus me-1"></i>Create Order
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="container-fluid">
+    <!-- Filter and Controls Bar -->
+    <div class="products-filter-bar">
+        <form method="get" class="row g-3 align-items-end">
+            <div class="col-md-2">
+                <label class="form-label">Category</label>
+                <select class="form-select" name="category">
+                    <option value="">All Categories</option>
+                    {% for category in categories %}
+                    <option value="{{ category.id }}" {% if request.GET.category == category.id|stringformat:"s" %}selected{% endif %}>
+                        {{ category.name }}
+                    </option>
+                    {% endfor %}
+                </select>
+            </div>
+            
+            <div class="col-md-2">
+                <label class="form-label">Stock Status</label>
+                <select class="form-select" name="stock_status">
+                    <option value="">All Stock Levels</option>
+                    <option value="in_stock" {% if request.GET.stock_status == 'in_stock' %}selected{% endif %}>In Stock</option>
+                    <option value="low_stock" {% if request.GET.stock_status == 'low_stock' %}selected{% endif %}>Low Stock</option>
+                    <option value="out_stock" {% if request.GET.stock_status == 'out_stock' %}selected{% endif %}>Out of Stock</option>
+                </select>
+            </div>
+            
+            <div class="col-md-2">
+                <label class="form-label">Price Range</label>
+                <select class="form-select" name="price_range">
+                    <option value="">All Prices</option>
+                    <option value="0-10" {% if request.GET.price_range == '0-10' %}selected{% endif %}>$0 - $10</option>
+                    <option value="10-50" {% if request.GET.price_range == '10-50' %}selected{% endif %}>$10 - $50</option>
+                    <option value="50-100" {% if request.GET.price_range == '50-100' %}selected{% endif %}>$50 - $100</option>
+                    <option value="100+" {% if request.GET.price_range == '100+' %}selected{% endif %}>$100+</option>
+                </select>
+            </div>
+            
+            <div class="col-md-3">
+                <label class="form-label">Search Products</label>
+                <input type="text" class="form-control" name="search" value="{{ request.GET.search }}" 
+                       placeholder="Product name or SKU...">
+            </div>
+            
+            <div class="col-md-3">
+                <div class="d-flex gap-2">
+                    <button type="submit" class="btn btn-primary">
+                        <i class="bi bi-search me-1"></i>Filter
+                    </button>
+                    <a href="{% url 'inventory:supplier_products' supplier.id %}" class="btn btn-outline-secondary">
+                        <i class="bi bi-x me-1"></i>Clear
+                    </a>
+                </div>
+            </div>
+        </form>
+        
+        <!-- View Controls -->
+        <div class="d-flex justify-content-between align-items-center mt-3 pt-3 border-top">
+            <div class="view-controls">
+                <span class="text-muted me-2">View:</span>
+                <div class="view-toggle">
+                    <button type="button" class="active" data-view="grid">
+                        <i class="bi bi-grid"></i>
+                    </button>
+                    <button type="button" data-view="list">
+                        <i class="bi bi-list"></i>
+                    </button>
+                </div>
+                
+                <div class="dropdown ms-3">
+                    <button class="btn btn-outline-secondary dropdown-toggle btn-sm" data-bs-toggle="dropdown">
+                        <i class="bi bi-sort-down me-1"></i>Sort
+                    </button>
+                    <ul class="dropdown-menu">
+                        <li><a class="dropdown-item" href="?{{ request.GET.urlencode }}&sort=name">Name A-Z</a></li>
+                        <li><a class="dropdown-item" href="?{{ request.GET.urlencode }}&sort=-name">Name Z-A</a></li>
+                        <li><a class="dropdown-item" href="?{{ request.GET.urlencode }}&sort=cost_price">Price: Low to High</a></li>
+                        <li><a class="dropdown-item" href="?{{ request.GET.urlencode }}&sort=-cost_price">Price: High to Low</a></li>
+                        <li><a class="dropdown-item" href="?{{ request.GET.urlencode }}&sort=current_stock">Stock: Low to High</a></li>
+                        <li><a class="dropdown-item" href="?{{ request.GET.urlencode }}&sort=-current_stock">Stock: High to Low</a></li>
+                    </ul>
+                </div>
+            </div>
+            
+            <div class="d-flex align-items-center gap-3">
+                <small class="text-muted">
+                    {{ page_obj.start_index }}-{{ page_obj.end_index }} of {{ page_obj.paginator.count }} products
+                </small>
+                <div class="form-check">
+                    <input class="form-check-input" type="checkbox" id="selectAll">
+                    <label class="form-check-label" for="selectAll">
+                        Select All
+                    </label>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Products Grid View -->
+    <div class="product-grid product-grid-view active" id="productsGrid">
+        {% for product in products %}
+        <div class="supplier-product-card" data-product-id="{{ product.id }}">
+            <!-- Stock Indicator -->
+            <div class="product-stock-indicator {% if product.current_stock <= 0 %}stock-out{% elif product.current_stock <= product.reorder_level %}stock-low{% else %}stock-in{% endif %}"></div>
+            
+            <!-- Product Selection -->
+            <div class="form-check position-absolute" style="top: 1rem; left: 1rem;">
+                <input class="form-check-input product-select" type="checkbox" value="{{ product.id }}" id="product{{ product.id }}">
+            </div>
+            
+            <!-- Product Image -->
+            {% if product.image %}
+            <img src="{{ product.image.url }}" alt="{{ product.name }}" class="product-image">
+            {% else %}
+            <div class="product-image">
+                <i class="bi bi-box"></i>
+            </div>
+            {% endif %}
+            
+            <!-- Product Info -->
+            <div class="mb-2">
+                <h6 class="fw-bold mb-1">{{ product.name }}</h6>
+                <div class="d-flex justify-content-between align-items-center">
+                    <span class="product-sku">{{ product.sku }}</span>
+                    {% if product.category %}
+                    <span class="badge bg-light text-dark">{{ product.category.name }}</span>
+                    {% endif %}
+                </div>
+            </div>
+            
+            <!-- Description -->
+            {% if product.description %}
+            <p class="text-muted small mb-3" style="display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;">
+                {{ product.description }}
+            </p>
+            {% endif %}
+            
+            <!-- Product Metrics -->
+            <div class="product-metrics">
+                <div class="metric-item">
+                    <div class="metric-value text-success">${{ product.cost_price|floatformat:2|default:"0.00" }}</div>
+                    <div class="metric-label">Cost Price</div>
+                </div>
+                
+                <div class="metric-item">
+                    <div class="metric-value {% if product.current_stock <= 0 %}text-danger{% elif product.current_stock <= product.reorder_level %}text-warning{% else %}text-success{% endif %}">
+                        {{ product.current_stock }}
+                    </div>
+                    <div class="metric-label">Stock</div>
+                </div>
+                
+                <div class="metric-item">
+                    <div class="metric-value text-info">{{ product.reorder_level }}</div>
+                    <div class="metric-label">Reorder</div>
+                </div>
+            </div>
+            
+            <!-- Product Actions -->
+            <div class="product-actions">
+                <a href="{% url 'inventory:product_detail' product.id %}" class="btn btn-outline-primary btn-sm flex-fill">
+                    <i class="bi bi-eye me-1"></i>View
+                </a>
+                {% if product.current_stock <= product.reorder_level %}
+                <a href="{% url 'inventory:po_create' %}?supplier={{ supplier.id }}&product={{ product.id }}" 
+                   class="btn btn-primary btn-sm">
+                    <i class="bi bi-cart-plus me-1"></i>Order
+                </a>
+                {% endif %}
+                <div class="dropdown">
+                    <button class="btn btn-outline-secondary btn-sm dropdown-toggle" data-bs-toggle="dropdown">
+                        <i class="bi bi-three-dots"></i>
+                    </button>
+                    <ul class="dropdown-menu">
+                        <li><a class="dropdown-item" href="{% url 'inventory:product_update' product.id %}">
+                            <i class="bi bi-pencil me-2"></i>Edit Product
+                        </a></li>
+                        <li><a class="dropdown-item" href="{% url 'inventory:stock_adjustment' product.id %}">
+                            <i class="bi bi-plus-minus me-2"></i>Adjust Stock
+                        </a></li>
+                        <li><a class="dropdown-item" href="{% url 'inventory:stock_movement_history' product.id %}">
+                            <i class="bi bi-clock-history me-2"></i>Stock History
+                        </a></li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+        {% empty %}
+        <!-- Empty State -->
+        <div class="col-12">
+            <div class="text-center py-5">
+                <i class="bi bi-box text-muted" style="font-size: 4rem;"></i>
+                <h4 class="mt-3 text-muted">No products found</h4>
+                <p class="text-muted">
+                    {% if request.GET.search or request.GET.category or request.GET.stock_status %}
+                    No products match your current filters. Try adjusting your search criteria.
+                    {% else %}
+                    This supplier doesn't have any products assigned yet.
+                    {% endif %}
+                </p>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+
+    <!-- Products List View -->
+    <div class="product-list-view" id="productsList">
+        {% for product in products %}
+        <div class="product-list-item" data-product-id="{{ product.id }}">
+            <div class="row align-items-center">
+                <div class="col-md-1">
+                    <div class="form-check">
+                        <input class="form-check-input product-select" type="checkbox" value="{{ product.id }}">
+                    </div>
+                </div>
+                
+                <div class="col-md-1">
+                    {% if product.image %}
+                    <img src="{{ product.image.url }}" alt="{{ product.name }}" class="product-image" style="width: 48px; height: 48px;">
+                    {% else %}
+                    <div class="product-image" style="width: 48px; height: 48px; font-size: 1rem;">
+                        <i class="bi bi-box"></i>
+                    </div>
+                    {% endif %}
+                </div>
+                
+                <div class="col-md-4">
+                    <h6 class="fw-bold mb-1">{{ product.name }}</h6>
+                    <div class="text-muted">
+                        <span class="product-sku">{{ product.sku }}</span>
+                        {% if product.category %}
+                        • {{ product.category.name }}
+                        {% endif %}
+                    </div>
+                </div>
+                
+                <div class="col-md-2 text-center">
+                    <div class="fw-bold text-success">${{ product.cost_price|floatformat:2|default:"0.00" }}</div>
+                    <small class="text-muted">Cost Price</small>
+                </div>
+                
+                <div class="col-md-2 text-center">
+                    <div class="fw-bold {% if product.current_stock <= 0 %}text-danger{% elif product.current_stock <= product.reorder_level %}text-warning{% else %}text-success{% endif %}">
+                        {{ product.current_stock }}
+                    </div>
+                    <small class="text-muted">In Stock</small>
+                </div>
+                
+                <div class="col-md-2 text-end">
+                    <div class="btn-group" role="group">
+                        <a href="{% url 'inventory:product_detail' product.id %}" class="btn btn-outline-primary btn-sm">
+                            <i class="bi bi-eye"></i>
+                        </a>
+                        {% if product.current_stock <= product.reorder_level %}
+                        <a href="{% url 'inventory:po_create' %}?supplier={{ supplier.id }}&product={{ product.id }}" 
+                           class="btn btn-primary btn-sm">
+                            <i class="bi bi-cart-plus"></i>
+                        </a>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+
+    <!-- Pagination -->
+    {% if is_paginated %}
+    <nav aria-label="Products pagination" class="mt-4">
+        <ul class="pagination justify-content-center">
+            {% if page_obj.has_previous %}
+            <li class="page-item">
+                <a class="page-link" href="?page=1{{ request.GET|urlencode|slice:'1:' }}">First</a>
+            </li>
+            <li class="page-item">
+                <a class="page-link" href="?page={{ page_obj.previous_page_number }}{{ request.GET|urlencode|slice:'1:' }}">Previous</a>
+            </li>
+            {% endif %}
+            
+            {% for num in page_obj.paginator.page_range %}
+            {% if page_obj.number == num %}
+            <li class="page-item active">
+                <span class="page-link">{{ num }}</span>
+            </li>
+            {% elif num > page_obj.number|add:'-3' and num < page_obj.number|add:'3' %}
+            <li class="page-item">
+                <a class="page-link" href="?page={{ num }}{{ request.GET|urlencode|slice:'1:' }}">{{ num }}</a>
+            </li>
+            {% endif %}
+            {% endfor %}
+            
+            {% if page_obj.has_next %}
+            <li class="page-item">
+                <a class="page-link" href="?page={{ page_obj.next_page_number }}{{ request.GET|urlencode|slice:'1:' }}">Next</a>
+            </li>
+            <li class="page-item">
+                <a class="page-link" href="?page={{ page_obj.paginator.num_pages }}{{ request.GET|urlencode|slice:'1:' }}">Last</a>
+            </li>
+            {% endif %}
+        </ul>
+    </nav>
+    {% endif %}
+
+    <!-- Bulk Actions Bar -->
+    <div class="bulk-actions-bar" id="bulkActionsBar">
+        <span class="fw-bold">
+            <span id="selectedCount">0</span> products selected
+        </span>
+        <div class="d-flex gap-2">
+            <button class="btn btn-primary" onclick="bulkCreateOrder()">
+                <i class="bi bi-cart-plus me-1"></i>Create Order
+            </button>
+            <button class="btn btn-outline-info" onclick="bulkExport()">
+                <i class="bi bi-download me-1"></i>Export
+            </button>
+            <button class="btn btn-outline-secondary" onclick="clearSelection()">
+                <i class="bi bi-x me-1"></i>Clear
+            </button>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const viewToggleButtons = document.querySelectorAll('.view-toggle button');
+    const gridView = document.getElementById('productsGrid');
+    const listView = document.getElementById('productsList');
+    const selectAllCheckbox = document.getElementById('selectAll');
+    const productCheckboxes = document.querySelectorAll('.product-select');
+    const bulkActionsBar = document.getElementById('bulkActionsBar');
+    const selectedCountSpan = document.getElementById('selectedCount');
+    
+    // View toggle functionality
+    viewToggleButtons.forEach(button => {
+        button.addEventListener('click', function() {
+            viewToggleButtons.forEach(btn => btn.classList.remove('active'));
+            this.classList.add('active');
+            
+            if (this.dataset.view === 'grid') {
+                gridView.classList.add('active');
+                listView.classList.remove('active');
+            } else {
+                gridView.classList.remove('active');
+                listView.classList.add('active');
+            }
+        });
+    });
+    
+    // Select all functionality
+    selectAllCheckbox.addEventListener('change', function() {
+        productCheckboxes.forEach(checkbox => {
+            checkbox.checked = this.checked;
+        });
+        updateBulkActions();
+    });
+    
+    // Individual checkbox handling
+    productCheckboxes.forEach(checkbox => {
+        checkbox.addEventListener('change', function() {
+            const checkedCount = document.querySelectorAll('.product-select:checked').length;
+            selectAllCheckbox.indeterminate = checkedCount > 0 && checkedCount < productCheckboxes.length;
+            selectAllCheckbox.checked = checkedCount === productCheckboxes.length;
+            updateBulkActions();
+        });
+    });
+    
+    function updateBulkActions() {
+        const selectedCount = document.querySelectorAll('.product-select:checked').length;
+        selectedCountSpan.textContent = selectedCount;
+        
+        if (selectedCount > 0) {
+            bulkActionsBar.classList.add('show');
+        } else {
+            bulkActionsBar.classList.remove('show');
+        }
+    }
+});
+
+function bulkCreateOrder() {
+    const selectedProducts = Array.from(document.querySelectorAll('.product-select:checked')).map(cb => cb.value);
+    
+    if (selectedProducts.length === 0) {
+        alert('Please select at least one product.');
+        return;
+    }
+    
+    const params = new URLSearchParams({
+        supplier: '{{ supplier.id }}',
+        products: selectedProducts.join(',')
+    });
+    
+    window.location.href = `{% url 'inventory:po_create' %}?${params.toString()}`;
+}
+
+function bulkExport() {
+    const selectedProducts = Array.from(document.querySelectorAll('.product-select:checked')).map(cb => cb.value);
+    
+    if (selectedProducts.length === 0) {
+        alert('Please select at least one product.');
+        return;
+    }
+    
+    const params = new URLSearchParams(window.location.search);
+    params.set('export', 'xlsx');
+    params.set('selected', selectedProducts.join(','));
+    
+    window.location.href = `${window.location.pathname}?${params.toString()}`;
+}
+
+function clearSelection() {
+    document.querySelectorAll('.product-select').forEach(cb => cb.checked = false);
+    document.getElementById('selectAll').checked = false;
+    document.getElementById('bulkActionsBar').classList.remove('show');
+}
+</script>
+{% endblock %}

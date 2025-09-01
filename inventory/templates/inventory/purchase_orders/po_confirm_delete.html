@@ -1,0 +1,456 @@
+{% extends "dashboard_base.html" %}
+{% load static %}
+
+{% block page_title %}Delete Purchase Order - {{ object.po_number }}{% endblock %}
+
+{% block extra_css %}
+<link href="{% static 'inventory/css/inventory.css' %}" rel="stylesheet">
+<style>
+.delete-confirmation-container {
+    max-width: 800px;
+    margin: 4rem auto;
+    padding: 0 1rem;
+}
+
+.delete-warning-card {
+    background: white;
+    border: 1px solid #e5e7eb;
+    border-radius: 1rem;
+    overflow: hidden;
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.15);
+}
+
+.delete-warning-header {
+    background: linear-gradient(135deg, #dc2626, #ef4444);
+    color: white;
+    padding: 2rem;
+    text-align: center;
+}
+
+.warning-icon {
+    width: 80px;
+    height: 80px;
+    background: rgba(255, 255, 255, 0.2);
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin: 0 auto 1rem;
+    font-size: 2.5rem;
+}
+
+.delete-details {
+    padding: 2rem;
+}
+
+.po-summary {
+    background: #f8fafc;
+    border: 1px solid #e2e8f0;
+    border-radius: 0.75rem;
+    padding: 1.5rem;
+    margin-bottom: 2rem;
+}
+
+.summary-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 0.75rem 0;
+    border-bottom: 1px solid #e2e8f0;
+}
+
+.summary-row:last-child {
+    border-bottom: none;
+}
+
+.impact-warning {
+    background: #fef3c7;
+    border: 1px solid #f59e0b;
+    border-radius: 0.75rem;
+    padding: 1.5rem;
+    margin-bottom: 2rem;
+}
+
+.impact-item {
+    display: flex;
+    align-items: center;
+    margin-bottom: 0.75rem;
+}
+
+.impact-item:last-child {
+    margin-bottom: 0;
+}
+
+.impact-icon {
+    width: 24px;
+    height: 24px;
+    background: #f59e0b;
+    color: white;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin-right: 1rem;
+    font-size: 0.875rem;
+}
+
+.confirmation-input {
+    background: #fee2e2;
+    border: 2px solid #dc2626;
+    border-radius: 0.5rem;
+    padding: 1rem;
+    margin-bottom: 2rem;
+}
+
+.confirmation-input input {
+    background: white;
+    border: 1px solid #dc2626;
+    border-radius: 0.375rem;
+    padding: 0.75rem;
+    width: 100%;
+    font-family: monospace;
+    font-weight: 600;
+}
+
+.action-buttons {
+    display: flex;
+    gap: 1rem;
+    justify-content: center;
+    padding-top: 2rem;
+    border-top: 1px solid #e2e8f0;
+}
+
+.reason-select {
+    background: #f3f4f6;
+    border: 1px solid #d1d5db;
+    border-radius: 0.75rem;
+    padding: 1.5rem;
+    margin-bottom: 2rem;
+}
+
+@media (max-width: 768px) {
+    .delete-confirmation-container {
+        margin: 2rem auto;
+    }
+    
+    .delete-warning-header {
+        padding: 1.5rem;
+    }
+    
+    .warning-icon {
+        width: 60px;
+        height: 60px;
+        font-size: 2rem;
+    }
+    
+    .delete-details {
+        padding: 1.5rem;
+    }
+    
+    .action-buttons {
+        flex-direction: column;
+    }
+}
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="delete-confirmation-container">
+    <div class="delete-warning-card">
+        <!-- Warning Header -->
+        <div class="delete-warning-header">
+            <div class="warning-icon">
+                <i class="bi bi-exclamation-triangle"></i>
+            </div>
+            <h2 class="mb-2">Delete Purchase Order</h2>
+            <p class="mb-0 opacity-90">This action cannot be undone</p>
+        </div>
+        
+        <!-- Delete Details -->
+        <div class="delete-details">
+            <!-- Purchase Order Summary -->
+            <div class="po-summary">
+                <h5 class="fw-bold mb-3 text-danger">
+                    <i class="bi bi-file-earmark-x me-2"></i>Purchase Order to Delete
+                </h5>
+                
+                <div class="summary-row">
+                    <span class="text-muted">PO Number:</span>
+                    <span class="fw-bold font-mono">{{ object.po_number }}</span>
+                </div>
+                
+                <div class="summary-row">
+                    <span class="text-muted">Supplier:</span>
+                    <span class="fw-bold">{{ object.supplier.name }}</span>
+                </div>
+                
+                <div class="summary-row">
+                    <span class="text-muted">Status:</span>
+                    <span class="badge bg-{{ object.status }} text-uppercase">{{ object.get_status_display }}</span>
+                </div>
+                
+                <div class="summary-row">
+                    <span class="text-muted">Order Date:</span>
+                    <span>{{ object.order_date|date:"F d, Y" }}</span>
+                </div>
+                
+                <div class="summary-row">
+                    <span class="text-muted">Total Items:</span>
+                    <span class="fw-bold">{{ object.items.count }} item{{ object.items.count|pluralize }}</span>
+                </div>
+                
+                <div class="summary-row">
+                    <span class="text-muted">Total Value:</span>
+                    <span class="fw-bold text-success">${{ object.total_amount|floatformat:2 }}</span>
+                </div>
+                
+                {% if object.expected_delivery_date %}
+                <div class="summary-row">
+                    <span class="text-muted">Expected Delivery:</span>
+                    <span>{{ object.expected_delivery_date|date:"F d, Y" }}</span>
+                </div>
+                {% endif %}
+            </div>
+
+            <!-- Impact Warning -->
+            <div class="impact-warning">
+                <h6 class="fw-bold text-warning mb-3">
+                    <i class="bi bi-exclamation-triangle me-2"></i>What happens when you delete this purchase order:
+                </h6>
+                
+                <div class="impact-item">
+                    <div class="impact-icon">
+                        <i class="bi bi-file-earmark-x"></i>
+                    </div>
+                    <div>
+                        <strong>Purchase order record will be permanently deleted</strong>
+                        <div class="text-muted small">All order details, items, and history will be lost</div>
+                    </div>
+                </div>
+                
+                {% if object.status != 'draft' %}
+                <div class="impact-item">
+                    <div class="impact-icon">
+                        <i class="bi bi-building"></i>
+                    </div>
+                    <div>
+                        <strong>Supplier communication may be affected</strong>
+                        <div class="text-muted small">The supplier may still expect this order if already sent</div>
+                    </div>
+                </div>
+                {% endif %}
+                
+                {% if object.items.exists %}
+                <div class="impact-item">
+                    <div class="impact-icon">
+                        <i class="bi bi-box"></i>
+                    </div>
+                    <div>
+                        <strong>{{ object.items.count }} product order{{ object.items.count|pluralize }} will be lost</strong>
+                        <div class="text-muted small">You'll need to recreate these orders manually</div>
+                    </div>
+                </div>
+                {% endif %}
+                
+                <div class="impact-item">
+                    <div class="impact-icon">
+                        <i class="bi bi-graph-down"></i>
+                    </div>
+                    <div>
+                        <strong>Reporting data will be affected</strong>
+                        <div class="text-muted small">Purchase history and analytics will no longer include this order</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Deletion Reason -->
+            <div class="reason-select">
+                <h6 class="fw-bold mb-3">Why are you deleting this purchase order?</h6>
+                <form id="deleteForm" method="post">
+                    {% csrf_token %}
+                    <div class="mb-3">
+                        <select class="form-select" id="deleteReason" name="delete_reason" required>
+                            <option value="">Select a reason...</option>
+                            <option value="duplicate">Duplicate order created by mistake</option>
+                            <option value="cancelled_by_supplier">Supplier cancelled the order</option>
+                            <option value="wrong_supplier">Wrong supplier selected</option>
+                            <option value="budget_constraints">Budget constraints</option>
+                            <option value="no_longer_needed">Products no longer needed</option>
+                            <option value="data_cleanup">Data cleanup/maintenance</option>
+                            <option value="other">Other reason</option>
+                        </select>
+                    </div>
+                    
+                    <div id="otherReasonInput" style="display: none;">
+                        <label class="form-label">Please specify:</label>
+                        <textarea class="form-control" name="other_reason" rows="3" 
+                                  placeholder="Enter the specific reason for deletion..."></textarea>
+                    </div>
+                </form>
+            </div>
+
+            <!-- Confirmation Input -->
+            <div class="confirmation-input">
+                <h6 class="fw-bold text-danger mb-3">Type the PO number to confirm deletion</h6>
+                <p class="text-muted mb-3">
+                    To confirm deletion, type <strong class="font-mono">{{ object.po_number }}</strong> in the field below:
+                </p>
+                <input type="text" id="confirmationInput" placeholder="Type {{ object.po_number }} here" 
+                       autocomplete="off" spellcheck="false">
+                <div id="confirmationError" class="text-danger small mt-2" style="display: none;">
+                    The PO number doesn't match. Please type exactly: {{ object.po_number }}
+                </div>
+            </div>
+
+            <!-- Action Buttons -->
+            <div class="action-buttons">
+                <a href="{% url 'inventory:po_detail' object.id %}" class="btn btn-outline-secondary btn-lg">
+                    <i class="bi bi-arrow-left me-2"></i>Cancel, Keep Order
+                </a>
+                
+                <button type="button" class="btn btn-danger btn-lg" id="confirmDeleteBtn" disabled>
+                    <i class="bi bi-trash me-2"></i>Yes, Delete Purchase Order
+                </button>
+            </div>
+
+            <!-- Additional Safety Notes -->
+            <div class="mt-4 pt-4 border-top text-center">
+                <h6 class="fw-bold text-muted mb-2">Alternative Actions</h6>
+                <p class="text-muted small mb-3">
+                    Instead of deleting, you might want to consider:
+                </p>
+                <div class="d-flex flex-wrap gap-2 justify-content-center">
+                    {% if object.status != 'cancelled' %}
+                    <a href="{% url 'inventory:po_cancel' object.id %}" class="btn btn-outline-warning btn-sm">
+                        <i class="bi bi-x-circle me-1"></i>Cancel Order
+                    </a>
+                    {% endif %}
+                    
+                    {% if object.status == 'draft' %}
+                    <a href="{% url 'inventory:po_update' object.id %}" class="btn btn-outline-primary btn-sm">
+                        <i class="bi bi-pencil me-1"></i>Edit Order
+                    </a>
+                    {% endif %}
+                    
+                    <a href="{% url 'inventory:po_duplicate' object.id %}" class="btn btn-outline-info btn-sm">
+                        <i class="bi bi-files me-1"></i>Duplicate & Modify
+                    </a>
+                </div>
+                
+                <div class="mt-3">
+                    <small class="text-muted">
+                        <i class="bi bi-info-circle me-1"></i>
+                        These actions preserve the order history while addressing your needs
+                    </small>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const deleteForm = document.getElementById('deleteForm');
+    const deleteReasonSelect = document.getElementById('deleteReason');
+    const otherReasonInput = document.getElementById('otherReasonInput');
+    const confirmationInput = document.getElementById('confirmationInput');
+    const confirmationError = document.getElementById('confirmationError');
+    const confirmDeleteBtn = document.getElementById('confirmDeleteBtn');
+    const poNumber = '{{ object.po_number }}';
+    
+    // Show/hide other reason input
+    deleteReasonSelect.addEventListener('change', function() {
+        if (this.value === 'other') {
+            otherReasonInput.style.display = 'block';
+        } else {
+            otherReasonInput.style.display = 'none';
+        }
+        validateForm();
+    });
+    
+    // Validate confirmation input
+    confirmationInput.addEventListener('input', function() {
+        validateForm();
+    });
+    
+    // Form validation
+    function validateForm() {
+        const reasonSelected = deleteReasonSelect.value !== '';
+        const confirmationMatches = confirmationInput.value === poNumber;
+        
+        if (confirmationInput.value && !confirmationMatches) {
+            confirmationError.style.display = 'block';
+        } else {
+            confirmationError.style.display = 'none';
+        }
+        
+        // Enable delete button only if both conditions are met
+        confirmDeleteBtn.disabled = !(reasonSelected && confirmationMatches);
+        
+        if (reasonSelected && confirmationMatches) {
+            confirmDeleteBtn.classList.remove('btn-secondary');
+            confirmDeleteBtn.classList.add('btn-danger');
+        } else {
+            confirmDeleteBtn.classList.remove('btn-danger');
+            confirmDeleteBtn.classList.add('btn-secondary');
+        }
+    }
+    
+    // Handle delete confirmation
+    confirmDeleteBtn.addEventListener('click', function() {
+        if (this.disabled) return;
+        
+        const reason = deleteReasonSelect.value;
+        const otherReason = document.querySelector('[name="other_reason"]')?.value || '';
+        
+        // Final confirmation dialog
+        const confirmationMessage = `Are you absolutely sure you want to delete purchase order ${poNumber}?\n\nThis action is PERMANENT and cannot be undone.`;
+        
+        if (confirm(confirmationMessage)) {
+            // Add the confirmation to the form
+            const confirmationField = document.createElement('input');
+            confirmationField.type = 'hidden';
+            confirmationField.name = 'confirmation';
+            confirmationField.value = poNumber;
+            deleteForm.appendChild(confirmationField);
+            
+            // Submit the form
+            deleteForm.submit();
+        }
+    });
+    
+    // Prevent accidental form submission with Enter key
+    document.addEventListener('keydown', function(e) {
+        if (e.key === 'Enter' && e.target === confirmationInput) {
+            e.preventDefault();
+        }
+    });
+    
+    // Auto-focus on confirmation input when reason is selected
+    deleteReasonSelect.addEventListener('change', function() {
+        if (this.value) {
+            setTimeout(() => {
+                confirmationInput.focus();
+            }, 100);
+        }
+    });
+    
+    // Add warning when user tries to leave the page
+    let formSubmitted = false;
+    
+    deleteForm.addEventListener('submit', function() {
+        formSubmitted = true;
+    });
+    
+    window.addEventListener('beforeunload', function(e) {
+        if (!formSubmitted && (deleteReasonSelect.value || confirmationInput.value)) {
+            e.preventDefault();
+            e.returnValue = 'You have unsaved changes. Are you sure you want to leave?';
+            return e.returnValue;
+        }
+    });
+});
+</script>
+{% endblock %}
