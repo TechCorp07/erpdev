@@ -1,0 +1,654 @@
+{% extends "dashboard_base.html" %}
+{% load static %}
+
+{% block page_title %}Inventory Overview{% endblock %}
+
+{% block dashboard_content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+  <div>
+    <nav aria-label="breadcrumb">
+      <ol class="breadcrumb mb-1">
+        <li class="breadcrumb-item"><a href="{% url 'inventory:dashboard' %}">Inventory</a></li>
+        <li class="breadcrumb-item active">Overview</li>
+      </ol>
+    </nav>
+    <h1 class="h3 mb-0 text-gray-800">Inventory Overview</h1>
+    <p class="text-muted mb-0">Comprehensive view of your inventory performance and key metrics</p>
+  </div>
+  
+  <div class="btn-group" role="group">
+    <button type="button" class="btn btn-outline-primary" id="refresh-data">
+      <i class="bi bi-arrow-clockwise me-2"></i>Refresh
+    </button>
+    <div class="btn-group" role="group">
+      <button class="btn btn-outline-secondary dropdown-toggle" type="button" data-bs-toggle="dropdown">
+        <i class="bi bi-download"></i> Export
+      </button>
+      <ul class="dropdown-menu">
+        <li><a class="dropdown-item" href="?export=pdf">
+          <i class="bi bi-file-pdf me-2"></i>Download PDF Report
+        </a></li>
+        <li><a class="dropdown-item" href="?export=excel">
+          <i class="bi bi-file-spreadsheet me-2"></i>Export to Excel
+        </a></li>
+        <li><hr class="dropdown-divider"></li>
+        <li><a class="dropdown-item" href="{% url 'inventory:analytics' %}">
+          <i class="bi bi-graph-up me-2"></i>Detailed Analytics
+        </a></li>
+        <li><a class="dropdown-item" href="{% url 'inventory:reports_dashboard' %}">
+          <i class="bi bi-clipboard-data me-2"></i>All Reports
+        </a></li>
+      </ul>
+    </div>
+  </div>
+</div>
+
+<!-- KPI Summary Cards -->
+<div class="row mb-4">
+  <div class="col-lg-3 col-md-6 mb-4">
+    <div class="card bg-primary text-white shadow h-100 py-2">
+      <div class="card-body">
+        <div class="row no-gutters align-items-center">
+          <div class="col mr-2">
+            <div class="text-xs font-weight-bold text-white-50 text-uppercase mb-1">
+              Total Products
+            </div>
+            <div class="h5 mb-0 font-weight-bold">{{ total_products|default:0 }}</div>
+            <div class="text-xs">
+              <span class="text-white-50">
+                {% if active_products_change >= 0 %}
+                  <i class="bi bi-arrow-up"></i> +{{ active_products_change }}
+                {% else %}
+                  <i class="bi bi-arrow-down"></i> {{ active_products_change }}
+                {% endif %}
+                this month
+              </span>
+            </div>
+          </div>
+          <div class="col-auto">
+            <i class="bi bi-box-seam fa-2x text-white-50"></i>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="col-lg-3 col-md-6 mb-4">
+    <div class="card bg-success text-white shadow h-100 py-2">
+      <div class="card-body">
+        <div class="row no-gutters align-items-center">
+          <div class="col mr-2">
+            <div class="text-xs font-weight-bold text-white-50 text-uppercase mb-1">
+              Total Stock Value
+            </div>
+            <div class="h5 mb-0 font-weight-bold">${{ total_stock_value|floatformat:0|default:0 }}</div>
+            <div class="text-xs">
+              <span class="text-white-50">
+                {% if stock_value_change >= 0 %}
+                  <i class="bi bi-arrow-up"></i> +{{ stock_value_change|floatformat:1 }}%
+                {% else %}
+                  <i class="bi bi-arrow-down"></i> {{ stock_value_change|floatformat:1 }}%
+                {% endif %}
+                vs last month
+              </span>
+            </div>
+          </div>
+          <div class="col-auto">
+            <i class="bi bi-currency-dollar fa-2x text-white-50"></i>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="col-lg-3 col-md-6 mb-4">
+    <div class="card bg-warning text-white shadow h-100 py-2">
+      <div class="card-body">
+        <div class="row no-gutters align-items-center">
+          <div class="col mr-2">
+            <div class="text-xs font-weight-bold text-white-50 text-uppercase mb-1">
+              Low Stock Items
+            </div>
+            <div class="h5 mb-0 font-weight-bold">{{ low_stock_count|default:0 }}</div>
+            <div class="text-xs">
+              <a href="{% url 'inventory:low_stock_view' %}" class="text-white-50 text-decoration-none">
+                <i class="bi bi-arrow-right"></i> View Details
+              </a>
+            </div>
+          </div>
+          <div class="col-auto">
+            <i class="bi bi-exclamation-triangle fa-2x text-white-50"></i>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="col-lg-3 col-md-6 mb-4">
+    <div class="card bg-info text-white shadow h-100 py-2">
+      <div class="card-body">
+        <div class="row no-gutters align-items-center">
+          <div class="col mr-2">
+            <div class="text-xs font-weight-bold text-white-50 text-uppercase mb-1">
+              Inventory Turnover
+            </div>
+            <div class="h5 mb-0 font-weight-bold">{{ inventory_turnover|floatformat:1|default:0 }}x</div>
+            <div class="text-xs">
+              <span class="text-white-50">
+                Annual turnover ratio
+              </span>
+            </div>
+          </div>
+          <div class="col-auto">
+            <i class="bi bi-arrow-repeat fa-2x text-white-50"></i>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Charts and Analytics Row -->
+<div class="row mb-4">
+  <!-- Stock Value Trend Chart -->
+  <div class="col-xl-8 col-lg-7 mb-4">
+    <div class="card shadow h-100">
+      <div class="card-header py-3 d-flex justify-content-between align-items-center">
+        <h6 class="m-0 font-weight-bold text-primary">Stock Value Trend</h6>
+        <div class="btn-group btn-group-sm" role="group">
+          <button type="button" class="btn btn-outline-secondary active" data-period="30">30 Days</button>
+          <button type="button" class="btn btn-outline-secondary" data-period="90">90 Days</button>
+          <button type="button" class="btn btn-outline-secondary" data-period="365">1 Year</button>
+        </div>
+      </div>
+      <div class="card-body">
+        <canvas id="stockValueChart" width="400" height="200"></canvas>
+      </div>
+    </div>
+  </div>
+
+  <!-- Top Categories Pie Chart -->
+  <div class="col-xl-4 col-lg-5 mb-4">
+    <div class="card shadow h-100">
+      <div class="card-header py-3">
+        <h6 class="m-0 font-weight-bold text-primary">Stock by Category</h6>
+      </div>
+      <div class="card-body">
+        <canvas id="categoryPieChart" width="400" height="300"></canvas>
+        <div class="mt-3">
+          <div class="small">
+            {% for category in top_categories %}
+            <div class="d-flex justify-content-between align-items-center mb-1">
+              <div class="d-flex align-items-center">
+                <div class="me-2" style="width: 12px; height: 12px; background-color: {{ category.color }}; border-radius: 2px;"></div>
+                <span>{{ category.name|truncatechars:15 }}</span>
+              </div>
+              <span class="fw-bold">${{ category.value|floatformat:0 }}</span>
+            </div>
+            {% endfor %}
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Category Performance and Supplier Breakdown -->
+<div class="row mb-4">
+  <!-- Category Performance Table -->
+  <div class="col-lg-6 mb-4">
+    <div class="card shadow h-100">
+      <div class="card-header py-3 d-flex justify-content-between align-items-center">
+        <h6 class="m-0 font-weight-bold text-primary">Category Performance</h6>
+        <a href="{% url 'inventory:category_list' %}" class="btn btn-sm btn-outline-primary">
+          <i class="bi bi-arrow-right"></i> View All
+        </a>
+      </div>
+      <div class="card-body p-0">
+        <div class="table-responsive">
+          <table class="table table-hover mb-0">
+            <thead class="bg-light">
+              <tr>
+                <th>Category</th>
+                <th>Products</th>
+                <th>Stock Value</th>
+                <th>Turnover</th>
+                <th>Status</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for category in category_performance %}
+              <tr>
+                <td>
+                  <div class="d-flex align-items-center">
+                    <div class="me-2" style="width: 12px; height: 12px; background-color: {{ category.color|default:'#6c757d' }}; border-radius: 2px;"></div>
+                    <a href="{% url 'inventory:category_detail' category.pk %}" class="text-decoration-none fw-bold">
+                      {{ category.name|truncatechars:20 }}
+                    </a>
+                  </div>
+                </td>
+                <td>
+                  <span class="badge bg-info">{{ category.product_count|default:0 }}</span>
+                </td>
+                <td>
+                  <span class="fw-bold">${{ category.stock_value|floatformat:0|default:0 }}</span>
+                </td>
+                <td>
+                  <div class="d-flex align-items-center">
+                    <span class="me-2">{{ category.turnover_rate|floatformat:1|default:"0.0" }}x</span>
+                    {% if category.turnover_trend == 'up' %}
+                      <i class="bi bi-arrow-up text-success"></i>
+                    {% elif category.turnover_trend == 'down' %}
+                      <i class="bi bi-arrow-down text-danger"></i>
+                    {% else %}
+                      <i class="bi bi-dash text-muted"></i>
+                    {% endif %}
+                  </div>
+                </td>
+                <td>
+                  {% if category.performance_score >= 80 %}
+                    <span class="badge bg-success">Excellent</span>
+                  {% elif category.performance_score >= 60 %}
+                    <span class="badge bg-warning">Good</span>
+                  {% elif category.performance_score >= 40 %}
+                    <span class="badge bg-info">Fair</span>
+                  {% else %}
+                    <span class="badge bg-danger">Poor</span>
+                  {% endif %}
+                </td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Top Suppliers -->
+  <div class="col-lg-6 mb-4">
+    <div class="card shadow h-100">
+      <div class="card-header py-3 d-flex justify-content-between align-items-center">
+        <h6 class="m-0 font-weight-bold text-primary">Top Suppliers</h6>
+        <a href="{% url 'inventory:supplier_list' %}" class="btn btn-sm btn-outline-primary">
+          <i class="bi bi-arrow-right"></i> View All
+        </a>
+      </div>
+      <div class="card-body p-0">
+        <div class="table-responsive">
+          <table class="table table-hover mb-0">
+            <thead class="bg-light">
+              <tr>
+                <th>Supplier</th>
+                <th>Products</th>
+                <th>Stock Value</th>
+                <th>Performance</th>
+                <th>Status</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for supplier in top_suppliers %}
+              <tr>
+                <td>
+                  <div class="d-flex align-items-center">
+                    {% if supplier.logo %}
+                      <img src="{{ supplier.logo.url }}" alt="{{ supplier.name }}" class="me-2" style="width: 24px; height: 24px; object-fit: contain; border-radius: 2px;">
+                    {% else %}
+                      <i class="bi bi-building me-2 text-muted"></i>
+                    {% endif %}
+                    <div>
+                      <a href="{% url 'inventory:supplier_detail' supplier.pk %}" class="fw-bold text-decoration-none">
+                        {{ supplier.name|truncatechars:20 }}
+                      </a>
+                      {% if supplier.country %}
+                        <br><small class="text-muted">{{ supplier.country }}</small>
+                      {% endif %}
+                    </div>
+                  </div>
+                </td>
+                <td>
+                  <span class="badge bg-info">{{ supplier.product_count|default:0 }}</span>
+                </td>
+                <td>
+                  <span class="fw-bold">${{ supplier.stock_value|floatformat:0|default:0 }}</span>
+                </td>
+                <td>
+                  <div class="d-flex align-items-center">
+                    <div class="progress me-2" style="width: 60px; height: 8px;">
+                      <div class="progress-bar bg-success" style="width: {{ supplier.performance_score|default:0 }}%"></div>
+                    </div>
+                    <small class="text-muted">{{ supplier.performance_score|default:0|floatformat:0 }}%</small>
+                  </div>
+                </td>
+                <td>
+                  {% if supplier.is_active %}
+                    <span class="badge bg-success">Active</span>
+                  {% else %}
+                    <span class="badge bg-secondary">Inactive</span>
+                  {% endif %}
+                </td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Stock Movement and Alerts Row -->
+<div class="row mb-4">
+  <!-- Recent Stock Movements -->
+  <div class="col-lg-8 mb-4">
+    <div class="card shadow h-100">
+      <div class="card-header py-3 d-flex justify-content-between align-items-center">
+        <h6 class="m-0 font-weight-bold text-primary">Recent Stock Movements</h6>
+        <a href="{% url 'inventory:stock_movement_list' %}" class="btn btn-sm btn-outline-primary">
+          <i class="bi bi-arrow-right"></i> View All
+        </a>
+      </div>
+      <div class="card-body p-0">
+        <div class="table-responsive">
+          <table class="table table-hover mb-0">
+            <thead class="bg-light">
+              <tr>
+                <th>Product</th>
+                <th>Type</th>
+                <th>Quantity</th>
+                <th>Location</th>
+                <th>Date</th>
+                <th>User</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for movement in recent_movements %}
+              <tr>
+                <td>
+                  <div class="d-flex align-items-center">
+                    {% if movement.product.image %}
+                      <img src="{{ movement.product.image.url }}" alt="{{ movement.product.name }}" class="me-2" style="width: 30px; height: 30px; object-fit: cover; border-radius: 4px;">
+                    {% else %}
+                      <div class="me-2 bg-light d-flex align-items-center justify-content-center" style="width: 30px; height: 30px; border-radius: 4px;">
+                        <i class="bi bi-image text-muted small"></i>
+                      </div>
+                    {% endif %}
+                    <div>
+                      <div class="fw-bold">{{ movement.product.name|truncatechars:25 }}</div>
+                      <small class="text-muted">{{ movement.product.sku }}</small>
+                    </div>
+                  </div>
+                </td>
+                <td>
+                  {% if movement.movement_type == 'in' %}
+                    <span class="badge bg-success">In</span>
+                  {% elif movement.movement_type == 'out' %}
+                    <span class="badge bg-danger">Out</span>
+                  {% elif movement.movement_type == 'transfer' %}
+                    <span class="badge bg-info">Transfer</span>
+                  {% else %}
+                    <span class="badge bg-warning">Adjustment</span>
+                  {% endif %}
+                </td>
+                <td>
+                  <span class="fw-bold {% if movement.quantity > 0 %}text-success{% else %}text-danger{% endif %}">
+                    {% if movement.quantity > 0 %}+{% endif %}{{ movement.quantity|floatformat:0 }}
+                  </span>
+                </td>
+                <td>
+                  {% if movement.to_location %}
+                    <small class="text-muted">{{ movement.to_location.name }}</small>
+                  {% elif movement.from_location %}
+                    <small class="text-muted">{{ movement.from_location.name }}</small>
+                  {% else %}
+                    <small class="text-muted">—</small>
+                  {% endif %}
+                </td>
+                <td>
+                  <div class="small">
+                    <div>{{ movement.created_at|date:"M j" }}</div>
+                    <div class="text-muted">{{ movement.created_at|time:"g:i A" }}</div>
+                  </div>
+                </td>
+                <td>
+                  <div class="small">
+                    {% if movement.user %}
+                      {{ movement.user.get_full_name|default:movement.user.username|truncatechars:15 }}
+                    {% else %}
+                      <span class="text-muted">System</span>
+                    {% endif %}
+                  </div>
+                </td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Active Alerts -->
+  <div class="col-lg-4 mb-4">
+    <div class="card shadow h-100">
+      <div class="card-header py-3 d-flex justify-content-between align-items-center">
+        <h6 class="m-0 font-weight-bold text-primary">Active Alerts</h6>
+        <a href="{% url 'inventory:alerts_dashboard' %}" class="btn btn-sm btn-outline-primary">
+          <i class="bi bi-arrow-right"></i> View All
+        </a>
+      </div>
+      <div class="card-body p-0">
+        {% if active_alerts %}
+        <div class="list-group list-group-flush">
+          {% for alert in active_alerts %}
+          <div class="list-group-item list-group-item-action">
+            <div class="d-flex justify-content-between align-items-start">
+              <div class="me-2">
+                <div class="fw-bold">
+                  {% if alert.priority == 'high' %}
+                    <i class="bi bi-exclamation-triangle text-danger me-1"></i>
+                  {% elif alert.priority == 'medium' %}
+                    <i class="bi bi-exclamation-circle text-warning me-1"></i>
+                  {% else %}
+                    <i class="bi bi-info-circle text-info me-1"></i>
+                  {% endif %}
+                  {{ alert.title|truncatechars:25 }}
+                </div>
+                <p class="mb-1 small text-muted">{{ alert.description|truncatechars:50 }}</p>
+                <small class="text-muted">{{ alert.created_at|timesince }} ago</small>
+              </div>
+              <div>
+                {% if alert.priority == 'high' %}
+                  <span class="badge bg-danger">High</span>
+                {% elif alert.priority == 'medium' %}
+                  <span class="badge bg-warning">Medium</span>
+                {% else %}
+                  <span class="badge bg-info">Low</span>
+                {% endif %}
+              </div>
+            </div>
+          </div>
+          {% endfor %}
+        </div>
+        {% else %}
+        <div class="text-center p-4">
+          <i class="bi bi-check-circle fa-3x text-success mb-3"></i>
+          <h6>No Active Alerts</h6>
+          <p class="text-muted small">All systems are running smoothly!</p>
+        </div>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Quick Actions Card -->
+<div class="card shadow mb-4">
+  <div class="card-header py-3">
+    <h6 class="m-0 font-weight-bold text-primary">
+      <i class="bi bi-lightning me-2"></i>Quick Actions
+    </h6>
+  </div>
+  <div class="card-body">
+    <div class="row text-center">
+      <div class="col-lg-2 col-md-4 col-sm-6 mb-3">
+        <a href="{% url 'inventory:product_create' %}" class="btn btn-outline-primary btn-sm d-block">
+          <i class="bi bi-plus-circle fa-2x mb-2"></i>
+          <div>Add Product</div>
+        </a>
+      </div>
+      <div class="col-lg-2 col-md-4 col-sm-6 mb-3">
+        <a href="{% url 'inventory:stock_adjustment' %}" class="btn btn-outline-warning btn-sm d-block">
+          <i class="bi bi-plus-minus fa-2x mb-2"></i>
+          <div>Adjust Stock</div>
+        </a>
+      </div>
+      <div class="col-lg-2 col-md-4 col-sm-6 mb-3">
+        <a href="{% url 'inventory:stock_take_create' %}" class="btn btn-outline-info btn-sm d-block">
+          <i class="bi bi-clipboard-check fa-2x mb-2"></i>
+          <div>Stock Take</div>
+        </a>
+      </div>
+      <div class="col-lg-2 col-md-4 col-sm-6 mb-3">
+        <a href="{% url 'inventory:low_stock_view' %}" class="btn btn-outline-danger btn-sm d-block">
+          <i class="bi bi-exclamation-triangle fa-2x mb-2"></i>
+          <div>Low Stock</div>
+        </a>
+      </div>
+      <div class="col-lg-2 col-md-4 col-sm-6 mb-3">
+        <a href="{% url 'inventory:reports_dashboard' %}" class="btn btn-outline-secondary btn-sm d-block">
+          <i class="bi bi-bar-chart fa-2x mb-2"></i>
+          <div>Reports</div>
+        </a>
+      </div>
+      <div class="col-lg-2 col-md-4 col-sm-6 mb-3">
+        <a href="{% url 'inventory:configuration' %}" class="btn btn-outline-secondary btn-sm d-block">
+          <i class="bi bi-gear fa-2x mb-2"></i>
+          <div>Settings</div>
+        </a>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- JavaScript for Charts -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/3.9.1/chart.min.js"></script>
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // Stock Value Trend Chart
+    const stockValueCtx = document.getElementById('stockValueChart').getContext('2d');
+    const stockValueChart = new Chart(stockValueCtx, {
+        type: 'line',
+        data: {
+            labels: {{ stock_trend_labels|safe }},
+            datasets: [{
+                label: 'Stock Value ($)',
+                data: {{ stock_trend_data|safe }},
+                borderColor: '#4e73df',
+                backgroundColor: 'rgba(78, 115, 223, 0.1)',
+                borderWidth: 2,
+                fill: true,
+                tension: 0.3
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                legend: {
+                    display: false
+                }
+            },
+            scales: {
+                y: {
+                    beginAtZero: true,
+                    ticks: {
+                        callback: function(value, index, values) {
+                            return '$' + value.toLocaleString();
+                        }
+                    }
+                }
+            }
+        }
+    });
+
+    // Category Pie Chart
+    const categoryPieCtx = document.getElementById('categoryPieChart').getContext('2d');
+    const categoryPieChart = new Chart(categoryPieCtx, {
+        type: 'doughnut',
+        data: {
+            labels: {{ category_labels|safe }},
+            datasets: [{
+                data: {{ category_data|safe }},
+                backgroundColor: [
+                    '#4e73df', '#1cc88a', '#36b9cc', '#f6c23e', '#e74a3b',
+                    '#858796', '#5a5c69', '#2e59d9', '#17a673', '#2c9faf'
+                ],
+                borderWidth: 2,
+                borderColor: '#ffffff'
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                legend: {
+                    display: false
+                }
+            }
+        }
+    });
+
+    // Chart period filters
+    document.querySelectorAll('[data-period]').forEach(button => {
+        button.addEventListener('click', function() {
+            const period = this.getAttribute('data-period');
+            
+            // Update active button
+            document.querySelectorAll('[data-period]').forEach(b => b.classList.remove('active'));
+            this.classList.add('active');
+            
+            // Reload chart data (you would implement this endpoint)
+            fetch(`{% url 'inventory:stock_trend_data' %}?period=${period}`)
+                .then(response => response.json())
+                .then(data => {
+                    stockValueChart.data.labels = data.labels;
+                    stockValueChart.data.datasets[0].data = data.values;
+                    stockValueChart.update();
+                })
+                .catch(error => console.error('Error loading chart data:', error));
+        });
+    });
+
+    // Auto-refresh functionality
+    const refreshBtn = document.getElementById('refresh-data');
+    refreshBtn.addEventListener('click', function() {
+        const originalHTML = this.innerHTML;
+        this.innerHTML = '<i class="bi bi-arrow-clockwise me-2 spinner-border spinner-border-sm"></i>Refreshing...';
+        this.disabled = true;
+        
+        // Simulate refresh (in real implementation, you'd reload the data)
+        setTimeout(() => {
+            location.reload();
+        }, 1000);
+    });
+
+    // Real-time updates (optional)
+    setInterval(function() {
+        // Update only the KPI cards without full page reload
+        fetch('{% url "inventory:overview_data_api" %}')
+            .then(response => response.json())
+            .then(data => {
+                // Update KPI values
+                document.querySelector('.card.bg-primary .h5').textContent = data.total_products;
+                document.querySelector('.card.bg-success .h5').textContent = '$' + data.total_stock_value.toLocaleString();
+                document.querySelector('.card.bg-warning .h5').textContent = data.low_stock_count;
+                document.querySelector('.card.bg-info .h5').textContent = data.inventory_turnover.toFixed(1) + 'x';
+            })
+            .catch(error => console.log('Auto-refresh failed:', error));
+    }, 300000); // Update every 5 minutes
+});
+</script>
+
+{% csrf_token %}
+{% endblock %}

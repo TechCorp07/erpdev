@@ -1,0 +1,922 @@
+{% extends "dashboard_base.html" %}
+{% load static %}
+
+{% block page_title %}Stock Adjustment{% endblock %}
+
+{% block dashboard_content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+  <div>
+    <nav aria-label="breadcrumb">
+      <ol class="breadcrumb mb-1">
+        <li class="breadcrumb-item"><a href="{% url 'inventory:dashboard' %}">Inventory</a></li>
+        <li class="breadcrumb-item"><a href="{% url 'inventory:stock_overview' %}">Stock Overview</a></li>
+        <li class="breadcrumb-item active">Stock Adjustment</li>
+      </ol>
+    </nav>
+    <h1 class="h3 mb-0 text-gray-800">
+      <i class="bi bi-plus-minus me-2"></i>Stock Adjustment
+    </h1>
+    <p class="text-muted mb-0">Adjust inventory levels with full audit trail and validation</p>
+  </div>
+  
+  <div class="btn-group" role="group">
+    <a href="{% url 'inventory:stock_overview' %}" class="btn btn-outline-secondary">
+      <i class="bi bi-arrow-left me-2"></i>Back to Overview
+    </a>
+    <a href="{% url 'inventory:bulk_stock_adjustment' %}" class="btn btn-outline-primary">
+      <i class="bi bi-layers me-2"></i>Bulk Adjustment
+    </a>
+    <div class="btn-group" role="group">
+      <button class="btn btn-outline-secondary dropdown-toggle" type="button" data-bs-toggle="dropdown">
+        <i class="bi bi-three-dots"></i>
+      </button>
+      <ul class="dropdown-menu">
+        <li><a class="dropdown-item" href="{% url 'inventory:stock_movement_list' %}">
+          <i class="bi bi-clock-history me-2"></i>Movement History
+        </a></li>
+        <li><a class="dropdown-item" href="{% url 'inventory:stock_take_create' %}">
+          <i class="bi bi-clipboard-check me-2"></i>Stock Take
+        </a></li>
+        <li><hr class="dropdown-divider"></li>
+        <li><a class="dropdown-item" href="{% url 'inventory:adjustment_template' %}">
+          <i class="bi bi-file-spreadsheet me-2"></i>Download Template
+        </a></li>
+      </ul>
+    </div>
+  </div>
+</div>
+
+<!-- Adjustment Type Selection -->
+<div class="row mb-4">
+  <div class="col-md-12">
+    <div class="card">
+      <div class="card-header">
+        <h6 class="card-title mb-0">
+          <i class="bi bi-gear me-2"></i>Adjustment Type
+        </h6>
+      </div>
+      <div class="card-body">
+        <div class="row">
+          <div class="col-lg-4 col-md-6 mb-3">
+            <div class="card adjustment-type-card h-100" onclick="selectAdjustmentType('single')">
+              <div class="card-body text-center">
+                <i class="bi bi-box-seam text-primary" style="font-size: 2rem;"></i>
+                <h6 class="card-title mt-2">Single Product</h6>
+                <p class="card-text text-muted small">
+                  Adjust stock levels for one specific product at a time
+                </p>
+                <button class="btn btn-outline-primary btn-sm">Select</button>
+              </div>
+            </div>
+          </div>
+          
+          <div class="col-lg-4 col-md-6 mb-3">
+            <div class="card adjustment-type-card h-100" onclick="selectAdjustmentType('multiple')">
+              <div class="card-body text-center">
+                <i class="bi bi-boxes text-success" style="font-size: 2rem;"></i>
+                <h6 class="card-title mt-2">Multiple Products</h6>
+                <p class="card-text text-muted small">
+                  Adjust several products in a single transaction
+                </p>
+                <button class="btn btn-outline-success btn-sm">Select</button>
+              </div>
+            </div>
+          </div>
+          
+          <div class="col-lg-4 col-md-6 mb-3">
+            <div class="card adjustment-type-card h-100" onclick="selectAdjustmentType('location')">
+              <div class="card-body text-center">
+                <i class="bi bi-building text-warning" style="font-size: 2rem;"></i>
+                <h6 class="card-title mt-2">By Location</h6>
+                <p class="card-text text-muted small">
+                  Adjust all products at a specific location
+                </p>
+                <button class="btn btn-outline-warning btn-sm">Select</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Single Product Adjustment Form -->
+<div id="singleAdjustmentForm" style="display: none;">
+  <form method="post" id="stockAdjustmentForm">
+    {% csrf_token %}
+    <input type="hidden" name="adjustment_type" value="single">
+    
+    <div class="row">
+      <div class="col-md-8">
+        <div class="card">
+          <div class="card-header">
+            <h6 class="card-title mb-0">
+              <i class="bi bi-box-seam me-2"></i>Product Selection & Adjustment
+            </h6>
+          </div>
+          <div class="card-body">
+            <!-- Product Selection -->
+            <div class="row mb-4">
+              <div class="col-md-6">
+                <label for="productSelect" class="form-label">
+                  <i class="bi bi-search me-1"></i>Select Product <span class="text-danger">*</span>
+                </label>
+                <select class="form-select" id="productSelect" name="product" required onchange="loadProductInfo()">
+                  <option value="">Search and select a product...</option>
+                  {% for product in products %}
+                    <option value="{{ product.pk }}" data-sku="{{ product.sku }}" 
+                            data-current-stock="{{ product.current_stock }}" 
+                            data-reorder-level="{{ product.reorder_level }}"
+                            data-cost-price="{{ product.cost_price }}">
+                      {{ product.name }} ({{ product.sku }})
+                    </option>
+                  {% endfor %}
+                </select>
+              </div>
+              
+              <div class="col-md-6">
+                <label for="locationSelect" class="form-label">
+                  <i class="bi bi-geo-alt me-1"></i>Location <span class="text-danger">*</span>
+                </label>
+                <select class="form-select" id="locationSelect" name="location" required onchange="updateCurrentStock()">
+                  <option value="">Select location...</option>
+                  {% for location in locations %}
+                    <option value="{{ location.pk }}">{{ location.name }}</option>
+                  {% endfor %}
+                </select>
+              </div>
+            </div>
+            
+            <!-- Current Stock Display -->
+            <div id="productInfoPanel" class="alert alert-info" style="display: none;">
+              <div class="row">
+                <div class="col-md-3">
+                  <strong>Current Stock:</strong><br>
+                  <span id="currentStockDisplay" class="h5 text-primary">0</span> units
+                </div>
+                <div class="col-md-3">
+                  <strong>Reorder Level:</strong><br>
+                  <span id="reorderLevelDisplay" class="text-warning">0</span> units
+                </div>
+                <div class="col-md-3">
+                  <strong>Unit Cost:</strong><br>
+                  $<span id="unitCostDisplay" class="text-success">0.00</span>
+                </div>
+                <div class="col-md-3">
+                  <strong>Stock Status:</strong><br>
+                  <span id="stockStatusDisplay" class="badge bg-secondary">Unknown</span>
+                </div>
+              </div>
+            </div>
+            
+            <!-- Adjustment Details -->
+            <div class="row mb-3">
+              <div class="col-md-4">
+                <label for="adjustmentMethod" class="form-label">
+                  <i class="bi bi-sliders me-1"></i>Adjustment Method <span class="text-danger">*</span>
+                </label>
+                <select class="form-select" id="adjustmentMethod" name="adjustment_method" required onchange="updateAdjustmentDisplay()">
+                  <option value="">Select method...</option>
+                  <option value="set">Set to Specific Amount</option>
+                  <option value="increase">Increase Stock</option>
+                  <option value="decrease">Decrease Stock</option>
+                </select>
+              </div>
+              
+              <div class="col-md-4">
+                <label for="adjustmentQuantity" class="form-label">
+                  <span id="quantityLabel">Quantity</span> <span class="text-danger">*</span>
+                </label>
+                <div class="input-group">
+                  <input type="number" class="form-control" id="adjustmentQuantity" 
+                         name="quantity" required min="0" step="1" onchange="calculateNewStock()">
+                  <span class="input-group-text">units</span>
+                </div>
+              </div>
+              
+              <div class="col-md-4">
+                <label class="form-label">New Stock Level</label>
+                <div class="input-group">
+                  <input type="number" class="form-control" id="newStockLevel" readonly>
+                  <span class="input-group-text">units</span>
+                </div>
+                <div class="form-text">Calculated based on adjustment</div>
+              </div>
+            </div>
+            
+            <!-- Reason and Reference -->
+            <div class="row mb-3">
+              <div class="col-md-6">
+                <label for="adjustmentReason" class="form-label">
+                  <i class="bi bi-clipboard me-1"></i>Reason <span class="text-danger">*</span>
+                </label>
+                <select class="form-select" id="adjustmentReason" name="reason" required>
+                  <option value="">Select reason...</option>
+                  <option value="physical_count">Physical Count Discrepancy</option>
+                  <option value="damaged_goods">Damaged/Defective Goods</option>
+                  <option value="lost_inventory">Lost/Stolen Inventory</option>
+                  <option value="expired_goods">Expired Products</option>
+                  <option value="supplier_adjustment">Supplier Credit/Adjustment</option>
+                  <option value="system_correction">System/Data Correction</option>
+                  <option value="initial_stock">Initial Stock Entry</option>
+                  <option value="other">Other (specify in notes)</option>
+                </select>
+              </div>
+              
+              <div class="col-md-6">
+                <label for="referenceNumber" class="form-label">
+                  <i class="bi bi-hash me-1"></i>Reference Number
+                </label>
+                <input type="text" class="form-control" id="referenceNumber" name="reference" 
+                       placeholder="e.g., ST-2024-001, PO-12345">
+                <div class="form-text">Optional reference for tracking</div>
+              </div>
+            </div>
+            
+            <!-- Notes -->
+            <div class="mb-3">
+              <label for="adjustmentNotes" class="form-label">
+                <i class="bi bi-chat-text me-1"></i>Notes
+              </label>
+              <textarea class="form-control" id="adjustmentNotes" name="notes" rows="3" 
+                        placeholder="Additional details about this adjustment..."></textarea>
+            </div>
+          </div>
+        </div>
+      </div>
+      
+      <div class="col-md-4">
+        <!-- Adjustment Preview -->
+        <div class="card mb-4">
+          <div class="card-header">
+            <h6 class="card-title mb-0">
+              <i class="bi bi-eye me-2"></i>Adjustment Preview
+            </h6>
+          </div>
+          <div class="card-body">
+            <div id="adjustmentPreview">
+              <div class="text-center text-muted py-3">
+                <i class="bi bi-info-circle" style="font-size: 2rem;"></i>
+                <p class="mt-2">Select product and enter adjustment details to see preview</p>
+              </div>
+            </div>
+          </div>
+        </div>
+        
+        <!-- Cost Impact -->
+        <div class="card">
+          <div class="card-header">
+            <h6 class="card-title mb-0">
+              <i class="bi bi-currency-dollar me-2"></i>Cost Impact
+            </h6>
+          </div>
+          <div class="card-body">
+            <div id="costImpact">
+              <div class="d-flex justify-content-between">
+                <span>Unit Cost:</span>
+                <span id="impactUnitCost">$0.00</span>
+              </div>
+              <div class="d-flex justify-content-between">
+                <span>Quantity Change:</span>
+                <span id="impactQuantityChange">0</span>
+              </div>
+              <hr>
+              <div class="d-flex justify-content-between fw-bold">
+                <span>Total Impact:</span>
+                <span id="impactTotalCost" class="text-primary">$0.00</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    
+    <!-- Action Buttons -->
+    <div class="card mt-4">
+      <div class="card-body">
+        <div class="d-flex justify-content-between align-items-center">
+          <div>
+            <button type="button" class="btn btn-outline-secondary" onclick="resetForm()">
+              <i class="bi bi-arrow-counterclockwise me-2"></i>Reset Form
+            </button>
+            <button type="button" class="btn btn-outline-info" onclick="previewAdjustment()">
+              <i class="bi bi-eye me-2"></i>Preview Changes
+            </button>
+          </div>
+          
+          <div>
+            <button type="submit" class="btn btn-success" id="submitAdjustment">
+              <i class="bi bi-check me-2"></i>Apply Stock Adjustment
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </form>
+</div>
+
+<!-- Multiple Products Adjustment Form -->
+<div id="multipleAdjustmentForm" style="display: none;">
+  <div class="card">
+    <div class="card-header">
+      <h6 class="card-title mb-0">
+        <i class="bi bi-boxes me-2"></i>Multiple Products Adjustment
+      </h6>
+    </div>
+    <div class="card-body">
+      <form method="post" id="multipleStockForm">
+        {% csrf_token %}
+        <input type="hidden" name="adjustment_type" value="multiple">
+        
+        <!-- Common Details -->
+        <div class="row mb-4">
+          <div class="col-md-4">
+            <label for="multipleLocation" class="form-label">Location <span class="text-danger">*</span></label>
+            <select class="form-select" id="multipleLocation" name="location" required>
+              <option value="">Select location...</option>
+              {% for location in locations %}
+                <option value="{{ location.pk }}">{{ location.name }}</option>
+              {% endfor %}
+            </select>
+          </div>
+          
+          <div class="col-md-4">
+            <label for="multipleReason" class="form-label">Reason <span class="text-danger">*</span></label>
+            <select class="form-select" id="multipleReason" name="reason" required>
+              <option value="">Select reason...</option>
+              <option value="physical_count">Physical Count</option>
+              <option value="damaged_goods">Damaged Goods</option>
+              <option value="system_correction">System Correction</option>
+              <option value="other">Other</option>
+            </select>
+          </div>
+          
+          <div class="col-md-4">
+            <label for="multipleReference" class="form-label">Reference</label>
+            <input type="text" class="form-control" id="multipleReference" name="reference">
+          </div>
+        </div>
+        
+        <!-- Products Table -->
+        <div class="table-responsive">
+          <table class="table table-bordered" id="multipleProductsTable">
+            <thead class="table-light">
+              <tr>
+                <th>Product</th>
+                <th>Current Stock</th>
+                <th>Adjustment Method</th>
+                <th>Quantity</th>
+                <th>New Stock</th>
+                <th>Cost Impact</th>
+                <th>Actions</th>
+              </tr>
+            </thead>
+            <tbody id="multipleProductsBody">
+              <!-- Dynamic rows will be added here -->
+            </tbody>
+          </table>
+        </div>
+        
+        <div class="mb-3">
+          <button type="button" class="btn btn-outline-primary" onclick="addProductRow()">
+            <i class="bi bi-plus me-2"></i>Add Product
+          </button>
+        </div>
+        
+        <div class="d-flex justify-content-between">
+          <div>
+            <button type="button" class="btn btn-outline-secondary" onclick="clearMultipleForm()">
+              <i class="bi bi-trash me-2"></i>Clear All
+            </button>
+          </div>
+          <div>
+            <button type="submit" class="btn btn-success">
+              <i class="bi bi-check me-2"></i>Apply Multiple Adjustments
+            </button>
+          </div>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+
+<!-- Location-based Adjustment Form -->
+<div id="locationAdjustmentForm" style="display: none;">
+  <div class="card">
+    <div class="card-header">
+      <h6 class="card-title mb-0">
+        <i class="bi bi-building me-2"></i>Location-based Adjustment
+      </h6>
+    </div>
+    <div class="card-body">
+      <div class="alert alert-warning">
+        <i class="bi bi-exclamation-triangle me-2"></i>
+        <strong>Location Adjustment:</strong> This will load all products at the selected location for batch adjustment.
+      </div>
+      
+      <form method="post" id="locationStockForm">
+        {% csrf_token %}
+        <input type="hidden" name="adjustment_type" value="location">
+        
+        <div class="row mb-4">
+          <div class="col-md-6">
+            <label for="locationAdjustLocation" class="form-label">Select Location <span class="text-danger">*</span></label>
+            <select class="form-select" id="locationAdjustLocation" name="location" required onchange="loadLocationProducts()">
+              <option value="">Select location to adjust...</option>
+              {% for location in locations %}
+                <option value="{{ location.pk }}">{{ location.name }}</option>
+              {% endfor %}
+            </select>
+          </div>
+          
+          <div class="col-md-6">
+            <label for="locationReason" class="form-label">Adjustment Reason <span class="text-danger">*</span></label>
+            <select class="form-select" id="locationReason" name="reason" required>
+              <option value="physical_count">Physical Count</option>
+              <option value="location_transfer">Location Transfer</option>
+              <option value="system_correction">System Correction</option>
+              <option value="other">Other</option>
+            </select>
+          </div>
+        </div>
+        
+        <div id="locationProductsList">
+          <!-- Products for the selected location will be loaded here -->
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+
+<!-- Confirmation Modal -->
+<div class="modal fade" id="adjustmentConfirmModal" tabindex="-1">
+  <div class="modal-dialog modal-lg">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title">Confirm Stock Adjustment</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <div class="alert alert-warning">
+          <i class="bi bi-exclamation-triangle me-2"></i>
+          <strong>Important:</strong> Stock adjustments cannot be undone. Please review the changes carefully.
+        </div>
+        
+        <div id="adjustmentSummary">
+          <!-- Adjustment summary will be populated here -->
+        </div>
+        
+        <div class="form-check mt-3">
+          <input class="form-check-input" type="checkbox" id="confirmAdjustment" required>
+          <label class="form-check-label" for="confirmAdjustment">
+            I have reviewed the adjustments and confirm they are correct
+          </label>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">
+          <i class="bi bi-x me-2"></i>Cancel
+        </button>
+        <button type="button" class="btn btn-success" onclick="executeAdjustment()" id="confirmExecute" disabled>
+          <i class="bi bi-check me-2"></i>Confirm & Execute
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+
+{% endblock %}
+
+{% block extra_css %}
+<style>
+.adjustment-type-card {
+  cursor: pointer;
+  transition: all 0.3s ease;
+  border: 2px solid transparent;
+}
+
+.adjustment-type-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+}
+
+.adjustment-type-card.selected {
+  border-color: #0d6efd;
+  box-shadow: 0 0 12px rgba(13,110,253,0.2);
+}
+
+#productInfoPanel {
+  border-left: 4px solid #0d6efd;
+}
+
+.cost-impact-positive {
+  color: #198754 !important;
+}
+
+.cost-impact-negative {
+  color: #dc3545 !important;
+}
+</style>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+let currentAdjustmentType = null;
+let productData = {};
+let multipleProductCounter = 0;
+
+function selectAdjustmentType(type) {
+  // Update UI
+  document.querySelectorAll('.adjustment-type-card').forEach(card => {
+    card.classList.remove('selected');
+  });
+  
+  event.currentTarget.classList.add('selected');
+  currentAdjustmentType = type;
+  
+  // Hide all forms
+  document.getElementById('singleAdjustmentForm').style.display = 'none';
+  document.getElementById('multipleAdjustmentForm').style.display = 'none';
+  document.getElementById('locationAdjustmentForm').style.display = 'none';
+  
+  // Show selected form
+  switch(type) {
+    case 'single':
+      document.getElementById('singleAdjustmentForm').style.display = 'block';
+      break;
+    case 'multiple':
+      document.getElementById('multipleAdjustmentForm').style.display = 'block';
+      addProductRow(); // Add first row
+      break;
+    case 'location':
+      document.getElementById('locationAdjustmentForm').style.display = 'block';
+      break;
+  }
+}
+
+function loadProductInfo() {
+  const select = document.getElementById('productSelect');
+  const option = select.selectedOptions[0];
+  
+  if (!option || !option.value) {
+    document.getElementById('productInfoPanel').style.display = 'none';
+    return;
+  }
+  
+  const productData = {
+    id: option.value,
+    sku: option.dataset.sku,
+    currentStock: parseInt(option.dataset.currentStock || 0),
+    reorderLevel: parseInt(option.dataset.reorderLevel || 0),
+    costPrice: parseFloat(option.dataset.costPrice || 0)
+  };
+  
+  // Update display
+  document.getElementById('currentStockDisplay').textContent = productData.currentStock;
+  document.getElementById('reorderLevelDisplay').textContent = productData.reorderLevel;
+  document.getElementById('unitCostDisplay').textContent = productData.costPrice.toFixed(2);
+  
+  // Update status badge
+  const statusBadge = document.getElementById('stockStatusDisplay');
+  if (productData.currentStock <= 0) {
+    statusBadge.className = 'badge bg-danger';
+    statusBadge.textContent = 'Out of Stock';
+  } else if (productData.currentStock <= productData.reorderLevel) {
+    statusBadge.className = 'badge bg-warning';
+    statusBadge.textContent = 'Low Stock';
+  } else {
+    statusBadge.className = 'badge bg-success';
+    statusBadge.textContent = 'In Stock';
+  }
+  
+  document.getElementById('productInfoPanel').style.display = 'block';
+  updateAdjustmentDisplay();
+}
+
+function updateAdjustmentDisplay() {
+  const method = document.getElementById('adjustmentMethod').value;
+  const quantityLabel = document.getElementById('quantityLabel');
+  
+  switch(method) {
+    case 'set':
+      quantityLabel.textContent = 'Set to Quantity';
+      break;
+    case 'increase':
+      quantityLabel.textContent = 'Increase by';
+      break;
+    case 'decrease':
+      quantityLabel.textContent = 'Decrease by';
+      break;
+    default:
+      quantityLabel.textContent = 'Quantity';
+  }
+  
+  calculateNewStock();
+}
+
+function calculateNewStock() {
+  const currentStock = parseInt(document.getElementById('currentStockDisplay').textContent || 0);
+  const method = document.getElementById('adjustmentMethod').value;
+  const quantity = parseInt(document.getElementById('adjustmentQuantity').value || 0);
+  
+  let newStock = currentStock;
+  let quantityChange = 0;
+  
+  switch(method) {
+    case 'set':
+      newStock = quantity;
+      quantityChange = quantity - currentStock;
+      break;
+    case 'increase':
+      newStock = currentStock + quantity;
+      quantityChange = quantity;
+      break;
+    case 'decrease':
+      newStock = Math.max(0, currentStock - quantity);
+      quantityChange = -(Math.min(quantity, currentStock));
+      break;
+  }
+  
+  document.getElementById('newStockLevel').value = newStock;
+  
+  // Update preview
+  updateAdjustmentPreview(currentStock, newStock, quantityChange);
+  updateCostImpact(quantityChange);
+}
+
+function updateAdjustmentPreview(currentStock, newStock, quantityChange) {
+  const preview = document.getElementById('adjustmentPreview');
+  const productSelect = document.getElementById('productSelect');
+  const selectedProduct = productSelect.selectedOptions[0]?.text || 'No product selected';
+  
+  if (!productSelect.value) {
+    preview.innerHTML = `
+      <div class="text-center text-muted py-3">
+        <i class="bi bi-info-circle" style="font-size: 2rem;"></i>
+        <p class="mt-2">Select product and enter adjustment details to see preview</p>
+      </div>
+    `;
+    return;
+  }
+  
+  const changeIcon = quantityChange > 0 ? 'arrow-up-circle text-success' : 
+                    quantityChange < 0 ? 'arrow-down-circle text-danger' : 'dash-circle text-muted';
+  const changeText = quantityChange > 0 ? `+${quantityChange}` : quantityChange.toString();
+  
+  preview.innerHTML = `
+    <div class="mb-3">
+      <strong>Product:</strong><br>
+      <small class="text-muted">${selectedProduct}</small>
+    </div>
+    <div class="row text-center mb-3">
+      <div class="col-4">
+        <div class="fw-bold text-primary">${currentStock}</div>
+        <small class="text-muted">Current</small>
+      </div>
+      <div class="col-4">
+        <i class="bi bi-${changeIcon}" style="font-size: 1.5rem;"></i><br>
+        <small class="${quantityChange > 0 ? 'text-success' : quantityChange < 0 ? 'text-danger' : 'text-muted'}">
+          ${changeText}
+        </small>
+      </div>
+      <div class="col-4">
+        <div class="fw-bold text-success">${newStock}</div>
+        <small class="text-muted">New</small>
+      </div>
+    </div>
+  `;
+}
+
+function updateCostImpact(quantityChange) {
+  const unitCost = parseFloat(document.getElementById('unitCostDisplay').textContent || 0);
+  const totalImpact = quantityChange * unitCost;
+  
+  document.getElementById('impactUnitCost').textContent = `$${unitCost.toFixed(2)}`;
+  document.getElementById('impactQuantityChange').textContent = quantityChange;
+  document.getElementById('impactTotalCost').textContent = `$${Math.abs(totalImpact).toFixed(2)}`;
+  document.getElementById('impactTotalCost').className = totalImpact > 0 ? 'text-success' : totalImpact < 0 ? 'text-danger' : 'text-muted';
+}
+
+function addProductRow() {
+  const tbody = document.getElementById('multipleProductsBody');
+  const row = document.createElement('tr');
+  const rowId = ++multipleProductCounter;
+  
+  row.innerHTML = `
+    <td>
+      <select class="form-select form-select-sm" name="products[${rowId}][product]" required>
+        <option value="">Select product...</option>
+        {% for product in products %}
+          <option value="{{ product.pk }}" data-stock="{{ product.current_stock }}" data-cost="{{ product.cost_price }}">
+            {{ product.name }} ({{ product.sku }})
+          </option>
+        {% endfor %}
+      </select>
+    </td>
+    <td>
+      <input type="number" class="form-control form-control-sm" name="products[${rowId}][current_stock]" readonly>
+    </td>
+    <td>
+      <select class="form-select form-select-sm" name="products[${rowId}][method]" required>
+        <option value="set">Set to</option>
+        <option value="increase">Increase</option>
+        <option value="decrease">Decrease</option>
+      </select>
+    </td>
+    <td>
+      <input type="number" class="form-control form-control-sm" name="products[${rowId}][quantity]" required min="0">
+    </td>
+    <td>
+      <input type="number" class="form-control form-control-sm" name="products[${rowId}][new_stock]" readonly>
+    </td>
+    <td>
+      <span class="cost-impact">$0.00</span>
+    </td>
+    <td>
+      <button type="button" class="btn btn-sm btn-outline-danger" onclick="removeProductRow(this)">
+        <i class="bi bi-x"></i>
+      </button>
+    </td>
+  `;
+  
+  tbody.appendChild(row);
+  
+  // Add event listeners for the new row
+  const productSelect = row.querySelector('select[name*="[product]"]');
+  const methodSelect = row.querySelector('select[name*="[method]"]');
+  const quantityInput = row.querySelector('input[name*="[quantity]"]');
+  
+  productSelect.addEventListener('change', function() {
+    updateMultipleRowData(row);
+  });
+  
+  methodSelect.addEventListener('change', function() {
+    updateMultipleRowData(row);
+  });
+  
+  quantityInput.addEventListener('input', function() {
+    updateMultipleRowData(row);
+  });
+}
+
+function removeProductRow(button) {
+  button.closest('tr').remove();
+}
+
+function updateMultipleRowData(row) {
+  const productSelect = row.querySelector('select[name*="[product]"]');
+  const currentStockInput = row.querySelector('input[name*="[current_stock]"]');
+  const methodSelect = row.querySelector('select[name*="[method]"]');
+  const quantityInput = row.querySelector('input[name*="[quantity]"]');
+  const newStockInput = row.querySelector('input[name*="[new_stock]"]');
+  const costSpan = row.querySelector('.cost-impact');
+  
+  const selectedOption = productSelect.selectedOptions[0];
+  if (!selectedOption || !selectedOption.value) return;
+  
+  const currentStock = parseInt(selectedOption.dataset.stock || 0);
+  const unitCost = parseFloat(selectedOption.dataset.cost || 0);
+  const method = methodSelect.value;
+  const quantity = parseInt(quantityInput.value || 0);
+  
+  currentStockInput.value = currentStock;
+  
+  let newStock = currentStock;
+  let quantityChange = 0;
+  
+  switch(method) {
+    case 'set':
+      newStock = quantity;
+      quantityChange = quantity - currentStock;
+      break;
+    case 'increase':
+      newStock = currentStock + quantity;
+      quantityChange = quantity;
+      break;
+    case 'decrease':
+      newStock = Math.max(0, currentStock - quantity);
+      quantityChange = -(Math.min(quantity, currentStock));
+      break;
+  }
+  
+  newStockInput.value = newStock;
+  
+  const costImpact = quantityChange * unitCost;
+  costSpan.textContent = `$${Math.abs(costImpact).toFixed(2)}`;
+  costSpan.className = costImpact > 0 ? 'cost-impact text-success' : costImpact < 0 ? 'cost-impact text-danger' : 'cost-impact text-muted';
+}
+
+function clearMultipleForm() {
+  const tbody = document.getElementById('multipleProductsBody');
+  tbody.innerHTML = '';
+  multipleProductCounter = 0;
+  addProductRow(); // Add one row back
+}
+
+function loadLocationProducts() {
+  const locationSelect = document.getElementById('locationAdjustLocation');
+  const locationId = locationSelect.value;
+  
+  if (!locationId) {
+    document.getElementById('locationProductsList').innerHTML = '';
+    return;
+  }
+  
+  // Show loading state
+  document.getElementById('locationProductsList').innerHTML = `
+    <div class="text-center py-4">
+      <div class="spinner-border text-primary" role="status">
+        <span class="visually-hidden">Loading...</span>
+      </div>
+      <p class="mt-2 text-muted">Loading products for this location...</p>
+    </div>
+  `;
+  
+  // Simulate loading (in real implementation, this would be an AJAX call)
+  setTimeout(() => {
+    document.getElementById('locationProductsList').innerHTML = `
+      <div class="alert alert-info">
+        <strong>Found 25 products</strong> at this location ready for adjustment
+      </div>
+      <div class="table-responsive">
+        <table class="table table-sm">
+          <thead>
+            <tr>
+              <th><input type="checkbox" onchange="toggleAllLocationProducts(this)"></th>
+              <th>Product</th>
+              <th>Current Stock</th>
+              <th>New Stock</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td><input type="checkbox" name="location_products[]" value="1"></td>
+              <td>Product A</td>
+              <td>50</td>
+              <td><input type="number" class="form-control form-control-sm" value="50"></td>
+            </tr>
+            <tr>
+              <td><input type="checkbox" name="location_products[]" value="2"></td>
+              <td>Product B</td>
+              <td>25</td>
+              <td><input type="number" class="form-control form-control-sm" value="25"></td>
+            </tr>
+            <!-- More rows would be dynamically generated -->
+          </tbody>
+        </table>
+      </div>
+      <div class="text-end">
+        <button type="submit" class="btn btn-success">Apply Location Adjustments</button>
+      </div>
+    `;
+  }, 1500);
+}
+
+function previewAdjustment() {
+  // Show confirmation modal with summary
+  const modal = new bootstrap.Modal(document.getElementById('adjustmentConfirmModal'));
+  
+  // Populate summary
+  const summary = document.getElementById('adjustmentSummary');
+  summary.innerHTML = `
+    <h6>Adjustment Summary</h6>
+    <table class="table table-sm">
+      <tr><td><strong>Product:</strong></td><td>${document.getElementById('productSelect').selectedOptions[0]?.text || 'None'}</td></tr>
+      <tr><td><strong>Location:</strong></td><td>${document.getElementById('locationSelect').selectedOptions[0]?.text || 'None'}</td></tr>
+      <tr><td><strong>Current Stock:</strong></td><td>${document.getElementById('currentStockDisplay').textContent} units</td></tr>
+      <tr><td><strong>New Stock:</strong></td><td>${document.getElementById('newStockLevel').value} units</td></tr>
+      <tr><td><strong>Method:</strong></td><td>${document.getElementById('adjustmentMethod').selectedOptions[0]?.text || 'None'}</td></tr>
+      <tr><td><strong>Reason:</strong></td><td>${document.getElementById('adjustmentReason').selectedOptions[0]?.text || 'None'}</td></tr>
+    </table>
+  `;
+  
+  modal.show();
+}
+
+function executeAdjustment() {
+  // Submit the form
+  document.getElementById('stockAdjustmentForm').submit();
+}
+
+function resetForm() {
+  document.getElementById('stockAdjustmentForm').reset();
+  document.getElementById('productInfoPanel').style.display = 'none';
+  updateAdjustmentPreview(0, 0, 0);
+  updateCostImpact(0);
+}
+
+// Enable/disable confirm button based on checkbox
+document.getElementById('confirmAdjustment')?.addEventListener('change', function() {
+  document.getElementById('confirmExecute').disabled = !this.checked;
+});
+
+// Initialize
+document.addEventListener('DOMContentLoaded', function() {
+  // Auto-select single adjustment if no type selected
+  if (!currentAdjustmentType) {
+    selectAdjustmentType('single');
+  }
+});
+</script>
+{% endblock %}

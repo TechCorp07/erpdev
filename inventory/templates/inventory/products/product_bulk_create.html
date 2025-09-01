@@ -1,0 +1,967 @@
+{% extends "dashboard_base.html" %}
+{% load static %}
+
+{% block page_title %}Bulk Product Creation{% endblock %}
+
+{% block dashboard_content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+  <div>
+    <nav aria-label="breadcrumb">
+      <ol class="breadcrumb mb-1">
+        <li class="breadcrumb-item"><a href="{% url 'inventory:dashboard' %}">Inventory</a></li>
+        <li class="breadcrumb-item"><a href="{% url 'inventory:product_list' %}">Products</a></li>
+        <li class="breadcrumb-item active">Bulk Create</li>
+      </ol>
+    </nav>
+    <h1 class="h3 mb-0 text-gray-800">
+      <i class="bi bi-layers me-2"></i>Bulk Product Creation
+    </h1>
+    <p class="text-muted mb-0">Create multiple products efficiently using CSV upload or manual entry</p>
+  </div>
+  
+  <div class="btn-group" role="group">
+    <a href="{% url 'inventory:product_list' %}" class="btn btn-outline-secondary">
+      <i class="bi bi-arrow-left me-2"></i>Back to Products
+    </a>
+    <a href="{% url 'inventory:product_create' %}" class="btn btn-outline-primary">
+      <i class="bi bi-plus me-2"></i>Single Product
+    </a>
+    <div class="btn-group" role="group">
+      <button class="btn btn-outline-secondary dropdown-toggle" type="button" data-bs-toggle="dropdown">
+        <i class="bi bi-three-dots"></i>
+      </button>
+      <ul class="dropdown-menu">
+        <li><a class="dropdown-item" href="{% url 'inventory:product_import_template' %}">
+          <i class="bi bi-download me-2"></i>Download Template
+        </a></li>
+        <li><a class="dropdown-item" href="{% url 'inventory:product_bulk_update' %}">
+          <i class="bi bi-pencil me-2"></i>Bulk Update
+        </a></li>
+        <li><hr class="dropdown-divider"></li>
+        <li><a class="dropdown-item" href="{% url 'inventory:product_export' %}">
+          <i class="bi bi-upload me-2"></i>Export Existing
+        </a></li>
+      </ul>
+    </div>
+  </div>
+</div>
+
+<!-- Progress Steps -->
+<div class="card mb-4">
+  <div class="card-body">
+    <div class="row">
+      <div class="col-12">
+        <div class="progress-steps">
+          <div class="step active" id="step1">
+            <div class="step-number">1</div>
+            <div class="step-title">Choose Method</div>
+          </div>
+          <div class="step" id="step2">
+            <div class="step-number">2</div>
+            <div class="step-title">Upload/Enter Data</div>
+          </div>
+          <div class="step" id="step3">
+            <div class="step-number">3</div>
+            <div class="step-title">Map Fields</div>
+          </div>
+          <div class="step" id="step4">
+            <div class="step-number">4</div>
+            <div class="step-title">Preview & Validate</div>
+          </div>
+          <div class="step" id="step5">
+            <div class="step-number">5</div>
+            <div class="step-title">Create Products</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Step 1: Choose Method -->
+<div class="step-content" id="step1-content">
+  <div class="row">
+    <div class="col-md-6 mb-4">
+      <div class="card h-100 method-card" onclick="selectMethod('csv')">
+        <div class="card-body text-center">
+          <i class="bi bi-file-spreadsheet text-success" style="font-size: 3rem;"></i>
+          <h5 class="card-title mt-3">CSV Upload</h5>
+          <p class="card-text text-muted">
+            Upload a CSV file with product data. Perfect for large numbers of products
+            or when importing from other systems.
+          </p>
+          
+          <div class="features-list text-start mt-3">
+            <div class="feature-item">
+              <i class="bi bi-check-circle text-success me-2"></i>
+              Supports unlimited products
+            </div>
+            <div class="feature-item">
+              <i class="bi bi-check-circle text-success me-2"></i>
+              Field mapping and validation
+            </div>
+            <div class="feature-item">
+              <i class="bi bi-check-circle text-success me-2"></i>
+              Error detection and reporting
+            </div>
+            <div class="feature-item">
+              <i class="bi bi-check-circle text-success me-2"></i>
+              Preview before creation
+            </div>
+          </div>
+          
+          <button class="btn btn-success mt-3" id="csvMethodBtn">
+            <i class="bi bi-upload me-2"></i>Choose CSV Upload
+          </button>
+        </div>
+      </div>
+    </div>
+    
+    <div class="col-md-6 mb-4">
+      <div class="card h-100 method-card" onclick="selectMethod('manual')">
+        <div class="card-body text-center">
+          <i class="bi bi-pencil-square text-primary" style="font-size: 3rem;"></i>
+          <h5 class="card-title mt-3">Manual Entry</h5>
+          <p class="card-text text-muted">
+            Enter products manually using a streamlined form. Best for small numbers
+            of products with complex configurations.
+          </p>
+          
+          <div class="features-list text-start mt-3">
+            <div class="feature-item">
+              <i class="bi bi-check-circle text-primary me-2"></i>
+              Step-by-step guidance
+            </div>
+            <div class="feature-item">
+              <i class="bi bi-check-circle text-primary me-2"></i>
+              Dynamic attribute support
+            </div>
+            <div class="feature-item">
+              <i class="bi bi-check-circle text-primary me-2"></i>
+              Real-time validation
+            </div>
+            <div class="feature-item">
+              <i class="bi bi-check-circle text-primary me-2"></i>
+              Duplicate product templates
+            </div>
+          </div>
+          
+          <button class="btn btn-primary mt-3" id="manualMethodBtn">
+            <i class="bi bi-pencil me-2"></i>Choose Manual Entry
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Step 2: CSV Upload -->
+<div class="step-content" id="step2-csv-content" style="display: none;">
+  <div class="card">
+    <div class="card-header">
+      <h6 class="card-title mb-0">
+        <i class="bi bi-upload me-2"></i>CSV File Upload
+      </h6>
+    </div>
+    <div class="card-body">
+      <div class="row">
+        <div class="col-md-8">
+          <form id="csvUploadForm" enctype="multipart/form-data">
+            {% csrf_token %}
+            
+            <div class="mb-4">
+              <label for="csvFile" class="form-label">
+                <i class="bi bi-file-earmark-spreadsheet me-1"></i>
+                Select CSV File <span class="text-danger">*</span>
+              </label>
+              <input type="file" class="form-control" id="csvFile" name="csv_file" 
+                     accept=".csv" required>
+              <div class="form-text">
+                Maximum file size: 10MB. Supported format: CSV (.csv)
+              </div>
+            </div>
+            
+            <div class="mb-4">
+              <div class="row">
+                <div class="col-md-6">
+                  <label for="csvDelimiter" class="form-label">Field Delimiter</label>
+                  <select class="form-select" id="csvDelimiter" name="delimiter">
+                    <option value="," selected>Comma (,)</option>
+                    <option value=";">Semicolon (;)</option>
+                    <option value="\t">Tab</option>
+                    <option value="|">Pipe (|)</option>
+                  </select>
+                </div>
+                
+                <div class="col-md-6">
+                  <label for="csvEncoding" class="form-label">File Encoding</label>
+                  <select class="form-select" id="csvEncoding" name="encoding">
+                    <option value="utf-8" selected>UTF-8</option>
+                    <option value="iso-8859-1">ISO-8859-1</option>
+                    <option value="cp1252">Windows-1252</option>
+                  </select>
+                </div>
+              </div>
+            </div>
+            
+            <div class="mb-4">
+              <div class="form-check">
+                <input class="form-check-input" type="checkbox" id="hasHeaders" name="has_headers" checked>
+                <label class="form-check-label" for="hasHeaders">
+                  First row contains column headers
+                </label>
+              </div>
+            </div>
+            
+            <div class="d-flex justify-content-between">
+              <button type="button" class="btn btn-outline-secondary" onclick="goToStep(1)">
+                <i class="bi bi-arrow-left me-2"></i>Back
+              </button>
+              <button type="submit" class="btn btn-primary">
+                <i class="bi bi-upload me-2"></i>Upload & Preview
+              </button>
+            </div>
+          </form>
+        </div>
+        
+        <div class="col-md-4">
+          <div class="card bg-light">
+            <div class="card-body">
+              <h6 class="card-title">
+                <i class="bi bi-info-circle me-2"></i>CSV Format Requirements
+              </h6>
+              
+              <div class="small">
+                <strong>Required Fields:</strong>
+                <ul class="mt-2 mb-3">
+                  <li>name</li>
+                  <li>cost_price</li>
+                  <li>selling_price</li>
+                  <li>category</li>
+                </ul>
+                
+                <strong>Optional Fields:</strong>
+                <ul class="mt-2 mb-3">
+                  <li>sku</li>
+                  <li>description</li>
+                  <li>brand</li>
+                  <li>supplier</li>
+                  <li>current_stock</li>
+                  <li>reorder_level</li>
+                  <li>weight</li>
+                  <li>dimensions</li>
+                </ul>
+              </div>
+              
+              <div class="mt-3">
+                <a href="{% url 'inventory:product_import_template' %}" 
+                   class="btn btn-sm btn-outline-primary d-block">
+                  <i class="bi bi-download me-2"></i>Download Sample Template
+                </a>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Step 2: Manual Entry -->
+<div class="step-content" id="step2-manual-content" style="display: none;">
+  <div class="card">
+    <div class="card-header">
+      <h6 class="card-title mb-0">
+        <i class="bi bi-pencil-square me-2"></i>Manual Product Entry
+      </h6>
+    </div>
+    <div class="card-body">
+      <div class="row">
+        <div class="col-md-8">
+          <div class="mb-4">
+            <label for="productCount" class="form-label">
+              <i class="bi bi-hash me-1"></i>How many products do you want to create?
+            </label>
+            <select class="form-select" id="productCount" onchange="generateManualForms()">
+              <option value="1">1 Product</option>
+              <option value="2">2 Products</option>
+              <option value="3">3 Products</option>
+              <option value="5">5 Products</option>
+              <option value="10">10 Products</option>
+              <option value="custom">Custom Number...</option>
+            </select>
+          </div>
+          
+          <div class="mb-4" id="customCountDiv" style="display: none;">
+            <label for="customProductCount" class="form-label">Custom Product Count</label>
+            <input type="number" class="form-control" id="customProductCount" 
+                   min="1" max="50" placeholder="Enter number of products">
+          </div>
+          
+          <div class="mb-4">
+            <label for="baseCategory" class="form-label">
+              <i class="bi bi-collection me-1"></i>Default Category (Optional)
+            </label>
+            <select class="form-select" id="baseCategory">
+              <option value="">Select default category for all products...</option>
+              {% for category in categories %}
+                <option value="{{ category.pk }}">{{ category.name }}</option>
+              {% endfor %}
+            </select>
+            <div class="form-text">This will pre-fill the category for all products</div>
+          </div>
+          
+          <div class="mb-4">
+            <label for="baseBrand" class="form-label">
+              <i class="bi bi-award me-1"></i>Default Brand (Optional)
+            </label>
+            <select class="form-select" id="baseBrand">
+              <option value="">Select default brand for all products...</option>
+              {% for brand in brands %}
+                <option value="{{ brand.pk }}">{{ brand.name }}</option>
+              {% endfor %}
+            </select>
+            <div class="form-text">This will pre-fill the brand for all products</div>
+          </div>
+          
+          <div class="d-flex justify-content-between">
+            <button type="button" class="btn btn-outline-secondary" onclick="goToStep(1)">
+              <i class="bi bi-arrow-left me-2"></i>Back
+            </button>
+            <button type="button" class="btn btn-primary" onclick="proceedToManualEntry()">
+              <i class="bi bi-arrow-right me-2"></i>Generate Forms
+            </button>
+          </div>
+        </div>
+        
+        <div class="col-md-4">
+          <div class="card bg-light">
+            <div class="card-body">
+              <h6 class="card-title">
+                <i class="bi bi-lightbulb me-2"></i>Manual Entry Tips
+              </h6>
+              
+              <ul class="small mb-0">
+                <li>Start with basic information</li>
+                <li>Use defaults to speed up entry</li>
+                <li>SKUs will auto-generate if empty</li>
+                <li>You can copy data between forms</li>
+                <li>Validation happens in real-time</li>
+                <li>Save progress as you go</li>
+              </ul>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Step 3: Field Mapping (CSV) -->
+<div class="step-content" id="step3-content" style="display: none;">
+  <div class="card">
+    <div class="card-header">
+      <h6 class="card-title mb-0">
+        <i class="bi bi-arrow-left-right me-2"></i>Map CSV Columns to Product Fields
+      </h6>
+    </div>
+    <div class="card-body">
+      <div class="row">
+        <div class="col-md-8">
+          <div class="table-responsive">
+            <table class="table table-sm" id="fieldMappingTable">
+              <thead>
+                <tr>
+                  <th>CSV Column</th>
+                  <th>Sample Data</th>
+                  <th>Map to Product Field</th>
+                  <th>Required</th>
+                </tr>
+              </thead>
+              <tbody id="mappingTableBody">
+                <!-- Dynamic content will be populated here -->
+              </tbody>
+            </table>
+          </div>
+          
+          <div class="d-flex justify-content-between mt-4">
+            <button type="button" class="btn btn-outline-secondary" onclick="goToStep(2)">
+              <i class="bi bi-arrow-left me-2"></i>Back to Upload
+            </button>
+            <button type="button" class="btn btn-primary" onclick="validateMapping()">
+              <i class="bi bi-check me-2"></i>Validate Mapping
+            </button>
+          </div>
+        </div>
+        
+        <div class="col-md-4">
+          <div class="card bg-light">
+            <div class="card-body">
+              <h6 class="card-title">
+                <i class="bi bi-info-circle me-2"></i>Field Mapping Guide
+              </h6>
+              
+              <div class="small">
+                <strong class="text-danger">Required Fields:</strong>
+                <ul class="mt-1 mb-3">
+                  <li>Product Name</li>
+                  <li>Cost Price</li>
+                  <li>Selling Price</li>
+                  <li>Category</li>
+                </ul>
+                
+                <strong class="text-success">Auto-Generated:</strong>
+                <ul class="mt-1 mb-3">
+                  <li>SKU (if not provided)</li>
+                  <li>Creation date/time</li>
+                </ul>
+                
+                <div class="alert alert-info">
+                  <small>
+                    <i class="bi bi-lightbulb me-1"></i>
+                    Unmapped columns will be ignored. You can map multiple CSV columns 
+                    to the same product field if needed.
+                  </small>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Step 4: Preview & Validation -->
+<div class="step-content" id="step4-content" style="display: none;">
+  <div class="card">
+    <div class="card-header">
+      <div class="d-flex justify-content-between align-items-center">
+        <h6 class="card-title mb-0">
+          <i class="bi bi-eye me-2"></i>Preview Products Before Creation
+        </h6>
+        <div>
+          <span class="badge bg-success" id="validProductsCount">0 Valid</span>
+          <span class="badge bg-danger" id="errorProductsCount">0 Errors</span>
+        </div>
+      </div>
+    </div>
+    <div class="card-body">
+      <!-- Validation Summary -->
+      <div class="alert alert-info" id="validationSummary">
+        <div class="d-flex align-items-center">
+          <i class="bi bi-info-circle me-2"></i>
+          <div>
+            <strong>Validation in progress...</strong>
+            Please wait while we validate your product data.
+          </div>
+        </div>
+      </div>
+      
+      <!-- Product Preview Table -->
+      <div class="table-responsive">
+        <table class="table table-sm" id="productPreviewTable">
+          <thead>
+            <tr>
+              <th>Status</th>
+              <th>Product Name</th>
+              <th>SKU</th>
+              <th>Category</th>
+              <th>Cost Price</th>
+              <th>Selling Price</th>
+              <th>Stock</th>
+              <th>Issues</th>
+            </tr>
+          </thead>
+          <tbody id="previewTableBody">
+            <!-- Dynamic content will be populated here -->
+          </tbody>
+        </table>
+      </div>
+      
+      <div class="d-flex justify-content-between mt-4">
+        <button type="button" class="btn btn-outline-secondary" onclick="goToStep(3)">
+          <i class="bi bi-arrow-left me-2"></i>Back to Mapping
+        </button>
+        <div>
+          <button type="button" class="btn btn-outline-primary" onclick="downloadErrorReport()">
+            <i class="bi bi-download me-2"></i>Download Error Report
+          </button>
+          <button type="button" class="btn btn-success" onclick="createProducts()" id="createProductsBtn" disabled>
+            <i class="bi bi-plus-circle me-2"></i>Create Valid Products
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Step 5: Creation Results -->
+<div class="step-content" id="step5-content" style="display: none;">
+  <div class="card">
+    <div class="card-header">
+      <h6 class="card-title mb-0">
+        <i class="bi bi-check-circle me-2"></i>Bulk Creation Results
+      </h6>
+    </div>
+    <div class="card-body">
+      <div class="text-center py-4">
+        <i class="bi bi-check-circle-fill text-success" style="font-size: 4rem;"></i>
+        <h4 class="text-success mt-3">Products Created Successfully!</h4>
+        
+        <div class="row mt-4">
+          <div class="col-md-4">
+            <div class="card bg-success text-white">
+              <div class="card-body text-center">
+                <h2 class="mb-1" id="successCount">0</h2>
+                <div>Products Created</div>
+              </div>
+            </div>
+          </div>
+          <div class="col-md-4">
+            <div class="card bg-warning text-white">
+              <div class="card-body text-center">
+                <h2 class="mb-1" id="skippedCount">0</h2>
+                <div>Products Skipped</div>
+              </div>
+            </div>
+          </div>
+          <div class="col-md-4">
+            <div class="card bg-danger text-white">
+              <div class="card-body text-center">
+                <h2 class="mb-1" id="failedCount">0</h2>
+                <div>Products Failed</div>
+              </div>
+            </div>
+          </div>
+        </div>
+        
+        <div class="mt-4">
+          <a href="{% url 'inventory:product_list' %}" class="btn btn-primary me-2">
+            <i class="bi bi-list me-2"></i>View All Products
+          </a>
+          <button class="btn btn-success me-2" onclick="startNewBatch()">
+            <i class="bi bi-plus me-2"></i>Create More Products
+          </button>
+          <button class="btn btn-outline-secondary" onclick="downloadCreationReport()">
+            <i class="bi bi-download me-2"></i>Download Report
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+{% endblock %}
+
+{% block extra_css %}
+<style>
+.progress-steps {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  position: relative;
+}
+
+.progress-steps::before {
+  content: '';
+  position: absolute;
+  top: 20px;
+  left: 20px;
+  right: 20px;
+  height: 2px;
+  background: #dee2e6;
+  z-index: 1;
+}
+
+.step {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  position: relative;
+  z-index: 2;
+  background: white;
+  padding: 0 15px;
+}
+
+.step-number {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  background: #dee2e6;
+  color: #6c757d;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: bold;
+  margin-bottom: 8px;
+}
+
+.step.active .step-number {
+  background: #0d6efd;
+  color: white;
+}
+
+.step.completed .step-number {
+  background: #198754;
+  color: white;
+}
+
+.step-title {
+  font-size: 0.875rem;
+  color: #6c757d;
+}
+
+.step.active .step-title {
+  color: #0d6efd;
+  font-weight: 500;
+}
+
+.method-card {
+  cursor: pointer;
+  transition: all 0.3s ease;
+  border: 2px solid transparent;
+}
+
+.method-card:hover {
+  transform: translateY(-5px);
+  box-shadow: 0 4px 20px rgba(0,0,0,0.1);
+}
+
+.method-card.selected {
+  border-color: #0d6efd;
+  box-shadow: 0 0 20px rgba(13,110,253,0.2);
+}
+
+.features-list {
+  max-width: 250px;
+  margin: 0 auto;
+}
+
+.feature-item {
+  margin-bottom: 8px;
+  display: flex;
+  align-items: center;
+}
+</style>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+let currentStep = 1;
+let selectedMethod = null;
+let csvData = null;
+let fieldMapping = {};
+
+function selectMethod(method) {
+  selectedMethod = method;
+  
+  // Update UI
+  document.querySelectorAll('.method-card').forEach(card => {
+    card.classList.remove('selected');
+  });
+  
+  event.currentTarget.classList.add('selected');
+  
+  // Auto-proceed to next step after a delay
+  setTimeout(() => {
+    goToStep(2);
+  }, 500);
+}
+
+function goToStep(stepNumber) {
+  // Hide all step contents
+  document.querySelectorAll('.step-content').forEach(content => {
+    content.style.display = 'none';
+  });
+  
+  // Update step indicators
+  document.querySelectorAll('.step').forEach((step, index) => {
+    step.classList.remove('active', 'completed');
+    if (index + 1 < stepNumber) {
+      step.classList.add('completed');
+    } else if (index + 1 === stepNumber) {
+      step.classList.add('active');
+    }
+  });
+  
+  // Show current step content
+  if (stepNumber === 2 && selectedMethod === 'csv') {
+    document.getElementById('step2-csv-content').style.display = 'block';
+  } else if (stepNumber === 2 && selectedMethod === 'manual') {
+    document.getElementById('step2-manual-content').style.display = 'block';
+  } else {
+    const content = document.getElementById(`step${stepNumber}-content`);
+    if (content) {
+      content.style.display = 'block';
+    }
+  }
+  
+  currentStep = stepNumber;
+}
+
+// CSV Upload handling
+document.getElementById('csvUploadForm')?.addEventListener('submit', function(e) {
+  e.preventDefault();
+  
+  const formData = new FormData(this);
+  
+  // Show loading state
+  const submitBtn = this.querySelector('button[type="submit"]');
+  const originalText = submitBtn.innerHTML;
+  submitBtn.innerHTML = '<i class="bi bi-hourglass-split me-2"></i>Processing...';
+  submitBtn.disabled = true;
+  
+  // Simulate CSV processing (replace with actual AJAX call)
+  setTimeout(() => {
+    // Reset button
+    submitBtn.innerHTML = originalText;
+    submitBtn.disabled = false;
+    
+    // Proceed to field mapping
+    populateFieldMapping();
+    goToStep(3);
+  }, 2000);
+});
+
+function populateFieldMapping() {
+  // This would be populated with actual CSV column data
+  const sampleColumns = [
+    {name: 'Product Name', sample: 'Electronic Component XYZ'},
+    {name: 'SKU Code', sample: 'EC-XYZ-001'},
+    {name: 'Description', sample: 'High quality electronic component'},
+    {name: 'Cost', sample: '12.50'},
+    {name: 'Price', sample: '25.00'},
+    {name: 'Category', sample: 'Electronics'},
+    {name: 'Stock Qty', sample: '100'},
+  ];
+  
+  const tbody = document.getElementById('mappingTableBody');
+  tbody.innerHTML = '';
+  
+  const productFields = [
+    {value: '', text: '-- Skip this column --'},
+    {value: 'name', text: 'Product Name', required: true},
+    {value: 'sku', text: 'SKU'},
+    {value: 'description', text: 'Description'},
+    {value: 'cost_price', text: 'Cost Price', required: true},
+    {value: 'selling_price', text: 'Selling Price', required: true},
+    {value: 'category', text: 'Category', required: true},
+    {value: 'brand', text: 'Brand'},
+    {value: 'supplier', text: 'Supplier'},
+    {value: 'current_stock', text: 'Current Stock'},
+    {value: 'reorder_level', text: 'Reorder Level'},
+    {value: 'weight', text: 'Weight'},
+    {value: 'dimensions', text: 'Dimensions'},
+  ];
+  
+  sampleColumns.forEach((column, index) => {
+    const row = document.createElement('tr');
+    
+    // Auto-suggest mapping based on column name
+    let suggestedField = '';
+    const columnNameLower = column.name.toLowerCase();
+    if (columnNameLower.includes('name')) suggestedField = 'name';
+    else if (columnNameLower.includes('sku')) suggestedField = 'sku';
+    else if (columnNameLower.includes('cost')) suggestedField = 'cost_price';
+    else if (columnNameLower.includes('price')) suggestedField = 'selling_price';
+    else if (columnNameLower.includes('category')) suggestedField = 'category';
+    else if (columnNameLower.includes('stock')) suggestedField = 'current_stock';
+    
+    row.innerHTML = `
+      <td><strong>${column.name}</strong></td>
+      <td class="text-muted">${column.sample}</td>
+      <td>
+        <select class="form-select form-select-sm" name="mapping_${index}">
+          ${productFields.map(field => 
+            `<option value="${field.value}" ${field.value === suggestedField ? 'selected' : ''}>
+              ${field.text}
+            </option>`
+          ).join('')}
+        </select>
+      </td>
+      <td>
+        ${productFields.find(f => f.value === suggestedField)?.required ? 
+          '<span class="badge bg-danger">Required</span>' : 
+          '<span class="badge bg-secondary">Optional</span>'
+        }
+      </td>
+    `;
+    
+    tbody.appendChild(row);
+  });
+}
+
+function validateMapping() {
+  // Validate that all required fields are mapped
+  const requiredFields = ['name', 'cost_price', 'selling_price', 'category'];
+  const mappedFields = Array.from(document.querySelectorAll('[name^="mapping_"]'))
+    .map(select => select.value)
+    .filter(value => value !== '');
+  
+  const missingRequired = requiredFields.filter(field => !mappedFields.includes(field));
+  
+  if (missingRequired.length > 0) {
+    alert(`Please map the following required fields: ${missingRequired.join(', ')}`);
+    return;
+  }
+  
+  // Proceed to preview
+  generatePreview();
+  goToStep(4);
+}
+
+function generatePreview() {
+  // This would generate actual preview data
+  // For now, showing sample data
+  const tbody = document.getElementById('previewTableBody');
+  tbody.innerHTML = '';
+  
+  const sampleProducts = [
+    {
+      status: 'valid',
+      name: 'Electronic Component XYZ',
+      sku: 'EC-XYZ-001',
+      category: 'Electronics',
+      cost: '12.50',
+      selling: '25.00',
+      stock: '100',
+      issues: ''
+    },
+    {
+      status: 'error',
+      name: 'Component ABC',
+      sku: '',
+      category: '',
+      cost: '0',
+      selling: '15.00',
+      stock: '50',
+      issues: 'Missing category, invalid cost price'
+    }
+  ];
+  
+  let validCount = 0;
+  let errorCount = 0;
+  
+  sampleProducts.forEach(product => {
+    const row = document.createElement('tr');
+    
+    if (product.status === 'valid') {
+      validCount++;
+      row.classList.add('table-success');
+    } else {
+      errorCount++;
+      row.classList.add('table-danger');
+    }
+    
+    row.innerHTML = `
+      <td>
+        ${product.status === 'valid' ? 
+          '<i class="bi bi-check-circle-fill text-success"></i>' : 
+          '<i class="bi bi-x-circle-fill text-danger"></i>'
+        }
+      </td>
+      <td>${product.name}</td>
+      <td>${product.sku || '<em>Auto-generated</em>'}</td>
+      <td>${product.category || '<span class="text-danger">Missing</span>'}</td>
+      <td>$${product.cost}</td>
+      <td>$${product.selling}</td>
+      <td>${product.stock}</td>
+      <td>${product.issues || '—'}</td>
+    `;
+    
+    tbody.appendChild(row);
+  });
+  
+  // Update counters
+  document.getElementById('validProductsCount').textContent = `${validCount} Valid`;
+  document.getElementById('errorProductsCount').textContent = `${errorCount} Errors`;
+  
+  // Update validation summary
+  const summary = document.getElementById('validationSummary');
+  if (errorCount === 0) {
+    summary.className = 'alert alert-success';
+    summary.innerHTML = `
+      <div class="d-flex align-items-center">
+        <i class="bi bi-check-circle me-2"></i>
+        <div>
+          <strong>All products are valid!</strong>
+          Ready to create ${validCount} products.
+        </div>
+      </div>
+    `;
+    document.getElementById('createProductsBtn').disabled = false;
+  } else {
+    summary.className = 'alert alert-warning';
+    summary.innerHTML = `
+      <div class="d-flex align-items-center">
+        <i class="bi bi-exclamation-triangle me-2"></i>
+        <div>
+          <strong>Validation completed with issues.</strong>
+          ${validCount} products are valid, ${errorCount} have errors. You can create the valid products or fix the errors first.
+        </div>
+      </div>
+    `;
+    document.getElementById('createProductsBtn').disabled = validCount === 0;
+  }
+}
+
+function createProducts() {
+  const btn = document.getElementById('createProductsBtn');
+  btn.innerHTML = '<i class="bi bi-hourglass-split me-2"></i>Creating Products...';
+  btn.disabled = true;
+  
+  // Simulate product creation
+  setTimeout(() => {
+    // Show results
+    document.getElementById('successCount').textContent = '8';
+    document.getElementById('skippedCount').textContent = '0';
+    document.getElementById('failedCount').textContent = '2';
+    
+    goToStep(5);
+  }, 3000);
+}
+
+function startNewBatch() {
+  // Reset the entire process
+  currentStep = 1;
+  selectedMethod = null;
+  csvData = null;
+  fieldMapping = {};
+  
+  goToStep(1);
+}
+
+function downloadErrorReport() {
+  // This would generate and download an actual error report
+  alert('Error report download would be implemented here');
+}
+
+function downloadCreationReport() {
+  // This would generate and download a creation summary report
+  alert('Creation report download would be implemented here');
+}
+
+// Manual entry functions
+function generateManualForms() {
+  const count = document.getElementById('productCount').value;
+  const customDiv = document.getElementById('customCountDiv');
+  
+  if (count === 'custom') {
+    customDiv.style.display = 'block';
+  } else {
+    customDiv.style.display = 'none';
+  }
+}
+
+function proceedToManualEntry() {
+  // This would generate the manual entry forms
+  alert('Manual entry form generation would be implemented here');
+}
+
+// Initialize
+document.addEventListener('DOMContentLoaded', function() {
+  goToStep(1);
+});
+</script>
+{% endblock %}

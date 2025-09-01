@@ -1,0 +1,525 @@
+{% extends "dashboard_base.html" %}
+{% load static %}
+
+{% block page_title %}
+  {% if object %}Edit Stock Take{% else %}Create Stock Take{% endif %}
+{% endblock %}
+
+{% block dashboard_content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+  <div>
+    <nav aria-label="breadcrumb">
+      <ol class="breadcrumb mb-1">
+        <li class="breadcrumb-item"><a href="{% url 'inventory:dashboard' %}">Inventory</a></li>
+        <li class="breadcrumb-item"><a href="{% url 'inventory:stock_overview' %}">Stock Management</a></li>
+        <li class="breadcrumb-item"><a href="{% url 'inventory:stock_take_list' %}">Stock Takes</a></li>
+        <li class="breadcrumb-item active">
+          {% if object %}Edit{{ else }}Create{% endif %}
+        </li>
+      </ol>
+    </nav>
+    <h1 class="h3 mb-0 text-gray-800">
+      {% if object %}
+        Edit Stock Take - {{ object.reference }}
+      {% else %}
+        Create New Stock Take
+      {% endif %}
+    </h1>
+    <p class="text-muted mb-0">
+      {% if object %}
+        Modify stock take settings and scheduling options
+      {% else %}
+        Set up a new physical inventory counting session
+      {% endif %}
+    </p>
+  </div>
+</div>
+
+<!-- Stock Take Form -->
+<div class="row">
+  <div class="col-lg-8">
+    <div class="card shadow mb-4">
+      <div class="card-header py-3">
+        <h6 class="m-0 font-weight-bold text-primary">
+          <i class="bi bi-clipboard-data me-2"></i>Stock Take Details
+        </h6>
+      </div>
+      <div class="card-body">
+        <form method="post" id="stockTakeForm">
+          {% csrf_token %}
+          
+          <div class="row">
+            <div class="col-md-6">
+              <div class="mb-3">
+                <label for="id_reference" class="form-label">Reference <span class="text-danger">*</span></label>
+                <input type="text" class="form-control" id="id_reference" name="reference" 
+                       value="{{ form.reference.value|default:'' }}" required
+                       placeholder="e.g., ST-2024-001">
+                {% if form.reference.errors %}
+                  <div class="invalid-feedback d-block">
+                    {{ form.reference.errors.0 }}
+                  </div>
+                {% endif %}
+              </div>
+            </div>
+            
+            <div class="col-md-6">
+              <div class="mb-3">
+                <label for="id_status" class="form-label">Status</label>
+                <select class="form-select" id="id_status" name="status">
+                  <option value="draft" {% if form.status.value == 'draft' %}selected{% endif %}>Draft</option>
+                  <option value="scheduled" {% if form.status.value == 'scheduled' %}selected{% endif %}>Scheduled</option>
+                  {% if object.status == 'in_progress' %}
+                    <option value="in_progress" selected>In Progress</option>
+                  {% endif %}
+                </select>
+              </div>
+            </div>
+          </div>
+          
+          <div class="mb-3">
+            <label for="id_description" class="form-label">Description</label>
+            <textarea class="form-control" id="id_description" name="description" rows="3" 
+                      placeholder="Describe the purpose and scope of this stock take...">{{ form.description.value|default:'' }}</textarea>
+          </div>
+          
+          <div class="row">
+            <div class="col-md-6">
+              <div class="mb-3">
+                <label for="id_location" class="form-label">Location</label>
+                <select class="form-select" id="id_location" name="location">
+                  <option value="">All Locations</option>
+                  {% for location in locations %}
+                  <option value="{{ location.pk }}" 
+                          {% if form.location.value == location.pk %}selected{% endif %}>
+                    {{ location.name }}
+                  </option>
+                  {% endfor %}
+                </select>
+                <small class="form-text text-muted">Leave empty to count all locations</small>
+              </div>
+            </div>
+            
+            <div class="col-md-6">
+              <div class="mb-3">
+                <label class="form-label">Count Type</label>
+                <div class="form-check">
+                  <input class="form-check-input" type="radio" name="count_type" id="full_count" 
+                         value="full" {% if form.count_type.value == 'full' or not form.count_type.value %}checked{% endif %}>
+                  <label class="form-check-label" for="full_count">
+                    <strong>Full Count</strong>
+                    <small class="d-block text-muted">Count all products in selected location(s)</small>
+                  </label>
+                </div>
+                <div class="form-check">
+                  <input class="form-check-input" type="radio" name="count_type" id="cycle_count" 
+                         value="cycle" {% if form.count_type.value == 'cycle' %}checked{% endif %}>
+                  <label class="form-check-label" for="cycle_count">
+                    <strong>Cycle Count</strong>
+                    <small class="d-block text-muted">Count specific categories or high-value items</small>
+                  </label>
+                </div>
+                <div class="form-check">
+                  <input class="form-check-input" type="radio" name="count_type" id="partial_count" 
+                         value="partial" {% if form.count_type.value == 'partial' %}checked{% endif %}>
+                  <label class="form-check-label" for="partial_count">
+                    <strong>Partial Count</strong>
+                    <small class="d-block text-muted">Count selected products only</small>
+                  </label>
+                </div>
+              </div>
+            </div>
+          </div>
+          
+          <!-- Additional Options based on Count Type -->
+          <div id="cycle_count_options" class="mb-3" style="display: none;">
+            <label class="form-label">Cycle Count Criteria</label>
+            <div class="row">
+              <div class="col-md-6">
+                <div class="form-check">
+                  <input class="form-check-input" type="checkbox" name="high_value_items" id="high_value_items">
+                  <label class="form-check-label" for="high_value_items">
+                    High-value items (>$1000)
+                  </label>
+                </div>
+                <div class="form-check">
+                  <input class="form-check-input" type="checkbox" name="fast_moving_items" id="fast_moving_items">
+                  <label class="form-check-label" for="fast_moving_items">
+                    Fast-moving items
+                  </label>
+                </div>
+              </div>
+              <div class="col-md-6">
+                <div class="form-check">
+                  <input class="form-check-input" type="checkbox" name="critical_items" id="critical_items">
+                  <label class="form-check-label" for="critical_items">
+                    Critical stock items
+                  </label>
+                </div>
+                <div class="form-check">
+                  <input class="form-check-input" type="checkbox" name="seasonal_items" id="seasonal_items">
+                  <label class="form-check-label" for="seasonal_items">
+                    Seasonal items
+                  </label>
+                </div>
+              </div>
+            </div>
+          </div>
+          
+          <div id="partial_count_options" class="mb-3" style="display: none;">
+            <label class="form-label">Select Categories</label>
+            <select class="form-select" name="categories" id="categories" multiple>
+              {% for category in categories %}
+              <option value="{{ category.pk }}">{{ category.name }}</option>
+              {% endfor %}
+            </select>
+            <small class="form-text text-muted">Hold Ctrl/Cmd to select multiple categories</small>
+          </div>
+          
+          <!-- Scheduling Options -->
+          <div class="mb-4">
+            <h6 class="fw-bold text-primary">
+              <i class="bi bi-calendar-event me-2"></i>Scheduling Options
+            </h6>
+            <hr>
+            
+            <div class="row">
+              <div class="col-md-6">
+                <div class="mb-3">
+                  <label for="id_scheduled_date" class="form-label">Scheduled Date</label>
+                  <input type="date" class="form-control" id="id_scheduled_date" name="scheduled_date" 
+                         value="{{ form.scheduled_date.value|date:'Y-m-d' }}">
+                  <small class="form-text text-muted">When should this stock take be performed?</small>
+                </div>
+              </div>
+              
+              <div class="col-md-6">
+                <div class="mb-3">
+                  <label for="id_scheduled_time" class="form-label">Scheduled Time</label>
+                  <input type="time" class="form-control" id="id_scheduled_time" name="scheduled_time" 
+                         value="{{ form.scheduled_time.value|time:'H:i' }}">
+                  <small class="form-text text-muted">Optional - specific time to start</small>
+                </div>
+              </div>
+            </div>
+            
+            <div class="row">
+              <div class="col-md-6">
+                <div class="mb-3">
+                  <label for="id_assigned_to" class="form-label">Assign to User</label>
+                  <select class="form-select" id="id_assigned_to" name="assigned_to">
+                    <option value="">Select user...</option>
+                    {% for user in users %}
+                    <option value="{{ user.pk }}" 
+                            {% if form.assigned_to.value == user.pk %}selected{% endif %}>
+                      {{ user.get_full_name|default:user.username }}
+                    </option>
+                    {% endfor %}
+                  </select>
+                </div>
+              </div>
+              
+              <div class="col-md-6">
+                <div class="mb-3">
+                  <label for="id_priority" class="form-label">Priority</label>
+                  <select class="form-select" id="id_priority" name="priority">
+                    <option value="low" {% if form.priority.value == 'low' %}selected{% endif %}>Low</option>
+                    <option value="normal" {% if form.priority.value == 'normal' or not form.priority.value %}selected{% endif %}>Normal</option>
+                    <option value="high" {% if form.priority.value == 'high' %}selected{% endif %}>High</option>
+                    <option value="urgent" {% if form.priority.value == 'urgent' %}selected{% endif %}>Urgent</option>
+                  </select>
+                </div>
+              </div>
+            </div>
+          </div>
+          
+          <!-- Additional Settings -->
+          <div class="mb-4">
+            <h6 class="fw-bold text-primary">
+              <i class="bi bi-gear me-2"></i>Additional Settings
+            </h6>
+            <hr>
+            
+            <div class="form-check mb-2">
+              <input class="form-check-input" type="checkbox" name="freeze_transactions" id="freeze_transactions" 
+                     {% if form.freeze_transactions.value %}checked{% endif %}>
+              <label class="form-check-label" for="freeze_transactions">
+                <strong>Freeze Transactions During Count</strong>
+                <small class="d-block text-muted">Prevent stock movements while counting is in progress</small>
+              </label>
+            </div>
+            
+            <div class="form-check mb-2">
+              <input class="form-check-input" type="checkbox" name="require_photos" id="require_photos" 
+                     {% if form.require_photos.value %}checked{% endif %}>
+              <label class="form-check-label" for="require_photos">
+                <strong>Require Photos for Discrepancies</strong>
+                <small class="d-block text-muted">Photos must be taken for items with significant variances</small>
+              </label>
+            </div>
+            
+            <div class="form-check mb-2">
+              <input class="form-check-input" type="checkbox" name="auto_adjust" id="auto_adjust" 
+                     {% if form.auto_adjust.value %}checked{% endif %}>
+              <label class="form-check-label" for="auto_adjust">
+                <strong>Auto-Adjust Small Variances</strong>
+                <small class="d-block text-muted">Automatically adjust variances under $10 in value</small>
+              </label>
+            </div>
+            
+            <div class="form-check mb-3">
+              <input class="form-check-input" type="checkbox" name="send_notifications" id="send_notifications" 
+                     {% if form.send_notifications.value %}checked{% endif %}>
+              <label class="form-check-label" for="send_notifications">
+                <strong>Send Progress Notifications</strong>
+                <small class="d-block text-muted">Email updates on stock take progress to supervisors</small>
+              </label>
+            </div>
+          </div>
+          
+          <div class="mb-3">
+            <label for="id_notes" class="form-label">Internal Notes</label>
+            <textarea class="form-control" id="id_notes" name="notes" rows="3" 
+                      placeholder="Any additional notes or special instructions...">{{ form.notes.value|default:'' }}</textarea>
+          </div>
+          
+          <div class="d-flex justify-content-between">
+            <a href="{% url 'inventory:stock_take_list' %}" class="btn btn-secondary">
+              <i class="bi bi-arrow-left me-2"></i>Cancel
+            </a>
+            <div class="btn-group" role="group">
+              <button type="submit" name="save_draft" class="btn btn-outline-primary">
+                <i class="bi bi-save me-2"></i>Save as Draft
+              </button>
+              <button type="submit" name="save_schedule" class="btn btn-primary">
+                <i class="bi bi-calendar-check me-2"></i>
+                {% if object %}Update{% else %}Save & Schedule{% endif %}
+              </button>
+            </div>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+  
+  <div class="col-lg-4">
+    <!-- Help & Tips Card -->
+    <div class="card shadow mb-4">
+      <div class="card-header py-3">
+        <h6 class="m-0 font-weight-bold text-primary">
+          <i class="bi bi-question-circle me-2"></i>Stock Take Tips
+        </h6>
+      </div>
+      <div class="card-body">
+        <div class="mb-3">
+          <h6 class="text-info">
+            <i class="bi bi-lightbulb me-2"></i>Best Practices
+          </h6>
+          <ul class="small mb-0">
+            <li>Schedule stock takes during low activity periods</li>
+            <li>Assign specific locations to different team members</li>
+            <li>Use cycle counts for high-value items monthly</li>
+            <li>Take photos of damaged or questionable inventory</li>
+          </ul>
+        </div>
+        
+        <div class="mb-3">
+          <h6 class="text-warning">
+            <i class="bi bi-exclamation-triangle me-2"></i>Important Notes
+          </h6>
+          <ul class="small mb-0">
+            <li>Freezing transactions will prevent all stock movements</li>
+            <li>Full counts may take several hours to complete</li>
+            <li>Ensure adequate staff coverage during count periods</li>
+            <li>Review all discrepancies before finalizing</li>
+          </ul>
+        </div>
+        
+        <div>
+          <h6 class="text-success">
+            <i class="bi bi-check-circle me-2"></i>Count Types
+          </h6>
+          <div class="small">
+            <strong>Full Count:</strong> Complete inventory of all items<br>
+            <strong>Cycle Count:</strong> Regular counting of high-priority items<br>
+            <strong>Partial Count:</strong> Specific categories or problem areas
+          </div>
+        </div>
+      </div>
+    </div>
+    
+    <!-- Preview Card -->
+    {% if not object %}
+    <div class="card shadow mb-4">
+      <div class="card-header py-3">
+        <h6 class="m-0 font-weight-bold text-primary">
+          <i class="bi bi-eye me-2"></i>What Happens Next?
+        </h6>
+      </div>
+      <div class="card-body">
+        <div class="timeline">
+          <div class="timeline-item">
+            <div class="timeline-marker bg-primary"></div>
+            <div class="timeline-content">
+              <h6 class="timeline-title">Stock Take Created</h6>
+              <p class="timeline-text small">Initial setup and configuration</p>
+            </div>
+          </div>
+          <div class="timeline-item">
+            <div class="timeline-marker bg-warning"></div>
+            <div class="timeline-content">
+              <h6 class="timeline-title">Items Generated</h6>
+              <p class="timeline-text small">Products added based on your criteria</p>
+            </div>
+          </div>
+          <div class="timeline-item">
+            <div class="timeline-marker bg-info"></div>
+            <div class="timeline-content">
+              <h6 class="timeline-title">Counting Phase</h6>
+              <p class="timeline-text small">Physical counting and data entry</p>
+            </div>
+          </div>
+          <div class="timeline-item">
+            <div class="timeline-marker bg-success"></div>
+            <div class="timeline-content">
+              <h6 class="timeline-title">Review & Complete</h6>
+              <p class="timeline-text small">Validate results and apply adjustments</p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    {% endif %}
+  </div>
+</div>
+
+<!-- JavaScript -->
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // Auto-generate reference if empty
+    const referenceField = document.getElementById('id_reference');
+    if (referenceField && !referenceField.value) {
+        const today = new Date();
+        const year = today.getFullYear();
+        const month = String(today.getMonth() + 1).padStart(2, '0');
+        const day = String(today.getDate()).padStart(2, '0');
+        const random = Math.floor(Math.random() * 1000).toString().padStart(3, '0');
+        referenceField.value = `ST-${year}-${month}${day}-${random}`;
+    }
+
+    // Show/hide count type options
+    const countTypeRadios = document.querySelectorAll('input[name="count_type"]');
+    const cycleOptions = document.getElementById('cycle_count_options');
+    const partialOptions = document.getElementById('partial_count_options');
+
+    function toggleCountTypeOptions() {
+        const selectedType = document.querySelector('input[name="count_type"]:checked').value;
+        
+        cycleOptions.style.display = selectedType === 'cycle' ? 'block' : 'none';
+        partialOptions.style.display = selectedType === 'partial' ? 'block' : 'none';
+    }
+
+    countTypeRadios.forEach(radio => {
+        radio.addEventListener('change', toggleCountTypeOptions);
+    });
+    
+    // Initialize on load
+    toggleCountTypeOptions();
+
+    // Set default scheduled date to today
+    const scheduledDateField = document.getElementById('id_scheduled_date');
+    if (scheduledDateField && !scheduledDateField.value) {
+        const today = new Date();
+        scheduledDateField.value = today.toISOString().split('T')[0];
+    }
+
+    // Form submission handling
+    const form = document.getElementById('stockTakeForm');
+    form.addEventListener('submit', function(e) {
+        const submitButton = e.submitter;
+        
+        if (submitButton.name === 'save_draft') {
+            // Set status to draft
+            document.getElementById('id_status').value = 'draft';
+        } else if (submitButton.name === 'save_schedule') {
+            // Set status to scheduled if date is provided
+            const scheduledDate = document.getElementById('id_scheduled_date').value;
+            if (scheduledDate) {
+                document.getElementById('id_status').value = 'scheduled';
+            }
+        }
+    });
+
+    // Location change handler
+    const locationSelect = document.getElementById('id_location');
+    locationSelect.addEventListener('change', function() {
+        if (this.value) {
+            // Show estimated item count for selected location
+            fetch(`{% url 'inventory:location_item_count' 0 %}`.replace('0', this.value))
+                .then(response => response.json())
+                .then(data => {
+                    if (data.count) {
+                        // You could show this in a small badge or tooltip
+                        console.log(`Estimated ${data.count} items to count`);
+                    }
+                });
+        }
+    });
+
+    // Multi-select enhancement for categories
+    const categoriesSelect = document.getElementById('categories');
+    if (categoriesSelect) {
+        categoriesSelect.addEventListener('change', function() {
+            const selectedCount = this.selectedOptions.length;
+            if (selectedCount > 0) {
+                console.log(`${selectedCount} categories selected`);
+            }
+        });
+    }
+});
+</script>
+
+<style>
+.timeline {
+    position: relative;
+    padding-left: 30px;
+}
+
+.timeline::before {
+    content: '';
+    position: absolute;
+    left: 10px;
+    top: 0;
+    bottom: 0;
+    width: 2px;
+    background: #dee2e6;
+}
+
+.timeline-item {
+    position: relative;
+    margin-bottom: 20px;
+}
+
+.timeline-marker {
+    position: absolute;
+    left: -25px;
+    top: 0;
+    width: 20px;
+    height: 20px;
+    border-radius: 50%;
+    border: 3px solid white;
+}
+
+.timeline-title {
+    font-size: 14px;
+    margin-bottom: 5px;
+    color: #495057;
+}
+
+.timeline-text {
+    margin: 0;
+    color: #6c757d;
+}
+</style>
+
+{% endblock %}

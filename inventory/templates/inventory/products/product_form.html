@@ -1,0 +1,600 @@
+{% extends "dashboard_base.html" %}
+{% load static %}
+{% load crispy_forms_tags %}
+
+{% block page_title %}
+  {% if object %}Edit Product: {{ object.name }}{% else %}Create New Product{% endif %}
+{% endblock %}
+
+{% block dashboard_content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+  <div>
+    <nav aria-label="breadcrumb">
+      <ol class="breadcrumb mb-1">
+        <li class="breadcrumb-item"><a href="{% url 'inventory:dashboard' %}">Inventory</a></li>
+        <li class="breadcrumb-item"><a href="{% url 'inventory:product_list' %}">Products</a></li>
+        {% if object %}
+          <li class="breadcrumb-item"><a href="{% url 'inventory:product_detail' object.pk %}">{{ object.name }}</a></li>
+          <li class="breadcrumb-item active">Edit</li>
+        {% else %}
+          <li class="breadcrumb-item active">Create New</li>
+        {% endif %}
+      </ol>
+    </nav>
+    <h1 class="h3 mb-0 text-gray-800">
+      <i class="bi bi-{% if object %}pencil-square{% else %}plus-circle{% endif %} me-2"></i>
+      {% if object %}Edit Product: {{ object.name }}{% else %}Create New Product{% endif %}
+    </h1>
+    <p class="text-muted mb-0">
+      {% if object %}Update product information, pricing, and stock levels{% else %}Add a new product to your inventory system{% endif %}
+    </p>
+  </div>
+  
+  <div class="btn-group" role="group">
+    <a href="{% url 'inventory:product_list' %}" class="btn btn-outline-secondary">
+      <i class="bi bi-arrow-left me-2"></i>Back to Products
+    </a>
+    {% if object %}
+      <a href="{% url 'inventory:product_detail' object.pk %}" class="btn btn-outline-info">
+        <i class="bi bi-eye me-2"></i>View Product
+      </a>
+      <div class="btn-group" role="group">
+        <button class="btn btn-outline-secondary dropdown-toggle" type="button" data-bs-toggle="dropdown">
+          <i class="bi bi-three-dots"></i>
+        </button>
+        <ul class="dropdown-menu">
+          <li><a class="dropdown-item" href="{% url 'inventory:product_duplicate' object.pk %}">
+            <i class="bi bi-files me-2"></i>Duplicate Product
+          </a></li>
+          <li><hr class="dropdown-divider"></li>
+          <li><a class="dropdown-item text-danger" href="{% url 'inventory:product_delete' object.pk %}">
+            <i class="bi bi-trash me-2"></i>Delete Product
+          </a></li>
+        </ul>
+      </div>
+    {% endif %}
+  </div>
+</div>
+
+<!-- Form Validation Errors -->
+{% if form.non_field_errors %}
+  <div class="alert alert-danger" role="alert">
+    <i class="bi bi-exclamation-triangle me-2"></i>
+    <strong>Please correct the following errors:</strong>
+    <ul class="mb-0 mt-2">
+      {% for error in form.non_field_errors %}
+        <li>{{ error }}</li>
+      {% endfor %}
+    </ul>
+  </div>
+{% endif %}
+
+<!-- Main Form -->
+<form method="post" enctype="multipart/form-data" id="productForm">
+  {% csrf_token %}
+  
+  <!-- Form Tabs -->
+  <div class="card">
+    <div class="card-header border-bottom-0">
+      <ul class="nav nav-tabs card-header-tabs" id="productTabs" role="tablist">
+        <li class="nav-item" role="presentation">
+          <button class="nav-link active" id="basic-tab" data-bs-toggle="tab" data-bs-target="#basic-info" 
+                  type="button" role="tab" aria-controls="basic-info" aria-selected="true">
+            <i class="bi bi-info-circle me-2"></i>Basic Information
+          </button>
+        </li>
+        <li class="nav-item" role="presentation">
+          <button class="nav-link" id="pricing-tab" data-bs-toggle="tab" data-bs-target="#pricing-costing" 
+                  type="button" role="tab" aria-controls="pricing-costing" aria-selected="false">
+            <i class="bi bi-currency-dollar me-2"></i>Pricing & Costing
+          </button>
+        </li>
+        <li class="nav-item" role="presentation">
+          <button class="nav-link" id="inventory-tab" data-bs-toggle="tab" data-bs-target="#inventory-management" 
+                  type="button" role="tab" aria-controls="inventory-management" aria-selected="false">
+            <i class="bi bi-boxes me-2"></i>Inventory Management
+          </button>
+        </li>
+        {% if object.component_family or form.component_family %}
+        <li class="nav-item" role="presentation">
+          <button class="nav-link" id="attributes-tab" data-bs-toggle="tab" data-bs-target="#dynamic-attributes" 
+                  type="button" role="tab" aria-controls="dynamic-attributes" aria-selected="false">
+            <i class="bi bi-sliders me-2"></i>Technical Specifications
+          </button>
+        </li>
+        {% endif %}
+        <li class="nav-item" role="presentation">
+          <button class="nav-link" id="advanced-tab" data-bs-toggle="tab" data-bs-target="#advanced-settings" 
+                  type="button" role="tab" aria-controls="advanced-settings" aria-selected="false">
+            <i class="bi bi-gear me-2"></i>Advanced Settings
+          </button>
+        </li>
+      </ul>
+    </div>
+
+    <div class="card-body">
+      <div class="tab-content" id="productTabsContent">
+        
+        <!-- Basic Information Tab -->
+        <div class="tab-pane fade show active" id="basic-info" role="tabpanel" aria-labelledby="basic-tab">
+          <div class="row">
+            <div class="col-md-8">
+              <div class="row mb-3">
+                <div class="col-md-6">
+                  <label for="{{ form.name.id_for_label }}" class="form-label">
+                    <i class="bi bi-tag me-1"></i>Product Name <span class="text-danger">*</span>
+                  </label>
+                  {{ form.name }}
+                  {% if form.name.errors %}
+                    <div class="text-danger small mt-1">{{ form.name.errors.0 }}</div>
+                  {% endif %}
+                </div>
+                <div class="col-md-6">
+                  <label for="{{ form.sku.id_for_label }}" class="form-label">
+                    <i class="bi bi-upc-scan me-1"></i>SKU (Stock Keeping Unit)
+                  </label>
+                  {{ form.sku }}
+                  <div class="form-text">Leave empty to auto-generate from product name</div>
+                  {% if form.sku.errors %}
+                    <div class="text-danger small mt-1">{{ form.sku.errors.0 }}</div>
+                  {% endif %}
+                </div>
+              </div>
+              
+              <div class="mb-3">
+                <label for="{{ form.description.id_for_label }}" class="form-label">
+                  <i class="bi bi-text-paragraph me-1"></i>Description
+                </label>
+                {{ form.description }}
+                {% if form.description.errors %}
+                  <div class="text-danger small mt-1">{{ form.description.errors.0 }}</div>
+                {% endif %}
+              </div>
+              
+              <div class="row mb-3">
+                <div class="col-md-4">
+                  <label for="{{ form.category.id_for_label }}" class="form-label">
+                    <i class="bi bi-collection me-1"></i>Category <span class="text-danger">*</span>
+                  </label>
+                  {{ form.category }}
+                  {% if form.category.errors %}
+                    <div class="text-danger small mt-1">{{ form.category.errors.0 }}</div>
+                  {% endif %}
+                </div>
+                <div class="col-md-4">
+                  <label for="{{ form.brand.id_for_label }}" class="form-label">
+                    <i class="bi bi-award me-1"></i>Brand
+                  </label>
+                  {{ form.brand }}
+                  {% if form.brand.errors %}
+                    <div class="text-danger small mt-1">{{ form.brand.errors.0 }}</div>
+                  {% endif %}
+                </div>
+                <div class="col-md-4">
+                  <label for="{{ form.supplier.id_for_label }}" class="form-label">
+                    <i class="bi bi-building me-1"></i>Primary Supplier
+                  </label>
+                  {{ form.supplier }}
+                  {% if form.supplier.errors %}
+                    <div class="text-danger small mt-1">{{ form.supplier.errors.0 }}</div>
+                  {% endif %}
+                </div>
+              </div>
+            </div>
+            
+            <div class="col-md-4">
+              <div class="card bg-light">
+                <div class="card-body">
+                  <h6 class="card-title">
+                    <i class="bi bi-info-circle me-2"></i>Product Status
+                  </h6>
+                  <div class="form-check form-switch">
+                    {{ form.is_active }}
+                    <label class="form-check-label" for="{{ form.is_active.id_for_label }}">
+                      Active Product
+                    </label>
+                  </div>
+                  <div class="form-text">Inactive products won't appear in sales or ordering</div>
+                  
+                  {% if object %}
+                  <hr>
+                  <div class="small text-muted">
+                    <div><strong>Created:</strong> {{ object.created_at|date:"M d, Y H:i" }}</div>
+                    {% if object.updated_at %}
+                      <div><strong>Updated:</strong> {{ object.updated_at|date:"M d, Y H:i" }}</div>
+                    {% endif %}
+                  </div>
+                  {% endif %}
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Pricing & Costing Tab -->
+        <div class="tab-pane fade" id="pricing-costing" role="tabpanel" aria-labelledby="pricing-tab">
+          <div class="row">
+            <div class="col-md-6">
+              <div class="card">
+                <div class="card-header">
+                  <h6 class="card-title mb-0">
+                    <i class="bi bi-calculator me-2"></i>Cost Structure
+                  </h6>
+                </div>
+                <div class="card-body">
+                  <div class="mb-3">
+                    <label for="{{ form.cost_price.id_for_label }}" class="form-label">
+                      <i class="bi bi-cash me-1"></i>Cost Price <span class="text-danger">*</span>
+                    </label>
+                    <div class="input-group">
+                      <span class="input-group-text">$</span>
+                      {{ form.cost_price }}
+                    </div>
+                    <div class="form-text">Base cost per unit from supplier</div>
+                    {% if form.cost_price.errors %}
+                      <div class="text-danger small mt-1">{{ form.cost_price.errors.0 }}</div>
+                    {% endif %}
+                  </div>
+                  
+                  <!-- Additional pricing fields from PricingFieldsMixin would appear here -->
+                  {% for field in form %}
+                    {% if 'cost' in field.name or 'overhead' in field.name or 'markup' in field.name %}
+                      {% if field.name != 'cost_price' %}
+                        <div class="mb-3">
+                          <label for="{{ field.id_for_label }}" class="form-label">{{ field.label }}</label>
+                          {% if field.field.widget.input_type == 'number' %}
+                            <div class="input-group">
+                              <span class="input-group-text">
+                                {% if '$' in field.label or 'Cost' in field.label or 'Price' in field.label %}${% else %}%{% endif %}
+                              </span>
+                              {{ field }}
+                            </div>
+                          {% else %}
+                            {{ field }}
+                          {% endif %}
+                          {% if field.help_text %}
+                            <div class="form-text">{{ field.help_text }}</div>
+                          {% endif %}
+                          {% if field.errors %}
+                            <div class="text-danger small mt-1">{{ field.errors.0 }}</div>
+                          {% endif %}
+                        </div>
+                      {% endif %}
+                    {% endif %}
+                  {% endfor %}
+                </div>
+              </div>
+            </div>
+            
+            <div class="col-md-6">
+              <div class="card">
+                <div class="card-header">
+                  <h6 class="card-title mb-0">
+                    <i class="bi bi-currency-exchange me-2"></i>Selling Price
+                  </h6>
+                </div>
+                <div class="card-body">
+                  <div class="mb-3">
+                    <label for="{{ form.selling_price.id_for_label }}" class="form-label">
+                      <i class="bi bi-tag me-1"></i>Selling Price <span class="text-danger">*</span>
+                    </label>
+                    <div class="input-group">
+                      <span class="input-group-text">$</span>
+                      {{ form.selling_price }}
+                    </div>
+                    <div class="form-text">Retail price for customers</div>
+                    {% if form.selling_price.errors %}
+                      <div class="text-danger small mt-1">{{ form.selling_price.errors.0 }}</div>
+                    {% endif %}
+                  </div>
+                  
+                  {% if object %}
+                  <div class="alert alert-info">
+                    <h6><i class="bi bi-calculator me-2"></i>Calculated Margins</h6>
+                    <div class="row">
+                      <div class="col-6">
+                        <strong>Gross Margin:</strong><br>
+                        <span class="h5 text-success">${{ object.gross_margin|floatformat:2 }}</span>
+                      </div>
+                      <div class="col-6">
+                        <strong>Margin %:</strong><br>
+                        <span class="h5 text-success">{{ object.margin_percentage|floatformat:1 }}%</span>
+                      </div>
+                    </div>
+                  </div>
+                  {% endif %}
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Inventory Management Tab -->
+        <div class="tab-pane fade" id="inventory-management" role="tabpanel" aria-labelledby="inventory-tab">
+          <div class="row">
+            <div class="col-md-6">
+              <div class="card">
+                <div class="card-header">
+                  <h6 class="card-title mb-0">
+                    <i class="bi bi-boxes me-2"></i>Stock Levels
+                  </h6>
+                </div>
+                <div class="card-body">
+                  <div class="mb-3">
+                    <label for="{{ form.current_stock.id_for_label }}" class="form-label">
+                      <i class="bi bi-box me-1"></i>Current Stock
+                    </label>
+                    {{ form.current_stock }}
+                    <div class="form-text">Current quantity on hand</div>
+                    {% if form.current_stock.errors %}
+                      <div class="text-danger small mt-1">{{ form.current_stock.errors.0 }}</div>
+                    {% endif %}
+                  </div>
+                  
+                  <div class="mb-3">
+                    <label for="{{ form.reorder_level.id_for_label }}" class="form-label">
+                      <i class="bi bi-arrow-repeat me-1"></i>Reorder Level
+                    </label>
+                    {{ form.reorder_level }}
+                    <div class="form-text">Minimum stock level before reordering</div>
+                    {% if form.reorder_level.errors %}
+                      <div class="text-danger small mt-1">{{ form.reorder_level.errors.0 }}</div>
+                    {% endif %}
+                  </div>
+                  
+                  <!-- Additional stock fields from StockFieldsMixin -->
+                  {% for field in form %}
+                    {% if 'stock' in field.name or 'reorder' in field.name or 'minimum' in field.name or 'maximum' in field.name %}
+                      {% if field.name not in 'current_stock,reorder_level' %}
+                        <div class="mb-3">
+                          <label for="{{ field.id_for_label }}" class="form-label">{{ field.label }}</label>
+                          {{ field }}
+                          {% if field.help_text %}
+                            <div class="form-text">{{ field.help_text }}</div>
+                          {% endif %}
+                          {% if field.errors %}
+                            <div class="text-danger small mt-1">{{ field.errors.0 }}</div>
+                          {% endif %}
+                        </div>
+                      {% endif %}
+                    {% endif %}
+                  {% endfor %}
+                </div>
+              </div>
+            </div>
+            
+            <div class="col-md-6">
+              <div class="card">
+                <div class="card-header">
+                  <h6 class="card-title mb-0">
+                    <i class="bi bi-rulers me-2"></i>Physical Properties
+                  </h6>
+                </div>
+                <div class="card-body">
+                  <div class="mb-3">
+                    <label for="{{ form.unit_of_measure.id_for_label }}" class="form-label">
+                      <i class="bi bi-rulers me-1"></i>Unit of Measure
+                    </label>
+                    {{ form.unit_of_measure }}
+                    {% if form.unit_of_measure.errors %}
+                      <div class="text-danger small mt-1">{{ form.unit_of_measure.errors.0 }}</div>
+                    {% endif %}
+                  </div>
+                  
+                  <div class="mb-3">
+                    <label for="{{ form.weight.id_for_label }}" class="form-label">
+                      <i class="bi bi-speedometer me-1"></i>Weight (kg)
+                    </label>
+                    {{ form.weight }}
+                    <div class="form-text">Weight in kilograms for shipping calculations</div>
+                    {% if form.weight.errors %}
+                      <div class="text-danger small mt-1">{{ form.weight.errors.0 }}</div>
+                    {% endif %}
+                  </div>
+                  
+                  <div class="mb-3">
+                    <label for="{{ form.dimensions.id_for_label }}" class="form-label">
+                      <i class="bi bi-bounding-box me-1"></i>Dimensions
+                    </label>
+                    {{ form.dimensions }}
+                    <div class="form-text">Length × Width × Height (optional)</div>
+                    {% if form.dimensions.errors %}
+                      <div class="text-danger small mt-1">{{ form.dimensions.errors.0 }}</div>
+                    {% endif %}
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Dynamic Attributes Tab -->
+        {% if object.component_family or form.component_family %}
+        <div class="tab-pane fade" id="dynamic-attributes" role="tabpanel" aria-labelledby="attributes-tab">
+          <div class="card">
+            <div class="card-header">
+              <h6 class="card-title mb-0">
+                <i class="bi bi-sliders me-2"></i>Technical Specifications
+                {% if object.component_family %}
+                  <span class="badge bg-primary ms-2">{{ object.component_family.name }}</span>
+                {% endif %}
+              </h6>
+            </div>
+            <div class="card-body">
+              <div class="row">
+                <!-- Dynamic attribute fields would be rendered here -->
+                {% for field in form %}
+                  {% if 'attr_' in field.name %}
+                    <div class="col-md-6 mb-3">
+                      <label for="{{ field.id_for_label }}" class="form-label">
+                        {{ field.label }}
+                        {% if field.field.required %}<span class="text-danger">*</span>{% endif %}
+                      </label>
+                      {{ field }}
+                      {% if field.help_text %}
+                        <div class="form-text">{{ field.help_text }}</div>
+                      {% endif %}
+                      {% if field.errors %}
+                        <div class="text-danger small mt-1">{{ field.errors.0 }}</div>
+                      {% endif %}
+                    </div>
+                  {% endif %}
+                {% endfor %}
+              </div>
+              
+              {% if not form.dynamic_attributes %}
+                <div class="text-center py-4">
+                  <i class="bi bi-info-circle text-muted" style="font-size: 3rem;"></i>
+                  <h6 class="text-muted mt-2">No Dynamic Attributes</h6>
+                  <p class="text-muted">This component family has no additional technical specifications defined.</p>
+                </div>
+              {% endif %}
+            </div>
+          </div>
+        </div>
+        {% endif %}
+
+        <!-- Advanced Settings Tab -->
+        <div class="tab-pane fade" id="advanced-settings" role="tabpanel" aria-labelledby="advanced-tab">
+          <div class="row">
+            <div class="col-md-12">
+              <div class="card">
+                <div class="card-header">
+                  <h6 class="card-title mb-0">
+                    <i class="bi bi-gear me-2"></i>Additional Settings
+                  </h6>
+                </div>
+                <div class="card-body">
+                  <div class="row">
+                    <!-- Additional fields that don't fit in other tabs -->
+                    {% for field in form %}
+                      {% if field.name not in 'name,sku,description,category,brand,supplier,cost_price,selling_price,current_stock,reorder_level,unit_of_measure,weight,dimensions,is_active' and 'attr_' not in field.name and 'cost' not in field.name and 'overhead' not in field.name and 'markup' not in field.name and 'stock' not in field.name and 'reorder' not in field.name and 'minimum' not in field.name and 'maximum' not in field.name %}
+                        <div class="col-md-6 mb-3">
+                          <label for="{{ field.id_for_label }}" class="form-label">
+                            {{ field.label }}
+                            {% if field.field.required %}<span class="text-danger">*</span>{% endif %}
+                          </label>
+                          {{ field }}
+                          {% if field.help_text %}
+                            <div class="form-text">{{ field.help_text }}</div>
+                          {% endif %}
+                          {% if field.errors %}
+                            <div class="text-danger small mt-1">{{ field.errors.0 }}</div>
+                          {% endif %}
+                        </div>
+                      {% endif %}
+                    {% endfor %}
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Form Actions -->
+  <div class="card mt-4">
+    <div class="card-body">
+      <div class="d-flex justify-content-between align-items-center">
+        <div>
+          <button type="button" class="btn btn-outline-secondary" onclick="history.back()">
+            <i class="bi bi-arrow-left me-2"></i>Cancel
+          </button>
+        </div>
+        
+        <div class="btn-group">
+          <button type="submit" name="action" value="save" class="btn btn-primary">
+            <i class="bi bi-check me-2"></i>
+            {% if object %}Update Product{% else %}Create Product{% endif %}
+          </button>
+          {% if not object %}
+            <button type="submit" name="action" value="save_and_add" class="btn btn-success">
+              <i class="bi bi-plus me-2"></i>Save & Add Another
+            </button>
+          {% else %}
+            <button type="submit" name="action" value="save_and_continue" class="btn btn-info">
+              <i class="bi bi-arrow-right me-2"></i>Save & Continue Editing
+            </button>
+          {% endif %}
+        </div>
+      </div>
+    </div>
+  </div>
+</form>
+
+{% endblock %}
+
+{% block extra_js %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+  // Form validation
+  const form = document.getElementById('productForm');
+  
+  // Auto-generate SKU from name if empty
+  const nameField = document.querySelector('#id_name');
+  const skuField = document.querySelector('#id_sku');
+  
+  if (nameField && skuField) {
+    nameField.addEventListener('blur', function() {
+      if (!skuField.value.trim()) {
+        const name = this.value.trim();
+        if (name) {
+          // Simple SKU generation (server will handle uniqueness)
+          const sku = name.toUpperCase().replace(/[^A-Z0-9]/g, '').substring(0, 10);
+          skuField.value = sku;
+        }
+      }
+    });
+  }
+  
+  // Tab validation indicators
+  function updateTabValidation() {
+    const tabs = ['basic', 'pricing', 'inventory', 'attributes', 'advanced'];
+    
+    tabs.forEach(tabName => {
+      const tabPane = document.getElementById(tabName + '-info') || 
+                    document.getElementById(tabName + '-costing') || 
+                    document.getElementById(tabName + '-management') ||
+                    document.getElementById('dynamic-attributes') ||
+                    document.getElementById(tabName + '-settings');
+      
+      if (tabPane) {
+        const errors = tabPane.querySelectorAll('.text-danger');
+        const tab = document.getElementById(tabName + '-tab');
+        
+        if (tab) {
+          if (errors.length > 0) {
+            tab.classList.add('text-danger');
+            tab.innerHTML = tab.innerHTML.replace('</i>', ' <i class="bi bi-exclamation-circle text-danger"></i></i>');
+          } else {
+            tab.classList.remove('text-danger');
+          }
+        }
+      }
+    });
+  }
+  
+  // Update validation indicators on page load
+  updateTabValidation();
+  
+  // Show confirmation for unsaved changes
+  let formChanged = false;
+  form.addEventListener('change', function() {
+    formChanged = true;
+  });
+  
+  window.addEventListener('beforeunload', function(e) {
+    if (formChanged && !form.submitted) {
+      e.preventDefault();
+      e.returnValue = 'You have unsaved changes. Are you sure you want to leave?';
+    }
+  });
+  
+  form.addEventListener('submit', function() {
+    form.submitted = true;
+  });
+});
+</script>
+{% endblock %}

@@ -1,0 +1,429 @@
+{% extends "dashboard_base.html" %}
+{% load static %}
+
+{% block page_title %}Delete Product: {{ object.name }}{% endblock %}
+
+{% block dashboard_content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+  <div>
+    <nav aria-label="breadcrumb">
+      <ol class="breadcrumb mb-1">
+        <li class="breadcrumb-item"><a href="{% url 'inventory:dashboard' %}">Inventory</a></li>
+        <li class="breadcrumb-item"><a href="{% url 'inventory:product_list' %}">Products</a></li>
+        <li class="breadcrumb-item"><a href="{% url 'inventory:product_detail' object.pk %}">{{ object.name }}</a></li>
+        <li class="breadcrumb-item active">Delete</li>
+      </ol>
+    </nav>
+    <h1 class="h3 mb-0 text-gray-800">
+      <i class="bi bi-trash text-danger me-2"></i>Delete Product: {{ object.name }}
+    </h1>
+    <p class="text-muted mb-0">Confirm product deletion and review impact on inventory and orders</p>
+  </div>
+  
+  <div class="btn-group" role="group">
+    <a href="{% url 'inventory:product_detail' object.pk %}" class="btn btn-outline-secondary">
+      <i class="bi bi-arrow-left me-2"></i>Back to Product
+    </a>
+    <a href="{% url 'inventory:product_list' %}" class="btn btn-outline-info">
+      <i class="bi bi-list me-2"></i>All Products
+    </a>
+  </div>
+</div>
+
+<!-- Deletion Impact Warning -->
+<div class="alert alert-danger d-flex align-items-center mb-4" role="alert">
+  <i class="bi bi-exclamation-triangle-fill fa-2x me-3"></i>
+  <div>
+    <h5 class="alert-heading mb-2">⚠️ Product Deletion Impact Warning</h5>
+    <p class="mb-0">
+      You are about to <strong>permanently delete</strong> this product. This action cannot be undone and will affect:
+    </p>
+    <ul class="mt-2 mb-0">
+      <li>All stock levels and movements history</li>
+      <li>Purchase order references and supplier relationships</li>
+      <li>Quote and sales order line items</li>
+      <li>Cost calculations and pricing history</li>
+    </ul>
+  </div>
+</div>
+
+<!-- Current Product Details -->
+<div class="row mb-4">
+  <div class="col-md-8">
+    <div class="card">
+      <div class="card-header">
+        <h6 class="card-title mb-0">
+          <i class="bi bi-info-circle me-2"></i>Product Information
+        </h6>
+      </div>
+      <div class="card-body">
+        <div class="row">
+          <div class="col-md-6">
+            <div class="mb-3">
+              <label class="form-label fw-bold">Product Name:</label>
+              <div>{{ object.name }}</div>
+            </div>
+            
+            <div class="mb-3">
+              <label class="form-label fw-bold">SKU:</label>
+              <div><code>{{ object.sku }}</code></div>
+            </div>
+            
+            <div class="mb-3">
+              <label class="form-label fw-bold">Category:</label>
+              <div>
+                <span class="badge bg-secondary">{{ object.category.name }}</span>
+              </div>
+            </div>
+            
+            {% if object.brand %}
+            <div class="mb-3">
+              <label class="form-label fw-bold">Brand:</label>
+              <div>{{ object.brand.name }}</div>
+            </div>
+            {% endif %}
+          </div>
+          
+          <div class="col-md-6">
+            <div class="mb-3">
+              <label class="form-label fw-bold">Cost Price:</label>
+              <div class="text-success fw-bold">${{ object.cost_price|floatformat:2 }}</div>
+            </div>
+            
+            <div class="mb-3">
+              <label class="form-label fw-bold">Selling Price:</label>
+              <div class="text-primary fw-bold">${{ object.selling_price|floatformat:2 }}</div>
+            </div>
+            
+            <div class="mb-3">
+              <label class="form-label fw-bold">Status:</label>
+              <div>
+                {% if object.is_active %}
+                  <span class="badge bg-success">Active</span>
+                {% else %}
+                  <span class="badge bg-secondary">Inactive</span>
+                {% endif %}
+              </div>
+            </div>
+            
+            {% if object.supplier %}
+            <div class="mb-3">
+              <label class="form-label fw-bold">Primary Supplier:</label>
+              <div>{{ object.supplier.name }}</div>
+            </div>
+            {% endif %}
+          </div>
+        </div>
+        
+        {% if object.description %}
+        <div class="mb-0">
+          <label class="form-label fw-bold">Description:</label>
+          <div class="text-muted">{{ object.description|truncatewords:20 }}</div>
+        </div>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+  
+  <div class="col-md-4">
+    <div class="card">
+      <div class="card-header">
+        <h6 class="card-title mb-0">
+          <i class="bi bi-boxes me-2"></i>Current Stock Levels
+        </h6>
+      </div>
+      <div class="card-body">
+        <div class="text-center">
+          <div class="display-6 fw-bold 
+            {% if object.current_stock <= object.reorder_level %}text-danger
+            {% elif object.current_stock <= object.reorder_level|add:10 %}text-warning
+            {% else %}text-success{% endif %}">
+            {{ object.current_stock|default:0 }}
+          </div>
+          <div class="text-muted">units on hand</div>
+        </div>
+        
+        <hr>
+        
+        <div class="row text-center">
+          <div class="col-6">
+            <div class="fw-bold text-warning">{{ object.reorder_level|default:0 }}</div>
+            <div class="small text-muted">Reorder Level</div>
+          </div>
+          <div class="col-6">
+            <div class="fw-bold text-info">{{ object.reserved_stock|default:0 }}</div>
+            <div class="small text-muted">Reserved</div>
+          </div>
+        </div>
+        
+        {% if object.current_stock > 0 %}
+        <div class="alert alert-warning mt-3 mb-0">
+          <i class="bi bi-exclamation-triangle me-2"></i>
+          <strong>Stock Available:</strong> This product has {{ object.current_stock }} units in stock.
+        </div>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Usage Analysis -->
+<div class="row mb-4">
+  <div class="col-md-12">
+    <div class="card">
+      <div class="card-header">
+        <h6 class="card-title mb-0">
+          <i class="bi bi-graph-up me-2"></i>Product Usage Analysis
+        </h6>
+      </div>
+      <div class="card-body">
+        <div class="row">
+          <div class="col-lg-3 col-md-6 mb-3">
+            <div class="card bg-info text-white h-100">
+              <div class="card-body text-center">
+                <i class="bi bi-arrow-repeat fa-2x mb-2"></i>
+                <div class="h4 mb-1">{{ object.stock_movements.count|default:0 }}</div>
+                <div class="small">Stock Movements</div>
+              </div>
+            </div>
+          </div>
+          
+          <div class="col-lg-3 col-md-6 mb-3">
+            <div class="card bg-primary text-white h-100">
+              <div class="card-body text-center">
+                <i class="bi bi-cart fa-2x mb-2"></i>
+                <div class="h4 mb-1">{{ object.purchase_order_items.count|default:0 }}</div>
+                <div class="small">Purchase Orders</div>
+              </div>
+            </div>
+          </div>
+          
+          <div class="col-lg-3 col-md-6 mb-3">
+            <div class="card bg-success text-white h-100">
+              <div class="card-body text-center">
+                <i class="bi bi-file-text fa-2x mb-2"></i>
+                <div class="h4 mb-1">{{ object.quote_items.count|default:0 }}</div>
+                <div class="small">Quote References</div>
+              </div>
+            </div>
+          </div>
+          
+          <div class="col-lg-3 col-md-6 mb-3">
+            <div class="card bg-warning text-white h-100">
+              <div class="card-body text-center">
+                <i class="bi bi-truck fa-2x mb-2"></i>
+                <div class="h4 mb-1">{{ object.sales_order_items.count|default:0 }}</div>
+                <div class="small">Sales Orders</div>
+              </div>
+            </div>
+          </div>
+        </div>
+        
+        <!-- Detailed Usage Warnings -->
+        {% if object.quote_items.count > 0 or object.sales_order_items.count > 0 or object.purchase_order_items.count > 0 %}
+        <div class="alert alert-warning mt-3">
+          <h6><i class="bi bi-exclamation-triangle me-2"></i>Active References Found</h6>
+          <ul class="mb-0">
+            {% if object.quote_items.count > 0 %}
+              <li><strong>{{ object.quote_items.count }} active quotes</strong> reference this product</li>
+            {% endif %}
+            {% if object.sales_order_items.count > 0 %}
+              <li><strong>{{ object.sales_order_items.count }} sales orders</strong> include this product</li>
+            {% endif %}
+            {% if object.purchase_order_items.count > 0 %}
+              <li><strong>{{ object.purchase_order_items.count }} purchase orders</strong> have ordered this product</li>
+            {% endif %}
+          </ul>
+        </div>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Recent Activity -->
+{% if object.stock_movements.all %}
+<div class="row mb-4">
+  <div class="col-md-12">
+    <div class="card">
+      <div class="card-header">
+        <h6 class="card-title mb-0">
+          <i class="bi bi-clock-history me-2"></i>Recent Stock Movements (Last 5)
+        </h6>
+      </div>
+      <div class="card-body">
+        <div class="table-responsive">
+          <table class="table table-sm">
+            <thead>
+              <tr>
+                <th>Date</th>
+                <th>Type</th>
+                <th>Quantity</th>
+                <th>Location</th>
+                <th>Reference</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for movement in object.stock_movements.all|slice:":5" %}
+              <tr>
+                <td>{{ movement.created_at|date:"M d, Y H:i" }}</td>
+                <td>
+                  <span class="badge bg-{% if movement.movement_type == 'in' %}success{% elif movement.movement_type == 'out' %}danger{% else %}info{% endif %}">
+                    {{ movement.get_movement_type_display }}
+                  </span>
+                </td>
+                <td class="{% if movement.quantity > 0 %}text-success{% else %}text-danger{% endif %}">
+                  {% if movement.quantity > 0 %}+{% endif %}{{ movement.quantity }}
+                </td>
+                <td>
+                  {% if movement.from_location %}{{ movement.from_location.name }}{% endif %}
+                  {% if movement.to_location %} → {{ movement.to_location.name }}{% endif %}
+                </td>
+                <td><code>{{ movement.reference|default:"—" }}</code></td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+{% endif %}
+
+<!-- Alternative Actions -->
+<div class="row mb-4">
+  <div class="col-md-12">
+    <div class="card border-success">
+      <div class="card-header bg-light-success">
+        <h6 class="card-title mb-0">
+          <i class="bi bi-lightbulb me-2"></i>Alternative Actions
+        </h6>
+      </div>
+      <div class="card-body">
+        <p>Instead of permanently deleting this product, consider these alternatives:</p>
+        
+        <div class="row">
+          <div class="col-md-4">
+            <div class="card border-warning h-100">
+              <div class="card-body text-center">
+                <i class="bi bi-pause-circle fa-2x text-warning mb-3"></i>
+                <h6>Mark as Inactive</h6>
+                <p class="small text-muted">Hide from sales and ordering while preserving history</p>
+                <a href="{% url 'inventory:product_edit' object.pk %}?set_inactive=true" class="btn btn-warning btn-sm">
+                  <i class="bi bi-pause me-1"></i>Make Inactive
+                </a>
+              </div>
+            </div>
+          </div>
+          
+          <div class="col-md-4">
+            <div class="card border-info h-100">
+              <div class="card-body text-center">
+                <i class="bi bi-archive fa-2x text-info mb-3"></i>
+                <h6>Archive Product</h6>
+                <p class="small text-muted">Move to archived products for future reference</p>
+                <a href="{% url 'inventory:product_archive' object.pk %}" class="btn btn-info btn-sm">
+                  <i class="bi bi-archive me-1"></i>Archive
+                </a>
+              </div>
+            </div>
+          </div>
+          
+          <div class="col-md-4">
+            <div class="card border-primary h-100">
+              <div class="card-body text-center">
+                <i class="bi bi-pencil-square fa-2x text-primary mb-3"></i>
+                <h6>Edit Product</h6>
+                <p class="small text-muted">Modify product details instead of deleting</p>
+                <a href="{% url 'inventory:product_edit' object.pk %}" class="btn btn-primary btn-sm">
+                  <i class="bi bi-pencil me-1"></i>Edit Product
+                </a>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Final Confirmation -->
+<div class="card border-danger">
+  <div class="card-header bg-danger text-white">
+    <h6 class="card-title mb-0">
+      <i class="bi bi-shield-exclamation me-2"></i>Final Confirmation Required
+    </h6>
+  </div>
+  <div class="card-body">
+    <form method="post">
+      {% csrf_token %}
+      
+      <div class="form-check mb-3">
+        <input class="form-check-input" type="checkbox" id="confirmUnderstanding" required>
+        <label class="form-check-label text-danger fw-bold" for="confirmUnderstanding">
+          I understand that deleting this product will permanently remove all associated data and cannot be undone.
+        </label>
+      </div>
+      
+      <div class="form-check mb-4">
+        <input class="form-check-input" type="checkbox" id="confirmNoStock" required>
+        <label class="form-check-label text-danger fw-bold" for="confirmNoStock">
+          I confirm that I have reviewed the stock levels and usage analysis above.
+        </label>
+      </div>
+      
+      <div class="d-flex justify-content-between align-items-center">
+        <div>
+          <a href="{% url 'inventory:product_detail' object.pk %}" class="btn btn-outline-secondary">
+            <i class="bi bi-arrow-left me-2"></i>Cancel Deletion
+          </a>
+        </div>
+        
+        <div>
+          <button type="submit" class="btn btn-danger" id="deleteButton" disabled>
+            <i class="bi bi-trash me-2"></i>Yes, Permanently Delete Product
+          </button>
+        </div>
+      </div>
+    </form>
+  </div>
+</div>
+
+{% endblock %}
+
+{% block extra_js %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+  const checkboxes = document.querySelectorAll('input[type="checkbox"]');
+  const deleteButton = document.getElementById('deleteButton');
+  
+  function updateDeleteButton() {
+    const allChecked = Array.from(checkboxes).every(cb => cb.checked);
+    deleteButton.disabled = !allChecked;
+    
+    if (allChecked) {
+      deleteButton.classList.remove('btn-danger');
+      deleteButton.classList.add('btn-outline-danger');
+    } else {
+      deleteButton.classList.remove('btn-outline-danger');
+      deleteButton.classList.add('btn-danger');
+    }
+  }
+  
+  checkboxes.forEach(checkbox => {
+    checkbox.addEventListener('change', updateDeleteButton);
+  });
+  
+  // Show additional confirmation dialog
+  deleteButton.addEventListener('click', function(e) {
+    e.preventDefault();
+    
+    if (confirm('This is your final chance to cancel. Are you absolutely sure you want to permanently delete "{{ object.name }}"?')) {
+      // Submit the form
+      this.closest('form').submit();
+    }
+  });
+});
+</script>
+{% endblock %}

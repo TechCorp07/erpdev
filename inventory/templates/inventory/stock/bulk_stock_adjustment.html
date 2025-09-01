@@ -1,0 +1,1228 @@
+{% extends "dashboard_base.html" %}
+{% load static %}
+
+{% block page_title %}Bulk Stock Adjustment{% endblock %}
+
+{% block dashboard_content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+  <div>
+    <nav aria-label="breadcrumb">
+      <ol class="breadcrumb mb-1">
+        <li class="breadcrumb-item"><a href="{% url 'inventory:dashboard' %}">Inventory</a></li>
+        <li class="breadcrumb-item"><a href="{% url 'inventory:stock_overview' %}">Stock Overview</a></li>
+        <li class="breadcrumb-item active">Bulk Adjustment</li>
+      </ol>
+    </nav>
+    <h1 class="h3 mb-0 text-gray-800">
+      <i class="bi bi-layers me-2"></i>Bulk Stock Adjustment
+    </h1>
+    <p class="text-muted mb-0">Adjust multiple products simultaneously with CSV upload or manual entry</p>
+  </div>
+  
+  <div class="btn-group" role="group">
+    <a href="{% url 'inventory:stock_overview' %}" class="btn btn-outline-secondary">
+      <i class="bi bi-arrow-left me-2"></i>Back to Overview
+    </a>
+    <a href="{% url 'inventory:stock_adjustment' %}" class="btn btn-outline-primary">
+      <i class="bi bi-plus-minus me-2"></i>Single Adjustment
+    </a>
+    <div class="btn-group" role="group">
+      <button class="btn btn-outline-secondary dropdown-toggle" type="button" data-bs-toggle="dropdown">
+        <i class="bi bi-three-dots"></i>
+      </button>
+      <ul class="dropdown-menu">
+        <li><a class="dropdown-item" href="{% url 'inventory:adjustment_template' %}">
+          <i class="bi bi-download me-2"></i>Download Template
+        </a></li>
+        <li><a class="dropdown-item" href="{% url 'inventory:stock_movement_list' %}">
+          <i class="bi bi-clock-history me-2"></i>Adjustment History
+        </a></li>
+        <li><hr class="dropdown-divider"></li>
+        <li><a class="dropdown-item" href="{% url 'inventory:stock_take_create' %}">
+          <i class="bi bi-clipboard-check me-2"></i>Stock Take
+        </a></li>
+      </ul>
+    </div>
+  </div>
+</div>
+
+<!-- Progress Steps -->
+<div class="card mb-4">
+  <div class="card-body">
+    <div class="row">
+      <div class="col-12">
+        <div class="progress-steps">
+          <div class="step active" id="step1">
+            <div class="step-number">1</div>
+            <div class="step-title">Select Method</div>
+          </div>
+          <div class="step" id="step2">
+            <div class="step-number">2</div>
+            <div class="step-title">Upload/Select Data</div>
+          </div>
+          <div class="step" id="step3">
+            <div class="step-number">3</div>
+            <div class="step-title">Validate & Review</div>
+          </div>
+          <div class="step" id="step4">
+            <div class="step-number">4</div>
+            <div class="step-title">Execute Adjustments</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Step 1: Method Selection -->
+<div class="step-content" id="step1-content">
+  <div class="row">
+    <div class="col-lg-4 col-md-6 mb-4">
+      <div class="card method-card h-100" onclick="selectMethod('csv')">
+        <div class="card-body text-center">
+          <i class="bi bi-file-spreadsheet text-success" style="font-size: 3rem;"></i>
+          <h5 class="card-title mt-3">CSV Upload</h5>
+          <p class="card-text text-muted">
+            Upload a CSV file with product adjustments. Perfect for large-scale 
+            stock corrections or physical count updates.
+          </p>
+          
+          <div class="features-list text-start mt-3">
+            <div class="feature-item">
+              <i class="bi bi-check-circle text-success me-2"></i>
+              Process hundreds of products
+            </div>
+            <div class="feature-item">
+              <i class="bi bi-check-circle text-success me-2"></i>
+              Data validation and error checking
+            </div>
+            <div class="feature-item">
+              <i class="bi bi-check-circle text-success me-2"></i>
+              Preview before execution
+            </div>
+            <div class="feature-item">
+              <i class="bi bi-check-circle text-success me-2"></i>
+              Batch processing with progress tracking
+            </div>
+          </div>
+          
+          <button class="btn btn-success mt-3">
+            <i class="bi bi-upload me-2"></i>Choose CSV Upload
+          </button>
+        </div>
+      </div>
+    </div>
+    
+    <div class="col-lg-4 col-md-6 mb-4">
+      <div class="card method-card h-100" onclick="selectMethod('filter')">
+        <div class="card-body text-center">
+          <i class="bi bi-funnel text-primary" style="font-size: 3rem;"></i>
+          <h5 class="card-title mt-3">Filter & Select</h5>
+          <p class="card-text text-muted">
+            Filter products by category, location, or stock status, then apply 
+            bulk adjustments to selected items.
+          </p>
+          
+          <div class="features-list text-start mt-3">
+            <div class="feature-item">
+              <i class="bi bi-check-circle text-primary me-2"></i>
+              Advanced filtering options
+            </div>
+            <div class="feature-item">
+              <i class="bi bi-check-circle text-primary me-2"></i>
+              Visual product selection
+            </div>
+            <div class="feature-item">
+              <i class="bi bi-check-circle text-primary me-2"></i>
+              Bulk adjustment patterns
+            </div>
+            <div class="feature-item">
+              <i class="bi bi-check-circle text-primary me-2"></i>
+              Real-time impact calculation
+            </div>
+          </div>
+          
+          <button class="btn btn-primary mt-3">
+            <i class="bi bi-funnel me-2"></i>Choose Filter Method
+          </button>
+        </div>
+      </div>
+    </div>
+    
+    <div class="col-lg-4 col-md-6 mb-4">
+      <div class="card method-card h-100" onclick="selectMethod('location')">
+        <div class="card-body text-center">
+          <i class="bi bi-building text-warning" style="font-size: 3rem;"></i>
+          <h5 class="card-title mt-3">Location-based</h5>
+          <p class="card-text text-muted">
+            Adjust all products at a specific location, typically used for 
+            physical counts or location-wide corrections.
+          </p>
+          
+          <div class="features-list text-start mt-3">
+            <div class="feature-item">
+              <i class="bi bi-check-circle text-warning me-2"></i>
+              Location-wide adjustments
+            </div>
+            <div class="feature-item">
+              <i class="bi bi-check-circle text-warning me-2"></i>
+              Physical count integration
+            </div>
+            <div class="feature-item">
+              <i class="bi bi-check-circle text-warning me-2"></i>
+              Bin-level accuracy
+            </div>
+            <div class="feature-item">
+              <i class="bi bi-check-circle text-warning me-2"></i>
+              Audit trail by location
+            </div>
+          </div>
+          
+          <button class="btn btn-warning mt-3">
+            <i class="bi bi-building me-2"></i>Choose Location Method
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Step 2: CSV Upload Method -->
+<div class="step-content" id="step2-csv-content" style="display: none;">
+  <div class="card">
+    <div class="card-header">
+      <h6 class="card-title mb-0">
+        <i class="bi bi-upload me-2"></i>CSV File Upload & Processing
+      </h6>
+    </div>
+    <div class="card-body">
+      <div class="row">
+        <div class="col-md-8">
+          <form id="csvUploadForm" enctype="multipart/form-data">
+            {% csrf_token %}
+            
+            <div class="mb-4">
+              <label for="adjustmentCsvFile" class="form-label">
+                <i class="bi bi-file-earmark-spreadsheet me-1"></i>
+                Select CSV File <span class="text-danger">*</span>
+              </label>
+              <input type="file" class="form-control" id="adjustmentCsvFile" 
+                     name="csv_file" accept=".csv" required>
+              <div class="form-text">Maximum file size: 10MB. Only CSV format supported.</div>
+            </div>
+            
+            <!-- Upload Options -->
+            <div class="row mb-4">
+              <div class="col-md-6">
+                <label for="adjustmentLocation" class="form-label">Default Location</label>
+                <select class="form-select" id="adjustmentLocation" name="default_location">
+                  <option value="">Use location from CSV</option>
+                  {% for location in locations %}
+                    <option value="{{ location.pk }}">{{ location.name }}</option>
+                  {% endfor %}
+                </select>
+                <div class="form-text">Apply to all adjustments if not specified in CSV</div>
+              </div>
+              
+              <div class="col-md-6">
+                <label for="adjustmentReason" class="form-label">Default Reason</label>
+                <select class="form-select" id="adjustmentReason" name="default_reason">
+                  <option value="physical_count">Physical Count</option>
+                  <option value="system_correction">System Correction</option>
+                  <option value="damaged_goods">Damaged Goods</option>
+                  <option value="lost_inventory">Lost Inventory</option>
+                  <option value="other">Other</option>
+                </select>
+              </div>
+            </div>
+            
+            <!-- Processing Options -->
+            <div class="card bg-light mb-4">
+              <div class="card-header">
+                <h6 class="card-title mb-0">Processing Options</h6>
+              </div>
+              <div class="card-body">
+                <div class="row">
+                  <div class="col-md-6">
+                    <div class="form-check">
+                      <input class="form-check-input" type="checkbox" id="validateOnly" name="validate_only">
+                      <label class="form-check-label" for="validateOnly">
+                        Validate Only (Don't Execute)
+                      </label>
+                      <div class="form-text">Check data quality without making changes</div>
+                    </div>
+                  </div>
+                  
+                  <div class="col-md-6">
+                    <div class="form-check">
+                      <input class="form-check-input" type="checkbox" id="createMissingProducts" name="create_missing">
+                      <label class="form-check-label" for="createMissingProducts">
+                        Create Missing Products
+                      </label>
+                      <div class="form-text">Auto-create products not found in system</div>
+                    </div>
+                  </div>
+                </div>
+                
+                <div class="row mt-3">
+                  <div class="col-md-6">
+                    <div class="form-check">
+                      <input class="form-check-input" type="checkbox" id="allowNegativeStock" name="allow_negative">
+                      <label class="form-check-label" for="allowNegativeStock">
+                        Allow Negative Stock
+                      </label>
+                      <div class="form-text">Permit adjustments that result in negative inventory</div>
+                    </div>
+                  </div>
+                  
+                  <div class="col-md-6">
+                    <div class="form-check">
+                      <input class="form-check-input" type="checkbox" id="sendNotifications" name="send_notifications" checked>
+                      <label class="form-check-label" for="sendNotifications">
+                        Send Notifications
+                      </label>
+                      <div class="form-text">Notify users of low stock after adjustments</div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+            
+            <div class="d-flex justify-content-between">
+              <button type="button" class="btn btn-outline-secondary" onclick="goToStep(1)">
+                <i class="bi bi-arrow-left me-2"></i>Back
+              </button>
+              <button type="submit" class="btn btn-primary">
+                <i class="bi bi-upload me-2"></i>Upload & Process
+              </button>
+            </div>
+          </form>
+        </div>
+        
+        <div class="col-md-4">
+          <div class="card bg-light">
+            <div class="card-body">
+              <h6 class="card-title">
+                <i class="bi bi-info-circle me-2"></i>CSV Format Requirements
+              </h6>
+              
+              <div class="small">
+                <strong>Required Columns:</strong>
+                <ul class="mt-2 mb-3">
+                  <li><code>product_sku</code> - Product SKU or ID</li>
+                  <li><code>adjustment_type</code> - set, increase, decrease</li>
+                  <li><code>quantity</code> - Adjustment quantity</li>
+                </ul>
+                
+                <strong>Optional Columns:</strong>
+                <ul class="mt-2 mb-3">
+                  <li><code>location</code> - Location name or code</li>
+                  <li><code>reason</code> - Adjustment reason</li>
+                  <li><code>reference</code> - Reference number</li>
+                  <li><code>notes</code> - Additional notes</li>
+                  <li><code>cost_price</code> - Update cost price</li>
+                </ul>
+              </div>
+              
+              <div class="mt-3">
+                <a href="{% url 'inventory:adjustment_template' %}" 
+                   class="btn btn-sm btn-outline-primary d-block mb-2">
+                  <i class="bi bi-download me-2"></i>Download Template
+                </a>
+                <a href="{% url 'inventory:adjustment_sample' %}" 
+                   class="btn btn-sm btn-outline-success d-block">
+                  <i class="bi bi-file-text me-2"></i>View Sample Data
+                </a>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Step 2: Filter & Select Method -->
+<div class="step-content" id="step2-filter-content" style="display: none;">
+  <div class="row">
+    <!-- Filter Panel -->
+    <div class="col-md-4">
+      <div class="card sticky-top">
+        <div class="card-header">
+          <h6 class="card-title mb-0">
+            <i class="bi bi-funnel me-2"></i>Product Filters
+          </h6>
+        </div>
+        <div class="card-body">
+          <form id="filterForm">
+            <div class="mb-3">
+              <label for="filterCategory" class="form-label">Category</label>
+              <select class="form-select" id="filterCategory" onchange="applyFilters()">
+                <option value="">All Categories</option>
+                {% for category in categories %}
+                  <option value="{{ category.pk }}">{{ category.name }}</option>
+                {% endfor %}
+              </select>
+            </div>
+            
+            <div class="mb-3">
+              <label for="filterLocation" class="form-label">Location</label>
+              <select class="form-select" id="filterLocation" onchange="applyFilters()">
+                <option value="">All Locations</option>
+                {% for location in locations %}
+                  <option value="{{ location.pk }}">{{ location.name }}</option>
+                {% endfor %}
+              </select>
+            </div>
+            
+            <div class="mb-3">
+              <label for="filterStockStatus" class="form-label">Stock Status</label>
+              <select class="form-select" id="filterStockStatus" onchange="applyFilters()">
+                <option value="">All Stock Levels</option>
+                <option value="in_stock">In Stock</option>
+                <option value="low_stock">Low Stock</option>
+                <option value="out_of_stock">Out of Stock</option>
+                <option value="overstocked">Overstocked</option>
+              </select>
+            </div>
+            
+            <div class="mb-3">
+              <label for="filterBrand" class="form-label">Brand</label>
+              <select class="form-select" id="filterBrand" onchange="applyFilters()">
+                <option value="">All Brands</option>
+                {% for brand in brands %}
+                  <option value="{{ brand.pk }}">{{ brand.name }}</option>
+                {% endfor %}
+              </select>
+            </div>
+            
+            <hr>
+            
+            <div class="alert alert-info">
+              <div class="d-flex justify-content-between align-items-center">
+                <span><strong id="selectedProductsCount">0</strong> products selected</span>
+                <button type="button" class="btn btn-sm btn-outline-secondary" onclick="clearSelection()">Clear</button>
+              </div>
+            </div>
+            
+            <div class="d-grid gap-2">
+              <button type="button" class="btn btn-primary" onclick="proceedToBulkAdjustment()" disabled id="proceedBtn">
+                <i class="bi bi-arrow-right me-2"></i>Proceed with Selected
+              </button>
+              <button type="button" class="btn btn-outline-secondary" onclick="selectAllVisible()">
+                <i class="bi bi-check-square me-2"></i>Select All Visible
+              </button>
+            </div>
+          </form>
+        </div>
+      </div>
+    </div>
+    
+    <!-- Products List -->
+    <div class="col-md-8">
+      <div class="card">
+        <div class="card-header">
+          <div class="d-flex justify-content-between align-items-center">
+            <h6 class="card-title mb-0">
+              <i class="bi bi-list me-2"></i>Products Available for Adjustment
+            </h6>
+            
+            <div class="btn-group btn-group-sm">
+              <button class="btn btn-outline-secondary active" onclick="toggleView('list')">
+                <i class="bi bi-list"></i>
+              </button>
+              <button class="btn btn-outline-secondary" onclick="toggleView('grid')">
+                <i class="bi bi-grid-3x3-gap"></i>
+              </button>
+            </div>
+          </div>
+        </div>
+        
+        <div class="card-body p-0" id="productsContainer">
+          <!-- Products will be loaded here -->
+          <div class="text-center py-5 text-muted">
+            <i class="bi bi-funnel" style="font-size: 3rem;"></i>
+            <h5 class="mt-3">Ready to Filter Products</h5>
+            <p>Use the filters on the left to find products for bulk adjustment</p>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Step 2: Location-based Method -->
+<div class="step-content" id="step2-location-content" style="display: none;">
+  <div class="card">
+    <div class="card-header">
+      <h6 class="card-title mb-0">
+        <i class="bi bi-building me-2"></i>Location-based Bulk Adjustment
+      </h6>
+    </div>
+    <div class="card-body">
+      <div class="alert alert-warning">
+        <i class="bi bi-exclamation-triangle me-2"></i>
+        <strong>Location Adjustment:</strong> This will load all products at the selected location for adjustment.
+      </div>
+      
+      <form id="locationAdjustmentForm">
+        {% csrf_token %}
+        
+        <div class="row mb-4">
+          <div class="col-md-6">
+            <label for="locationSelect" class="form-label">
+              Select Location <span class="text-danger">*</span>
+            </label>
+            <select class="form-select" id="locationSelect" name="location" required onchange="loadLocationStock()">
+              <option value="">Choose location for adjustment...</option>
+              {% for location in locations %}
+                <option value="{{ location.pk }}">{{ location.name }}</option>
+              {% endfor %}
+            </select>
+          </div>
+          
+          <div class="col-md-6">
+            <label for="locationAdjustmentReason" class="form-label">
+              Adjustment Reason <span class="text-danger">*</span>
+            </label>
+            <select class="form-select" id="locationAdjustmentReason" name="reason" required>
+              <option value="physical_count">Physical Count</option>
+              <option value="cycle_count">Cycle Count</option>
+              <option value="location_audit">Location Audit</option>
+              <option value="system_correction">System Correction</option>
+              <option value="damage_assessment">Damage Assessment</option>
+              <option value="other">Other</option>
+            </select>
+          </div>
+        </div>
+        
+        <div class="mb-4">
+          <label for="locationNotes" class="form-label">Notes</label>
+          <textarea class="form-control" id="locationNotes" name="notes" rows="3" 
+                    placeholder="Describe the reason for these location-wide adjustments..."></textarea>
+        </div>
+        
+        <div id="locationStockContainer">
+          <!-- Location stock will be loaded here -->
+        </div>
+        
+        <div class="d-flex justify-content-between">
+          <button type="button" class="btn btn-outline-secondary" onclick="goToStep(1)">
+            <i class="bi bi-arrow-left me-2"></i>Back
+          </button>
+          <button type="button" class="btn btn-primary" onclick="proceedWithLocationData()">
+            <i class="bi bi-arrow-right me-2"></i>Review Adjustments
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+
+<!-- Step 3: Validation & Review -->
+<div class="step-content" id="step3-content" style="display: none;">
+  <div class="card">
+    <div class="card-header">
+      <div class="d-flex justify-content-between align-items-center">
+        <h6 class="card-title mb-0">
+          <i class="bi bi-check-circle me-2"></i>Validation & Review
+        </h6>
+        <div>
+          <span class="badge bg-success" id="validAdjustmentsCount">0</span> Valid
+          <span class="badge bg-danger" id="errorAdjustmentsCount">0</span> Errors
+        </div>
+      </div>
+    </div>
+    <div class="card-body">
+      <!-- Validation Summary -->
+      <div class="alert alert-info" id="validationSummary">
+        <div class="d-flex align-items-center">
+          <i class="bi bi-hourglass-split me-2"></i>
+          <div>
+            <strong>Validation in progress...</strong>
+            Please wait while we validate your adjustment data.
+          </div>
+        </div>
+      </div>
+      
+      <!-- Adjustments Preview Table -->
+      <div class="table-responsive">
+        <table class="table table-sm" id="adjustmentsPreviewTable">
+          <thead class="table-light">
+            <tr>
+              <th>Status</th>
+              <th>Product</th>
+              <th>Location</th>
+              <th>Current Stock</th>
+              <th>Adjustment</th>
+              <th>New Stock</th>
+              <th>Reason</th>
+              <th>Issues</th>
+            </tr>
+          </thead>
+          <tbody id="adjustmentsPreviewBody">
+            <!-- Dynamic content will be populated here -->
+          </tbody>
+        </table>
+      </div>
+      
+      <div class="d-flex justify-content-between mt-4">
+        <button type="button" class="btn btn-outline-secondary" onclick="goToStep(2)">
+          <i class="bi bi-arrow-left me-2"></i>Back to Data Entry
+        </button>
+        <div>
+          <button type="button" class="btn btn-outline-warning" onclick="downloadErrorReport()" id="errorReportBtn" style="display: none;">
+            <i class="bi bi-download me-2"></i>Download Error Report
+          </button>
+          <button type="button" class="btn btn-success" onclick="goToStep(4)" id="executeBtn" disabled>
+            <i class="bi bi-play me-2"></i>Execute Adjustments
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Step 4: Execution -->
+<div class="step-content" id="step4-content" style="display: none;">
+  <div class="card">
+    <div class="card-header">
+      <h6 class="card-title mb-0">
+        <i class="bi bi-gear me-2"></i>Executing Bulk Adjustments
+      </h6>
+    </div>
+    <div class="card-body">
+      <!-- Progress Indicators -->
+      <div class="row mb-4">
+        <div class="col-md-3">
+          <div class="card bg-primary text-white text-center">
+            <div class="card-body py-2">
+              <div class="h3 mb-1" id="executionTotal">0</div>
+              <div class="small">Total Adjustments</div>
+            </div>
+          </div>
+        </div>
+        <div class="col-md-3">
+          <div class="card bg-info text-white text-center">
+            <div class="card-body py-2">
+              <div class="h3 mb-1" id="executionProcessed">0</div>
+              <div class="small">Processed</div>
+            </div>
+          </div>
+        </div>
+        <div class="col-md-3">
+          <div class="card bg-success text-white text-center">
+            <div class="card-body py-2">
+              <div class="h3 mb-1" id="executionSuccessful">0</div>
+              <div class="small">Successful</div>
+            </div>
+          </div>
+        </div>
+        <div class="col-md-3">
+          <div class="card bg-danger text-white text-center">
+            <div class="card-body py-2">
+              <div class="h3 mb-1" id="executionFailed">0</div>
+              <div class="small">Failed</div>
+            </div>
+          </div>
+        </div>
+      </div>
+      
+      <!-- Progress Bar -->
+      <div class="mb-4">
+        <div class="d-flex justify-content-between align-items-center mb-2">
+          <span>Processing Progress</span>
+          <span id="progressPercentage">0%</span>
+        </div>
+        <div class="progress">
+          <div class="progress-bar progress-bar-striped progress-bar-animated" 
+               id="executionProgressBar" style="width: 0%"></div>
+        </div>
+      </div>
+      
+      <!-- Execution Log -->
+      <div class="card">
+        <div class="card-header">
+          <h6 class="card-title mb-0">
+            <i class="bi bi-list-ul me-2"></i>Execution Log
+          </h6>
+        </div>
+        <div class="card-body p-0">
+          <div id="executionLog" style="height: 300px; overflow-y: auto; font-family: monospace; font-size: 0.875rem;">
+            <div class="p-3">
+              <div class="text-muted">Execution log will appear here...</div>
+            </div>
+          </div>
+        </div>
+      </div>
+      
+      <!-- Completion Actions -->
+      <div class="text-center mt-4" id="completionActions" style="display: none;">
+        <div class="alert alert-success">
+          <h5><i class="bi bi-check-circle me-2"></i>Bulk Adjustment Completed!</h5>
+          <p class="mb-0">All adjustments have been processed. Review the results above.</p>
+        </div>
+        
+        <div class="btn-group">
+          <a href="{% url 'inventory:stock_overview' %}" class="btn btn-primary">
+            <i class="bi bi-eye me-2"></i>View Stock Overview
+          </a>
+          <button type="button" class="btn btn-success" onclick="downloadExecutionReport()">
+            <i class="bi bi-download me-2"></i>Download Report
+          </button>
+          <button type="button" class="btn btn-outline-secondary" onclick="startNewAdjustment()">
+            <i class="bi bi-plus me-2"></i>New Adjustment
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+{% endblock %}
+
+{% block extra_css %}
+<style>
+.progress-steps {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  position: relative;
+}
+
+.progress-steps::before {
+  content: '';
+  position: absolute;
+  top: 20px;
+  left: 20px;
+  right: 20px;
+  height: 2px;
+  background: #dee2e6;
+  z-index: 1;
+}
+
+.step {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  position: relative;
+  z-index: 2;
+  background: white;
+  padding: 0 15px;
+}
+
+.step-number {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  background: #dee2e6;
+  color: #6c757d;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: bold;
+  margin-bottom: 8px;
+}
+
+.step.active .step-number {
+  background: #0d6efd;
+  color: white;
+}
+
+.step.completed .step-number {
+  background: #198754;
+  color: white;
+}
+
+.step-title {
+  font-size: 0.875rem;
+  color: #6c757d;
+}
+
+.step.active .step-title {
+  color: #0d6efd;
+  font-weight: 500;
+}
+
+.method-card {
+  cursor: pointer;
+  transition: all 0.3s ease;
+  border: 2px solid transparent;
+}
+
+.method-card:hover {
+  transform: translateY(-5px);
+  box-shadow: 0 4px 20px rgba(0,0,0,0.1);
+}
+
+.method-card.selected {
+  border-color: #0d6efd;
+  box-shadow: 0 0 20px rgba(13,110,253,0.2);
+}
+
+.features-list {
+  max-width: 250px;
+  margin: 0 auto;
+}
+
+.feature-item {
+  margin-bottom: 8px;
+  display: flex;
+  align-items: center;
+}
+
+.product-item {
+  border: 1px solid #dee2e6;
+  border-radius: 0.375rem;
+  padding: 0.75rem;
+  margin-bottom: 0.5rem;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.product-item:hover {
+  background-color: #f8f9fa;
+}
+
+.product-item.selected {
+  border-color: #0d6efd;
+  background-color: rgba(13, 110, 253, 0.1);
+}
+</style>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+let currentStep = 1;
+let selectedMethod = null;
+let adjustmentData = [];
+let selectedProducts = new Set();
+
+function selectMethod(method) {
+  selectedMethod = method;
+  
+  // Update UI
+  document.querySelectorAll('.method-card').forEach(card => {
+    card.classList.remove('selected');
+  });
+  
+  event.currentTarget.classList.add('selected');
+  
+  // Auto-proceed to next step
+  setTimeout(() => {
+    goToStep(2);
+  }, 500);
+}
+
+function goToStep(stepNumber) {
+  // Hide all step contents
+  document.querySelectorAll('.step-content').forEach(content => {
+    content.style.display = 'none';
+  });
+  
+  // Update step indicators
+  document.querySelectorAll('.step').forEach((step, index) => {
+    step.classList.remove('active', 'completed');
+    if (index + 1 < stepNumber) {
+      step.classList.add('completed');
+    } else if (index + 1 === stepNumber) {
+      step.classList.add('active');
+    }
+  });
+  
+  // Show appropriate content based on step and method
+  if (stepNumber === 2 && selectedMethod) {
+    document.getElementById(`step2-${selectedMethod}-content`).style.display = 'block';
+  } else {
+    const content = document.getElementById(`step${stepNumber}-content`);
+    if (content) {
+      content.style.display = 'block';
+    }
+  }
+  
+  currentStep = stepNumber;
+  
+  // Initialize step-specific functionality
+  if (stepNumber === 3) {
+    validateAdjustments();
+  } else if (stepNumber === 4) {
+    executeAdjustments();
+  }
+}
+
+// CSV Upload handling
+document.getElementById('csvUploadForm')?.addEventListener('submit', function(e) {
+  e.preventDefault();
+  
+  const formData = new FormData(this);
+  const submitBtn = this.querySelector('button[type="submit"]');
+  
+  // Show loading state
+  const originalText = submitBtn.innerHTML;
+  submitBtn.innerHTML = '<i class="bi bi-hourglass-split me-2"></i>Processing...';
+  submitBtn.disabled = true;
+  
+  // Simulate CSV processing
+  setTimeout(() => {
+    submitBtn.innerHTML = originalText;
+    submitBtn.disabled = false;
+    
+    // Simulate parsed data
+    adjustmentData = [
+      { product: 'Product A', sku: 'PA-001', location: 'Main Warehouse', currentStock: 100, adjustment: '+50', newStock: 150, reason: 'Physical Count', valid: true },
+      { product: 'Product B', sku: 'PB-002', location: 'Main Warehouse', currentStock: 75, adjustment: '-10', newStock: 65, reason: 'Damaged Goods', valid: true },
+      { product: 'Product C', sku: 'PC-003', location: 'Regional Store', currentStock: 0, adjustment: '+25', newStock: 25, reason: 'Restock', valid: false, issues: 'Product not found' }
+    ];
+    
+    goToStep(3);
+  }, 2000);
+});
+
+// Filter products
+function applyFilters() {
+  // Simulate product filtering
+  loadFilteredProducts();
+}
+
+function loadFilteredProducts() {
+  const container = document.getElementById('productsContainer');
+  
+  // Show loading
+  container.innerHTML = `
+    <div class="text-center py-4">
+      <div class="spinner-border text-primary" role="status">
+        <span class="visually-hidden">Loading...</span>
+      </div>
+      <p class="mt-2 text-muted">Loading products...</p>
+    </div>
+  `;
+  
+  // Simulate loading
+  setTimeout(() => {
+    const sampleProducts = [
+      { id: 1, name: 'Electronic Component A', sku: 'EC-A-001', currentStock: 150, location: 'Main Warehouse' },
+      { id: 2, name: 'Electronic Component B', sku: 'EC-B-002', currentStock: 75, location: 'Main Warehouse' },
+      { id: 3, name: 'Electronic Component C', sku: 'EC-C-003', currentStock: 25, location: 'Regional Store' }
+    ];
+    
+    let html = '<div class="p-3">';
+    
+    sampleProducts.forEach(product => {
+      html += `
+        <div class="product-item" onclick="toggleProductSelection(${product.id})">
+          <div class="d-flex justify-content-between align-items-center">
+            <div class="flex-grow-1">
+              <div class="d-flex align-items-center">
+                <div class="form-check me-3">
+                  <input class="form-check-input" type="checkbox" id="product_${product.id}" value="${product.id}">
+                </div>
+                <div>
+                  <h6 class="mb-1">${product.name}</h6>
+                  <div class="small text-muted">SKU: ${product.sku} | Location: ${product.location}</div>
+                </div>
+              </div>
+            </div>
+            <div class="text-end">
+              <div class="fw-bold text-primary">${product.currentStock} units</div>
+              <div class="small text-muted">Current Stock</div>
+            </div>
+          </div>
+        </div>
+      `;
+    });
+    
+    html += '</div>';
+    container.innerHTML = html;
+  }, 1000);
+}
+
+function toggleProductSelection(productId) {
+  const checkbox = document.getElementById(`product_${productId}`);
+  checkbox.checked = !checkbox.checked;
+  
+  if (checkbox.checked) {
+    selectedProducts.add(productId);
+  } else {
+    selectedProducts.delete(productId);
+  }
+  
+  updateSelectionCount();
+}
+
+function updateSelectionCount() {
+  const count = selectedProducts.size;
+  document.getElementById('selectedProductsCount').textContent = count;
+  document.getElementById('proceedBtn').disabled = count === 0;
+}
+
+function selectAllVisible() {
+  document.querySelectorAll('#productsContainer input[type="checkbox"]').forEach(checkbox => {
+    if (!checkbox.checked) {
+      checkbox.checked = true;
+      selectedProducts.add(parseInt(checkbox.value));
+    }
+  });
+  updateSelectionCount();
+}
+
+function clearSelection() {
+  document.querySelectorAll('#productsContainer input[type="checkbox"]').forEach(checkbox => {
+    checkbox.checked = false;
+  });
+  selectedProducts.clear();
+  updateSelectionCount();
+}
+
+function proceedToBulkAdjustment() {
+  if (selectedProducts.size === 0) {
+    alert('Please select at least one product');
+    return;
+  }
+  
+  // Prepare adjustment data for selected products
+  adjustmentData = Array.from(selectedProducts).map(id => ({
+    productId: id,
+    product: `Product ${id}`,
+    sku: `P${id.toString().padStart(3, '0')}`,
+    currentStock: Math.floor(Math.random() * 100),
+    valid: true
+  }));
+  
+  goToStep(3);
+}
+
+// Location stock loading
+function loadLocationStock() {
+  const locationId = document.getElementById('locationSelect').value;
+  const container = document.getElementById('locationStockContainer');
+  
+  if (!locationId) {
+    container.innerHTML = '';
+    return;
+  }
+  
+  // Show loading state
+  container.innerHTML = `
+    <div class="text-center py-4">
+      <div class="spinner-border text-primary" role="status">
+        <span class="visually-hidden">Loading...</span>
+      </div>
+      <p class="mt-2 text-muted">Loading location stock...</p>
+    </div>
+  `;
+  
+  // Simulate loading
+  setTimeout(() => {
+    container.innerHTML = `
+      <div class="card">
+        <div class="card-header">
+          <h6 class="card-title mb-0">Products at Selected Location</h6>
+        </div>
+        <div class="card-body p-0">
+          <div class="table-responsive">
+            <table class="table table-sm mb-0">
+              <thead class="table-light">
+                <tr>
+                  <th>Product</th>
+                  <th>Current Stock</th>
+                  <th>New Stock</th>
+                  <th>Adjustment</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td>Product A</td>
+                  <td>100</td>
+                  <td><input type="number" class="form-control form-control-sm" value="100"></td>
+                  <td class="text-muted">0</td>
+                </tr>
+                <tr>
+                  <td>Product B</td>
+                  <td>75</td>
+                  <td><input type="number" class="form-control form-control-sm" value="75"></td>
+                  <td class="text-muted">0</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    `;
+  }, 1000);
+}
+
+function proceedWithLocationData() {
+  // Process location adjustment data
+  adjustmentData = [
+    { product: 'Product A', currentStock: 100, newStock: 100, adjustment: '0', valid: true },
+    { product: 'Product B', currentStock: 75, newStock: 75, adjustment: '0', valid: true }
+  ];
+  
+  goToStep(3);
+}
+
+function validateAdjustments() {
+  const summary = document.getElementById('validationSummary');
+  const tbody = document.getElementById('adjustmentsPreviewBody');
+  
+  // Show validation progress
+  summary.className = 'alert alert-info';
+  summary.innerHTML = `
+    <div class="d-flex align-items-center">
+      <i class="bi bi-hourglass-split me-2"></i>
+      <div><strong>Validating adjustments...</strong> Please wait.</div>
+    </div>
+  `;
+  
+  // Simulate validation
+  setTimeout(() => {
+    let validCount = 0;
+    let errorCount = 0;
+    let tableHTML = '';
+    
+    adjustmentData.forEach(adj => {
+      if (adj.valid) {
+        validCount++;
+      } else {
+        errorCount++;
+      }
+      
+      tableHTML += `
+        <tr class="${adj.valid ? 'table-success' : 'table-danger'}">
+          <td>
+            <i class="bi bi-${adj.valid ? 'check-circle text-success' : 'x-circle text-danger'}"></i>
+          </td>
+          <td>${adj.product}</td>
+          <td>${adj.location || 'Default'}</td>
+          <td>${adj.currentStock || 0}</td>
+          <td>${adj.adjustment || 0}</td>
+          <td>${adj.newStock || 0}</td>
+          <td>${adj.reason || 'N/A'}</td>
+          <td>${adj.issues || '—'}</td>
+        </tr>
+      `;
+    });
+    
+    tbody.innerHTML = tableHTML;
+    
+    // Update counters
+    document.getElementById('validAdjustmentsCount').textContent = validCount;
+    document.getElementById('errorAdjustmentsCount').textContent = errorCount;
+    
+    // Update summary
+    if (errorCount === 0) {
+      summary.className = 'alert alert-success';
+      summary.innerHTML = `
+        <div class="d-flex align-items-center">
+          <i class="bi bi-check-circle me-2"></i>
+          <div><strong>All adjustments validated successfully!</strong> Ready to execute ${validCount} adjustments.</div>
+        </div>
+      `;
+      document.getElementById('executeBtn').disabled = false;
+    } else {
+      summary.className = 'alert alert-warning';
+      summary.innerHTML = `
+        <div class="d-flex align-items-center">
+          <i class="bi bi-exclamation-triangle me-2"></i>
+          <div><strong>Validation completed with errors.</strong> ${validCount} valid, ${errorCount} errors.</div>
+        </div>
+      `;
+      document.getElementById('errorReportBtn').style.display = 'inline-block';
+      document.getElementById('executeBtn').disabled = validCount === 0;
+    }
+  }, 2000);
+}
+
+function executeAdjustments() {
+  const validAdjustments = adjustmentData.filter(adj => adj.valid);
+  const totalCount = validAdjustments.length;
+  
+  // Update initial counters
+  document.getElementById('executionTotal').textContent = totalCount;
+  document.getElementById('executionProcessed').textContent = '0';
+  document.getElementById('executionSuccessful').textContent = '0';
+  document.getElementById('executionFailed').textContent = '0';
+  
+  const logContainer = document.getElementById('executionLog');
+  logContainer.innerHTML = '<div class="p-3"></div>';
+  const logContent = logContainer.querySelector('div');
+  
+  let processed = 0;
+  let successful = 0;
+  let failed = 0;
+  
+  // Add initial log entry
+  logContent.innerHTML += `<div class="text-info">[${new Date().toLocaleTimeString()}] Starting bulk adjustment execution...</div>`;
+  
+  // Simulate processing each adjustment
+  const processNext = () => {
+    if (processed >= totalCount) {
+      // Complete
+      document.getElementById('completionActions').style.display = 'block';
+      logContent.innerHTML += `<div class="text-success">[${new Date().toLocaleTimeString()}] Bulk adjustment completed! ${successful} successful, ${failed} failed.</div>`;
+      return;
+    }
+    
+    const adjustment = validAdjustments[processed];
+    processed++;
+    
+    // Simulate success/failure (90% success rate)
+    const isSuccess = Math.random() > 0.1;
+    
+    if (isSuccess) {
+      successful++;
+      logContent.innerHTML += `<div class="text-success">[${new Date().toLocaleTimeString()}] ✓ ${adjustment.product}: ${adjustment.adjustment} adjustment applied</div>`;
+    } else {
+      failed++;
+      logContent.innerHTML += `<div class="text-danger">[${new Date().toLocaleTimeString()}] ✗ ${adjustment.product}: Failed - Insufficient permissions</div>`;
+    }
+    
+    // Update counters and progress
+    document.getElementById('executionProcessed').textContent = processed;
+    document.getElementById('executionSuccessful').textContent = successful;
+    document.getElementById('executionFailed').textContent = failed;
+    
+    const percentage = (processed / totalCount) * 100;
+    document.getElementById('executionProgressBar').style.width = percentage + '%';
+    document.getElementById('progressPercentage').textContent = Math.round(percentage) + '%';
+    
+    // Scroll log to bottom
+    logContainer.scrollTop = logContainer.scrollHeight;
+    
+    // Process next after delay
+    setTimeout(processNext, 500 + Math.random() * 1000);
+  };
+  
+  // Start processing
+  setTimeout(processNext, 1000);
+}
+
+function downloadErrorReport() {
+  alert('Error report download functionality would be implemented here');
+}
+
+function downloadExecutionReport() {
+  alert('Execution report download functionality would be implemented here');
+}
+
+function startNewAdjustment() {
+  // Reset everything and go back to step 1
+  currentStep = 1;
+  selectedMethod = null;
+  adjustmentData = [];
+  selectedProducts.clear();
+  
+  goToStep(1);
+}
+
+function toggleView(viewType) {
+  // View toggle functionality for products list
+  console.log('Toggling view to:', viewType);
+}
+
+// Initialize
+document.addEventListener('DOMContentLoaded', function() {
+  goToStep(1);
+});
+</script>
+{% endblock %}

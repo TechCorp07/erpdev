@@ -1,0 +1,650 @@
+{% extends "dashboard_base.html" %}
+{% load static %}
+
+{% block page_title %}Stock Movement History{% endblock %}
+
+{% block dashboard_content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+  <div>
+    <nav aria-label="breadcrumb">
+      <ol class="breadcrumb mb-1">
+        <li class="breadcrumb-item"><a href="{% url 'inventory:dashboard' %}">Inventory</a></li>
+        <li class="breadcrumb-item"><a href="{% url 'inventory:stock_overview' %}">Stock Overview</a></li>
+        <li class="breadcrumb-item active">Movement History</li>
+      </ol>
+    </nav>
+    <h1 class="h3 mb-0 text-gray-800">
+      <i class="bi bi-arrow-repeat me-2"></i>Stock Movement History
+    </h1>
+    <p class="text-muted mb-0">Complete audit trail of all inventory movements and adjustments</p>
+  </div>
+  
+  <div class="btn-group" role="group">
+    <a href="{% url 'inventory:stock_overview' %}" class="btn btn-outline-secondary">
+      <i class="bi bi-arrow-left me-2"></i>Back to Overview
+    </a>
+    <a href="{% url 'inventory:stock_adjustment' %}" class="btn btn-primary">
+      <i class="bi bi-plus-minus me-2"></i>New Adjustment
+    </a>
+    <div class="btn-group" role="group">
+      <button class="btn btn-outline-secondary dropdown-toggle" type="button" data-bs-toggle="dropdown">
+        <i class="bi bi-three-dots"></i>
+      </button>
+      <ul class="dropdown-menu">
+        <li><a class="dropdown-item" href="{% url 'inventory:stock_movements_export' %}">
+          <i class="bi bi-download me-2"></i>Export Movements
+        </a></li>
+        <li><a class="dropdown-item" href="{% url 'inventory:stock_movements_report' %}">
+          <i class="bi bi-file-text me-2"></i>Generate Report
+        </a></li>
+        <li><hr class="dropdown-divider"></li>
+        <li><a class="dropdown-item" href="{% url 'inventory:bulk_stock_adjustment' %}">
+          <i class="bi bi-layers me-2"></i>Bulk Adjustments
+        </a></li>
+      </ul>
+    </div>
+  </div>
+</div>
+
+<!-- Movement Summary Cards -->
+<div class="row mb-4">
+  <div class="col-lg-3 col-md-6 mb-4">
+    <div class="card bg-primary text-white shadow h-100 py-2">
+      <div class="card-body">
+        <div class="row no-gutters align-items-center">
+          <div class="col mr-2">
+            <div class="text-xs font-weight-bold text-white-50 text-uppercase mb-1">
+              Total Movements
+            </div>
+            <div class="h5 mb-0 font-weight-bold">{{ total_movements|default:0 }}</div>
+          </div>
+          <div class="col-auto">
+            <i class="bi bi-arrow-repeat fa-2x text-white-50"></i>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="col-lg-3 col-md-6 mb-4">
+    <div class="card bg-success text-white shadow h-100 py-2">
+      <div class="card-body">
+        <div class="row no-gutters align-items-center">
+          <div class="col mr-2">
+            <div class="text-xs font-weight-bold text-white-50 text-uppercase mb-1">
+              Stock Increases
+            </div>
+            <div class="h5 mb-0 font-weight-bold">{{ stock_in_movements|default:0 }}</div>
+          </div>
+          <div class="col-auto">
+            <i class="bi bi-arrow-up-circle fa-2x text-white-50"></i>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="col-lg-3 col-md-6 mb-4">
+    <div class="card bg-danger text-white shadow h-100 py-2">
+      <div class="card-body">
+        <div class="row no-gutters align-items-center">
+          <div class="col mr-2">
+            <div class="text-xs font-weight-bold text-white-50 text-uppercase mb-1">
+              Stock Decreases
+            </div>
+            <div class="h5 mb-0 font-weight-bold">{{ stock_out_movements|default:0 }}</div>
+          </div>
+          <div class="col-auto">
+            <i class="bi bi-arrow-down-circle fa-2x text-white-50"></i>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="col-lg-3 col-md-6 mb-4">
+    <div class="card bg-info text-white shadow h-100 py-2">
+      <div class="card-body">
+        <div class="row no-gutters align-items-center">
+          <div class="col mr-2">
+            <div class="text-xs font-weight-bold text-white-50 text-uppercase mb-1">
+              Transfers
+            </div>
+            <div class="h5 mb-0 font-weight-bold">{{ transfer_movements|default:0 }}</div>
+          </div>
+          <div class="col-auto">
+            <i class="bi bi-arrow-left-right fa-2x text-white-50"></i>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Filters and Search -->
+<div class="card mb-4">
+  <div class="card-header">
+    <div class="d-flex justify-content-between align-items-center">
+      <h6 class="card-title mb-0">
+        <i class="bi bi-funnel me-2"></i>Filter Movements
+      </h6>
+      <button class="btn btn-sm btn-outline-secondary" type="button" data-bs-toggle="collapse" 
+              data-bs-target="#filterForm" aria-expanded="true">
+        <i class="bi bi-chevron-up"></i>
+      </button>
+    </div>
+  </div>
+  <div class="collapse show" id="filterForm">
+    <div class="card-body">
+      <form method="get" id="movementFilterForm">
+        <div class="row">
+          <!-- Search -->
+          <div class="col-md-4 mb-3">
+            <label class="form-label">
+              <i class="bi bi-search me-1"></i>Search
+            </label>
+            <input type="text" name="search" class="form-control" 
+                   placeholder="Product name, SKU, or reference..." 
+                   value="{{ request.GET.search }}">
+          </div>
+          
+          <!-- Movement Type -->
+          <div class="col-md-4 mb-3">
+            <label class="form-label">Movement Type</label>
+            <select name="movement_type" class="form-select">
+              <option value="">All Types</option>
+              <option value="in" {% if request.GET.movement_type == 'in' %}selected{% endif %}>Stock In</option>
+              <option value="out" {% if request.GET.movement_type == 'out' %}selected{% endif %}>Stock Out</option>
+              <option value="transfer" {% if request.GET.movement_type == 'transfer' %}selected{% endif %}>Transfer</option>
+              <option value="adjustment" {% if request.GET.movement_type == 'adjustment' %}selected{% endif %}>Adjustment</option>
+              <option value="sale" {% if request.GET.movement_type == 'sale' %}selected{% endif %}>Sale</option>
+              <option value="purchase" {% if request.GET.movement_type == 'purchase' %}selected{% endif %}>Purchase</option>
+              <option value="return" {% if request.GET.movement_type == 'return' %}selected{% endif %}>Return</option>
+            </select>
+          </div>
+          
+          <!-- Product Filter -->
+          <div class="col-md-4 mb-3">
+            <label class="form-label">Product</label>
+            <select name="product" class="form-select" id="productFilter">
+              <option value="">All Products</option>
+              {% for product in products %}
+                <option value="{{ product.pk }}" {% if request.GET.product == product.pk|stringformat:"s" %}selected{% endif %}>
+                  {{ product.name }}
+                </option>
+              {% endfor %}
+            </select>
+          </div>
+        </div>
+        
+        <div class="row">
+          <!-- Location Filters -->
+          <div class="col-md-3 mb-3">
+            <label class="form-label">From Location</label>
+            <select name="from_location" class="form-select">
+              <option value="">Any Location</option>
+              {% for location in locations %}
+                <option value="{{ location.pk }}" {% if request.GET.from_location == location.pk|stringformat:"s" %}selected{% endif %}>
+                  {{ location.name }}
+                </option>
+              {% endfor %}
+            </select>
+          </div>
+          
+          <div class="col-md-3 mb-3">
+            <label class="form-label">To Location</label>
+            <select name="to_location" class="form-select">
+              <option value="">Any Location</option>
+              {% for location in locations %}
+                <option value="{{ location.pk }}" {% if request.GET.to_location == location.pk|stringformat:"s" %}selected{% endif %}>
+                  {{ location.name }}
+                </option>
+              {% endfor %}
+            </select>
+          </div>
+          
+          <!-- Date Range -->
+          <div class="col-md-3 mb-3">
+            <label class="form-label">From Date</label>
+            <input type="date" name="date_from" class="form-control" value="{{ request.GET.date_from }}">
+          </div>
+          
+          <div class="col-md-3 mb-3">
+            <label class="form-label">To Date</label>
+            <input type="date" name="date_to" class="form-control" value="{{ request.GET.date_to }}">
+          </div>
+        </div>
+        
+        <div class="row">
+          <!-- User Filter -->
+          <div class="col-md-4 mb-3">
+            <label class="form-label">Created By</label>
+            <select name="created_by" class="form-select">
+              <option value="">Any User</option>
+              {% for user in users %}
+                <option value="{{ user.pk }}" {% if request.GET.created_by == user.pk|stringformat:"s" %}selected{% endif %}>
+                  {{ user.get_full_name|default:user.username }}
+                </option>
+              {% endfor %}
+            </select>
+          </div>
+          
+          <!-- Quantity Range -->
+          <div class="col-md-4 mb-3">
+            <label class="form-label">Min Quantity</label>
+            <input type="number" name="min_quantity" class="form-control" 
+                   placeholder="0" value="{{ request.GET.min_quantity }}">
+          </div>
+          
+          <div class="col-md-4 mb-3">
+            <label class="form-label">Max Quantity</label>
+            <input type="number" name="max_quantity" class="form-control" 
+                   placeholder="1000" value="{{ request.GET.max_quantity }}">
+          </div>
+        </div>
+        
+        <!-- Action Buttons -->
+        <div class="d-flex justify-content-between align-items-center">
+          <div>
+            <button type="submit" class="btn btn-primary">
+              <i class="bi bi-search me-2"></i>Apply Filters
+            </button>
+            <a href="{% url 'inventory:stock_movement_list' %}" class="btn btn-outline-secondary">
+              <i class="bi bi-arrow-counterclockwise me-2"></i>Clear Filters
+            </a>
+          </div>
+          
+          <div class="text-muted">
+            <i class="bi bi-info-circle me-1"></i>
+            Showing {{ page_obj.start_index }}-{{ page_obj.end_index }} of {{ page_obj.paginator.count }} movements
+          </div>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+
+<!-- Movement Type Quick Filters -->
+<div class="row mb-4">
+  <div class="col-md-12">
+    <div class="d-flex gap-2 flex-wrap">
+      <a href="{% url 'inventory:stock_movement_list' %}" 
+         class="btn btn-sm {% if not request.GET.movement_type %}btn-primary{% else %}btn-outline-primary{% endif %}">
+        <i class="bi bi-list me-1"></i>All Movements
+      </a>
+      <a href="?movement_type=in" 
+         class="btn btn-sm {% if request.GET.movement_type == 'in' %}btn-success{% else %}btn-outline-success{% endif %}">
+        <i class="bi bi-arrow-up-circle me-1"></i>Stock In
+      </a>
+      <a href="?movement_type=out" 
+         class="btn btn-sm {% if request.GET.movement_type == 'out' %}btn-danger{% else %}btn-outline-danger{% endif %}">
+        <i class="bi bi-arrow-down-circle me-1"></i>Stock Out
+      </a>
+      <a href="?movement_type=transfer" 
+         class="btn btn-sm {% if request.GET.movement_type == 'transfer' %}btn-info{% else %}btn-outline-info{% endif %}">
+        <i class="bi bi-arrow-left-right me-1"></i>Transfers
+      </a>
+      <a href="?movement_type=adjustment" 
+         class="btn btn-sm {% if request.GET.movement_type == 'adjustment' %}btn-warning{% else %}btn-outline-warning{% endif %}">
+        <i class="bi bi-plus-minus me-1"></i>Adjustments
+      </a>
+    </div>
+  </div>
+</div>
+
+<!-- Movements Table -->
+<div class="card">
+  <div class="card-header">
+    <div class="d-flex justify-content-between align-items-center">
+      <h6 class="card-title mb-0">
+        <i class="bi bi-table me-2"></i>Stock Movements
+        {% if page_obj.paginator.count %}
+          <span class="badge bg-primary">{{ page_obj.paginator.count }}</span>
+        {% endif %}
+      </h6>
+      
+      <div class="btn-group btn-group-sm">
+        <button class="btn btn-outline-secondary dropdown-toggle" type="button" data-bs-toggle="dropdown">
+          <i class="bi bi-download me-1"></i>Export
+        </button>
+        <ul class="dropdown-menu">
+          <li><a class="dropdown-item" href="?{{ request.GET.urlencode }}&export=csv">
+            <i class="bi bi-file-spreadsheet me-2"></i>Export as CSV
+          </a></li>
+          <li><a class="dropdown-item" href="?{{ request.GET.urlencode }}&export=excel">
+            <i class="bi bi-file-excel me-2"></i>Export as Excel
+          </a></li>
+          <li><hr class="dropdown-divider"></li>
+          <li><a class="dropdown-item" href="?{{ request.GET.urlencode }}&export=pdf">
+            <i class="bi bi-file-pdf me-2"></i>Export as PDF
+          </a></li>
+        </ul>
+      </div>
+    </div>
+  </div>
+  
+  <div class="card-body p-0">
+    {% if movements %}
+    <div class="table-responsive">
+      <table class="table table-hover mb-0">
+        <thead class="table-light">
+          <tr>
+            <th>Date & Time</th>
+            <th>Product</th>
+            <th>Movement Type</th>
+            <th>Quantity</th>
+            <th>From Location</th>
+            <th>To Location</th>
+            <th>Reference</th>
+            <th>Created By</th>
+            <th>Unit Cost</th>
+            <th>Total Cost</th>
+            <th>Actions</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for movement in movements %}
+          <tr>
+            <td class="small">
+              <div class="fw-bold">{{ movement.created_at|date:"M d, Y" }}</div>
+              <div class="text-muted">{{ movement.created_at|date:"H:i:s" }}</div>
+            </td>
+            <td>
+              <div class="d-flex align-items-center">
+                <div>
+                  <a href="{% url 'inventory:product_detail' movement.product.pk %}" 
+                     class="text-decoration-none fw-bold">
+                    {{ movement.product.name|truncatechars:25 }}
+                  </a>
+                  <div class="small text-muted">
+                    SKU: <code>{{ movement.product.sku }}</code>
+                  </div>
+                </div>
+              </div>
+            </td>
+            <td>
+              <span class="badge bg-{% if movement.movement_type == 'in' %}success{% elif movement.movement_type == 'out' %}danger{% elif movement.movement_type == 'transfer' %}info{% elif movement.movement_type == 'adjustment' %}warning{% else %}secondary{% endif %}">
+                {{ movement.get_movement_type_display }}
+              </span>
+              {% if movement.movement_subtype %}
+                <div class="small text-muted">{{ movement.movement_subtype|title }}</div>
+              {% endif %}
+            </td>
+            <td class="text-center">
+              <span class="fw-bold {% if movement.quantity > 0 %}text-success{% else %}text-danger{% endif %}">
+                {% if movement.quantity > 0 %}+{% endif %}{{ movement.quantity }}
+              </span>
+            </td>
+            <td class="small">
+              {% if movement.from_location %}
+                <span class="badge bg-secondary">{{ movement.from_location.name }}</span>
+              {% else %}
+                <span class="text-muted">—</span>
+              {% endif %}
+            </td>
+            <td class="small">
+              {% if movement.to_location %}
+                <span class="badge bg-secondary">{{ movement.to_location.name }}</span>
+              {% else %}
+                <span class="text-muted">—</span>
+              {% endif %}
+            </td>
+            <td class="small">
+              {% if movement.reference %}
+                <code>{{ movement.reference|truncatechars:12 }}</code>
+                {% if movement.reference|length > 12 %}
+                  <i class="bi bi-info-circle" data-bs-toggle="tooltip" 
+                     title="{{ movement.reference }}"></i>
+                {% endif %}
+              {% else %}
+                <span class="text-muted">—</span>
+              {% endif %}
+            </td>
+            <td class="small">
+              {% if movement.created_by %}
+                {{ movement.created_by.get_full_name|default:movement.created_by.username }}
+              {% else %}
+                <span class="text-muted">System</span>
+              {% endif %}
+            </td>
+            <td class="text-end">
+              {% if movement.unit_cost %}
+                <span class="text-success">${{ movement.unit_cost|floatformat:2 }}</span>
+              {% else %}
+                <span class="text-muted">—</span>
+              {% endif %}
+            </td>
+            <td class="text-end">
+              {% if movement.total_cost %}
+                <span class="text-primary fw-bold">${{ movement.total_cost|floatformat:2 }}</span>
+              {% else %}
+                <span class="text-muted">—</span>
+              {% endif %}
+            </td>
+            <td>
+              <div class="btn-group btn-group-sm">
+                <button class="btn btn-outline-primary" onclick="viewMovementDetails({{ movement.pk }})" 
+                        title="View Details">
+                  <i class="bi bi-eye"></i>
+                </button>
+                {% if movement.can_reverse %}
+                <button class="btn btn-outline-warning" onclick="reverseMovement({{ movement.pk }})"
+                        title="Reverse Movement">
+                  <i class="bi bi-arrow-counterclockwise"></i>
+                </button>
+                {% endif %}
+                <div class="btn-group">
+                  <button class="btn btn-outline-secondary btn-sm dropdown-toggle" 
+                          type="button" data-bs-toggle="dropdown">
+                    <i class="bi bi-three-dots"></i>
+                  </button>
+                  <ul class="dropdown-menu">
+                    <li><a class="dropdown-item" href="{% url 'inventory:product_detail' movement.product.pk %}">
+                      <i class="bi bi-box me-2"></i>View Product
+                    </a></li>
+                    {% if movement.reference %}
+                    <li><a class="dropdown-item" href="#" onclick="searchByReference('{{ movement.reference }}')">
+                      <i class="bi bi-search me-2"></i>Find Related Movements
+                    </a></li>
+                    {% endif %}
+                    <li><hr class="dropdown-divider"></li>
+                    <li><a class="dropdown-item" href="{% url 'inventory:movement_export' movement.pk %}">
+                      <i class="bi bi-download me-2"></i>Export Details
+                    </a></li>
+                  </ul>
+                </div>
+              </div>
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% else %}
+    <div class="text-center py-5 text-muted">
+      <i class="bi bi-arrow-repeat" style="font-size: 3rem;"></i>
+      <h5 class="mt-3">No Stock Movements Found</h5>
+      <p class="mb-4">
+        {% if request.GET %}
+          No movements match your current filter criteria.
+        {% else %}
+          No stock movements have been recorded yet.
+        {% endif %}
+      </p>
+      
+      <div class="d-flex gap-2 justify-content-center">
+        <a href="{% url 'inventory:stock_adjustment' %}" class="btn btn-primary">
+          <i class="bi bi-plus-minus me-2"></i>Create Adjustment
+        </a>
+        {% if request.GET %}
+        <a href="{% url 'inventory:stock_movement_list' %}" class="btn btn-outline-secondary">
+          <i class="bi bi-arrow-counterclockwise me-2"></i>Clear Filters
+        </a>
+        {% endif %}
+      </div>
+    </div>
+    {% endif %}
+  </div>
+  
+  <!-- Pagination -->
+  {% if page_obj.paginator.num_pages > 1 %}
+  <div class="card-footer">
+    <nav aria-label="Movement history pagination">
+      <ul class="pagination justify-content-center mb-0">
+        {% if page_obj.has_previous %}
+          <li class="page-item">
+            <a class="page-link" href="?{{ request.GET.urlencode }}&page=1">First</a>
+          </li>
+          <li class="page-item">
+            <a class="page-link" href="?{{ request.GET.urlencode }}&page={{ page_obj.previous_page_number }}">Previous</a>
+          </li>
+        {% endif %}
+        
+        {% for num in page_obj.paginator.page_range %}
+          {% if page_obj.number == num %}
+            <li class="page-item active">
+              <span class="page-link">{{ num }}</span>
+            </li>
+          {% elif num > page_obj.number|add:'-3' and num < page_obj.number|add:'3' %}
+            <li class="page-item">
+              <a class="page-link" href="?{{ request.GET.urlencode }}&page={{ num }}">{{ num }}</a>
+            </li>
+          {% endif %}
+        {% endfor %}
+        
+        {% if page_obj.has_next %}
+          <li class="page-item">
+            <a class="page-link" href="?{{ request.GET.urlencode }}&page={{ page_obj.next_page_number }}">Next</a>
+          </li>
+          <li class="page-item">
+            <a class="page-link" href="?{{ request.GET.urlencode }}&page={{ page_obj.paginator.num_pages }}">Last</a>
+          </li>
+        {% endif %}
+      </ul>
+    </nav>
+    
+    <div class="text-center mt-2">
+      <small class="text-muted">
+        Page {{ page_obj.number }} of {{ page_obj.paginator.num_pages }} 
+        ({{ page_obj.paginator.count }} total movements)
+      </small>
+    </div>
+  </div>
+  {% endif %}
+</div>
+
+<!-- Movement Details Modal -->
+<div class="modal fade" id="movementDetailsModal" tabindex="-1">
+  <div class="modal-dialog modal-lg">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title">Movement Details</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body" id="movementDetailsContent">
+        <!-- Content will be loaded dynamically -->
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Close</button>
+        <button type="button" class="btn btn-primary" onclick="printMovementDetails()">
+          <i class="bi bi-printer me-2"></i>Print Details
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+
+{% endblock %}
+
+{% block extra_js %}
+<script>
+function viewMovementDetails(movementId) {
+  // Show loading state
+  const modalContent = document.getElementById('movementDetailsContent');
+  modalContent.innerHTML = `
+    <div class="text-center py-4">
+      <div class="spinner-border text-primary" role="status">
+        <span class="visually-hidden">Loading...</span>
+      </div>
+      <p class="mt-2 text-muted">Loading movement details...</p>
+    </div>
+  `;
+  
+  // Show modal
+  const modal = new bootstrap.Modal(document.getElementById('movementDetailsModal'));
+  modal.show();
+  
+  // In a real implementation, this would make an AJAX call to get movement details
+  setTimeout(() => {
+    modalContent.innerHTML = `
+      <div class="row">
+        <div class="col-md-6">
+          <h6>Movement Information</h6>
+          <table class="table table-sm">
+            <tr><td><strong>ID:</strong></td><td>#${movementId}</td></tr>
+            <tr><td><strong>Date:</strong></td><td>Mar 15, 2024 14:30:25</td></tr>
+            <tr><td><strong>Type:</strong></td><td><span class="badge bg-success">Stock In</span></td></tr>
+            <tr><td><strong>Quantity:</strong></td><td>+50 units</td></tr>
+            <tr><td><strong>Reference:</strong></td><td>PO-2024-001</td></tr>
+          </table>
+        </div>
+        <div class="col-md-6">
+          <h6>Product & Location</h6>
+          <table class="table table-sm">
+            <tr><td><strong>Product:</strong></td><td>Electronic Component XYZ</td></tr>
+            <tr><td><strong>SKU:</strong></td><td>EC-XYZ-001</td></tr>
+            <tr><td><strong>From:</strong></td><td>—</td></tr>
+            <tr><td><strong>To:</strong></td><td>Main Warehouse</td></tr>
+            <tr><td><strong>Created By:</strong></td><td>John Doe</td></tr>
+          </table>
+        </div>
+      </div>
+      <hr>
+      <h6>Cost Information</h6>
+      <table class="table table-sm">
+        <tr><td><strong>Unit Cost:</strong></td><td>$12.50</td></tr>
+        <tr><td><strong>Total Cost:</strong></td><td>$625.00</td></tr>
+      </table>
+      <h6>Notes</h6>
+      <p class="text-muted">Received from supplier ABC Corp. All items inspected and approved.</p>
+    `;
+  }, 1000);
+}
+
+function reverseMovement(movementId) {
+  if (confirm('Are you sure you want to reverse this stock movement? This will create a counter-movement to undo this transaction.')) {
+    // In a real implementation, this would make an AJAX call
+    alert('Movement reversal functionality would be implemented here');
+  }
+}
+
+function searchByReference(reference) {
+  const searchInput = document.querySelector('input[name="search"]');
+  searchInput.value = reference;
+  document.getElementById('movementFilterForm').submit();
+}
+
+function printMovementDetails() {
+  window.print();
+}
+
+// Initialize tooltips
+document.addEventListener('DOMContentLoaded', function() {
+  const tooltipTriggerList = [].slice.call(document.querySelectorAll('[data-bs-toggle="tooltip"]'));
+  tooltipTriggerList.map(function (tooltipTriggerEl) {
+    return new bootstrap.Tooltip(tooltipTriggerEl);
+  });
+  
+  // Auto-collapse filters on small screens
+  if (window.innerWidth < 768) {
+    const filterCollapse = document.getElementById('filterForm');
+    if (filterCollapse) {
+      const collapse = new bootstrap.Collapse(filterCollapse, {
+        toggle: false
+      });
+      collapse.hide();
+    }
+  }
+});
+</script>
+{% endblock %}

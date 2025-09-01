@@ -1,0 +1,774 @@
+{% extends "dashboard_base.html" %}
+{% load static %}
+
+{% block page_title %}Inventory Analytics{% endblock %}
+
+{% block dashboard_content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+  <div>
+    <nav aria-label="breadcrumb">
+      <ol class="breadcrumb mb-1">
+        <li class="breadcrumb-item"><a href="{% url 'inventory:dashboard' %}">Inventory</a></li>
+        <li class="breadcrumb-item active">Analytics</li>
+      </ol>
+    </nav>
+    <h1 class="h3 mb-0 text-gray-800">Inventory Analytics</h1>
+    <p class="text-muted mb-0">Deep insights into inventory performance, trends, and optimization opportunities</p>
+  </div>
+  
+  <div class="btn-group" role="group">
+    <button type="button" class="btn btn-outline-primary" data-bs-toggle="modal" data-bs-target="#dateRangeModal">
+      <i class="bi bi-calendar-range me-2"></i>Date Range
+    </button>
+    <div class="btn-group" role="group">
+      <button class="btn btn-outline-secondary dropdown-toggle" type="button" data-bs-toggle="dropdown">
+        <i class="bi bi-download"></i> Export
+      </button>
+      <ul class="dropdown-menu">
+        <li><a class="dropdown-item" href="?export=pdf">
+          <i class="bi bi-file-pdf me-2"></i>Analytics Report PDF
+        </a></li>
+        <li><a class="dropdown-item" href="?export=excel">
+          <i class="bi bi-file-spreadsheet me-2"></i>Data Export Excel
+        </a></li>
+        <li><hr class="dropdown-divider"></li>
+        <li><a class="dropdown-item" href="#" onclick="scheduleReport()">
+          <i class="bi bi-calendar-event me-2"></i>Schedule Report
+        </a></li>
+      </ul>
+    </div>
+  </div>
+</div>
+
+<!-- Performance Metrics Cards -->
+<div class="row mb-4">
+  <div class="col-lg-3 col-md-6 mb-4">
+    <div class="card bg-gradient-primary text-white shadow h-100">
+      <div class="card-body">
+        <div class="row no-gutters align-items-center">
+          <div class="col mr-2">
+            <div class="text-xs font-weight-bold text-white-50 text-uppercase mb-1">
+              Inventory Accuracy
+            </div>
+            <div class="h5 mb-0 font-weight-bold">{{ inventory_accuracy|floatformat:1|default:0 }}%</div>
+            <div class="text-xs">
+              <span class="text-white-50">
+                {% if accuracy_trend == 'up' %}
+                  <i class="bi bi-arrow-up"></i> Improving
+                {% elif accuracy_trend == 'down' %}
+                  <i class="bi bi-arrow-down"></i> Declining
+                {% else %}
+                  <i class="bi bi-dash"></i> Stable
+                {% endif %}
+              </span>
+            </div>
+          </div>
+          <div class="col-auto">
+            <i class="bi bi-bullseye fa-2x text-white-50"></i>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="col-lg-3 col-md-6 mb-4">
+    <div class="card bg-gradient-success text-white shadow h-100">
+      <div class="card-body">
+        <div class="row no-gutters align-items-center">
+          <div class="col mr-2">
+            <div class="text-xs font-weight-bold text-white-50 text-uppercase mb-1">
+              Stock Efficiency
+            </div>
+            <div class="h5 mb-0 font-weight-bold">{{ stock_efficiency|floatformat:1|default:0 }}%</div>
+            <div class="text-xs">
+              <span class="text-white-50">
+                Optimal stock levels
+              </span>
+            </div>
+          </div>
+          <div class="col-auto">
+            <i class="bi bi-speedometer2 fa-2x text-white-50"></i>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="col-lg-3 col-md-6 mb-4">
+    <div class="card bg-gradient-warning text-white shadow h-100">
+      <div class="card-body">
+        <div class="row no-gutters align-items-center">
+          <div class="col mr-2">
+            <div class="text-xs font-weight-bold text-white-50 text-uppercase mb-1">
+              Carrying Cost
+            </div>
+            <div class="h5 mb-0 font-weight-bold">${{ carrying_cost|floatformat:0|default:0 }}</div>
+            <div class="text-xs">
+              <span class="text-white-50">
+                {{ carrying_cost_percentage|floatformat:1|default:0 }}% of stock value
+              </span>
+            </div>
+          </div>
+          <div class="col-auto">
+            <i class="bi bi-piggy-bank fa-2x text-white-50"></i>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="col-lg-3 col-md-6 mb-4">
+    <div class="card bg-gradient-info text-white shadow h-100">
+      <div class="card-body">
+        <div class="row no-gutters align-items-center">
+          <div class="col mr-2">
+            <div class="text-xs font-weight-bold text-white-50 text-uppercase mb-1">
+              Demand Forecast
+            </div>
+            <div class="h5 mb-0 font-weight-bold">
+              {% if demand_trend == 'up' %}
+                <i class="bi bi-arrow-up"></i> Rising
+              {% elif demand_trend == 'down' %}
+                <i class="bi bi-arrow-down"></i> Falling
+              {% else %}
+                <i class="bi bi-dash"></i> Stable
+              {% endif %}
+            </div>
+            <div class="text-xs">
+              <span class="text-white-50">
+                Next 30 days projection
+              </span>
+            </div>
+          </div>
+          <div class="col-auto">
+            <i class="bi bi-graph-up fa-2x text-white-50"></i>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Advanced Charts Row -->
+<div class="row mb-4">
+  <!-- Turnover Analysis -->
+  <div class="col-xl-8 col-lg-7 mb-4">
+    <div class="card shadow h-100">
+      <div class="card-header py-3 d-flex justify-content-between align-items-center">
+        <h6 class="m-0 font-weight-bold text-primary">Inventory Turnover Analysis</h6>
+        <div class="btn-group btn-group-sm" role="group">
+          <button type="button" class="btn btn-outline-secondary active" data-chart="turnover">Turnover</button>
+          <button type="button" class="btn btn-outline-secondary" data-chart="velocity">Velocity</button>
+          <button type="button" class="btn btn-outline-secondary" data-chart="days-on-hand">Days on Hand</button>
+        </div>
+      </div>
+      <div class="card-body">
+        <canvas id="turnoverChart" width="400" height="200"></canvas>
+      </div>
+    </div>
+  </div>
+
+  <!-- ABC Analysis -->
+  <div class="col-xl-4 col-lg-5 mb-4">
+    <div class="card shadow h-100">
+      <div class="card-header py-3">
+        <h6 class="m-0 font-weight-bold text-primary">ABC Classification</h6>
+      </div>
+      <div class="card-body">
+        <canvas id="abcChart" width="400" height="300"></canvas>
+        <div class="mt-3">
+          <div class="row text-center">
+            <div class="col-4">
+              <div class="border-start border-danger border-4 ps-2">
+                <h6 class="text-danger mb-0">{{ abc_analysis.A.percentage|floatformat:1 }}%</h6>
+                <small class="text-muted">Class A</small>
+                <div class="small text-muted">{{ abc_analysis.A.count }} items</div>
+              </div>
+            </div>
+            <div class="col-4">
+              <div class="border-start border-warning border-4 ps-2">
+                <h6 class="text-warning mb-0">{{ abc_analysis.B.percentage|floatformat:1 }}%</h6>
+                <small class="text-muted">Class B</small>
+                <div class="small text-muted">{{ abc_analysis.B.count }} items</div>
+              </div>
+            </div>
+            <div class="col-4">
+              <div class="border-start border-success border-4 ps-2">
+                <h6 class="text-success mb-0">{{ abc_analysis.C.percentage|floatformat:1 }}%</h6>
+                <small class="text-muted">Class C</small>
+                <div class="small text-muted">{{ abc_analysis.C.count }} items</div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Stock Movement and Demand Patterns -->
+<div class="row mb-4">
+  <!-- Movement Patterns -->
+  <div class="col-lg-6 mb-4">
+    <div class="card shadow h-100">
+      <div class="card-header py-3">
+        <h6 class="m-0 font-weight-bold text-primary">Stock Movement Patterns</h6>
+      </div>
+      <div class="card-body">
+        <canvas id="movementChart" width="400" height="300"></canvas>
+      </div>
+    </div>
+  </div>
+
+  <!-- Seasonal Demand -->
+  <div class="col-lg-6 mb-4">
+    <div class="card shadow h-100">
+      <div class="card-header py-3">
+        <h6 class="m-0 font-weight-bold text-primary">Seasonal Demand Patterns</h6>
+      </div>
+      <div class="card-body">
+        <canvas id="seasonalChart" width="400" height="300"></canvas>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Performance Tables -->
+<div class="row mb-4">
+  <!-- Top Performing Products -->
+  <div class="col-lg-6 mb-4">
+    <div class="card shadow h-100">
+      <div class="card-header py-3 d-flex justify-content-between align-items-center">
+        <h6 class="m-0 font-weight-bold text-primary">Top Performing Products</h6>
+        <div class="btn-group btn-group-sm" role="group">
+          <button type="button" class="btn btn-outline-secondary active" data-metric="turnover">Turnover</button>
+          <button type="button" class="btn btn-outline-secondary" data-metric="profit">Profit</button>
+          <button type="button" class="btn btn-outline-secondary" data-metric="volume">Volume</button>
+        </div>
+      </div>
+      <div class="card-body p-0">
+        <div class="table-responsive">
+          <table class="table table-hover mb-0">
+            <thead class="bg-light">
+              <tr>
+                <th>Rank</th>
+                <th>Product</th>
+                <th>Turnover</th>
+                <th>Revenue</th>
+                <th>Trend</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for product in top_products %}
+              <tr>
+                <td>
+                  <div class="d-flex align-items-center">
+                    {% if forloop.counter <= 3 %}
+                      <span class="badge bg-warning text-dark me-2">{{ forloop.counter }}</span>
+                    {% else %}
+                      <span class="badge bg-secondary me-2">{{ forloop.counter }}</span>
+                    {% endif %}
+                  </div>
+                </td>
+                <td>
+                  <div class="d-flex align-items-center">
+                    {% if product.image %}
+                      <img src="{{ product.image.url }}" alt="{{ product.name }}" class="me-2" style="width: 30px; height: 30px; object-fit: cover; border-radius: 4px;">
+                    {% else %}
+                      <div class="me-2 bg-light d-flex align-items-center justify-content-center" style="width: 30px; height: 30px; border-radius: 4px;">
+                        <i class="bi bi-image text-muted small"></i>
+                      </div>
+                    {% endif %}
+                    <div>
+                      <div class="fw-bold">{{ product.name|truncatechars:20 }}</div>
+                      <small class="text-muted">{{ product.sku }}</small>
+                    </div>
+                  </div>
+                </td>
+                <td>
+                  <span class="fw-bold">{{ product.turnover_ratio|floatformat:1 }}x</span>
+                </td>
+                <td>
+                  <span class="fw-bold">${{ product.revenue|floatformat:0 }}</span>
+                </td>
+                <td>
+                  {% if product.trend == 'up' %}
+                    <i class="bi bi-arrow-up text-success fa-lg"></i>
+                  {% elif product.trend == 'down' %}
+                    <i class="bi bi-arrow-down text-danger fa-lg"></i>
+                  {% else %}
+                    <i class="bi bi-dash text-muted fa-lg"></i>
+                  {% endif %}
+                </td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Underperforming Products -->
+  <div class="col-lg-6 mb-4">
+    <div class="card shadow h-100">
+      <div class="card-header py-3">
+        <h6 class="m-0 font-weight-bold text-primary">Underperforming Products</h6>
+      </div>
+      <div class="card-body p-0">
+        <div class="table-responsive">
+          <table class="table table-hover mb-0">
+            <thead class="bg-light">
+              <tr>
+                <th>Product</th>
+                <th>Days on Hand</th>
+                <th>Stock Value</th>
+                <th>Last Sale</th>
+                <th>Action</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for product in underperforming_products %}
+              <tr>
+                <td>
+                  <div class="d-flex align-items-center">
+                    {% if product.image %}
+                      <img src="{{ product.image.url }}" alt="{{ product.name }}" class="me-2" style="width: 30px; height: 30px; object-fit: cover; border-radius: 4px;">
+                    {% else %}
+                      <div class="me-2 bg-light d-flex align-items-center justify-content-center" style="width: 30px; height: 30px; border-radius: 4px;">
+                        <i class="bi bi-image text-muted small"></i>
+                      </div>
+                    {% endif %}
+                    <div>
+                      <div class="fw-bold">{{ product.name|truncatechars:20 }}</div>
+                      <small class="text-muted">{{ product.sku }}</small>
+                    </div>
+                  </div>
+                </td>
+                <td>
+                  <span class="badge 
+                    {% if product.days_on_hand > 180 %}bg-danger
+                    {% elif product.days_on_hand > 90 %}bg-warning
+                    {% else %}bg-info
+                    {% endif %}">
+                    {{ product.days_on_hand }} days
+                  </span>
+                </td>
+                <td>
+                  <span class="fw-bold">${{ product.stock_value|floatformat:0 }}</span>
+                </td>
+                <td>
+                  {% if product.last_sale_date %}
+                    <div class="small">{{ product.last_sale_date|timesince }} ago</div>
+                  {% else %}
+                    <span class="text-muted">Never</span>
+                  {% endif %}
+                </td>
+                <td>
+                  <div class="btn-group btn-group-sm" role="group">
+                    <button type="button" class="btn btn-outline-warning" onclick="markdownProduct({{ product.pk }})" title="Markdown">
+                      <i class="bi bi-tag"></i>
+                    </button>
+                    <button type="button" class="btn btn-outline-info" onclick="promoteProduct({{ product.pk }})" title="Promote">
+                      <i class="bi bi-megaphone"></i>
+                    </button>
+                  </div>
+                </td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Insights and Recommendations -->
+<div class="row mb-4">
+  <!-- AI Insights -->
+  <div class="col-lg-8 mb-4">
+    <div class="card shadow h-100">
+      <div class="card-header py-3">
+        <h6 class="m-0 font-weight-bold text-primary">
+          <i class="bi bi-lightbulb me-2"></i>AI-Powered Insights
+        </h6>
+      </div>
+      <div class="card-body">
+        <div class="row">
+          {% for insight in ai_insights %}
+          <div class="col-md-6 mb-3">
+            <div class="card border-left-{{ insight.type }}">
+              <div class="card-body py-3">
+                <div class="d-flex align-items-center">
+                  <div class="me-3">
+                    {% if insight.type == 'success' %}
+                      <i class="bi bi-check-circle-fill text-success fa-2x"></i>
+                    {% elif insight.type == 'warning' %}
+                      <i class="bi bi-exclamation-triangle-fill text-warning fa-2x"></i>
+                    {% elif insight.type == 'danger' %}
+                      <i class="bi bi-exclamation-circle-fill text-danger fa-2x"></i>
+                    {% else %}
+                      <i class="bi bi-info-circle-fill text-info fa-2x"></i>
+                    {% endif %}
+                  </div>
+                  <div>
+                    <div class="text-dark fw-bold">{{ insight.title }}</div>
+                    <div class="text-muted small">{{ insight.description }}</div>
+                    {% if insight.action %}
+                      <div class="mt-2">
+                        <a href="{{ insight.action_url }}" class="btn btn-sm btn-outline-{{ insight.type }}">{{ insight.action }}</a>
+                      </div>
+                    {% endif %}
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+          {% endfor %}
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Key Recommendations -->
+  <div class="col-lg-4 mb-4">
+    <div class="card shadow h-100">
+      <div class="card-header py-3">
+        <h6 class="m-0 font-weight-bold text-primary">
+          <i class="bi bi-star me-2"></i>Key Recommendations
+        </h6>
+      </div>
+      <div class="card-body">
+        <div class="list-group list-group-flush">
+          {% for recommendation in recommendations %}
+          <div class="list-group-item border-0 px-0">
+            <div class="d-flex align-items-start">
+              <div class="me-2">
+                <span class="badge 
+                  {% if recommendation.priority == 'high' %}bg-danger
+                  {% elif recommendation.priority == 'medium' %}bg-warning
+                  {% else %}bg-info
+                  {% endif %} rounded-pill">{{ recommendation.priority|title }}</span>
+              </div>
+              <div>
+                <div class="fw-bold">{{ recommendation.title }}</div>
+                <p class="mb-2 small text-muted">{{ recommendation.description }}</p>
+                <div class="small">
+                  <strong>Impact:</strong> {{ recommendation.impact }}
+                </div>
+                {% if recommendation.action_url %}
+                  <div class="mt-2">
+                    <a href="{{ recommendation.action_url }}" class="btn btn-sm btn-outline-primary">Take Action</a>
+                  </div>
+                {% endif %}
+              </div>
+            </div>
+          </div>
+          {% endfor %}
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Date Range Modal -->
+<div class="modal fade" id="dateRangeModal" tabindex="-1" aria-labelledby="dateRangeModalLabel" aria-hidden="true">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title" id="dateRangeModalLabel">Select Date Range</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <form method="get">
+        <div class="modal-body">
+          <div class="row">
+            <div class="col-md-6">
+              <label for="start_date" class="form-label">Start Date</label>
+              <input type="date" class="form-control" id="start_date" name="start_date" value="{{ start_date|date:'Y-m-d' }}">
+            </div>
+            <div class="col-md-6">
+              <label for="end_date" class="form-label">End Date</label>
+              <input type="date" class="form-control" id="end_date" name="end_date" value="{{ end_date|date:'Y-m-d' }}">
+            </div>
+          </div>
+          <div class="row mt-3">
+            <div class="col-12">
+              <label class="form-label">Quick Select</label>
+              <div class="btn-group d-flex" role="group">
+                <button type="button" class="btn btn-outline-secondary" data-range="7">7 Days</button>
+                <button type="button" class="btn btn-outline-secondary" data-range="30">30 Days</button>
+                <button type="button" class="btn btn-outline-secondary" data-range="90">90 Days</button>
+                <button type="button" class="btn btn-outline-secondary" data-range="365">1 Year</button>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+          <button type="submit" class="btn btn-primary">Apply Filter</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+
+<!-- JavaScript -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/3.9.1/chart.min.js"></script>
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // Initialize Charts
+    
+    // Turnover Chart
+    const turnoverCtx = document.getElementById('turnoverChart').getContext('2d');
+    let turnoverChart = new Chart(turnoverCtx, {
+        type: 'line',
+        data: {
+            labels: {{ turnover_labels|safe }},
+            datasets: [{
+                label: 'Inventory Turnover',
+                data: {{ turnover_data|safe }},
+                borderColor: '#4e73df',
+                backgroundColor: 'rgba(78, 115, 223, 0.1)',
+                borderWidth: 2,
+                fill: true,
+                tension: 0.3
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                legend: {
+                    display: false
+                }
+            },
+            scales: {
+                y: {
+                    beginAtZero: true,
+                    title: {
+                        display: true,
+                        text: 'Turnover Rate (x)'
+                    }
+                }
+            }
+        }
+    });
+
+    // ABC Analysis Chart
+    const abcCtx = document.getElementById('abcChart').getContext('2d');
+    const abcChart = new Chart(abcCtx, {
+        type: 'doughnut',
+        data: {
+            labels: ['Class A (High Value)', 'Class B (Medium Value)', 'Class C (Low Value)'],
+            datasets: [{
+                data: [{{ abc_analysis.A.percentage }}, {{ abc_analysis.B.percentage }}, {{ abc_analysis.C.percentage }}],
+                backgroundColor: ['#e74a3b', '#f6c23e', '#1cc88a'],
+                borderWidth: 2,
+                borderColor: '#ffffff'
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                legend: {
+                    display: false
+                }
+            }
+        }
+    });
+
+    // Movement Patterns Chart
+    const movementCtx = document.getElementById('movementChart').getContext('2d');
+    const movementChart = new Chart(movementCtx, {
+        type: 'bar',
+        data: {
+            labels: {{ movement_labels|safe }},
+            datasets: [{
+                label: 'Stock In',
+                data: {{ movement_in_data|safe }},
+                backgroundColor: '#1cc88a',
+                borderColor: '#1cc88a',
+                borderWidth: 1
+            }, {
+                label: 'Stock Out',
+                data: {{ movement_out_data|safe }},
+                backgroundColor: '#e74a3b',
+                borderColor: '#e74a3b',
+                borderWidth: 1
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                legend: {
+                    display: true,
+                    position: 'top'
+                }
+            },
+            scales: {
+                y: {
+                    beginAtZero: true,
+                    title: {
+                        display: true,
+                        text: 'Quantity'
+                    }
+                }
+            }
+        }
+    });
+
+    // Seasonal Demand Chart
+    const seasonalCtx = document.getElementById('seasonalChart').getContext('2d');
+    const seasonalChart = new Chart(seasonalCtx, {
+        type: 'radar',
+        data: {
+            labels: ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'],
+            datasets: [{
+                label: 'Current Year',
+                data: {{ current_year_demand|safe }},
+                borderColor: '#4e73df',
+                backgroundColor: 'rgba(78, 115, 223, 0.2)',
+                borderWidth: 2
+            }, {
+                label: 'Previous Year',
+                data: {{ previous_year_demand|safe }},
+                borderColor: '#858796',
+                backgroundColor: 'rgba(133, 135, 150, 0.2)',
+                borderWidth: 2
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                legend: {
+                    display: true,
+                    position: 'top'
+                }
+            },
+            scales: {
+                r: {
+                    beginAtZero: true
+                }
+            }
+        }
+    });
+
+    // Chart switching functionality
+    document.querySelectorAll('[data-chart]').forEach(button => {
+        button.addEventListener('click', function() {
+            const chartType = this.getAttribute('data-chart');
+            
+            // Update active button
+            document.querySelectorAll('[data-chart]').forEach(b => b.classList.remove('active'));
+            this.classList.add('active');
+            
+            // Update chart data based on selection
+            updateTurnoverChart(chartType);
+        });
+    });
+
+    function updateTurnoverChart(type) {
+        fetch(`{% url 'inventory:analytics_chart_data' %}?type=${type}`)
+            .then(response => response.json())
+            .then(data => {
+                turnoverChart.data.labels = data.labels;
+                turnoverChart.data.datasets[0].data = data.values;
+                turnoverChart.data.datasets[0].label = data.label;
+                turnoverChart.options.scales.y.title.text = data.y_axis_label;
+                turnoverChart.update();
+            })
+            .catch(error => console.error('Error loading chart data:', error));
+    }
+
+    // Performance metrics switching
+    document.querySelectorAll('[data-metric]').forEach(button => {
+        button.addEventListener('click', function() {
+            const metric = this.getAttribute('data-metric');
+            
+            // Update active button
+            this.closest('.btn-group').querySelectorAll('.btn').forEach(b => b.classList.remove('active'));
+            this.classList.add('active');
+            
+            // Update table data
+            updatePerformanceTable(metric);
+        });
+    });
+
+    function updatePerformanceTable(metric) {
+        fetch(`{% url 'inventory:top_products_data' %}?metric=${metric}`)
+            .then(response => response.json())
+            .then(data => {
+                // Update table content
+                const tbody = document.querySelector('.card:has([data-metric]) tbody');
+                tbody.innerHTML = data.html;
+            })
+            .catch(error => console.error('Error loading table data:', error));
+    }
+
+    // Date range quick selectors
+    document.querySelectorAll('[data-range]').forEach(button => {
+        button.addEventListener('click', function() {
+            const days = parseInt(this.getAttribute('data-range'));
+            const endDate = new Date();
+            const startDate = new Date();
+            startDate.setDate(endDate.getDate() - days);
+            
+            document.getElementById('start_date').value = startDate.toISOString().split('T')[0];
+            document.getElementById('end_date').value = endDate.toISOString().split('T')[0];
+        });
+    });
+
+    // Product action functions
+    window.markdownProduct = function(productId) {
+        if (confirm('Create a markdown promotion for this slow-moving product?')) {
+            window.location.href = `{% url 'inventory:product_markdown' 0 %}`.replace('0', productId);
+        }
+    };
+
+    window.promoteProduct = function(productId) {
+        if (confirm('Create a promotion campaign for this product?')) {
+            window.location.href = `{% url 'inventory:product_promote' 0 %}`.replace('0', productId);
+        }
+    };
+
+    window.scheduleReport = function() {
+        // This would open a modal or redirect to report scheduling page
+        alert('Report scheduling feature will be implemented in the next release!');
+    };
+});
+</script>
+
+<style>
+.border-left-success {
+    border-left: 4px solid #1cc88a !important;
+}
+.border-left-warning {
+    border-left: 4px solid #f6c23e !important;
+}
+.border-left-danger {
+    border-left: 4px solid #e74a3b !important;
+}
+.border-left-info {
+    border-left: 4px solid #36b9cc !important;
+}
+
+.bg-gradient-primary {
+    background: linear-gradient(135deg, #4e73df 0%, #6c5ce7 100%);
+}
+.bg-gradient-success {
+    background: linear-gradient(135deg, #1cc88a 0%, #00b894 100%);
+}
+.bg-gradient-warning {
+    background: linear-gradient(135deg, #f6c23e 0%, #fdcb6e 100%);
+}
+.bg-gradient-info {
+    background: linear-gradient(135deg, #36b9cc 0%, #74b9ff 100%);
+}
+</style>
+
+{% csrf_token %}
+{% endblock %}

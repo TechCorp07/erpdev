@@ -1,0 +1,783 @@
+{% extends "dashboard_base.html" %}
+{% load static %}
+
+{% block page_title %}Low Stock Ordering{% endblock %}
+
+{% block dashboard_content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+  <div>
+    <nav aria-label="breadcrumb">
+      <ol class="breadcrumb mb-1">
+        <li class="breadcrumb-item"><a href="{% url 'inventory:dashboard' %}">Inventory</a></li>
+        <li class="breadcrumb-item"><a href="{% url 'inventory:stock_overview' %}">Stock Management</a></li>
+        <li class="breadcrumb-item active">Low Stock Ordering</li>
+      </ol>
+    </nav>
+    <h1 class="h3 mb-0 text-gray-800">Low Stock Ordering</h1>
+    <p class="text-muted mb-0">Generate purchase orders for low stock items grouped by supplier</p>
+  </div>
+  
+  <div class="btn-group" role="group">
+    <button type="button" class="btn btn-primary" id="generate-pos-btn" disabled>
+      <i class="bi bi-file-plus me-2"></i>Generate Purchase Orders
+    </button>
+    <div class="btn-group" role="group">
+      <button class="btn btn-outline-secondary dropdown-toggle" type="button" data-bs-toggle="dropdown">
+        <i class="bi bi-three-dots"></i>
+      </button>
+      <ul class="dropdown-menu">
+        <li><a class="dropdown-item" href="{% url 'inventory:reorder_recommendations' %}">
+          <i class="bi bi-robot me-2"></i>AI Recommendations
+        </a></li>
+        <li><a class="dropdown-item" href="{% url 'inventory:supplier_lead_times' %}">
+          <i class="bi bi-clock me-2"></i>Supplier Lead Times
+        </a></li>
+        <li><hr class="dropdown-divider"></li>
+        <li><a class="dropdown-item" href="?export=csv">
+          <i class="bi bi-download me-2"></i>Export Order List
+        </a></li>
+        <li><a class="dropdown-item" href="{% url 'inventory:po_templates' %}">
+          <i class="bi bi-file-text me-2"></i>PO Templates
+        </a></li>
+      </ul>
+    </div>
+  </div>
+</div>
+
+<!-- Order Summary Cards -->
+<div class="row mb-4">
+  <div class="col-lg-3 col-md-6 mb-4">
+    <div class="card bg-warning text-white shadow h-100 py-2">
+      <div class="card-body">
+        <div class="row no-gutters align-items-center">
+          <div class="col mr-2">
+            <div class="text-xs font-weight-bold text-white-50 text-uppercase mb-1">
+              Products to Order
+            </div>
+            <div class="h5 mb-0 font-weight-bold">{{ total_products|default:0 }}</div>
+          </div>
+          <div class="col-auto">
+            <i class="bi bi-cart-plus fa-2x text-white-50"></i>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="col-lg-3 col-md-6 mb-4">
+    <div class="card bg-info text-white shadow h-100 py-2">
+      <div class="card-body">
+        <div class="row no-gutters align-items-center">
+          <div class="col mr-2">
+            <div class="text-xs font-weight-bold text-white-50 text-uppercase mb-1">
+              Suppliers Involved
+            </div>
+            <div class="h5 mb-0 font-weight-bold">{{ total_suppliers|default:0 }}</div>
+          </div>
+          <div class="col-auto">
+            <i class="bi bi-building fa-2x text-white-50"></i>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="col-lg-3 col-md-6 mb-4">
+    <div class="card bg-success text-white shadow h-100 py-2">
+      <div class="card-body">
+        <div class="row no-gutters align-items-center">
+          <div class="col mr-2">
+            <div class="text-xs font-weight-bold text-white-50 text-uppercase mb-1">
+              Estimated Cost
+            </div>
+            <div class="h5 mb-0 font-weight-bold">${{ estimated_total_cost|floatformat:0|default:0 }}</div>
+          </div>
+          <div class="col-auto">
+            <i class="bi bi-currency-dollar fa-2x text-white-50"></i>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="col-lg-3 col-md-6 mb-4">
+    <div class="card bg-primary text-white shadow h-100 py-2">
+      <div class="card-body">
+        <div class="row no-gutters align-items-center">
+          <div class="col mr-2">
+            <div class="text-xs font-weight-bold text-white-50 text-uppercase mb-1">
+              Selected Items
+            </div>
+            <div class="h5 mb-0 font-weight-bold" id="selected-count">0</div>
+          </div>
+          <div class="col-auto">
+            <i class="bi bi-check-square fa-2x text-white-50"></i>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Ordering Options -->
+<div class="card shadow mb-4">
+  <div class="card-header py-3">
+    <h6 class="m-0 font-weight-bold text-primary">Ordering Options</h6>
+  </div>
+  <div class="card-body">
+    <form id="ordering-options-form">
+      <div class="row">
+        <div class="col-md-3">
+          <label class="form-label">Order Priority</label>
+          <select class="form-select" name="priority" id="order-priority">
+            <option value="normal">Normal</option>
+            <option value="high">High Priority</option>
+            <option value="urgent">Urgent</option>
+          </select>
+        </div>
+        <div class="col-md-3">
+          <label class="form-label">Delivery Date</label>
+          <input type="date" class="form-control" name="delivery_date" id="delivery-date">
+        </div>
+        <div class="col-md-3">
+          <label class="form-label">Order Method</label>
+          <select class="form-select" name="order_method" id="order-method">
+            <option value="email">Email to Suppliers</option>
+            <option value="print">Print Purchase Orders</option>
+            <option value="system">System Generated</option>
+            <option value="manual">Manual Review First</option>
+          </select>
+        </div>
+        <div class="col-md-3">
+          <label class="form-label">Group By</label>
+          <select class="form-select" name="group_by" id="group-by">
+            <option value="supplier">Supplier</option>
+            <option value="category">Category</option>
+            <option value="location">Location</option>
+            <option value="urgency">Urgency Level</option>
+          </select>
+        </div>
+      </div>
+      
+      <div class="row mt-3">
+        <div class="col-md-6">
+          <div class="form-check">
+            <input class="form-check-input" type="checkbox" id="consolidate-orders" checked>
+            <label class="form-check-label" for="consolidate-orders">
+              <strong>Consolidate Orders</strong>
+              <small class="d-block text-muted">Combine multiple items from same supplier into single PO</small>
+            </label>
+          </div>
+        </div>
+        <div class="col-md-6">
+          <div class="form-check">
+            <input class="form-check-input" type="checkbox" id="apply-bulk-discounts">
+            <label class="form-check-label" for="apply-bulk-discounts">
+              <strong>Apply Bulk Discounts</strong>
+              <small class="d-block text-muted">Increase quantities to reach discount tiers</small>
+            </label>
+          </div>
+        </div>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- Supplier Groups -->
+<div class="row" id="supplier-groups">
+  {% for supplier_group in supplier_groups %}
+  <div class="col-lg-6 col-xl-4 mb-4 supplier-group" data-supplier-id="{{ supplier_group.supplier.pk }}">
+    <div class="card shadow h-100">
+      <div class="card-header py-3 d-flex justify-content-between align-items-center">
+        <div class="d-flex align-items-center">
+          <div class="form-check me-3">
+            <input class="form-check-input supplier-checkbox" type="checkbox" id="supplier-{{ supplier_group.supplier.pk }}" 
+                   data-supplier-id="{{ supplier_group.supplier.pk }}">
+            <label class="form-check-label" for="supplier-{{ supplier_group.supplier.pk }}"></label>
+          </div>
+          <div>
+            <h6 class="m-0 font-weight-bold text-primary">
+              {{ supplier_group.supplier.name|truncatechars:25 }}
+            </h6>
+            <small class="text-muted">
+              {{ supplier_group.products|length }} item{{ supplier_group.products|length|pluralize }}
+              • Lead time: {{ supplier_group.supplier.lead_time_days|default:"N/A" }} days
+            </small>
+          </div>
+        </div>
+        <div class="btn-group btn-group-sm" role="group">
+          <button type="button" class="btn btn-outline-info" data-bs-toggle="collapse" 
+                  data-bs-target="#supplier-details-{{ supplier_group.supplier.pk }}">
+            <i class="bi bi-eye"></i>
+          </button>
+          <button type="button" class="btn btn-outline-success generate-po-btn" 
+                  data-supplier-id="{{ supplier_group.supplier.pk }}">
+            <i class="bi bi-file-plus"></i>
+          </button>
+        </div>
+      </div>
+      
+      <div class="card-body p-0">
+        <!-- Order Summary -->
+        <div class="p-3 bg-light">
+          <div class="row text-center">
+            <div class="col-4">
+              <h6 class="mb-0">{{ supplier_group.products|length }}</h6>
+              <small class="text-muted">Products</small>
+            </div>
+            <div class="col-4">
+              <h6 class="mb-0">${{ supplier_group.estimated_total|floatformat:0|default:0 }}</h6>
+              <small class="text-muted">Est. Cost</small>
+            </div>
+            <div class="col-4">
+              <h6 class="mb-0">
+                {% if supplier_group.supplier.performance_score >= 80 %}
+                  <span class="badge bg-success">{{ supplier_group.supplier.performance_score|floatformat:0 }}%</span>
+                {% elif supplier_group.supplier.performance_score >= 60 %}
+                  <span class="badge bg-warning">{{ supplier_group.supplier.performance_score|floatformat:0 }}%</span>
+                {% else %}
+                  <span class="badge bg-danger">{{ supplier_group.supplier.performance_score|floatformat:0 }}%</span>
+                {% endif %}
+              </h6>
+              <small class="text-muted">Rating</small>
+            </div>
+          </div>
+        </div>
+        
+        <!-- Product List -->
+        <div class="table-responsive">
+          <table class="table table-sm mb-0">
+            <thead>
+              <tr>
+                <th width="30">
+                  <input type="checkbox" class="form-check-input select-all-products" 
+                         data-supplier-id="{{ supplier_group.supplier.pk }}">
+                </th>
+                <th>Product</th>
+                <th>Current</th>
+                <th>Order Qty</th>
+                <th>Cost</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for product in supplier_group.products|slice:":5" %}
+              <tr>
+                <td>
+                  <input type="checkbox" class="form-check-input product-checkbox" 
+                         data-product-id="{{ product.pk }}" data-supplier-id="{{ supplier_group.supplier.pk }}">
+                </td>
+                <td>
+                  <div class="d-flex align-items-center">
+                    {% if product.image %}
+                      <img src="{{ product.image.url }}" alt="{{ product.name }}" class="me-2" 
+                           style="width: 24px; height: 24px; object-fit: cover; border-radius: 2px;">
+                    {% else %}
+                      <div class="me-2 bg-light d-flex align-items-center justify-content-center" 
+                           style="width: 24px; height: 24px; border-radius: 2px;">
+                        <i class="bi bi-image text-muted small"></i>
+                      </div>
+                    {% endif %}
+                    <div>
+                      <div class="fw-bold small">{{ product.name|truncatechars:20 }}</div>
+                      <small class="text-muted">{{ product.sku }}</small>
+                    </div>
+                  </div>
+                </td>
+                <td>
+                  <span class="badge 
+                    {% if product.current_stock == 0 %}bg-danger
+                    {% elif product.current_stock <= product.critical_level %}bg-warning
+                    {% else %}bg-info
+                    {% endif %}">
+                    {{ product.current_stock|floatformat:0 }}
+                  </span>
+                </td>
+                <td>
+                  <input type="number" class="form-control form-control-sm order-quantity" 
+                         value="{{ product.suggested_order_quantity|default:product.reorder_quantity }}" 
+                         min="1" step="1" style="width: 70px;"
+                         data-product-id="{{ product.pk }}" data-unit-cost="{{ product.cost_price }}">
+                </td>
+                <td>
+                  <span class="cost-display">${{ product.estimated_order_cost|floatformat:2|default:"0.00" }}</span>
+                </td>
+              </tr>
+              {% endfor %}
+              
+              {% if supplier_group.products|length > 5 %}
+              <tr class="collapse" id="supplier-details-{{ supplier_group.supplier.pk }}">
+                <td colspan="5">
+                  <div class="table-responsive">
+                    <table class="table table-sm mb-0">
+                      <tbody>
+                        {% for product in supplier_group.products|slice:"5:" %}
+                        <tr>
+                          <td width="30">
+                            <input type="checkbox" class="form-check-input product-checkbox" 
+                                   data-product-id="{{ product.pk }}" data-supplier-id="{{ supplier_group.supplier.pk }}">
+                          </td>
+                          <td>
+                            <div class="d-flex align-items-center">
+                              {% if product.image %}
+                                <img src="{{ product.image.url }}" alt="{{ product.name }}" class="me-2" 
+                                     style="width: 24px; height: 24px; object-fit: cover; border-radius: 2px;">
+                              {% else %}
+                                <div class="me-2 bg-light d-flex align-items-center justify-content-center" 
+                                     style="width: 24px; height: 24px; border-radius: 2px;">
+                                  <i class="bi bi-image text-muted small"></i>
+                                </div>
+                              {% endif %}
+                              <div>
+                                <div class="fw-bold small">{{ product.name|truncatechars:20 }}</div>
+                                <small class="text-muted">{{ product.sku }}</small>
+                              </div>
+                            </div>
+                          </td>
+                          <td>
+                            <span class="badge 
+                              {% if product.current_stock == 0 %}bg-danger
+                              {% elif product.current_stock <= product.critical_level %}bg-warning
+                              {% else %}bg-info
+                              {% endif %}">
+                              {{ product.current_stock|floatformat:0 }}
+                            </span>
+                          </td>
+                          <td>
+                            <input type="number" class="form-control form-control-sm order-quantity" 
+                                   value="{{ product.suggested_order_quantity|default:product.reorder_quantity }}" 
+                                   min="1" step="1" style="width: 70px;"
+                                   data-product-id="{{ product.pk }}" data-unit-cost="{{ product.cost_price }}">
+                          </td>
+                          <td>
+                            <span class="cost-display">${{ product.estimated_order_cost|floatformat:2|default:"0.00" }}</span>
+                          </td>
+                        </tr>
+                        {% endfor %}
+                      </tbody>
+                    </table>
+                  </div>
+                </td>
+              </tr>
+              {% endif %}
+            </tbody>
+          </table>
+        </div>
+        
+        <!-- Supplier Actions -->
+        <div class="card-footer bg-light">
+          <div class="d-flex justify-content-between align-items-center">
+            <div class="small text-muted">
+              {% if supplier_group.supplier.email %}
+                <i class="bi bi-envelope me-1"></i>{{ supplier_group.supplier.email }}
+              {% endif %}
+              {% if supplier_group.supplier.phone %}
+                <br><i class="bi bi-telephone me-1"></i>{{ supplier_group.supplier.phone }}
+              {% endif %}
+            </div>
+            <div class="btn-group btn-group-sm" role="group">
+              <button type="button" class="btn btn-outline-primary" 
+                      onclick="viewSupplierDetails({{ supplier_group.supplier.pk }})">
+                <i class="bi bi-info-circle"></i> Details
+              </button>
+              <button type="button" class="btn btn-outline-success" 
+                      onclick="createQuickPO({{ supplier_group.supplier.pk }})">
+                <i class="bi bi-lightning"></i> Quick PO
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+  {% endfor %}
+</div>
+
+<!-- Selected Items Summary -->
+<div class="card shadow mt-4" id="selected-summary" style="display: none;">
+  <div class="card-header py-3">
+    <h6 class="m-0 font-weight-bold text-primary">Selected Items Summary</h6>
+  </div>
+  <div class="card-body">
+    <div class="row">
+      <div class="col-md-8">
+        <div id="selected-items-list"></div>
+      </div>
+      <div class="col-md-4">
+        <div class="card bg-light">
+          <div class="card-body text-center">
+            <h5 class="text-primary">Order Total</h5>
+            <h2 id="selected-total-cost">$0.00</h2>
+            <div class="mt-3">
+              <div class="small text-muted">
+                <div><span id="selected-products-count">0</span> Products</div>
+                <div><span id="selected-suppliers-count">0</span> Suppliers</div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Purchase Order Generation Modal -->
+<div class="modal fade" id="generatePOModal" tabindex="-1" aria-labelledby="generatePOModalLabel" aria-hidden="true">
+  <div class="modal-dialog modal-lg">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title" id="generatePOModalLabel">Generate Purchase Orders</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <div class="modal-body">
+        <div class="alert alert-info">
+          <i class="bi bi-info-circle me-2"></i>
+          You are about to generate <strong id="po-count">0</strong> purchase order(s) 
+          for <strong id="po-products-count">0</strong> products totaling <strong id="po-total-cost">$0.00</strong>.
+        </div>
+        
+        <div class="mb-3">
+          <label for="po-notes" class="form-label">General Notes</label>
+          <textarea class="form-control" id="po-notes" rows="3" 
+                    placeholder="Any special instructions or notes for all purchase orders..."></textarea>
+        </div>
+        
+        <div class="form-check mb-3">
+          <input class="form-check-input" type="checkbox" id="send-immediately" checked>
+          <label class="form-check-label" for="send-immediately">
+            <strong>Send Purchase Orders Immediately</strong>
+            <small class="d-block text-muted">Email POs to suppliers automatically after generation</small>
+          </label>
+        </div>
+        
+        <div class="form-check mb-3">
+          <input class="form-check-input" type="checkbox" id="create-alerts">
+          <label class="form-check-label" for="create-alerts">
+            <strong>Create Delivery Alerts</strong>
+            <small class="d-block text-muted">Set up automatic reminders for expected delivery dates</small>
+          </label>
+        </div>
+        
+        <div id="po-preview-list" class="mt-3">
+          <!-- PO preview will be populated here -->
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+        <button type="button" class="btn btn-primary" id="confirm-generate-pos">
+          <i class="bi bi-file-plus me-2"></i>Generate Purchase Orders
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- JavaScript -->
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    let selectedProducts = new Set();
+    let selectedSuppliers = new Set();
+    let totalSelectedCost = 0;
+
+    // Supplier checkbox handling
+    document.querySelectorAll('.supplier-checkbox').forEach(checkbox => {
+        checkbox.addEventListener('change', function() {
+            const supplierId = this.getAttribute('data-supplier-id');
+            const productCheckboxes = document.querySelectorAll(`input[data-supplier-id="${supplierId}"].product-checkbox`);
+            
+            productCheckboxes.forEach(productCheckbox => {
+                productCheckbox.checked = this.checked;
+                updateProductSelection(productCheckbox);
+            });
+        });
+    });
+
+    // Select all products for supplier
+    document.querySelectorAll('.select-all-products').forEach(checkbox => {
+        checkbox.addEventListener('change', function() {
+            const supplierId = this.getAttribute('data-supplier-id');
+            const productCheckboxes = document.querySelectorAll(`input[data-supplier-id="${supplierId}"].product-checkbox`);
+            
+            productCheckboxes.forEach(productCheckbox => {
+                productCheckbox.checked = this.checked;
+                updateProductSelection(productCheckbox);
+            });
+        });
+    });
+
+    // Individual product checkbox handling
+    document.querySelectorAll('.product-checkbox').forEach(checkbox => {
+        checkbox.addEventListener('change', function() {
+            updateProductSelection(this);
+        });
+    });
+
+    function updateProductSelection(checkbox) {
+        const productId = checkbox.getAttribute('data-product-id');
+        const supplierId = checkbox.getAttribute('data-supplier-id');
+        const quantityInput = document.querySelector(`input.order-quantity[data-product-id="${productId}"]`);
+        const unitCost = parseFloat(quantityInput.getAttribute('data-unit-cost')) || 0;
+        const quantity = parseInt(quantityInput.value) || 0;
+        const itemCost = unitCost * quantity;
+
+        if (checkbox.checked) {
+            selectedProducts.add(productId);
+            selectedSuppliers.add(supplierId);
+            totalSelectedCost += itemCost;
+        } else {
+            selectedProducts.delete(productId);
+            totalSelectedCost -= itemCost;
+            
+            // Check if supplier still has selected products
+            const supplierProductsSelected = document.querySelectorAll(`input[data-supplier-id="${supplierId}"].product-checkbox:checked`).length;
+            if (supplierProductsSelected === 0) {
+                selectedSuppliers.delete(supplierId);
+            }
+        }
+
+        updateSelectionSummary();
+    }
+
+    // Quantity change handling
+    document.querySelectorAll('.order-quantity').forEach(input => {
+        input.addEventListener('input', function() {
+            const productId = this.getAttribute('data-product-id');
+            const unitCost = parseFloat(this.getAttribute('data-unit-cost')) || 0;
+            const quantity = parseInt(this.value) || 0;
+            const newCost = unitCost * quantity;
+            
+            // Update cost display
+            const costDisplay = this.closest('tr').querySelector('.cost-display');
+            costDisplay.textContent = '$' + newCost.toFixed(2);
+            
+            // Update total if product is selected
+            const checkbox = document.querySelector(`input.product-checkbox[data-product-id="${productId}"]`);
+            if (checkbox && checkbox.checked) {
+                // Recalculate total selected cost
+                recalculateSelectedCost();
+            }
+        });
+    });
+
+    function recalculateSelectedCost() {
+        totalSelectedCost = 0;
+        selectedProducts.forEach(productId => {
+            const quantityInput = document.querySelector(`input.order-quantity[data-product-id="${productId}"]`);
+            const unitCost = parseFloat(quantityInput.getAttribute('data-unit-cost')) || 0;
+            const quantity = parseInt(quantityInput.value) || 0;
+            totalSelectedCost += unitCost * quantity;
+        });
+        updateSelectionSummary();
+    }
+
+    function updateSelectionSummary() {
+        document.getElementById('selected-count').textContent = selectedProducts.size;
+        document.getElementById('selected-products-count').textContent = selectedProducts.size;
+        document.getElementById('selected-suppliers-count').textContent = selectedSuppliers.size;
+        document.getElementById('selected-total-cost').textContent = '$' + totalSelectedCost.toFixed(2);
+        
+        const generatePOsBtn = document.getElementById('generate-pos-btn');
+        generatePOsBtn.disabled = selectedProducts.size === 0;
+        
+        const selectedSummary = document.getElementById('selected-summary');
+        if (selectedProducts.size > 0) {
+            selectedSummary.style.display = 'block';
+            updateSelectedItemsList();
+        } else {
+            selectedSummary.style.display = 'none';
+        }
+    }
+
+    function updateSelectedItemsList() {
+        const selectedItemsList = document.getElementById('selected-items-list');
+        selectedItemsList.innerHTML = '';
+        
+        // Group by supplier
+        const supplierGroups = {};
+        selectedProducts.forEach(productId => {
+            const checkbox = document.querySelector(`input.product-checkbox[data-product-id="${productId}"]`);
+            const supplierId = checkbox.getAttribute('data-supplier-id');
+            
+            if (!supplierGroups[supplierId]) {
+                supplierGroups[supplierId] = {
+                    name: '',
+                    products: []
+                };
+            }
+            
+            const productRow = checkbox.closest('tr');
+            const productName = productRow.querySelector('.fw-bold').textContent;
+            const quantity = productRow.querySelector('.order-quantity').value;
+            const cost = productRow.querySelector('.cost-display').textContent;
+            
+            supplierGroups[supplierId].products.push({
+                name: productName,
+                quantity: quantity,
+                cost: cost
+            });
+        });
+        
+        // Display grouped items
+        Object.keys(supplierGroups).forEach(supplierId => {
+            const supplierCard = document.querySelector(`[data-supplier-id="${supplierId}"] .card-header h6`);
+            const supplierName = supplierCard.textContent;
+            
+            const groupDiv = document.createElement('div');
+            groupDiv.className = 'mb-3';
+            groupDiv.innerHTML = `
+                <h6 class="text-primary">${supplierName}</h6>
+                <ul class="list-group list-group-flush">
+                    ${supplierGroups[supplierId].products.map(product => `
+                        <li class="list-group-item d-flex justify-content-between align-items-center py-1">
+                            <span>${product.name}</span>
+                            <div>
+                                <span class="badge bg-secondary me-2">Qty: ${product.quantity}</span>
+                                <span class="fw-bold">${product.cost}</span>
+                            </div>
+                        </li>
+                    `).join('')}
+                </ul>
+            `;
+            selectedItemsList.appendChild(groupDiv);
+        });
+    }
+
+    // Generate POs button
+    document.getElementById('generate-pos-btn').addEventListener('click', function() {
+        if (selectedProducts.size === 0) {
+            alert('Please select at least one product to order.');
+            return;
+        }
+        
+        // Update modal with current selection
+        document.getElementById('po-count').textContent = selectedSuppliers.size;
+        document.getElementById('po-products-count').textContent = selectedProducts.size;
+        document.getElementById('po-total-cost').textContent = '$' + totalSelectedCost.toFixed(2);
+        
+        // Show modal
+        new bootstrap.Modal(document.getElementById('generatePOModal')).show();
+    });
+
+    // Confirm PO generation
+    document.getElementById('confirm-generate-pos').addEventListener('click', function() {
+        const orderData = {
+            products: Array.from(selectedProducts),
+            suppliers: Array.from(selectedSuppliers),
+            options: {
+                priority: document.getElementById('order-priority').value,
+                delivery_date: document.getElementById('delivery-date').value,
+                order_method: document.getElementById('order-method').value,
+                consolidate_orders: document.getElementById('consolidate-orders').checked,
+                apply_bulk_discounts: document.getElementById('apply-bulk-discounts').checked,
+                notes: document.getElementById('po-notes').value,
+                send_immediately: document.getElementById('send-immediately').checked,
+                create_alerts: document.getElementById('create-alerts').checked
+            },
+            quantities: {}
+        };
+        
+        // Collect quantities for each product
+        selectedProducts.forEach(productId => {
+            const quantityInput = document.querySelector(`input.order-quantity[data-product-id="${productId}"]`);
+            orderData.quantities[productId] = parseInt(quantityInput.value) || 0;
+        });
+        
+        // Submit the order
+        generatePurchaseOrders(orderData);
+    });
+
+    function generatePurchaseOrders(orderData) {
+        const btn = document.getElementById('confirm-generate-pos');
+        const originalText = btn.innerHTML;
+        
+        btn.disabled = true;
+        btn.innerHTML = '<div class="spinner-border spinner-border-sm me-2"></div>Generating...';
+        
+        fetch('{% url "inventory:generate_purchase_orders" %}', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value
+            },
+            body: JSON.stringify(orderData)
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                // Show success message
+                const alert = document.createElement('div');
+                alert.className = 'alert alert-success alert-dismissible fade show';
+                alert.innerHTML = `
+                    <strong>Success!</strong> Generated ${data.po_count} purchase order(s) for ${data.product_count} products.
+                    <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+                `;
+                document.querySelector('.container-fluid').insertBefore(alert, document.querySelector('h1').parentNode);
+                
+                // Close modal
+                bootstrap.Modal.getInstance(document.getElementById('generatePOModal')).hide();
+                
+                // Optionally redirect to PO list
+                setTimeout(() => {
+                    if (confirm('Purchase orders generated successfully! Would you like to view them now?')) {
+                        window.location.href = '{% url "inventory:purchase_order_list" %}';
+                    } else {
+                        location.reload();
+                    }
+                }, 2000);
+            } else {
+                alert('Error generating purchase orders: ' + data.error);
+            }
+        })
+        .catch(error => {
+            console.error('Error:', error);
+            alert('Error generating purchase orders. Please try again.');
+        })
+        .finally(() => {
+            btn.disabled = false;
+            btn.innerHTML = originalText;
+        });
+    }
+
+    // Individual supplier PO generation
+    document.querySelectorAll('.generate-po-btn').forEach(btn => {
+        btn.addEventListener('click', function() {
+            const supplierId = this.getAttribute('data-supplier-id');
+            createQuickPO(supplierId);
+        });
+    });
+
+    // Global functions for external calls
+    window.viewSupplierDetails = function(supplierId) {
+        window.location.href = `{% url 'inventory:supplier_detail' 0 %}`.replace('0', supplierId);
+    };
+
+    window.createQuickPO = function(supplierId) {
+        if (confirm('Create a purchase order for all low-stock items from this supplier?')) {
+            // Select all products from this supplier
+            const supplierCheckbox = document.querySelector(`input.supplier-checkbox[data-supplier-id="${supplierId}"]`);
+            if (supplierCheckbox) {
+                supplierCheckbox.checked = true;
+                supplierCheckbox.dispatchEvent(new Event('change'));
+                
+                // Trigger PO generation for just this supplier
+                setTimeout(() => {
+                    document.getElementById('generate-pos-btn').click();
+                }, 100);
+            }
+        }
+    };
+
+    // Set default delivery date to 2 weeks from now
+    const deliveryDateInput = document.getElementById('delivery-date');
+    const twoWeeksFromNow = new Date();
+    twoWeeksFromNow.setDate(twoWeeksFromNow.getDate() + 14);
+    deliveryDateInput.value = twoWeeksFromNow.toISOString().split('T')[0];
+
+    // Initialize tooltips and popovers if using Bootstrap
+    if (typeof bootstrap !== 'undefined') {
+        // Initialize any Bootstrap tooltips/popovers here
+    }
+});
+</script>
+
+{% csrf_token %}
+{% endblock %}

@@ -1,0 +1,617 @@
+{% extends "dashboard_base.html" %}
+{% load static %}
+
+{% block page_title %}Advanced Product Search{% endblock %}
+
+{% block dashboard_content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+  <div>
+    <nav aria-label="breadcrumb">
+      <ol class="breadcrumb mb-1">
+        <li class="breadcrumb-item"><a href="{% url 'inventory:dashboard' %}">Inventory</a></li>
+        <li class="breadcrumb-item"><a href="{% url 'inventory:product_list' %}">Products</a></li>
+        <li class="breadcrumb-item active">Advanced Search</li>
+      </ol>
+    </nav>
+    <h1 class="h3 mb-0 text-gray-800">
+      <i class="bi bi-search me-2"></i>Advanced Product Search
+    </h1>
+    <p class="text-muted mb-0">Find products using multiple criteria and advanced filters</p>
+  </div>
+  
+  <div class="btn-group" role="group">
+    <a href="{% url 'inventory:product_list' %}" class="btn btn-outline-secondary">
+      <i class="bi bi-arrow-left me-2"></i>Back to Products
+    </a>
+    <a href="{% url 'inventory:product_create' %}" class="btn btn-primary">
+      <i class="bi bi-plus me-2"></i>New Product
+    </a>
+    <div class="btn-group" role="group">
+      <button class="btn btn-outline-secondary dropdown-toggle" type="button" data-bs-toggle="dropdown">
+        <i class="bi bi-three-dots"></i>
+      </button>
+      <ul class="dropdown-menu">
+        <li><a class="dropdown-item" href="{% url 'inventory:product_bulk_create' %}">
+          <i class="bi bi-layers me-2"></i>Bulk Create
+        </a></li>
+        <li><a class="dropdown-item" href="{% url 'inventory:product_bulk_import' %}">
+          <i class="bi bi-upload me-2"></i>Import Products
+        </a></li>
+        <li><hr class="dropdown-divider"></li>
+        <li><a class="dropdown-item" href="{% url 'inventory:product_export' %}">
+          <i class="bi bi-download me-2"></i>Export All
+        </a></li>
+      </ul>
+    </div>
+  </div>
+</div>
+
+<!-- Search Form -->
+<div class="card mb-4">
+  <div class="card-header">
+    <div class="d-flex justify-content-between align-items-center">
+      <h6 class="card-title mb-0">
+        <i class="bi bi-funnel me-2"></i>Search & Filter Options
+      </h6>
+      <button class="btn btn-sm btn-outline-secondary" type="button" data-bs-toggle="collapse" 
+              data-bs-target="#searchForm" aria-expanded="true" aria-controls="searchForm">
+        <i class="bi bi-chevron-up"></i>
+      </button>
+    </div>
+  </div>
+  <div class="collapse show" id="searchForm">
+    <div class="card-body">
+      <form method="get" id="productSearchForm">
+        <div class="row">
+          <!-- Basic Search -->
+          <div class="col-md-12 mb-3">
+            <label class="form-label fw-bold">
+              <i class="bi bi-search me-1"></i>Basic Search
+            </label>
+            <div class="input-group">
+              <input type="text" name="search" class="form-control" 
+                     placeholder="Search by name, SKU, barcode, or description..."
+                     value="{{ request.GET.search }}">
+              <button class="btn btn-outline-secondary" type="button" onclick="clearSearch()">
+                <i class="bi bi-x"></i>
+              </button>
+            </div>
+            <div class="form-text">Search across product name, SKU, barcode, and description fields</div>
+          </div>
+        </div>
+        
+        <div class="row">
+          <!-- Category Filter -->
+          <div class="col-md-3 mb-3">
+            <label for="category" class="form-label">
+              <i class="bi bi-collection me-1"></i>Category
+            </label>
+            <select name="category" id="category" class="form-select">
+              <option value="">All Categories</option>
+              {% for category in categories %}
+                <option value="{{ category.pk }}" {% if request.GET.category == category.pk|stringformat:"s" %}selected{% endif %}>
+                  {{ category.name }}
+                </option>
+              {% endfor %}
+            </select>
+          </div>
+          
+          <!-- Brand Filter -->
+          <div class="col-md-3 mb-3">
+            <label for="brand" class="form-label">
+              <i class="bi bi-award me-1"></i>Brand
+            </label>
+            <select name="brand" id="brand" class="form-select">
+              <option value="">All Brands</option>
+              {% for brand in brands %}
+                <option value="{{ brand.pk }}" {% if request.GET.brand == brand.pk|stringformat:"s" %}selected{% endif %}>
+                  {{ brand.name }}
+                </option>
+              {% endfor %}
+            </select>
+          </div>
+          
+          <!-- Supplier Filter -->
+          <div class="col-md-3 mb-3">
+            <label for="supplier" class="form-label">
+              <i class="bi bi-building me-1"></i>Supplier
+            </label>
+            <select name="supplier" id="supplier" class="form-select">
+              <option value="">All Suppliers</option>
+              {% for supplier in suppliers %}
+                <option value="{{ supplier.pk }}" {% if request.GET.supplier == supplier.pk|stringformat:"s" %}selected{% endif %}>
+                  {{ supplier.name }}
+                </option>
+              {% endfor %}
+            </select>
+          </div>
+          
+          <!-- Status Filter -->
+          <div class="col-md-3 mb-3">
+            <label for="status" class="form-label">
+              <i class="bi bi-toggle-on me-1"></i>Status
+            </label>
+            <select name="status" id="status" class="form-select">
+              <option value="">All Products</option>
+              <option value="active" {% if request.GET.status == 'active' %}selected{% endif %}>Active Only</option>
+              <option value="inactive" {% if request.GET.status == 'inactive' %}selected{% endif %}>Inactive Only</option>
+            </select>
+          </div>
+        </div>
+        
+        <!-- Price Range -->
+        <div class="row">
+          <div class="col-md-3 mb-3">
+            <label for="min_cost" class="form-label">
+              <i class="bi bi-currency-dollar me-1"></i>Min Cost Price
+            </label>
+            <div class="input-group">
+              <span class="input-group-text">$</span>
+              <input type="number" name="min_cost" id="min_cost" class="form-control" 
+                     step="0.01" placeholder="0.00" value="{{ request.GET.min_cost }}">
+            </div>
+          </div>
+          
+          <div class="col-md-3 mb-3">
+            <label for="max_cost" class="form-label">Max Cost Price</label>
+            <div class="input-group">
+              <span class="input-group-text">$</span>
+              <input type="number" name="max_cost" id="max_cost" class="form-control" 
+                     step="0.01" placeholder="0.00" value="{{ request.GET.max_cost }}">
+            </div>
+          </div>
+          
+          <div class="col-md-3 mb-3">
+            <label for="min_selling" class="form-label">Min Selling Price</label>
+            <div class="input-group">
+              <span class="input-group-text">$</span>
+              <input type="number" name="min_selling" id="min_selling" class="form-control" 
+                     step="0.01" placeholder="0.00" value="{{ request.GET.min_selling }}">
+            </div>
+          </div>
+          
+          <div class="col-md-3 mb-3">
+            <label for="max_selling" class="form-label">Max Selling Price</label>
+            <div class="input-group">
+              <span class="input-group-text">$</span>
+              <input type="number" name="max_selling" id="max_selling" class="form-control" 
+                     step="0.01" placeholder="0.00" value="{{ request.GET.max_selling }}">
+            </div>
+          </div>
+        </div>
+        
+        <!-- Stock Level Filters -->
+        <div class="row">
+          <div class="col-md-3 mb-3">
+            <label for="stock_status" class="form-label">
+              <i class="bi bi-boxes me-1"></i>Stock Status
+            </label>
+            <select name="stock_status" id="stock_status" class="form-select">
+              <option value="">All Stock Levels</option>
+              <option value="in_stock" {% if request.GET.stock_status == 'in_stock' %}selected{% endif %}>In Stock</option>
+              <option value="low_stock" {% if request.GET.stock_status == 'low_stock' %}selected{% endif %}>Low Stock</option>
+              <option value="out_of_stock" {% if request.GET.stock_status == 'out_of_stock' %}selected{% endif %}>Out of Stock</option>
+              <option value="overstocked" {% if request.GET.stock_status == 'overstocked' %}selected{% endif %}>Overstocked</option>
+            </select>
+          </div>
+          
+          <div class="col-md-3 mb-3">
+            <label for="min_stock" class="form-label">Min Stock Quantity</label>
+            <input type="number" name="min_stock" id="min_stock" class="form-control" 
+                   placeholder="0" value="{{ request.GET.min_stock }}">
+          </div>
+          
+          <div class="col-md-3 mb-3">
+            <label for="max_stock" class="form-label">Max Stock Quantity</label>
+            <input type="number" name="max_stock" id="max_stock" class="form-control" 
+                   placeholder="1000" value="{{ request.GET.max_stock }}">
+          </div>
+          
+          <div class="col-md-3 mb-3">
+            <label for="needs_reorder" class="form-label">Reorder Status</label>
+            <select name="needs_reorder" id="needs_reorder" class="form-select">
+              <option value="">All Products</option>
+              <option value="yes" {% if request.GET.needs_reorder == 'yes' %}selected{% endif %}>Needs Reorder</option>
+              <option value="no" {% if request.GET.needs_reorder == 'no' %}selected{% endif %}>Above Reorder Level</option>
+            </select>
+          </div>
+        </div>
+        
+        <!-- Advanced Filters -->
+        <div class="row">
+          <div class="col-md-3 mb-3">
+            <label for="has_movements" class="form-label">
+              <i class="bi bi-arrow-repeat me-1"></i>Recent Activity
+            </label>
+            <select name="has_movements" id="has_movements" class="form-select">
+              <option value="">All Products</option>
+              <option value="30" {% if request.GET.has_movements == '30' %}selected{% endif %}>Moved in Last 30 Days</option>
+              <option value="90" {% if request.GET.has_movements == '90' %}selected{% endif %}>Moved in Last 90 Days</option>
+              <option value="365" {% if request.GET.has_movements == '365' %}selected{% endif %}>Moved in Last Year</option>
+              <option value="never" {% if request.GET.has_movements == 'never' %}selected{% endif %}>Never Moved</option>
+            </select>
+          </div>
+          
+          <div class="col-md-3 mb-3">
+            <label for="created_date" class="form-label">Created Date</label>
+            <input type="date" name="created_date" id="created_date" class="form-control" 
+                   value="{{ request.GET.created_date }}">
+          </div>
+          
+          <div class="col-md-3 mb-3">
+            <label for="updated_date" class="form-label">Last Updated</label>
+            <input type="date" name="updated_date" id="updated_date" class="form-control" 
+                   value="{{ request.GET.updated_date }}">
+          </div>
+          
+          <div class="col-md-3 mb-3">
+            <label for="sort_by" class="form-label">
+              <i class="bi bi-sort-down me-1"></i>Sort Results By
+            </label>
+            <select name="sort_by" id="sort_by" class="form-select">
+              <option value="name" {% if request.GET.sort_by == 'name' %}selected{% endif %}>Name (A-Z)</option>
+              <option value="-name" {% if request.GET.sort_by == '-name' %}selected{% endif %}>Name (Z-A)</option>
+              <option value="sku" {% if request.GET.sort_by == 'sku' %}selected{% endif %}>SKU</option>
+              <option value="cost_price" {% if request.GET.sort_by == 'cost_price' %}selected{% endif %}>Cost Price (Low-High)</option>
+              <option value="-cost_price" {% if request.GET.sort_by == '-cost_price' %}selected{% endif %}>Cost Price (High-Low)</option>
+              <option value="selling_price" {% if request.GET.sort_by == 'selling_price' %}selected{% endif %}>Selling Price (Low-High)</option>
+              <option value="-selling_price" {% if request.GET.sort_by == '-selling_price' %}selected{% endif %}>Selling Price (High-Low)</option>
+              <option value="current_stock" {% if request.GET.sort_by == 'current_stock' %}selected{% endif %}>Stock Quantity</option>
+              <option value="-created_at" {% if request.GET.sort_by == '-created_at' %}selected{% endif %}>Recently Added</option>
+              <option value="-updated_at" {% if request.GET.sort_by == '-updated_at' %}selected{% endif %}>Recently Updated</option>
+            </select>
+          </div>
+        </div>
+        
+        <!-- Action Buttons -->
+        <div class="d-flex justify-content-between align-items-center">
+          <div>
+            <button type="submit" class="btn btn-primary">
+              <i class="bi bi-search me-2"></i>Search Products
+            </button>
+            <button type="button" class="btn btn-outline-secondary" onclick="clearAllFilters()">
+              <i class="bi bi-arrow-counterclockwise me-2"></i>Clear All Filters
+            </button>
+          </div>
+          
+          <div class="text-muted">
+            <i class="bi bi-info-circle me-1"></i>
+            {% if products %}
+              Showing {{ products|length }} of {{ total_count|default:products|length }} products
+            {% else %}
+              Use filters above to search products
+            {% endif %}
+          </div>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+
+<!-- Search Results -->
+{% if products %}
+<div class="card">
+  <div class="card-header">
+    <div class="d-flex justify-content-between align-items-center">
+      <h6 class="card-title mb-0">
+        <i class="bi bi-list me-2"></i>Search Results 
+        <span class="badge bg-primary">{{ products|length }}</span>
+      </h6>
+      
+      <div class="btn-group" role="group">
+        <button class="btn btn-sm btn-outline-secondary dropdown-toggle" type="button" data-bs-toggle="dropdown">
+          <i class="bi bi-download me-1"></i>Export Results
+        </button>
+        <ul class="dropdown-menu">
+          <li><a class="dropdown-item" href="?{{ request.GET.urlencode }}&export=csv">
+            <i class="bi bi-file-spreadsheet me-2"></i>Export as CSV
+          </a></li>
+          <li><a class="dropdown-item" href="?{{ request.GET.urlencode }}&export=excel">
+            <i class="bi bi-file-excel me-2"></i>Export as Excel
+          </a></li>
+          <li><hr class="dropdown-divider"></li>
+          <li><a class="dropdown-item" href="?{{ request.GET.urlencode }}&export=catalog">
+            <i class="bi bi-book me-2"></i>Product Catalog
+          </a></li>
+        </ul>
+      </div>
+    </div>
+  </div>
+  
+  <div class="card-body p-0">
+    <div class="table-responsive">
+      <table class="table table-hover mb-0">
+        <thead class="table-light">
+          <tr>
+            <th>
+              <div class="form-check">
+                <input class="form-check-input" type="checkbox" id="selectAll">
+                <label class="form-check-label" for="selectAll"></label>
+              </div>
+            </th>
+            <th>Product</th>
+            <th>SKU</th>
+            <th>Category</th>
+            <th>Cost Price</th>
+            <th>Selling Price</th>
+            <th>Stock</th>
+            <th>Status</th>
+            <th>Actions</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for product in products %}
+          <tr>
+            <td>
+              <div class="form-check">
+                <input class="form-check-input product-checkbox" type="checkbox" 
+                       value="{{ product.pk }}" id="product_{{ product.pk }}">
+                <label class="form-check-label" for="product_{{ product.pk }}"></label>
+              </div>
+            </td>
+            <td>
+              <div class="d-flex align-items-center">
+                <div>
+                  <a href="{% url 'inventory:product_detail' product.pk %}" class="text-decoration-none fw-bold">
+                    {{ product.name }}
+                  </a>
+                  {% if product.brand %}
+                    <div class="small text-muted">{{ product.brand.name }}</div>
+                  {% endif %}
+                </div>
+              </div>
+            </td>
+            <td><code>{{ product.sku }}</code></td>
+            <td>
+              <span class="badge bg-secondary">{{ product.category.name }}</span>
+            </td>
+            <td class="text-success fw-bold">${{ product.cost_price|floatformat:2 }}</td>
+            <td class="text-primary fw-bold">${{ product.selling_price|floatformat:2 }}</td>
+            <td>
+              <span class="{% if product.current_stock <= product.reorder_level %}text-danger{% elif product.current_stock <= product.reorder_level|add:10 %}text-warning{% else %}text-success{% endif %}">
+                {{ product.current_stock|default:0 }}
+              </span>
+              {% if product.current_stock <= product.reorder_level %}
+                <i class="bi bi-exclamation-triangle text-danger ms-1" title="Below reorder level"></i>
+              {% endif %}
+            </td>
+            <td>
+              {% if product.is_active %}
+                <span class="badge bg-success">Active</span>
+              {% else %}
+                <span class="badge bg-secondary">Inactive</span>
+              {% endif %}
+            </td>
+            <td>
+              <div class="btn-group" role="group">
+                <a href="{% url 'inventory:product_detail' product.pk %}" 
+                   class="btn btn-sm btn-outline-primary" title="View Details">
+                  <i class="bi bi-eye"></i>
+                </a>
+                <a href="{% url 'inventory:product_edit' product.pk %}" 
+                   class="btn btn-sm btn-outline-secondary" title="Edit">
+                  <i class="bi bi-pencil"></i>
+                </a>
+                <button class="btn btn-sm btn-outline-secondary dropdown-toggle" 
+                        type="button" data-bs-toggle="dropdown">
+                  <i class="bi bi-three-dots"></i>
+                </button>
+                <ul class="dropdown-menu">
+                  <li><a class="dropdown-item" href="{% url 'inventory:product_duplicate' product.pk %}">
+                    <i class="bi bi-files me-2"></i>Duplicate
+                  </a></li>
+                  <li><hr class="dropdown-divider"></li>
+                  <li><a class="dropdown-item text-danger" href="{% url 'inventory:product_delete' product.pk %}">
+                    <i class="bi bi-trash me-2"></i>Delete
+                  </a></li>
+                </ul>
+              </div>
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+  
+  <!-- Pagination -->
+  {% if page_obj.paginator.num_pages > 1 %}
+  <div class="card-footer">
+    <nav aria-label="Product search pagination">
+      <ul class="pagination justify-content-center mb-0">
+        {% if page_obj.has_previous %}
+          <li class="page-item">
+            <a class="page-link" href="?{{ request.GET.urlencode }}&page=1">First</a>
+          </li>
+          <li class="page-item">
+            <a class="page-link" href="?{{ request.GET.urlencode }}&page={{ page_obj.previous_page_number }}">Previous</a>
+          </li>
+        {% endif %}
+        
+        {% for num in page_obj.paginator.page_range %}
+          {% if page_obj.number == num %}
+            <li class="page-item active">
+              <span class="page-link">{{ num }}</span>
+            </li>
+          {% elif num > page_obj.number|add:'-3' and num < page_obj.number|add:'3' %}
+            <li class="page-item">
+              <a class="page-link" href="?{{ request.GET.urlencode }}&page={{ num }}">{{ num }}</a>
+            </li>
+          {% endif %}
+        {% endfor %}
+        
+        {% if page_obj.has_next %}
+          <li class="page-item">
+            <a class="page-link" href="?{{ request.GET.urlencode }}&page={{ page_obj.next_page_number }}">Next</a>
+          </li>
+          <li class="page-item">
+            <a class="page-link" href="?{{ request.GET.urlencode }}&page={{ page_obj.paginator.num_pages }}">Last</a>
+          </li>
+        {% endif %}
+      </ul>
+    </nav>
+    
+    <div class="text-center mt-2">
+      <small class="text-muted">
+        Page {{ page_obj.number }} of {{ page_obj.paginator.num_pages }} 
+        ({{ page_obj.paginator.count }} total products)
+      </small>
+    </div>
+  </div>
+  {% endif %}
+</div>
+
+<!-- Bulk Actions Panel -->
+<div class="card mt-3" id="bulkActionsPanel" style="display: none;">
+  <div class="card-body">
+    <div class="d-flex justify-content-between align-items-center">
+      <div>
+        <strong>Bulk Actions:</strong>
+        <span id="selectedCount">0</span> products selected
+      </div>
+      
+      <div class="btn-group" role="group">
+        <button class="btn btn-sm btn-outline-primary" onclick="bulkEdit()">
+          <i class="bi bi-pencil me-1"></i>Bulk Edit
+        </button>
+        <button class="btn btn-sm btn-outline-success" onclick="bulkExport()">
+          <i class="bi bi-download me-1"></i>Export Selected
+        </button>
+        <button class="btn btn-sm btn-outline-danger" onclick="bulkDelete()">
+          <i class="bi bi-trash me-1"></i>Delete Selected
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+
+{% elif request.GET %}
+<!-- No Results Found -->
+<div class="card">
+  <div class="card-body text-center py-5">
+    <i class="bi bi-search text-muted" style="font-size: 3rem;"></i>
+    <h5 class="text-muted mt-3">No Products Found</h5>
+    <p class="text-muted">
+      No products match your current search criteria. Try adjusting your filters or 
+      <a href="{% url 'inventory:product_search' %}" class="text-decoration-none">clear all filters</a> to see all products.
+    </p>
+    
+    <div class="mt-4">
+      <a href="{% url 'inventory:product_create' %}" class="btn btn-primary">
+        <i class="bi bi-plus me-2"></i>Create New Product
+      </a>
+      <button class="btn btn-outline-secondary" onclick="clearAllFilters()">
+        <i class="bi bi-arrow-counterclockwise me-2"></i>Clear All Filters
+      </button>
+    </div>
+  </div>
+</div>
+
+{% else %}
+<!-- Initial State - No Search Performed -->
+<div class="card">
+  <div class="card-body text-center py-5">
+    <i class="bi bi-funnel text-primary" style="font-size: 3rem;"></i>
+    <h5 class="text-primary mt-3">Ready to Search</h5>
+    <p class="text-muted">
+      Use the search form above to find products with specific criteria.
+      You can search by name, filter by category, price range, stock levels, and more.
+    </p>
+  </div>
+</div>
+{% endif %}
+
+{% endblock %}
+
+{% block extra_js %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+  const selectAllCheckbox = document.getElementById('selectAll');
+  const productCheckboxes = document.querySelectorAll('.product-checkbox');
+  const bulkActionsPanel = document.getElementById('bulkActionsPanel');
+  const selectedCountSpan = document.getElementById('selectedCount');
+  
+  // Select all functionality
+  if (selectAllCheckbox) {
+    selectAllCheckbox.addEventListener('change', function() {
+      productCheckboxes.forEach(checkbox => {
+        checkbox.checked = this.checked;
+      });
+      updateBulkActions();
+    });
+  }
+  
+  // Individual checkbox functionality
+  productCheckboxes.forEach(checkbox => {
+    checkbox.addEventListener('change', updateBulkActions);
+  });
+  
+  function updateBulkActions() {
+    const selectedCheckboxes = document.querySelectorAll('.product-checkbox:checked');
+    const selectedCount = selectedCheckboxes.length;
+    
+    if (selectedCount > 0) {
+      bulkActionsPanel.style.display = 'block';
+      selectedCountSpan.textContent = selectedCount;
+    } else {
+      bulkActionsPanel.style.display = 'none';
+    }
+    
+    // Update select all checkbox state
+    if (selectAllCheckbox) {
+      selectAllCheckbox.checked = selectedCount === productCheckboxes.length;
+      selectAllCheckbox.indeterminate = selectedCount > 0 && selectedCount < productCheckboxes.length;
+    }
+  }
+});
+
+function clearSearch() {
+  document.querySelector('input[name="search"]').value = '';
+}
+
+function clearAllFilters() {
+  const form = document.getElementById('productSearchForm');
+  form.reset();
+  
+  // Clear URL parameters
+  const url = new URL(window.location.href);
+  url.search = '';
+  window.history.pushState({}, '', url);
+  
+  // Reload the page
+  window.location.reload();
+}
+
+function bulkEdit() {
+  const selectedIds = Array.from(document.querySelectorAll('.product-checkbox:checked'))
+    .map(cb => cb.value);
+  
+  if (selectedIds.length === 0) return;
+  
+  const url = `{% url 'inventory:product_bulk_update' %}?ids=${selectedIds.join(',')}`;
+  window.location.href = url;
+}
+
+function bulkExport() {
+  const selectedIds = Array.from(document.querySelectorAll('.product-checkbox:checked'))
+    .map(cb => cb.value);
+  
+  if (selectedIds.length === 0) return;
+  
+  const url = `{% url 'inventory:product_export' %}?ids=${selectedIds.join(',')}`;
+  window.open(url, '_blank');
+}
+
+function bulkDelete() {
+  const selectedIds = Array.from(document.querySelectorAll('.product-checkbox:checked'))
+    .map(cb => cb.value);
+  
+  if (selectedIds.length === 0) return;
+  
+  if (confirm(`Are you sure you want to delete ${selectedIds.length} selected products? This cannot be undone.`)) {
+    const url = `{% url 'inventory:product_bulk_delete' %}?ids=${selectedIds.join(',')}`;
+    window.location.href = url;
+  }
+}
+</script>
+{% endblock %}

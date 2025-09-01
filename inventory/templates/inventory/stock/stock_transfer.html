@@ -1,5 +1,5 @@
 {% extends "dashboard_base.html" %}
-{% load static crispy_forms_tags %}
+{% load static %}
 
 {% block page_title %}Stock Transfer{% endblock %}
 
@@ -9,681 +9,1101 @@
     <nav aria-label="breadcrumb">
       <ol class="breadcrumb mb-1">
         <li class="breadcrumb-item"><a href="{% url 'inventory:dashboard' %}">Inventory</a></li>
-        <li class="breadcrumb-item"><a href="{% url 'inventory:stock_overview' %}">Stock Management</a></li>
-        <li class="breadcrumb-item active">Transfer</li>
+        <li class="breadcrumb-item"><a href="{% url 'inventory:stock_overview' %}">Stock Overview</a></li>
+        <li class="breadcrumb-item active">Stock Transfer</li>
       </ol>
     </nav>
-    <h1 class="h3 mb-0 text-gray-800">Stock Transfer</h1>
-    <p class="text-muted mb-0">Move inventory between locations with full tracking</p>
+    <h1 class="h3 mb-0 text-gray-800">
+      <i class="bi bi-arrow-left-right me-2"></i>Stock Transfer
+    </h1>
+    <p class="text-muted mb-0">Transfer inventory between locations with automatic tracking</p>
   </div>
   
   <div class="btn-group" role="group">
-    <a href="{% url 'inventory:stock_transfer_history' %}" class="btn btn-outline-secondary">
-      <i class="bi bi-clock-history me-2"></i>Transfer History
+    <a href="{% url 'inventory:stock_overview' %}" class="btn btn-outline-secondary">
+      <i class="bi bi-arrow-left me-2"></i>Back to Overview
     </a>
-    <a href="{% url 'inventory:bulk_stock_transfer' %}" class="btn btn-outline-info">
-      <i class="bi bi-layers me-2"></i>Bulk Transfer
+    <a href="{% url 'inventory:stock_adjustment' %}" class="btn btn-outline-primary">
+      <i class="bi bi-plus-minus me-2"></i>Stock Adjustment
     </a>
+    <div class="btn-group" role="group">
+      <button class="btn btn-outline-secondary dropdown-toggle" type="button" data-bs-toggle="dropdown">
+        <i class="bi bi-three-dots"></i>
+      </button>
+      <ul class="dropdown-menu">
+        <li><a class="dropdown-item" href="{% url 'inventory:stock_movement_list' %}?movement_type=transfer">
+          <i class="bi bi-clock-history me-2"></i>Transfer History
+        </a></li>
+        <li><a class="dropdown-item" href="{% url 'inventory:bulk_stock_transfer' %}">
+          <i class="bi bi-layers me-2"></i>Bulk Transfer
+        </a></li>
+        <li><hr class="dropdown-divider"></li>
+        <li><a class="dropdown-item" href="{% url 'inventory:transfer_template' %}">
+          <i class="bi bi-file-spreadsheet me-2"></i>Download Template
+        </a></li>
+      </ul>
+    </div>
   </div>
 </div>
 
-<!-- Transfer Form -->
-<form method="post" id="stockTransferForm" class="needs-validation" novalidate>
-  {% csrf_token %}
-  
-  <div class="row">
-    <!-- Transfer Details -->
-    <div class="col-lg-8 mb-4">
-      <!-- Transfer Information Card -->
-      <div class="card shadow mb-4">
-        <div class="card-header py-3">
-          <h6 class="m-0 font-weight-bold text-primary">
-            <i class="bi bi-arrow-left-right me-2"></i>Transfer Information
-          </h6>
+<!-- Transfer Method Selection -->
+<div class="row mb-4">
+  <div class="col-md-12">
+    <div class="card">
+      <div class="card-header">
+        <h6 class="card-title mb-0">
+          <i class="bi bi-gear me-2"></i>Transfer Method
+        </h6>
+      </div>
+      <div class="card-body">
+        <div class="row">
+          <div class="col-lg-4 col-md-6 mb-3">
+            <div class="card transfer-method-card h-100" onclick="selectTransferMethod('single')">
+              <div class="card-body text-center">
+                <i class="bi bi-box-seam text-primary" style="font-size: 2rem;"></i>
+                <h6 class="card-title mt-2">Single Product</h6>
+                <p class="card-text text-muted small">
+                  Transfer one product between two locations
+                </p>
+                <button class="btn btn-outline-primary btn-sm">Select</button>
+              </div>
+            </div>
+          </div>
+          
+          <div class="col-lg-4 col-md-6 mb-3">
+            <div class="card transfer-method-card h-100" onclick="selectTransferMethod('multiple')">
+              <div class="card-body text-center">
+                <i class="bi bi-boxes text-success" style="font-size: 2rem;"></i>
+                <h6 class="card-title mt-2">Multiple Products</h6>
+                <p class="card-text text-muted small">
+                  Transfer several products in one batch
+                </p>
+                <button class="btn btn-outline-success btn-sm">Select</button>
+              </div>
+            </div>
+          </div>
+          
+          <div class="col-lg-4 col-md-6 mb-3">
+            <div class="card transfer-method-card h-100" onclick="selectTransferMethod('location')">
+              <div class="card-body text-center">
+                <i class="bi bi-building text-warning" style="font-size: 2rem;"></i>
+                <h6 class="card-title mt-2">Entire Location</h6>
+                <p class="card-text text-muted small">
+                  Move all stock from one location to another
+                </p>
+                <button class="btn btn-outline-warning btn-sm">Select</button>
+              </div>
+            </div>
+          </div>
         </div>
-        <div class="card-body">
-          <div class="row">
-            <div class="col-md-6">
-              <div class="mb-3">
-                <label class="form-label fw-bold">From Location *</label>
-                <select class="form-select" name="from_location" id="fromLocation" required>
-                  <option value="">Select source location...</option>
-                  {% for location in locations %}
-                    <option value="{{ location.id }}" data-stock-count="{{ location.product_count }}">
-                      {{ location.name }} ({{ location.product_count }} items)
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Single Product Transfer -->
+<div id="singleTransferForm" style="display: none;">
+  <form method="post" id="stockTransferForm">
+    {% csrf_token %}
+    <input type="hidden" name="transfer_type" value="single">
+    
+    <div class="row">
+      <div class="col-md-8">
+        <div class="card">
+          <div class="card-header">
+            <h6 class="card-title mb-0">
+              <i class="bi bi-box-seam me-2"></i>Product & Location Selection
+            </h6>
+          </div>
+          <div class="card-body">
+            <!-- Product Selection -->
+            <div class="row mb-4">
+              <div class="col-md-6">
+                <label for="transferProduct" class="form-label">
+                  <i class="bi bi-search me-1"></i>Select Product <span class="text-danger">*</span>
+                </label>
+                <select class="form-select" id="transferProduct" name="product" required onchange="loadProductStock()">
+                  <option value="">Search and select a product...</option>
+                  {% for product in products %}
+                    <option value="{{ product.pk }}" data-sku="{{ product.sku }}" 
+                            data-cost-price="{{ product.cost_price }}">
+                      {{ product.name }} ({{ product.sku }})
                     </option>
                   {% endfor %}
                 </select>
-                <div class="form-text">Location to transfer stock from</div>
+              </div>
+              
+              <div class="col-md-6">
+                <label for="transferQuantity" class="form-label">
+                  <i class="bi bi-hash me-1"></i>Transfer Quantity <span class="text-danger">*</span>
+                </label>
+                <div class="input-group">
+                  <input type="number" class="form-control" id="transferQuantity" name="quantity" 
+                         required min="1" step="1" onchange="validateQuantity()">
+                  <span class="input-group-text">units</span>
+                </div>
+                <div class="form-text" id="quantityValidation"></div>
               </div>
             </div>
-            <div class="col-md-6">
-              <div class="mb-3">
-                <label class="form-label fw-bold">To Location *</label>
-                <select class="form-select" name="to_location" id="toLocation" required>
-                  <option value="">Select destination location...</option>
+            
+            <!-- Location Selection -->
+            <div class="row mb-4">
+              <div class="col-md-6">
+                <label for="fromLocation" class="form-label">
+                  <i class="bi bi-geo-alt me-1"></i>From Location <span class="text-danger">*</span>
+                </label>
+                <select class="form-select" id="fromLocation" name="from_location" required onchange="updateAvailableStock()">
+                  <option value="">Select source location...</option>
                   {% for location in locations %}
-                    <option value="{{ location.id }}">{{ location.name }}</option>
+                    <option value="{{ location.pk }}">{{ location.name }}</option>
                   {% endfor %}
                 </select>
-                <div class="form-text">Location to transfer stock to</div>
+                <div class="form-text">
+                  Available: <span id="availableStock" class="fw-bold text-primary">0</span> units
+                </div>
+              </div>
+              
+              <div class="col-md-6">
+                <label for="toLocation" class="form-label">
+                  <i class="bi bi-geo-alt-fill me-1"></i>To Location <span class="text-danger">*</span>
+                </label>
+                <select class="form-select" id="toLocation" name="to_location" required>
+                  <option value="">Select destination location...</option>
+                  {% for location in locations %}
+                    <option value="{{ location.pk }}">{{ location.name }}</option>
+                  {% endfor %}
+                </select>
+              </div>
+            </div>
+            
+            <!-- Transfer Details -->
+            <div class="row mb-3">
+              <div class="col-md-6">
+                <label for="transferReason" class="form-label">
+                  <i class="bi bi-clipboard me-1"></i>Transfer Reason
+                </label>
+                <select class="form-select" id="transferReason" name="reason">
+                  <option value="reorganization">Inventory Reorganization</option>
+                  <option value="demand">Meet Location Demand</option>
+                  <option value="capacity">Location Capacity</option>
+                  <option value="closer_to_customer">Closer to Customer</option>
+                  <option value="maintenance">Maintenance/Upgrade</option>
+                  <option value="consolidation">Stock Consolidation</option>
+                  <option value="other">Other</option>
+                </select>
+              </div>
+              
+              <div class="col-md-6">
+                <label for="transferReference" class="form-label">
+                  <i class="bi bi-hash me-1"></i>Reference Number
+                </label>
+                <input type="text" class="form-control" id="transferReference" name="reference" 
+                       placeholder="e.g., TR-2024-001">
+                <div class="form-text">Optional tracking reference</div>
+              </div>
+            </div>
+            
+            <!-- Transfer Notes -->
+            <div class="mb-3">
+              <label for="transferNotes" class="form-label">
+                <i class="bi bi-chat-text me-1"></i>Transfer Notes
+              </label>
+              <textarea class="form-control" id="transferNotes" name="notes" rows="3" 
+                        placeholder="Additional details about this transfer..."></textarea>
+            </div>
+            
+            <!-- Shipping Information -->
+            <div class="card bg-light">
+              <div class="card-header">
+                <h6 class="card-title mb-0">
+                  <i class="bi bi-truck me-2"></i>Shipping Information (Optional)
+                </h6>
+              </div>
+              <div class="card-body">
+                <div class="row">
+                  <div class="col-md-6">
+                    <label for="shippingMethod" class="form-label">Shipping Method</label>
+                    <select class="form-select" id="shippingMethod" name="shipping_method">
+                      <option value="">Select method...</option>
+                      <option value="internal_delivery">Internal Delivery</option>
+                      <option value="courier">Courier Service</option>
+                      <option value="freight">Freight Transport</option>
+                      <option value="pickup">Direct Pickup</option>
+                    </select>
+                  </div>
+                  
+                  <div class="col-md-6">
+                    <label for="expectedDelivery" class="form-label">Expected Delivery</label>
+                    <input type="datetime-local" class="form-control" id="expectedDelivery" name="expected_delivery">
+                  </div>
+                </div>
+                
+                <div class="row mt-3">
+                  <div class="col-md-6">
+                    <label for="trackingNumber" class="form-label">Tracking Number</label>
+                    <input type="text" class="form-control" id="trackingNumber" name="tracking_number">
+                  </div>
+                  
+                  <div class="col-md-6">
+                    <label for="shippingCost" class="form-label">Shipping Cost</label>
+                    <div class="input-group">
+                      <span class="input-group-text">$</span>
+                      <input type="number" class="form-control" id="shippingCost" name="shipping_cost" step="0.01">
+                    </div>
+                  </div>
+                </div>
               </div>
             </div>
           </div>
-          
-          <div class="row">
-            <div class="col-md-6">
-              <div class="mb-3">
-                <label class="form-label fw-bold">Transfer Date</label>
-                <input type="date" class="form-control" name="transfer_date" 
-                       value="{{ today|date:'Y-m-d' }}" required>
-              </div>
-            </div>
-            <div class="col-md-6">
-              <div class="mb-3">
-                <label class="form-label fw-bold">Reference Number</label>
-                <input type="text" class="form-control" name="reference" 
-                       placeholder="Auto-generated" value="{{ transfer_reference }}">
-                <div class="form-text">Optional reference for tracking</div>
+        </div>
+      </div>
+      
+      <div class="col-md-4">
+        <!-- Transfer Summary -->
+        <div class="card mb-4">
+          <div class="card-header">
+            <h6 class="card-title mb-0">
+              <i class="bi bi-eye me-2"></i>Transfer Summary
+            </h6>
+          </div>
+          <div class="card-body">
+            <div id="transferSummary">
+              <div class="text-center text-muted py-3">
+                <i class="bi bi-info-circle" style="font-size: 2rem;"></i>
+                <p class="mt-2">Select product and locations to see transfer summary</p>
               </div>
             </div>
           </div>
+        </div>
+        
+        <!-- Location Stock Levels -->
+        <div class="card" id="stockLevelsCard" style="display: none;">
+          <div class="card-header">
+            <h6 class="card-title mb-0">
+              <i class="bi bi-bar-chart me-2"></i>Current Stock Levels
+            </h6>
+          </div>
+          <div class="card-body">
+            <div id="stockLevelsDisplay">
+              <!-- Will be populated dynamically -->
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    
+    <!-- Action Buttons -->
+    <div class="card mt-4">
+      <div class="card-body">
+        <div class="d-flex justify-content-between align-items-center">
+          <div>
+            <button type="button" class="btn btn-outline-secondary" onclick="resetTransferForm()">
+              <i class="bi bi-arrow-counterclockwise me-2"></i>Reset Form
+            </button>
+            <button type="button" class="btn btn-outline-info" onclick="validateTransfer()">
+              <i class="bi bi-check-circle me-2"></i>Validate Transfer
+            </button>
+          </div>
           
-          <div class="mb-3">
-            <label class="form-label fw-bold">Transfer Reason *</label>
-            <select class="form-select" name="reason" required>
+          <div>
+            <button type="submit" class="btn btn-success" id="submitTransfer" disabled>
+              <i class="bi bi-arrow-left-right me-2"></i>Execute Transfer
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </form>
+</div>
+
+<!-- Multiple Products Transfer -->
+<div id="multipleTransferForm" style="display: none;">
+  <div class="card">
+    <div class="card-header">
+      <h6 class="card-title mb-0">
+        <i class="bi bi-boxes me-2"></i>Multiple Products Transfer
+      </h6>
+    </div>
+    <div class="card-body">
+      <form method="post" id="multipleTransferFormElement">
+        {% csrf_token %}
+        <input type="hidden" name="transfer_type" value="multiple">
+        
+        <!-- Common Transfer Details -->
+        <div class="row mb-4">
+          <div class="col-md-4">
+            <label for="multipleFromLocation" class="form-label">From Location <span class="text-danger">*</span></label>
+            <select class="form-select" id="multipleFromLocation" name="from_location" required onchange="loadLocationProducts()">
+              <option value="">Select source location...</option>
+              {% for location in locations %}
+                <option value="{{ location.pk }}">{{ location.name }}</option>
+              {% endfor %}
+            </select>
+          </div>
+          
+          <div class="col-md-4">
+            <label for="multipleToLocation" class="form-label">To Location <span class="text-danger">*</span></label>
+            <select class="form-select" id="multipleToLocation" name="to_location" required>
+              <option value="">Select destination location...</option>
+              {% for location in locations %}
+                <option value="{{ location.pk }}">{{ location.name }}</option>
+              {% endfor %}
+            </select>
+          </div>
+          
+          <div class="col-md-4">
+            <label for="multipleTransferReason" class="form-label">Transfer Reason</label>
+            <select class="form-select" id="multipleTransferReason" name="reason">
+              <option value="reorganization">Inventory Reorganization</option>
+              <option value="demand">Meet Location Demand</option>
+              <option value="consolidation">Stock Consolidation</option>
+              <option value="other">Other</option>
+            </select>
+          </div>
+        </div>
+        
+        <!-- Products Selection -->
+        <div class="card mb-4">
+          <div class="card-header">
+            <div class="d-flex justify-content-between align-items-center">
+              <h6 class="card-title mb-0">Select Products to Transfer</h6>
+              <div>
+                <button type="button" class="btn btn-sm btn-outline-primary" onclick="selectAllProducts()">
+                  <i class="bi bi-check-square me-1"></i>Select All
+                </button>
+                <button type="button" class="btn btn-sm btn-outline-secondary" onclick="clearAllSelections()">
+                  <i class="bi bi-square me-1"></i>Clear All
+                </button>
+              </div>
+            </div>
+          </div>
+          <div class="card-body p-0">
+            <div id="locationProductsList">
+              <div class="text-center py-4 text-muted">
+                <i class="bi bi-building" style="font-size: 3rem;"></i>
+                <p class="mt-2">Select a source location to see available products</p>
+              </div>
+            </div>
+          </div>
+        </div>
+        
+        <!-- Selected Products Summary -->
+        <div id="selectedProductsSummary" class="card" style="display: none;">
+          <div class="card-header">
+            <h6 class="card-title mb-0">
+              <i class="bi bi-list-check me-2"></i>Selected Products
+              <span class="badge bg-primary ms-2" id="selectedCount">0</span>
+            </h6>
+          </div>
+          <div class="card-body">
+            <div class="table-responsive">
+              <table class="table table-sm">
+                <thead>
+                  <tr>
+                    <th>Product</th>
+                    <th>Available</th>
+                    <th>Transfer Qty</th>
+                    <th>Actions</th>
+                  </tr>
+                </thead>
+                <tbody id="selectedProductsTable">
+                  <!-- Selected products will be added here -->
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+        
+        <div class="d-flex justify-content-between mt-4">
+          <button type="button" class="btn btn-outline-secondary" onclick="clearMultipleTransfer()">
+            <i class="bi bi-trash me-2"></i>Clear All
+          </button>
+          <div>
+            <button type="button" class="btn btn-outline-info" onclick="validateMultipleTransfer()">
+              <i class="bi bi-check-circle me-2"></i>Validate Transfers
+            </button>
+            <button type="submit" class="btn btn-success">
+              <i class="bi bi-arrow-left-right me-2"></i>Execute Transfers
+            </button>
+          </div>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+
+<!-- Location Transfer -->
+<div id="locationTransferForm" style="display: none;">
+  <div class="card">
+    <div class="card-header">
+      <h6 class="card-title mb-0">
+        <i class="bi bi-building me-2"></i>Entire Location Transfer
+      </h6>
+    </div>
+    <div class="card-body">
+      <div class="alert alert-warning">
+        <i class="bi bi-exclamation-triangle me-2"></i>
+        <strong>Warning:</strong> This will transfer ALL stock from the source location to the destination location.
+      </div>
+      
+      <form method="post" id="locationTransferFormElement">
+        {% csrf_token %}
+        <input type="hidden" name="transfer_type" value="location">
+        
+        <div class="row mb-4">
+          <div class="col-md-6">
+            <label for="locationFromLocation" class="form-label">
+              From Location <span class="text-danger">*</span>
+            </label>
+            <select class="form-select" id="locationFromLocation" name="from_location" required onchange="loadEntireLocationStock()">
+              <option value="">Select source location...</option>
+              {% for location in locations %}
+                <option value="{{ location.pk }}">{{ location.name }}</option>
+              {% endfor %}
+            </select>
+          </div>
+          
+          <div class="col-md-6">
+            <label for="locationToLocation" class="form-label">
+              To Location <span class="text-danger">*</span>
+            </label>
+            <select class="form-select" id="locationToLocation" name="to_location" required>
+              <option value="">Select destination location...</option>
+              {% for location in locations %}
+                <option value="{{ location.pk }}">{{ location.name }}</option>
+              {% endfor %}
+            </select>
+          </div>
+        </div>
+        
+        <div class="row mb-4">
+          <div class="col-md-6">
+            <label for="locationTransferReason" class="form-label">Transfer Reason <span class="text-danger">*</span></label>
+            <select class="form-select" id="locationTransferReason" name="reason" required>
               <option value="">Select reason...</option>
-              <option value="rebalancing">Stock Rebalancing</option>
-              <option value="new_location">New Location Setup</option>
-              <option value="consolidation">Location Consolidation</option>
-              <option value="customer_request">Customer Request</option>
-              <option value="quality_issue">Quality Issue</option>
-              <option value="seasonal">Seasonal Movement</option>
-              <option value="maintenance">Maintenance/Renovation</option>
+              <option value="location_closure">Location Closure</option>
+              <option value="consolidation">Inventory Consolidation</option>
+              <option value="relocation">Location Relocation</option>
+              <option value="capacity_optimization">Capacity Optimization</option>
               <option value="other">Other</option>
             </select>
           </div>
           
-          <div class="mb-3">
-            <label class="form-label">Notes</label>
-            <textarea class="form-control" name="notes" rows="3" 
-                      placeholder="Additional notes about this transfer..."></textarea>
+          <div class="col-md-6">
+            <label for="locationTransferDate" class="form-label">Scheduled Transfer Date</label>
+            <input type="date" class="form-control" id="locationTransferDate" name="transfer_date">
           </div>
         </div>
-      </div>
-
-      <!-- Product Selection Card -->
-      <div class="card shadow mb-4">
-        <div class="card-header py-3 d-flex justify-content-between align-items-center">
-          <h6 class="m-0 font-weight-bold text-success">
-            <i class="bi bi-box-seam me-2"></i>Products to Transfer
-          </h6>
-          <div class="btn-group btn-group-sm" role="group">
-            <button type="button" class="btn btn-outline-primary" onclick="addProductRow()">
-              <i class="bi bi-plus me-1"></i>Add Product
-            </button>
-            <button type="button" class="btn btn-outline-info" onclick="scanBarcode()">
-              <i class="bi bi-qr-code me-1"></i>Scan
-            </button>
-          </div>
+        
+        <div class="mb-4">
+          <label for="locationTransferNotes" class="form-label">Transfer Notes</label>
+          <textarea class="form-control" id="locationTransferNotes" name="notes" rows="3" 
+                    placeholder="Provide details about this location transfer..."></textarea>
         </div>
-        <div class="card-body p-0" id="productTableContainer">
-          <div class="table-responsive">
-            <table class="table table-hover mb-0" id="productsTable">
-              <thead class="table-light">
-                <tr>
-                  <th style="width: 35%;">Product</th>
-                  <th style="width: 15%;">Available Stock</th>
-                  <th style="width: 15%;">Transfer Quantity</th>
-                  <th style="width: 15%;">Unit Value</th>
-                  <th style="width: 15%;">Total Value</th>
-                  <th style="width: 5%;">Actions</th>
-                </tr>
-              </thead>
-              <tbody id="productsTableBody">
-                <tr id="noProductsRow">
-                  <td colspan="6" class="text-center py-4 text-muted">
-                    <i class="bi bi-box me-2"></i>
-                    No products added yet. Click "Add Product" to start.
-                  </td>
-                </tr>
-              </tbody>
-            </table>
+        
+        <!-- Location Stock Summary -->
+        <div id="locationStockSummary" class="card mb-4" style="display: none;">
+          <div class="card-header">
+            <h6 class="card-title mb-0">
+              <i class="bi bi-bar-chart me-2"></i>Stock Summary
+            </h6>
           </div>
-        </div>
-        <div class="card-footer bg-light">
-          <div class="row">
-            <div class="col-md-6">
-              <strong>Total Items: <span id="totalItems">0</span></strong>
-            </div>
-            <div class="col-md-6 text-end">
-              <strong>Total Value: $<span id="totalValue">0.00</span></strong>
+          <div class="card-body">
+            <div id="locationStockDetails">
+              <!-- Will be populated dynamically -->
             </div>
           </div>
         </div>
-      </div>
-    </div>
-
-    <!-- Transfer Summary Sidebar -->
-    <div class="col-lg-4 mb-4">
-      <!-- Quick Stats Card -->
-      <div class="card shadow mb-4">
-        <div class="card-header py-3">
-          <h6 class="m-0 font-weight-bold text-info">
-            <i class="bi bi-speedometer2 me-2"></i>Transfer Summary
-          </h6>
-        </div>
-        <div class="card-body">
-          <div class="transfer-summary">
-            <div class="summary-item mb-3">
-              <div class="d-flex justify-content-between">
-                <span class="text-muted">From Location:</span>
-                <strong id="summaryFromLocation">Not selected</strong>
-              </div>
-            </div>
-            <div class="summary-item mb-3">
-              <div class="d-flex justify-content-between">
-                <span class="text-muted">To Location:</span>
-                <strong id="summaryToLocation">Not selected</strong>
-              </div>
-            </div>
-            <div class="summary-item mb-3">
-              <div class="d-flex justify-content-between">
-                <span class="text-muted">Products:</span>
-                <strong><span id="summaryProductCount">0</span> items</strong>
-              </div>
-            </div>
-            <div class="summary-item mb-3">
-              <div class="d-flex justify-content-between">
-                <span class="text-muted">Total Quantity:</span>
-                <strong><span id="summaryTotalQty">0</span> units</strong>
-              </div>
-            </div>
-            <div class="summary-item">
-              <div class="d-flex justify-content-between">
-                <span class="text-muted">Total Value:</span>
-                <strong class="text-success">$<span id="summaryTotalValue">0.00</span></strong>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      <!-- Recent Transfers Card -->
-      <div class="card shadow mb-4">
-        <div class="card-header py-3">
-          <h6 class="m-0 font-weight-bold text-secondary">
-            <i class="bi bi-clock-history me-2"></i>Recent Transfers
-          </h6>
-        </div>
-        <div class="card-body p-0">
-          {% for transfer in recent_transfers %}
-          <div class="d-flex align-items-center p-3 border-bottom">
-            <div class="me-3">
-              <div class="icon-circle bg-info">
-                <i class="bi bi-arrow-right text-white"></i>
-              </div>
-            </div>
-            <div class="flex-grow-1">
-              <div class="small fw-bold">{{ transfer.from_location.name }} → {{ transfer.to_location.name }}</div>
-              <div class="small text-muted">
-                {{ transfer.products_count }} items • {{ transfer.created_at|timesince }} ago
-              </div>
-            </div>
-            <div class="text-end">
-              <div class="small fw-bold">${{ transfer.total_value|floatformat:0 }}</div>
-            </div>
-          </div>
-          {% empty %}
-          <div class="p-3 text-center text-muted">
-            <i class="bi bi-inbox"></i> No recent transfers
-          </div>
-          {% endfor %}
-        </div>
-      </div>
-
-      <!-- Validation Card -->
-      <div class="card shadow mb-4">
-        <div class="card-header py-3">
-          <h6 class="m-0 font-weight-bold text-warning">
-            <i class="bi bi-shield-check me-2"></i>Transfer Validation
-          </h6>
-        </div>
-        <div class="card-body">
-          <div id="validationMessages">
-            <div class="validation-item mb-2">
-              <i class="bi bi-circle text-muted me-2"></i>
-              <span class="text-muted">Select locations to validate transfer</span>
-            </div>
-          </div>
-        </div>
-      </div>
-    </div>
-  </div>
-
-  <!-- Form Actions -->
-  <div class="card shadow">
-    <div class="card-body">
-      <div class="d-flex justify-content-between align-items-center">
-        <div class="form-check">
-          <input class="form-check-input" type="checkbox" id="createMovements" checked>
-          <label class="form-check-label" for="createMovements">
-            Create stock movement records
-          </label>
-        </div>
-        <div class="btn-group" role="group">
-          <a href="{% url 'inventory:stock_overview' %}" class="btn btn-outline-secondary">
-            <i class="bi bi-x-lg me-2"></i>Cancel
-          </a>
-          <button type="button" class="btn btn-outline-info" onclick="previewTransfer()">
-            <i class="bi bi-eye me-2"></i>Preview
+        
+        <div class="d-flex justify-content-between">
+          <button type="button" class="btn btn-outline-secondary" onclick="resetLocationTransfer()">
+            <i class="bi bi-arrow-counterclockwise me-2"></i>Reset
           </button>
-          <button type="submit" class="btn btn-primary" id="submitTransfer" disabled>
-            <i class="bi bi-check-lg me-2"></i>Execute Transfer
-          </button>
-        </div>
-      </div>
-    </div>
-  </div>
-</form>
-
-<!-- Add Product Modal -->
-<div class="modal fade" id="addProductModal" tabindex="-1" aria-hidden="true">
-  <div class="modal-dialog modal-lg">
-    <div class="modal-content">
-      <div class="modal-header">
-        <h5 class="modal-title">Add Product to Transfer</h5>
-        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
-      </div>
-      <div class="modal-body">
-        <div class="mb-3">
-          <label class="form-label">Search Product</label>
-          <input type="text" class="form-control" id="productSearch" 
-                 placeholder="Search by SKU, name, or barcode...">
-        </div>
-        <div id="productSearchResults">
-          <div class="text-center text-muted py-3">
-            Start typing to search for products...
+          <div>
+            <button type="button" class="btn btn-outline-warning" onclick="previewLocationTransfer()">
+              <i class="bi bi-eye me-2"></i>Preview Transfer
+            </button>
+            <button type="submit" class="btn btn-danger">
+              <i class="bi bi-arrow-left-right me-2"></i>Execute Location Transfer
+            </button>
           </div>
         </div>
-      </div>
+      </form>
     </div>
   </div>
 </div>
 
-<!-- Transfer Preview Modal -->
-<div class="modal fade" id="transferPreviewModal" tabindex="-1" aria-hidden="true">
-  <div class="modal-dialog modal-xl">
+<!-- Transfer Confirmation Modal -->
+<div class="modal fade" id="transferConfirmModal" tabindex="-1">
+  <div class="modal-dialog modal-lg">
     <div class="modal-content">
       <div class="modal-header">
-        <h5 class="modal-title">Transfer Preview</h5>
+        <h5 class="modal-title">Confirm Stock Transfer</h5>
         <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
       </div>
-      <div class="modal-body" id="transferPreviewContent">
-        <!-- Preview content will be loaded here -->
+      <div class="modal-body">
+        <div class="alert alert-info">
+          <i class="bi bi-info-circle me-2"></i>
+          <strong>Transfer Validation:</strong> Please review the transfer details below before confirming.
+        </div>
+        
+        <div id="transferConfirmSummary">
+          <!-- Transfer confirmation details will be populated here -->
+        </div>
+        
+        <div class="form-check mt-3">
+          <input class="form-check-input" type="checkbox" id="confirmTransferExecution" required>
+          <label class="form-check-label" for="confirmTransferExecution">
+            I confirm that the transfer details are correct and authorize the execution
+          </label>
+        </div>
       </div>
       <div class="modal-footer">
-        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
-        <button type="button" class="btn btn-primary" onclick="confirmTransfer()">
-          <i class="bi bi-check me-1"></i>Confirm Transfer
+        <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">
+          <i class="bi bi-x me-2"></i>Cancel
+        </button>
+        <button type="button" class="btn btn-success" onclick="executeConfirmedTransfer()" id="executeTransferBtn" disabled>
+          <i class="bi bi-check me-2"></i>Execute Transfer
         </button>
       </div>
     </div>
   </div>
 </div>
 
-<script>
-let productRows = [];
-let availableProducts = {};
+{% endblock %}
 
-// Location change handlers
-document.getElementById('fromLocation').addEventListener('change', function() {
-  const selectedText = this.selectedOptions[0]?.text || 'Not selected';
-  document.getElementById('summaryFromLocation').textContent = selectedText.split(' (')[0];
-  loadLocationProducts(this.value);
-  validateTransfer();
-});
-
-document.getElementById('toLocation').addEventListener('change', function() {
-  const selectedText = this.selectedOptions[0]?.text || 'Not selected';
-  document.getElementById('summaryToLocation').textContent = selectedText;
-  validateTransfer();
-});
-
-function loadLocationProducts(locationId) {
-  if (!locationId) return;
-  
-  // This would make an AJAX call to load products for the selected location
-  // For demo purposes, we'll use dummy data
-  availableProducts = {
-    1: { sku: 'BT-001', name: 'Sample Product 1', stock: 100, value: 25.00 },
-    2: { sku: 'BT-002', name: 'Sample Product 2', stock: 50, value: 50.00 }
-  };
+{% block extra_css %}
+<style>
+.transfer-method-card {
+  cursor: pointer;
+  transition: all 0.3s ease;
+  border: 2px solid transparent;
 }
 
-function addProductRow() {
-  const fromLocation = document.getElementById('fromLocation').value;
-  if (!fromLocation) {
-    alert('Please select a source location first.');
+.transfer-method-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+}
+
+.transfer-method-card.selected {
+  border-color: #0d6efd;
+  box-shadow: 0 0 12px rgba(13,110,253,0.2);
+}
+
+.product-item {
+  border: 1px solid #dee2e6;
+  border-radius: 0.375rem;
+  padding: 1rem;
+  margin-bottom: 0.5rem;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.product-item:hover {
+  background-color: #f8f9fa;
+}
+
+.product-item.selected {
+  border-color: #0d6efd;
+  background-color: rgba(13, 110, 253, 0.1);
+}
+
+.stock-level-indicator {
+  width: 100%;
+  height: 4px;
+  background: #dee2e6;
+  border-radius: 2px;
+  overflow: hidden;
+}
+
+.stock-level-bar {
+  height: 100%;
+  transition: width 0.3s ease;
+}
+
+.stock-level-healthy { background-color: #198754; }
+.stock-level-low { background-color: #ffc107; }
+.stock-level-critical { background-color: #dc3545; }
+</style>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+let currentTransferMethod = null;
+let selectedProducts = new Set();
+let stockData = {};
+
+function selectTransferMethod(method) {
+  // Update UI
+  document.querySelectorAll('.transfer-method-card').forEach(card => {
+    card.classList.remove('selected');
+  });
+  
+  event.currentTarget.classList.add('selected');
+  currentTransferMethod = method;
+  
+  // Hide all forms
+  document.getElementById('singleTransferForm').style.display = 'none';
+  document.getElementById('multipleTransferForm').style.display = 'none';
+  document.getElementById('locationTransferForm').style.display = 'none';
+  
+  // Show selected form
+  switch(method) {
+    case 'single':
+      document.getElementById('singleTransferForm').style.display = 'block';
+      break;
+    case 'multiple':
+      document.getElementById('multipleTransferForm').style.display = 'block';
+      break;
+    case 'location':
+      document.getElementById('locationTransferForm').style.display = 'block';
+      break;
+  }
+}
+
+function loadProductStock() {
+  const productSelect = document.getElementById('transferProduct');
+  const productId = productSelect.value;
+  
+  if (!productId) {
+    document.getElementById('stockLevelsCard').style.display = 'none';
     return;
   }
   
-  new bootstrap.Modal(document.getElementById('addProductModal')).show();
-}
-
-function scanBarcode() {
-  // This would integrate with barcode scanning functionality
-  alert('Barcode scanning feature would be integrated here.');
-}
-
-function addProduct(productId, productData) {
-  const tableBody = document.getElementById('productsTableBody');
-  const noProductsRow = document.getElementById('noProductsRow');
+  // Simulate loading stock levels for this product across locations
+  const stockLevels = {
+    1: { location: 'Main Warehouse', stock: 150 },
+    2: { location: 'Regional Store', stock: 45 },
+    3: { location: 'Outlet Store', stock: 12 }
+  };
   
-  // Remove "no products" row if it exists
-  if (noProductsRow) {
-    noProductsRow.remove();
-  }
+  let stockDisplay = '<div class="table-responsive"><table class="table table-sm">';
+  stockDisplay += '<thead><tr><th>Location</th><th>Stock</th></tr></thead><tbody>';
   
-  const row = document.createElement('tr');
-  row.dataset.productId = productId;
-  row.innerHTML = `
-    <td>
-      <div class="d-flex align-items-center">
-        <div class="me-3">
-          <div class="bg-primary text-white rounded d-flex align-items-center justify-content-center" style="width: 30px; height: 30px;">
-            <i class="bi bi-box"></i>
-          </div>
-        </div>
-        <div>
-          <div class="fw-bold">${productData.name}</div>
-          <small class="text-muted">SKU: ${productData.sku}</small>
-        </div>
-      </div>
-    </td>
-    <td>
-      <span class="fw-bold text-info">${productData.stock}</span>
-    </td>
-    <td>
-      <input type="number" class="form-control transfer-quantity" min="1" max="${productData.stock}" 
-             value="1" onchange="updateRowTotal(this)">
-    </td>
-    <td>
-      <span class="unit-value">$${productData.value.toFixed(2)}</span>
-    </td>
-    <td>
-      <span class="fw-bold text-success row-total">$${productData.value.toFixed(2)}</span>
-    </td>
-    <td>
-      <button type="button" class="btn btn-outline-danger btn-sm" onclick="removeProduct(this)">
-        <i class="bi bi-trash"></i>
-      </button>
-    </td>
-  `;
-  
-  tableBody.appendChild(row);
-  productRows.push({
-    id: productId,
-    data: productData,
-    element: row
+  Object.values(stockLevels).forEach(level => {
+    stockDisplay += `<tr><td>${level.location}</td><td class="text-end">${level.stock}</td></tr>`;
   });
   
-  updateSummary();
-  validateTransfer();
+  stockDisplay += '</tbody></table></div>';
   
-  // Hide the modal
-  bootstrap.Modal.getInstance(document.getElementById('addProductModal')).hide();
+  document.getElementById('stockLevelsDisplay').innerHTML = stockDisplay;
+  document.getElementById('stockLevelsCard').style.display = 'block';
+  
+  updateTransferSummary();
 }
 
-function removeProduct(button) {
-  const row = button.closest('tr');
-  const productId = row.dataset.productId;
+function updateAvailableStock() {
+  const fromLocationSelect = document.getElementById('fromLocation');
+  const productSelect = document.getElementById('transferProduct');
   
-  row.remove();
-  productRows = productRows.filter(p => p.id != productId);
+  if (!fromLocationSelect.value || !productSelect.value) {
+    document.getElementById('availableStock').textContent = '0';
+    return;
+  }
   
-  // Add "no products" row if table is empty
-  if (productRows.length === 0) {
-    const tableBody = document.getElementById('productsTableBody');
-    tableBody.innerHTML = `
-      <tr id="noProductsRow">
-        <td colspan="6" class="text-center py-4 text-muted">
-          <i class="bi bi-box me-2"></i>
-          No products added yet. Click "Add Product" to start.
+  // Simulate getting available stock for selected product at selected location
+  // In real implementation, this would be an AJAX call
+  const availableStock = Math.floor(Math.random() * 100) + 10; // Random for demo
+  document.getElementById('availableStock').textContent = availableStock;
+  
+  updateTransferSummary();
+}
+
+function validateQuantity() {
+  const quantity = parseInt(document.getElementById('transferQuantity').value || 0);
+  const available = parseInt(document.getElementById('availableStock').textContent || 0);
+  const validation = document.getElementById('quantityValidation');
+  const submitBtn = document.getElementById('submitTransfer');
+  
+  if (quantity <= 0) {
+    validation.innerHTML = '<span class="text-danger">Quantity must be greater than 0</span>';
+    submitBtn.disabled = true;
+  } else if (quantity > available) {
+    validation.innerHTML = '<span class="text-danger">Insufficient stock (Available: ' + available + ')</span>';
+    submitBtn.disabled = true;
+  } else {
+    validation.innerHTML = '<span class="text-success">Valid quantity</span>';
+    submitBtn.disabled = false;
+  }
+  
+  updateTransferSummary();
+}
+
+function updateTransferSummary() {
+  const productSelect = document.getElementById('transferProduct');
+  const fromLocationSelect = document.getElementById('fromLocation');
+  const toLocationSelect = document.getElementById('toLocation');
+  const quantityInput = document.getElementById('transferQuantity');
+  
+  const summary = document.getElementById('transferSummary');
+  
+  if (!productSelect.value || !fromLocationSelect.value || !toLocationSelect.value) {
+    summary.innerHTML = `
+      <div class="text-center text-muted py-3">
+        <i class="bi bi-info-circle" style="font-size: 2rem;"></i>
+        <p class="mt-2">Select product and locations to see transfer summary</p>
+      </div>
+    `;
+    return;
+  }
+  
+  const quantity = quantityInput.value || 0;
+  const unitCost = parseFloat(productSelect.selectedOptions[0]?.dataset.costPrice || 0);
+  const totalCost = quantity * unitCost;
+  
+  summary.innerHTML = `
+    <div class="mb-3">
+      <strong>Product:</strong><br>
+      <small class="text-muted">${productSelect.selectedOptions[0]?.text}</small>
+    </div>
+    
+    <div class="row text-center mb-3">
+      <div class="col-4">
+        <div class="fw-bold text-primary">${fromLocationSelect.selectedOptions[0]?.text || '—'}</div>
+        <small class="text-muted">From</small>
+      </div>
+      <div class="col-4">
+        <i class="bi bi-arrow-right text-success" style="font-size: 1.5rem;"></i><br>
+        <small class="text-success">${quantity} units</small>
+      </div>
+      <div class="col-4">
+        <div class="fw-bold text-success">${toLocationSelect.selectedOptions[0]?.text || '—'}</div>
+        <small class="text-muted">To</small>
+      </div>
+    </div>
+    
+    <hr>
+    
+    <div class="d-flex justify-content-between">
+      <span>Unit Cost:</span>
+      <span>$${unitCost.toFixed(2)}</span>
+    </div>
+    <div class="d-flex justify-content-between">
+      <span>Quantity:</span>
+      <span>${quantity} units</span>
+    </div>
+    <div class="d-flex justify-content-between fw-bold">
+      <span>Total Value:</span>
+      <span class="text-primary">$${totalCost.toFixed(2)}</span>
+    </div>
+  `;
+}
+
+function loadLocationProducts() {
+  const locationSelect = document.getElementById('multipleFromLocation');
+  const locationId = locationSelect.value;
+  const productsList = document.getElementById('locationProductsList');
+  
+  if (!locationId) {
+    productsList.innerHTML = `
+      <div class="text-center py-4 text-muted">
+        <i class="bi bi-building" style="font-size: 3rem;"></i>
+        <p class="mt-2">Select a source location to see available products</p>
+      </div>
+    `;
+    return;
+  }
+  
+  // Show loading state
+  productsList.innerHTML = `
+    <div class="text-center py-4">
+      <div class="spinner-border text-primary" role="status">
+        <span class="visually-hidden">Loading...</span>
+      </div>
+      <p class="mt-2 text-muted">Loading products at this location...</p>
+    </div>
+  `;
+  
+  // Simulate loading products (in real implementation, this would be an AJAX call)
+  setTimeout(() => {
+    const sampleProducts = [
+      { id: 1, name: 'Electronic Component A', sku: 'EC-A-001', stock: 150, cost: 12.50 },
+      { id: 2, name: 'Electronic Component B', sku: 'EC-B-002', stock: 85, cost: 8.75 },
+      { id: 3, name: 'Electronic Component C', sku: 'EC-C-003', stock: 32, cost: 15.20 },
+      { id: 4, name: 'Electronic Component D', sku: 'EC-D-004', stock: 0, cost: 22.00 },
+      { id: 5, name: 'Electronic Component E', sku: 'EC-E-005', stock: 200, cost: 5.50 }
+    ];
+    
+    let productsHTML = '<div class="p-3">';
+    
+    sampleProducts.forEach(product => {
+      const stockStatus = product.stock <= 0 ? 'critical' : product.stock <= 20 ? 'low' : 'healthy';
+      const stockClass = product.stock <= 0 ? 'text-danger' : product.stock <= 20 ? 'text-warning' : 'text-success';
+      
+      productsHTML += `
+        <div class="product-item ${product.stock <= 0 ? 'opacity-50' : ''}" 
+             onclick="toggleProductSelection(${product.id}, '${product.name}', ${product.stock}, ${product.cost})"
+             ${product.stock <= 0 ? 'style="pointer-events: none;"' : ''}>
+          <div class="d-flex justify-content-between align-items-center">
+            <div class="flex-grow-1">
+              <div class="d-flex align-items-center">
+                <div class="form-check me-3">
+                  <input class="form-check-input" type="checkbox" 
+                         id="product_${product.id}" value="${product.id}" 
+                         ${product.stock <= 0 ? 'disabled' : ''}>
+                </div>
+                <div>
+                  <h6 class="mb-1">${product.name}</h6>
+                  <div class="small text-muted">SKU: ${product.sku} | Unit Cost: $${product.cost.toFixed(2)}</div>
+                </div>
+              </div>
+            </div>
+            <div class="text-end">
+              <div class="fw-bold ${stockClass}">${product.stock} units</div>
+              <div class="stock-level-indicator">
+                <div class="stock-level-bar stock-level-${stockStatus}" style="width: ${Math.min(100, (product.stock / 200) * 100)}%"></div>
+              </div>
+            </div>
+          </div>
+        </div>
+      `;
+    });
+    
+    productsHTML += '</div>';
+    productsList.innerHTML = productsHTML;
+  }, 1000);
+}
+
+function toggleProductSelection(productId, productName, stock, cost) {
+  const checkbox = document.getElementById(`product_${productId}`);
+  const isSelected = !checkbox.checked;
+  checkbox.checked = isSelected;
+  
+  if (isSelected) {
+    selectedProducts.add({
+      id: productId,
+      name: productName,
+      stock: stock,
+      cost: cost,
+      transferQty: 1
+    });
+  } else {
+    selectedProducts.forEach(product => {
+      if (product.id === productId) {
+        selectedProducts.delete(product);
+      }
+    });
+  }
+  
+  updateSelectedProductsDisplay();
+}
+
+function updateSelectedProductsDisplay() {
+  const summaryDiv = document.getElementById('selectedProductsSummary');
+  const countBadge = document.getElementById('selectedCount');
+  const tableBody = document.getElementById('selectedProductsTable');
+  
+  countBadge.textContent = selectedProducts.size;
+  
+  if (selectedProducts.size === 0) {
+    summaryDiv.style.display = 'none';
+    return;
+  }
+  
+  summaryDiv.style.display = 'block';
+  
+  let tableHTML = '';
+  selectedProducts.forEach(product => {
+    tableHTML += `
+      <tr>
+        <td>${product.name}</td>
+        <td>${product.stock} units</td>
+        <td>
+          <input type="number" class="form-control form-control-sm" 
+                 value="${product.transferQty}" min="1" max="${product.stock}"
+                 onchange="updateTransferQuantity(${product.id}, this.value)">
+        </td>
+        <td>
+          <button class="btn btn-sm btn-outline-danger" onclick="removeProductSelection(${product.id})">
+            <i class="bi bi-trash"></i>
+          </button>
         </td>
       </tr>
     `;
-  }
-  
-  updateSummary();
-  validateTransfer();
-}
-
-function updateRowTotal(input) {
-  const row = input.closest('tr');
-  const quantity = parseInt(input.value) || 0;
-  const unitValue = parseFloat(row.querySelector('.unit-value').textContent.replace('$', ''));
-  const rowTotal = quantity * unitValue;
-  
-  row.querySelector('.row-total').textContent = `$${rowTotal.toFixed(2)}`;
-  
-  updateSummary();
-  validateTransfer();
-}
-
-function updateSummary() {
-  let totalItems = 0;
-  let totalQuantity = 0;
-  let totalValue = 0;
-  
-  productRows.forEach(product => {
-    const row = product.element;
-    const quantity = parseInt(row.querySelector('.transfer-quantity').value) || 0;
-    const rowTotal = parseFloat(row.querySelector('.row-total').textContent.replace('$', ''));
-    
-    totalItems++;
-    totalQuantity += quantity;
-    totalValue += rowTotal;
   });
   
-  document.getElementById('totalItems').textContent = totalItems;
-  document.getElementById('totalValue').textContent = totalValue.toFixed(2);
-  document.getElementById('summaryProductCount').textContent = totalItems;
-  document.getElementById('summaryTotalQty').textContent = totalQuantity;
-  document.getElementById('summaryTotalValue').textContent = totalValue.toFixed(2);
+  tableBody.innerHTML = tableHTML;
 }
 
-function validateTransfer() {
-  const fromLocation = document.getElementById('fromLocation').value;
-  const toLocation = document.getElementById('toLocation').value;
-  const hasProducts = productRows.length > 0;
+function updateTransferQuantity(productId, newQuantity) {
+  selectedProducts.forEach(product => {
+    if (product.id === productId) {
+      product.transferQty = parseInt(newQuantity);
+    }
+  });
+}
+
+function removeProductSelection(productId) {
+  // Uncheck the product
+  const checkbox = document.getElementById(`product_${productId}`);
+  if (checkbox) checkbox.checked = false;
   
-  const validationMessages = document.getElementById('validationMessages');
-  const submitButton = document.getElementById('submitTransfer');
-  
-  let isValid = true;
-  let messages = [];
-  
-  if (!fromLocation) {
-    isValid = false;
-    messages.push({ type: 'error', text: 'Select source location' });
-  }
-  
-  if (!toLocation) {
-    isValid = false;
-    messages.push({ type: 'error', text: 'Select destination location' });
-  }
-  
-  if (fromLocation === toLocation && fromLocation) {
-    isValid = false;
-    messages.push({ type: 'error', text: 'Source and destination must be different' });
-  }
-  
-  if (!hasProducts) {
-    isValid = false;
-    messages.push({ type: 'error', text: 'Add at least one product' });
-  }
-  
-  // Check for quantity validation
-  productRows.forEach(product => {
-    const row = product.element;
-    const quantity = parseInt(row.querySelector('.transfer-quantity').value) || 0;
-    const available = product.data.stock;
-    
-    if (quantity > available) {
-      isValid = false;
-      messages.push({ type: 'error', text: `${product.data.sku}: Quantity exceeds available stock` });
+  // Remove from selected products
+  selectedProducts.forEach(product => {
+    if (product.id === productId) {
+      selectedProducts.delete(product);
     }
   });
   
-  if (isValid) {
-    messages.push({ type: 'success', text: 'Transfer ready to execute' });
-  }
-  
-  // Update validation display
-  validationMessages.innerHTML = messages.map(msg => `
-    <div class="validation-item mb-2">
-      <i class="bi bi-${msg.type === 'success' ? 'check-circle text-success' : 'exclamation-circle text-danger'} me-2"></i>
-      <span class="${msg.type === 'success' ? 'text-success' : 'text-danger'}">${msg.text}</span>
-    </div>
-  `).join('');
-  
-  submitButton.disabled = !isValid;
+  updateSelectedProductsDisplay();
 }
 
-function previewTransfer() {
-  // Generate preview content
-  const previewContent = document.getElementById('transferPreviewContent');
-  previewContent.innerHTML = `
-    <h6>Transfer Summary</h6>
-    <p>This will move ${productRows.length} products from ${document.getElementById('summaryFromLocation').textContent} to ${document.getElementById('summaryToLocation').textContent}</p>
-    <div class="table-responsive">
-      <table class="table table-sm">
-        <thead>
-          <tr>
-            <th>Product</th>
-            <th>Quantity</th>
-            <th>Value</th>
-          </tr>
-        </thead>
-        <tbody>
-          ${productRows.map(product => {
-            const quantity = product.element.querySelector('.transfer-quantity').value;
-            const total = product.element.querySelector('.row-total').textContent;
-            return `
-              <tr>
-                <td>${product.data.sku} - ${product.data.name}</td>
-                <td>${quantity}</td>
-                <td>${total}</td>
-              </tr>
-            `;
-          }).join('')}
-        </tbody>
-      </table>
-    </div>
-  `;
-  
-  new bootstrap.Modal(document.getElementById('transferPreviewModal')).show();
+function selectAllProducts() {
+  document.querySelectorAll('#locationProductsList input[type="checkbox"]:not(:disabled)').forEach(checkbox => {
+    if (!checkbox.checked) {
+      checkbox.click();
+    }
+  });
 }
 
-function confirmTransfer() {
-  bootstrap.Modal.getInstance(document.getElementById('transferPreviewModal')).hide();
-  document.getElementById('stockTransferForm').submit();
+function clearAllSelections() {
+  document.querySelectorAll('#locationProductsList input[type="checkbox"]').forEach(checkbox => {
+    if (checkbox.checked) {
+      checkbox.click();
+    }
+  });
 }
 
-// Product search functionality
-let searchTimeout;
-document.getElementById('productSearch')?.addEventListener('input', function() {
-  clearTimeout(searchTimeout);
-  searchTimeout = setTimeout(() => {
-    searchProducts(this.value);
-  }, 300);
-});
+function validateTransfer() {
+  // Show validation results
+  alert('Transfer validation would check stock availability, location access, and business rules');
+}
 
-function searchProducts(query) {
-  const resultsContainer = document.getElementById('productSearchResults');
-  
-  if (query.length < 2) {
-    resultsContainer.innerHTML = '<div class="text-center text-muted py-3">Start typing to search for products...</div>';
+function validateMultipleTransfer() {
+  if (selectedProducts.size === 0) {
+    alert('Please select at least one product to transfer');
     return;
   }
   
-  // This would make an AJAX call to search products
-  // For demo purposes, showing dummy results
-  resultsContainer.innerHTML = `
-    <div class="list-group">
-      <div class="list-group-item list-group-item-action" onclick="addProduct(1, {sku: 'BT-001', name: 'Sample Product 1', stock: 100, value: 25.00})">
-        <div class="d-flex w-100 justify-content-between">
-          <h6 class="mb-1">BT-001 - Sample Product 1</h6>
-          <small>Stock: 100</small>
-        </div>
-        <p class="mb-1">Electronics component</p>
-        <small>$25.00 per unit</small>
-      </div>
-      <div class="list-group-item list-group-item-action" onclick="addProduct(2, {sku: 'BT-002', name: 'Sample Product 2', stock: 50, value: 50.00})">
-        <div class="d-flex w-100 justify-content-between">
-          <h6 class="mb-1">BT-002 - Sample Product 2</h6>
-          <small>Stock: 50</small>
-        </div>
-        <p class="mb-1">Electronic device</p>
-        <small>$50.00 per unit</small>
-      </div>
+  alert(`Validation passed for ${selectedProducts.size} products`);
+}
+
+function resetTransferForm() {
+  document.getElementById('stockTransferForm').reset();
+  document.getElementById('transferSummary').innerHTML = `
+    <div class="text-center text-muted py-3">
+      <i class="bi bi-info-circle" style="font-size: 2rem;"></i>
+      <p class="mt-2">Select product and locations to see transfer summary</p>
     </div>
   `;
+  document.getElementById('stockLevelsCard').style.display = 'none';
+  document.getElementById('submitTransfer').disabled = true;
 }
 
-// Form validation
-(function() {
-    'use strict';
-    window.addEventListener('load', function() {
-        var forms = document.getElementsByClassName('needs-validation');
-        var validation = Array.prototype.filter.call(forms, function(form) {
-            form.addEventListener('submit', function(event) {
-                if (form.checkValidity() === false) {
-                    event.preventDefault();
-                    event.stopPropagation();
-                }
-                form.classList.add('was-validated');
-            }, false);
-        });
-    }, false);
-})();
+function clearMultipleTransfer() {
+  clearAllSelections();
+  document.getElementById('multipleFromLocation').value = '';
+  document.getElementById('multipleToLocation').value = '';
+}
+
+function loadEntireLocationStock() {
+  const locationId = document.getElementById('locationFromLocation').value;
+  const summaryDiv = document.getElementById('locationStockSummary');
+  const detailsDiv = document.getElementById('locationStockDetails');
+  
+  if (!locationId) {
+    summaryDiv.style.display = 'none';
+    return;
+  }
+  
+  // Show loading and then populate with sample data
+  detailsDiv.innerHTML = `
+    <div class="text-center py-2">
+      <div class="spinner-border spinner-border-sm text-primary" role="status"></div>
+      <span class="ms-2 text-muted">Loading location stock...</span>
+    </div>
+  `;
+  summaryDiv.style.display = 'block';
+  
+  setTimeout(() => {
+    detailsDiv.innerHTML = `
+      <div class="row text-center">
+        <div class="col-md-3">
+          <div class="h4 text-primary">45</div>
+          <div class="small text-muted">Products</div>
+        </div>
+        <div class="col-md-3">
+          <div class="h4 text-success">1,234</div>
+          <div class="small text-muted">Total Units</div>
+        </div>
+        <div class="col-md-3">
+          <div class="h4 text-info">$15,678</div>
+          <div class="small text-muted">Total Value</div>
+        </div>
+        <div class="col-md-3">
+          <div class="h4 text-warning">3</div>
+          <div class="small text-muted">Low Stock</div>
+        </div>
+      </div>
+    `;
+  }, 1000);
+}
+
+function previewLocationTransfer() {
+  const fromLocation = document.getElementById('locationFromLocation').selectedOptions[0]?.text;
+  const toLocation = document.getElementById('locationToLocation').selectedOptions[0]?.text;
+  
+  if (!fromLocation || !toLocation) {
+    alert('Please select both source and destination locations');
+    return;
+  }
+  
+  alert(`Preview: This will transfer all stock from ${fromLocation} to ${toLocation}`);
+}
+
+function resetLocationTransfer() {
+  document.getElementById('locationTransferFormElement').reset();
+  document.getElementById('locationStockSummary').style.display = 'none';
+}
+
+// Enable/disable confirm button based on checkbox
+document.getElementById('confirmTransferExecution')?.addEventListener('change', function() {
+  document.getElementById('executeTransferBtn').disabled = !this.checked;
+});
+
+function executeConfirmedTransfer() {
+  // Submit the appropriate form
+  switch(currentTransferMethod) {
+    case 'single':
+      document.getElementById('stockTransferForm').submit();
+      break;
+    case 'multiple':
+      document.getElementById('multipleTransferFormElement').submit();
+      break;
+    case 'location':
+      document.getElementById('locationTransferFormElement').submit();
+      break;
+  }
+}
+
+// Initialize
+document.addEventListener('DOMContentLoaded', function() {
+  // Auto-select single transfer method
+  selectTransferMethod('single');
+  
+  // Prevent same location selection
+  function updateLocationOptions(sourceSelect, targetSelect) {
+    sourceSelect.addEventListener('change', function() {
+      const selectedValue = this.value;
+      Array.from(targetSelect.options).forEach(option => {
+        option.disabled = option.value === selectedValue;
+      });
+    });
+  }
+  
+  // Apply to all location select pairs
+  updateLocationOptions(
+    document.getElementById('fromLocation'),
+    document.getElementById('toLocation')
+  );
+  updateLocationOptions(
+    document.getElementById('multipleFromLocation'),
+    document.getElementById('multipleToLocation')
+  );
+  updateLocationOptions(
+    document.getElementById('locationFromLocation'),
+    document.getElementById('locationToLocation')
+  );
+});
 </script>
-
-<style>
-.icon-circle {
-  width: 2rem;
-  height: 2rem;
-  border-radius: 50%;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-
-.transfer-summary .summary-item {
-  padding: 0.5rem 0;
-  border-bottom: 1px solid #e9ecef;
-}
-
-.transfer-summary .summary-item:last-child {
-  border-bottom: none;
-}
-
-.validation-item {
-  display: flex;
-  align-items-center;
-}
-
-.transfer-quantity {
-  max-width: 100px;
-}
-
-#productsTable .btn-sm {
-  padding: 0.25rem 0.4rem;
-}
-
-.list-group-item-action:hover {
-  cursor: pointer;
-}
-</style>
 {% endblock %}
