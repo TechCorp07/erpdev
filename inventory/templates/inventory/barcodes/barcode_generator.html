@@ -1,0 +1,737 @@
+{% extends "dashboard_base.html" %}
+{% load static %}
+
+{% block page_title %}Barcode Generator{% endblock %}
+
+{% block extra_head %}
+<script src="https://cdn.jsdelivr.net/npm/jsbarcode@3.11.0/dist/JsBarcode.all.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/qrcode@1.5.1/build/qrcode.min.js"></script>
+<style>
+  .barcode-preview {
+    border: 2px dashed #dee2e6;
+    background: #f8f9fa;
+    min-height: 120px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.3s ease;
+  }
+  .barcode-preview:hover {
+    border-color: #4e73df;
+    background: #f0f2ff;
+  }
+  .barcode-item {
+    border: 1px solid #dee2e6;
+    border-radius: 8px;
+    background: white;
+    transition: all 0.3s ease;
+  }
+  .barcode-item:hover {
+    box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+    transform: translateY(-2px);
+  }
+  .print-area {
+    background: white;
+    border: 1px solid #ccc;
+  }
+  @media print {
+    body * {
+      visibility: hidden;
+    }
+    .print-area, .print-area * {
+      visibility: visible;
+    }
+    .print-area {
+      position: absolute;
+      left: 0;
+      top: 0;
+      width: 100%;
+    }
+  }
+</style>
+{% endblock %}
+
+{% block dashboard_content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+  <div>
+    <nav aria-label="breadcrumb">
+      <ol class="breadcrumb mb-1">
+        <li class="breadcrumb-item"><a href="{% url 'inventory:dashboard' %}">Inventory</a></li>
+        <li class="breadcrumb-item active">Barcode Generator</li>
+      </ol>
+    </nav>
+    <h1 class="h3 mb-0 text-gray-800">
+      <i class="bi bi-upc-scan text-primary me-2"></i>Barcode Generator
+    </h1>
+    <p class="text-muted mb-0">Generate barcodes and QR codes for products and inventory items</p>
+  </div>
+  
+  <div class="btn-group" role="group">
+    <button class="btn btn-outline-primary" onclick="bulkGenerate()">
+      <i class="bi bi-stack me-2"></i>Bulk Generate
+    </button>
+    <button class="btn btn-outline-success" onclick="printBarcodes()">
+      <i class="bi bi-printer me-2"></i>Print All
+    </button>
+    <button class="btn btn-outline-info dropdown-toggle" type="button" data-bs-toggle="dropdown">
+      <i class="bi bi-gear me-2"></i>Options
+    </button>
+    <ul class="dropdown-menu">
+      <li><a class="dropdown-item" href="#" onclick="saveTemplate()">
+        <i class="bi bi-save me-2"></i>Save Template
+      </a></li>
+      <li><a class="dropdown-item" href="#" onclick="loadTemplate()">
+        <i class="bi bi-folder-open me-2"></i>Load Template
+      </a></li>
+      <li><hr class="dropdown-divider"></li>
+      <li><a class="dropdown-item" href="#" onclick="exportBarcodes()">
+        <i class="bi bi-download me-2"></i>Export as PNG
+      </a></li>
+    </ul>
+  </div>
+</div>
+
+<div class="row">
+  <!-- Configuration Panel -->
+  <div class="col-lg-4">
+    <div class="card shadow">
+      <div class="card-header py-3">
+        <h6 class="m-0 font-weight-bold text-primary">
+          <i class="bi bi-gear me-2"></i>Barcode Configuration
+        </h6>
+      </div>
+      <div class="card-body">
+        <form id="barcodeForm">
+          <!-- Barcode Type -->
+          <div class="mb-3">
+            <label for="barcodeType" class="form-label">Barcode Type</label>
+            <select class="form-select" id="barcodeType" onchange="updateBarcodePreview()">
+              <option value="CODE128">Code 128 (Recommended)</option>
+              <option value="CODE39">Code 39</option>
+              <option value="EAN13">EAN-13</option>
+              <option value="EAN8">EAN-8</option>
+              <option value="UPC">UPC-A</option>
+              <option value="ITF14">ITF-14</option>
+              <option value="qr">QR Code</option>
+            </select>
+          </div>
+
+          <!-- Data Source -->
+          <div class="mb-3">
+            <label for="dataSource" class="form-label">Data Source</label>
+            <select class="form-select" id="dataSource" onchange="toggleDataSource()">
+              <option value="manual">Manual Entry</option>
+              <option value="product">Select Product</option>
+              <option value="sequential">Sequential Numbers</option>
+            </select>
+          </div>
+
+          <!-- Manual Entry -->
+          <div id="manualEntry" class="mb-3">
+            <label for="barcodeData" class="form-label">Barcode Data</label>
+            <input type="text" class="form-control" id="barcodeData" 
+                   placeholder="Enter data to encode" onchange="updateBarcodePreview()">
+            <div class="form-text">
+              Enter the data you want to encode in the barcode
+            </div>
+          </div>
+
+          <!-- Product Selection -->
+          <div id="productSelection" class="mb-3" style="display: none;">
+            <label for="productSelect" class="form-label">Select Product</label>
+            <select class="form-select" id="productSelect" onchange="loadProductBarcode()">
+              <option value="">-- Select Product --</option>
+              {% for product in products %}
+              <option value="{{ product.pk }}" 
+                      data-sku="{{ product.sku }}" 
+                      data-name="{{ product.name }}"
+                      data-barcode="{{ product.barcode|default:'' }}">
+                {{ product.name }} ({{ product.sku }})
+              </option>
+              {% endfor %}
+            </select>
+          </div>
+
+          <!-- Sequential Generation -->
+          <div id="sequentialEntry" class="mb-3" style="display: none;">
+            <div class="row">
+              <div class="col-6">
+                <label for="sequentialStart" class="form-label">Start Number</label>
+                <input type="number" class="form-control" id="sequentialStart" value="1">
+              </div>
+              <div class="col-6">
+                <label for="sequentialCount" class="form-label">Count</label>
+                <input type="number" class="form-control" id="sequentialCount" value="1" max="100">
+              </div>
+            </div>
+            <div class="mt-2">
+              <label for="sequentialPrefix" class="form-label">Prefix (Optional)</label>
+              <input type="text" class="form-control" id="sequentialPrefix" placeholder="BT-">
+            </div>
+          </div>
+
+          <!-- Display Options -->
+          <div class="card mb-3">
+            <div class="card-header py-2 bg-light">
+              <h6 class="mb-0 text-secondary">Display Options</h6>
+            </div>
+            <div class="card-body">
+              <div class="mb-3">
+                <label for="displayText" class="form-label">Display Text</label>
+                <select class="form-select" id="displayText" onchange="updateBarcodePreview()">
+                  <option value="true">Show Text</option>
+                  <option value="false">Hide Text</option>
+                </select>
+              </div>
+
+              <div class="row">
+                <div class="col-6">
+                  <label for="barcodeWidth" class="form-label">Width</label>
+                  <input type="range" class="form-range" id="barcodeWidth" 
+                         min="1" max="5" step="0.5" value="2" onchange="updateBarcodePreview()">
+                  <div class="small text-muted">Current: <span id="widthValue">2</span></div>
+                </div>
+                <div class="col-6">
+                  <label for="barcodeHeight" class="form-label">Height</label>
+                  <input type="range" class="form-range" id="barcodeHeight" 
+                         min="50" max="200" step="10" value="100" onchange="updateBarcodePreview()">
+                  <div class="small text-muted">Current: <span id="heightValue">100</span>px</div>
+                </div>
+              </div>
+
+              <div class="mt-3">
+                <label for="fontSize" class="form-label">Font Size</label>
+                <input type="range" class="form-range" id="fontSize" 
+                       min="8" max="24" step="2" value="12" onchange="updateBarcodePreview()">
+                <div class="small text-muted">Current: <span id="fontSizeValue">12</span>px</div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Label Options -->
+          <div class="card">
+            <div class="card-header py-2 bg-light">
+              <h6 class="mb-0 text-info">Label Options</h6>
+            </div>
+            <div class="card-body">
+              <div class="form-check mb-2">
+                <input class="form-check-input" type="checkbox" id="showProductName">
+                <label class="form-check-label" for="showProductName">
+                  Show Product Name
+                </label>
+              </div>
+              <div class="form-check mb-2">
+                <input class="form-check-input" type="checkbox" id="showPrice">
+                <label class="form-check-label" for="showPrice">
+                  Show Price
+                </label>
+              </div>
+              <div class="form-check mb-2">
+                <input class="form-check-input" type="checkbox" id="showDate">
+                <label class="form-check-label" for="showDate">
+                  Show Date Generated
+                </label>
+              </div>
+              
+              <div class="mt-3">
+                <label for="customLabel" class="form-label">Custom Label Text</label>
+                <input type="text" class="form-control" id="customLabel" 
+                       placeholder="Custom text for label">
+              </div>
+            </div>
+          </div>
+
+          <!-- Generate Button -->
+          <button type="button" class="btn btn-primary w-100 mt-3" onclick="generateBarcode()">
+            <i class="bi bi-plus-circle me-2"></i>Generate Barcode
+          </button>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <!-- Preview and Generated Barcodes -->
+  <div class="col-lg-8">
+    <!-- Live Preview -->
+    <div class="card shadow mb-4">
+      <div class="card-header py-3">
+        <h6 class="m-0 font-weight-bold text-success">
+          <i class="bi bi-eye me-2"></i>Live Preview
+        </h6>
+      </div>
+      <div class="card-body">
+        <div class="barcode-preview rounded p-4" id="livePreview">
+          <div class="text-center">
+            <div id="previewBarcode"></div>
+            <div class="mt-2">
+              <small class="text-muted">Enter data to see preview</small>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Generated Barcodes -->
+    <div class="card shadow">
+      <div class="card-header py-3 d-flex justify-content-between align-items-center">
+        <h6 class="m-0 font-weight-bold text-primary">
+          <i class="bi bi-collection me-2"></i>Generated Barcodes (<span id="barcodeCount">0</span>)
+        </h6>
+        <div class="btn-group btn-group-sm" role="group">
+          <button type="button" class="btn btn-outline-danger" onclick="clearAllBarcodes()">
+            <i class="bi bi-trash me-1"></i>Clear All
+          </button>
+          <button type="button" class="btn btn-outline-success" onclick="selectAllBarcodes()">
+            <i class="bi bi-check-all me-1"></i>Select All
+          </button>
+        </div>
+      </div>
+      <div class="card-body">
+        <div id="generatedBarcodes" class="row">
+          <!-- Generated barcodes will appear here -->
+          <div class="col-12 text-center py-5" id="emptyState">
+            <i class="bi bi-upc-scan text-muted" style="font-size: 3rem;"></i>
+            <p class="text-muted mt-3">No barcodes generated yet</p>
+            <p class="text-muted small">Use the configuration panel to generate your first barcode</p>
+          </div>
+        </div>
+
+        <!-- Print Area (Hidden) -->
+        <div id="printArea" class="print-area" style="display: none;">
+          <!-- Barcodes will be cloned here for printing -->
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Bulk Generation Modal -->
+<div class="modal fade" id="bulkGenerateModal" tabindex="-1">
+  <div class="modal-dialog modal-lg">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title">
+          <i class="bi bi-stack me-2"></i>Bulk Barcode Generation
+        </h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <div class="row">
+          <div class="col-md-6">
+            <label for="bulkSource" class="form-label">Data Source</label>
+            <select class="form-select" id="bulkSource">
+              <option value="products">All Active Products</option>
+              <option value="category">Products by Category</option>
+              <option value="supplier">Products by Supplier</option>
+              <option value="csv">Upload CSV File</option>
+            </select>
+          </div>
+          <div class="col-md-6">
+            <label for="bulkLimit" class="form-label">Limit (Optional)</label>
+            <input type="number" class="form-control" id="bulkLimit" 
+                   placeholder="Leave blank for all" min="1">
+          </div>
+        </div>
+
+        <div class="mt-3" id="categoryFilter" style="display: none;">
+          <label for="categorySelect" class="form-label">Select Category</label>
+          <select class="form-select" id="categorySelect">
+            <option value="">-- Select Category --</option>
+            {% for category in categories %}
+            <option value="{{ category.pk }}">{{ category.name }}</option>
+            {% endfor %}
+          </select>
+        </div>
+
+        <div class="mt-3" id="supplierFilter" style="display: none;">
+          <label for="supplierSelect" class="form-label">Select Supplier</label>
+          <select class="form-select" id="supplierSelect">
+            <option value="">-- Select Supplier --</option>
+            {% for supplier in suppliers %}
+            <option value="{{ supplier.pk }}">{{ supplier.name }}</option>
+            {% endfor %}
+          </select>
+        </div>
+
+        <div class="mt-3" id="csvUpload" style="display: none;">
+          <label for="csvFile" class="form-label">Upload CSV File</label>
+          <input type="file" class="form-control" id="csvFile" accept=".csv">
+          <div class="form-text">
+            CSV should have columns: data, name (optional), price (optional)
+          </div>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+        <button type="button" class="btn btn-primary" onclick="processBulkGeneration()">Generate</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+let barcodeCounter = 0;
+let generatedBarcodes = [];
+
+document.addEventListener('DOMContentLoaded', function() {
+  // Initialize range sliders
+  updateRangeValue('barcodeWidth', 'widthValue');
+  updateRangeValue('barcodeHeight', 'heightValue');
+  updateRangeValue('fontSize', 'fontSizeValue');
+  
+  // Bulk source change handler
+  document.getElementById('bulkSource').addEventListener('change', function() {
+    const value = this.value;
+    document.getElementById('categoryFilter').style.display = value === 'category' ? 'block' : 'none';
+    document.getElementById('supplierFilter').style.display = value === 'supplier' ? 'block' : 'none';
+    document.getElementById('csvUpload').style.display = value === 'csv' ? 'block' : 'none';
+  });
+});
+
+function updateRangeValue(rangeId, displayId) {
+  const range = document.getElementById(rangeId);
+  const display = document.getElementById(displayId);
+  
+  range.addEventListener('input', function() {
+    display.textContent = this.value;
+  });
+}
+
+function toggleDataSource() {
+  const source = document.getElementById('dataSource').value;
+  
+  document.getElementById('manualEntry').style.display = source === 'manual' ? 'block' : 'none';
+  document.getElementById('productSelection').style.display = source === 'product' ? 'block' : 'none';
+  document.getElementById('sequentialEntry').style.display = source === 'sequential' ? 'block' : 'none';
+  
+  updateBarcodePreview();
+}
+
+function loadProductBarcode() {
+  const select = document.getElementById('productSelect');
+  const selectedOption = select.options[select.selectedIndex];
+  
+  if (selectedOption.value) {
+    const sku = selectedOption.dataset.sku;
+    const existingBarcode = selectedOption.dataset.barcode;
+    
+    document.getElementById('barcodeData').value = existingBarcode || sku;
+    updateBarcodePreview();
+  }
+}
+
+function updateBarcodePreview() {
+  const data = getBarcodeData();
+  const type = document.getElementById('barcodeType').value;
+  const previewContainer = document.getElementById('previewBarcode');
+  
+  if (!data) {
+    previewContainer.innerHTML = '<small class="text-muted">Enter data to see preview</small>';
+    return;
+  }
+  
+  try {
+    if (type === 'qr') {
+      generateQRPreview(previewContainer, data);
+    } else {
+      generateBarcodePreview(previewContainer, data, type);
+    }
+  } catch (error) {
+    previewContainer.innerHTML = '<small class="text-danger">Invalid data for selected barcode type</small>';
+  }
+}
+
+function getBarcodeData() {
+  const source = document.getElementById('dataSource').value;
+  
+  switch (source) {
+    case 'manual':
+      return document.getElementById('barcodeData').value;
+    case 'product':
+      const select = document.getElementById('productSelect');
+      const selectedOption = select.options[select.selectedIndex];
+      return selectedOption ? (selectedOption.dataset.barcode || selectedOption.dataset.sku) : '';
+    case 'sequential':
+      const start = parseInt(document.getElementById('sequentialStart').value) || 1;
+      const prefix = document.getElementById('sequentialPrefix').value || '';
+      return prefix + start;
+    default:
+      return '';
+  }
+}
+
+function generateQRPreview(container, data) {
+  const canvas = document.createElement('canvas');
+  container.innerHTML = '';
+  container.appendChild(canvas);
+  
+  QRCode.toCanvas(canvas, data, {
+    width: 150,
+    margin: 2
+  });
+}
+
+function generateBarcodePreview(container, data, type) {
+  const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+  container.innerHTML = '';
+  container.appendChild(svg);
+  
+  JsBarcode(svg, data, {
+    format: type,
+    width: parseFloat(document.getElementById('barcodeWidth').value),
+    height: parseInt(document.getElementById('barcodeHeight').value),
+    fontSize: parseInt(document.getElementById('fontSize').value),
+    displayValue: document.getElementById('displayText').value === 'true'
+  });
+}
+
+function generateBarcode() {
+  const source = document.getElementById('dataSource').value;
+  
+  if (source === 'sequential') {
+    generateSequentialBarcodes();
+  } else {
+    const data = getBarcodeData();
+    if (data) {
+      addBarcodeToCollection(data, getSelectedProductInfo());
+    } else {
+      alert('Please enter data for the barcode');
+    }
+  }
+}
+
+function generateSequentialBarcodes() {
+  const start = parseInt(document.getElementById('sequentialStart').value) || 1;
+  const count = parseInt(document.getElementById('sequentialCount').value) || 1;
+  const prefix = document.getElementById('sequentialPrefix').value || '';
+  
+  for (let i = 0; i < count; i++) {
+    const data = prefix + (start + i);
+    addBarcodeToCollection(data, null);
+  }
+}
+
+function getSelectedProductInfo() {
+  const select = document.getElementById('productSelect');
+  const selectedOption = select.options[select.selectedIndex];
+  
+  if (selectedOption && selectedOption.value) {
+    return {
+      name: selectedOption.dataset.name,
+      sku: selectedOption.dataset.sku
+    };
+  }
+  return null;
+}
+
+function addBarcodeToCollection(data, productInfo) {
+  barcodeCounter++;
+  const type = document.getElementById('barcodeType').value;
+  
+  const barcodeItem = {
+    id: barcodeCounter,
+    data: data,
+    type: type,
+    productInfo: productInfo,
+    settings: {
+      width: parseFloat(document.getElementById('barcodeWidth').value),
+      height: parseInt(document.getElementById('barcodeHeight').value),
+      fontSize: parseInt(document.getElementById('fontSize').value),
+      displayValue: document.getElementById('displayText').value === 'true',
+      showProductName: document.getElementById('showProductName').checked,
+      showPrice: document.getElementById('showPrice').checked,
+      showDate: document.getElementById('showDate').checked,
+      customLabel: document.getElementById('customLabel').value
+    }
+  };
+  
+  generatedBarcodes.push(barcodeItem);
+  renderBarcodeItem(barcodeItem);
+  updateBarcodeCount();
+  hideEmptyState();
+}
+
+function renderBarcodeItem(item) {
+  const container = document.getElementById('generatedBarcodes');
+  
+  const html = `
+    <div class="col-lg-6 col-md-6 mb-3" data-barcode-id="${item.id}">
+      <div class="barcode-item p-3">
+        <div class="d-flex justify-content-between align-items-start mb-2">
+          <div>
+            <input type="checkbox" class="barcode-checkbox me-2" value="${item.id}">
+            <small class="text-muted">#${item.id}</small>
+          </div>
+          <button class="btn btn-sm btn-outline-danger" onclick="removeBarcodeItem(${item.id})">
+            <i class="bi bi-trash"></i>
+          </button>
+        </div>
+        
+        <div class="text-center mb-2" id="barcode-${item.id}">
+          <!-- Barcode will be generated here -->
+        </div>
+        
+        <div class="text-center">
+          <div class="small"><strong>${item.data}</strong></div>
+          ${item.productInfo ? `<div class="small text-muted">${item.productInfo.name}</div>` : ''}
+          ${item.settings.customLabel ? `<div class="small text-info">${item.settings.customLabel}</div>` : ''}
+          ${item.settings.showDate ? `<div class="small text-muted">${new Date().toLocaleDateString()}</div>` : ''}
+        </div>
+      </div>
+    </div>
+  `;
+  
+  container.insertAdjacentHTML('beforeend', html);
+  
+  // Generate the actual barcode
+  setTimeout(() => {
+    const barcodeContainer = document.getElementById(`barcode-${item.id}`);
+    try {
+      if (item.type === 'qr') {
+        const canvas = document.createElement('canvas');
+        barcodeContainer.appendChild(canvas);
+        QRCode.toCanvas(canvas, item.data, { width: 100, margin: 1 });
+      } else {
+        const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+        barcodeContainer.appendChild(svg);
+        JsBarcode(svg, item.data, {
+          format: item.type,
+          width: item.settings.width,
+          height: item.settings.height / 2, // Smaller for collection view
+          fontSize: Math.max(8, item.settings.fontSize - 2),
+          displayValue: item.settings.displayValue
+        });
+      }
+    } catch (error) {
+      barcodeContainer.innerHTML = '<small class="text-danger">Invalid barcode data</small>';
+    }
+  }, 100);
+}
+
+function removeBarcodeItem(id) {
+  const element = document.querySelector(`[data-barcode-id="${id}"]`);
+  if (element) {
+    element.remove();
+    generatedBarcodes = generatedBarcodes.filter(item => item.id !== id);
+    updateBarcodeCount();
+    
+    if (generatedBarcodes.length === 0) {
+      showEmptyState();
+    }
+  }
+}
+
+function updateBarcodeCount() {
+  document.getElementById('barcodeCount').textContent = generatedBarcodes.length;
+}
+
+function hideEmptyState() {
+  document.getElementById('emptyState').style.display = 'none';
+}
+
+function showEmptyState() {
+  document.getElementById('emptyState').style.display = 'block';
+}
+
+function clearAllBarcodes() {
+  if (generatedBarcodes.length > 0 && confirm('Clear all generated barcodes?')) {
+    document.getElementById('generatedBarcodes').innerHTML = `
+      <div class="col-12 text-center py-5" id="emptyState">
+        <i class="bi bi-upc-scan text-muted" style="font-size: 3rem;"></i>
+        <p class="text-muted mt-3">No barcodes generated yet</p>
+        <p class="text-muted small">Use the configuration panel to generate your first barcode</p>
+      </div>
+    `;
+    generatedBarcodes = [];
+    updateBarcodeCount();
+  }
+}
+
+function selectAllBarcodes() {
+  const checkboxes = document.querySelectorAll('.barcode-checkbox');
+  const allChecked = Array.from(checkboxes).every(cb => cb.checked);
+  
+  checkboxes.forEach(cb => cb.checked = !allChecked);
+}
+
+function printBarcodes() {
+  const selectedCheckboxes = document.querySelectorAll('.barcode-checkbox:checked');
+  
+  if (selectedCheckboxes.length === 0) {
+    alert('Please select barcodes to print');
+    return;
+  }
+  
+  const printArea = document.getElementById('printArea');
+  printArea.innerHTML = '';
+  
+  selectedCheckboxes.forEach(checkbox => {
+    const barcodeId = checkbox.value;
+    const originalElement = document.querySelector(`[data-barcode-id="${barcodeId}"]`);
+    const clone = originalElement.cloneNode(true);
+    
+    // Remove checkbox and delete button from print version
+    const checkbox2 = clone.querySelector('.barcode-checkbox');
+    const deleteBtn = clone.querySelector('button');
+    if (checkbox2) checkbox2.remove();
+    if (deleteBtn) deleteBtn.remove();
+    
+    printArea.appendChild(clone);
+  });
+  
+  printArea.style.display = 'block';
+  window.print();
+  printArea.style.display = 'none';
+}
+
+function bulkGenerate() {
+  const modal = new bootstrap.Modal(document.getElementById('bulkGenerateModal'));
+  modal.show();
+}
+
+function processBulkGeneration() {
+  const source = document.getElementById('bulkSource').value;
+  // Implementation would depend on your data source
+  alert(`Bulk generation from ${source} would be implemented here`);
+}
+
+function saveTemplate() {
+  const template = {
+    barcodeType: document.getElementById('barcodeType').value,
+    displayOptions: {
+      displayText: document.getElementById('displayText').value,
+      width: document.getElementById('barcodeWidth').value,
+      height: document.getElementById('barcodeHeight').value,
+      fontSize: document.getElementById('fontSize').value
+    },
+    labelOptions: {
+      showProductName: document.getElementById('showProductName').checked,
+      showPrice: document.getElementById('showPrice').checked,
+      showDate: document.getElementById('showDate').checked,
+      customLabel: document.getElementById('customLabel').value
+    }
+  };
+  
+  localStorage.setItem('barcodeTemplate', JSON.stringify(template));
+  alert('Template saved successfully!');
+}
+
+function loadTemplate() {
+  const template = localStorage.getItem('barcodeTemplate');
+  if (template) {
+    const settings = JSON.parse(template);
+    // Apply settings to form
+    document.getElementById('barcodeType').value = settings.barcodeType;
+    // ... apply other settings
+    alert('Template loaded successfully!');
+    updateBarcodePreview();
+  } else {
+    alert('No saved template found');
+  }
+}
+
+function exportBarcodes() {
+  alert('Export barcodes functionality would be implemented here');
+}
+</script>
+{% endblock %}

@@ -1,0 +1,299 @@
+{% extends "dashboard_base.html" %}
+{% load static %}
+
+{% block page_title %}Delete Component Family: {{ object.name }}{% endblock %}
+
+{% block dashboard_content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+  <div>
+    <nav aria-label="breadcrumb">
+      <ol class="breadcrumb mb-1">
+        <li class="breadcrumb-item"><a href="{% url 'inventory:dashboard' %}">Inventory</a></li>
+        <li class="breadcrumb-item"><a href="{% url 'inventory:configuration' %}">Configuration</a></li>
+        <li class="breadcrumb-item"><a href="{% url 'inventory:component_family_list' %}">Component Families</a></li>
+        <li class="breadcrumb-item"><a href="{% url 'inventory:component_family_detail' object.pk %}">{{ object.name }}</a></li>
+        <li class="breadcrumb-item active">Delete</li>
+      </ol>
+    </nav>
+    <h1 class="h3 mb-0 text-gray-800">
+      <i class="bi bi-trash text-danger me-2"></i>Delete Component Family: {{ object.name }}
+    </h1>
+    <p class="text-muted mb-0">Confirm deletion and review impact on products</p>
+  </div>
+  
+  <div class="btn-group" role="group">
+    <a href="{% url 'inventory:component_family_detail' object.pk %}" class="btn btn-outline-secondary">
+      <i class="bi bi-arrow-left me-2"></i>Back to Family
+    </a>
+    <a href="{% url 'inventory:component_family_list' %}" class="btn btn-outline-info">
+      <i class="bi bi-list me-2"></i>All Families
+    </a>
+  </div>
+</div>
+
+<!-- Impact Warning -->
+<div class="alert alert-danger d-flex align-items-center mb-4" role="alert">
+  <i class="bi bi-exclamation-triangle-fill fa-2x me-3"></i>
+  <div>
+    <h5 class="alert-heading mb-2">⚠️ Deletion Impact Warning</h5>
+    <p class="mb-0">
+      You are about to <strong>permanently delete</strong> the component family "{{ object.name }}".
+      This action cannot be undone and will affect the following:
+    </p>
+  </div>
+</div>
+
+<div class="row">
+  <!-- Main Confirmation -->
+  <div class="col-lg-8">
+    <div class="card shadow">
+      <div class="card-header py-3 bg-danger text-white">
+        <h6 class="m-0 font-weight-bold">
+          <i class="bi bi-exclamation-triangle me-2"></i>Deletion Confirmation
+        </h6>
+      </div>
+      <div class="card-body">
+        <!-- Family Details -->
+        <div class="row mb-4">
+          <div class="col-md-6">
+            <h6 class="text-muted">Component Family Details:</h6>
+            <table class="table table-sm table-borderless">
+              <tr>
+                <th class="text-muted" width="30%">Name:</th>
+                <td><strong>{{ object.name }}</strong></td>
+              </tr>
+              <tr>
+                <th class="text-muted">Slug:</th>
+                <td><code>{{ object.slug }}</code></td>
+              </tr>
+              <tr>
+                <th class="text-muted">Status:</th>
+                <td>
+                  <span class="badge bg-{{ object.is_active|yesno:'success,secondary' }}">
+                    {{ object.is_active|yesno:'Active,Inactive' }}
+                  </span>
+                </td>
+              </tr>
+              <tr>
+                <th class="text-muted">Created:</th>
+                <td>{{ object.created_at|date:"M d, Y" }}</td>
+              </tr>
+            </table>
+          </div>
+          <div class="col-md-6">
+            <h6 class="text-muted">Impact Summary:</h6>
+            <div class="list-group list-group-flush">
+              <div class="list-group-item d-flex justify-content-between align-items-center px-0">
+                Products affected
+                <span class="badge bg-warning rounded-pill">{{ product_count|default:0 }}</span>
+              </div>
+              <div class="list-group-item d-flex justify-content-between align-items-center px-0">
+                Stock value at risk
+                <span class="badge bg-danger rounded-pill">${{ stock_value|floatformat:2|default:0 }}</span>
+              </div>
+              <div class="list-group-item d-flex justify-content-between align-items-center px-0">
+                Active products
+                <span class="badge bg-info rounded-pill">{{ active_product_count|default:0 }}</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Affected Products -->
+        {% if products.exists %}
+        <div class="mb-4">
+          <h6 class="text-danger mb-3">
+            <i class="bi bi-box me-2"></i>Products That Will Be Affected ({{ products.count }})
+          </h6>
+          <div class="table-responsive">
+            <table class="table table-sm table-hover">
+              <thead class="table-light">
+                <tr>
+                  <th>SKU</th>
+                  <th>Name</th>
+                  <th>Category</th>
+                  <th>Stock</th>
+                  <th>Value</th>
+                  <th>Status</th>
+                </tr>
+              </thead>
+              <tbody>
+                {% for product in products|slice:":10" %}
+                <tr>
+                  <td><code>{{ product.sku }}</code></td>
+                  <td>{{ product.name|truncatechars:40 }}</td>
+                  <td>{{ product.category.name }}</td>
+                  <td>{{ product.current_stock|default:0 }}</td>
+                  <td>${{ product.total_value|floatformat:2|default:0 }}</td>
+                  <td>
+                    <span class="badge bg-{{ product.is_active|yesno:'success,secondary' }} badge-sm">
+                      {{ product.is_active|yesno:'Active,Inactive' }}
+                    </span>
+                  </td>
+                </tr>
+                {% endfor %}
+                {% if products.count > 10 %}
+                <tr>
+                  <td colspan="6" class="text-center text-muted">
+                    <em>... and {{ products.count|add:"-10" }} more products</em>
+                  </td>
+                </tr>
+                {% endif %}
+              </tbody>
+            </table>
+          </div>
+        </div>
+        {% endif %}
+
+        <!-- Consequence Information -->
+        <div class="alert alert-warning" role="alert">
+          <h6 class="alert-heading">
+            <i class="bi bi-info-circle me-2"></i>What happens when you delete this family:
+          </h6>
+          <ul class="mb-0">
+            <li>All products will lose their component family association</li>
+            <li>Default attributes defined in this family will no longer apply</li>
+            <li>Storage bin prefixes may no longer be valid</li>
+            <li>Reports and analytics using this family will show incomplete data</li>
+            <li>Any automation rules based on this family will stop working</li>
+          </ul>
+        </div>
+
+        <!-- Deletion Form -->
+        <form method="post">
+          {% csrf_token %}
+          <div class="row">
+            <div class="col-12">
+              <div class="form-check mb-3">
+                <input class="form-check-input" type="checkbox" id="confirmDeletion" required>
+                <label class="form-check-label text-danger font-weight-bold" for="confirmDeletion">
+                  I understand the consequences and want to permanently delete this component family
+                </label>
+              </div>
+              
+              <div class="d-flex justify-content-between">
+                <a href="{% url 'inventory:component_family_detail' object.pk %}" class="btn btn-secondary">
+                  <i class="bi bi-arrow-left me-2"></i>Cancel
+                </a>
+                <button type="submit" class="btn btn-danger" id="deleteButton" disabled>
+                  <i class="bi bi-trash me-2"></i>Permanently Delete Family
+                </button>
+              </div>
+            </div>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <!-- Sidebar -->
+  <div class="col-lg-4">
+    <!-- Alternatives -->
+    <div class="card shadow mb-4">
+      <div class="card-header py-3">
+        <h6 class="m-0 font-weight-bold text-success">
+          <i class="bi bi-lightbulb me-2"></i>Alternatives to Deletion
+        </h6>
+      </div>
+      <div class="card-body">
+        <div class="small">
+          <p class="mb-3">Consider these alternatives instead:</p>
+          <ul class="list-unstyled">
+            <li class="mb-2">
+              <i class="bi bi-pause-circle text-warning me-2"></i>
+              <strong>Deactivate:</strong> Keep the family but mark it inactive
+            </li>
+            <li class="mb-2">
+              <i class="bi bi-arrow-right text-info me-2"></i>
+              <strong>Migrate:</strong> Move products to another family first
+            </li>
+            <li class="mb-2">
+              <i class="bi bi-archive text-secondary me-2"></i>
+              <strong>Archive:</strong> Keep for historical data but hide from active use
+            </li>
+          </ul>
+        </div>
+        <hr>
+        <div class="d-grid gap-2">
+          <a href="{% url 'inventory:component_family_edit' object.pk %}" class="btn btn-outline-warning btn-sm">
+            <i class="bi bi-pencil me-2"></i>Edit Instead
+          </a>
+        </div>
+      </div>
+    </div>
+
+    <!-- Statistics -->
+    <div class="card shadow mb-4">
+      <div class="card-header py-3">
+        <h6 class="m-0 font-weight-bold text-info">
+          <i class="bi bi-bar-chart me-2"></i>Deletion Impact
+        </h6>
+      </div>
+      <div class="card-body">
+        <div class="row text-center">
+          <div class="col-6 mb-3">
+            <div class="h4 mb-0 text-danger">{{ product_count|default:0 }}</div>
+            <small class="text-muted">Products Affected</small>
+          </div>
+          <div class="col-6 mb-3">
+            <div class="h4 mb-0 text-warning">${{ stock_value|floatformat:0|default:0 }}</div>
+            <small class="text-muted">Stock Value</small>
+          </div>
+        </div>
+        
+        {% if active_product_count > 0 %}
+        <div class="text-center">
+          <div class="alert alert-warning py-2 mb-0">
+            <small>
+              <strong>{{ active_product_count }}</strong> active products will lose their family association!
+            </small>
+          </div>
+        </div>
+        {% endif %}
+      </div>
+    </div>
+
+    <!-- Recovery Warning -->
+    <div class="card shadow border-danger">
+      <div class="card-header py-3 bg-danger text-white">
+        <h6 class="m-0 font-weight-bold">
+          <i class="bi bi-exclamation-triangle me-2"></i>No Recovery
+        </h6>
+      </div>
+      <div class="card-body text-center">
+        <i class="bi bi-trash text-danger" style="font-size: 3rem;"></i>
+        <p class="text-danger mt-2 mb-0">
+          <strong>This action is irreversible!</strong><br>
+          Once deleted, this family and its configuration cannot be restored.
+        </p>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+  const checkbox = document.getElementById('confirmDeletion');
+  const deleteButton = document.getElementById('deleteButton');
+  
+  checkbox.addEventListener('change', function() {
+    deleteButton.disabled = !this.checked;
+    
+    if (this.checked) {
+      deleteButton.classList.remove('btn-secondary');
+      deleteButton.classList.add('btn-danger');
+    } else {
+      deleteButton.classList.remove('btn-danger');
+      deleteButton.classList.add('btn-secondary');
+    }
+  });
+  
+  // Double confirmation for deletion
+  deleteButton.addEventListener('click', function(e) {
+    if (!confirm('Are you absolutely sure? This will permanently delete the component family "{{ object.name }}" and affect {{ product_count|default:0 }} products.')) {
+      e.preventDefault();
+    }
+  });
+});
+</script>
+{% endblock %}

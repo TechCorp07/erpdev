@@ -1,0 +1,466 @@
+{% extends "dashboard_base.html" %}
+{% load static %}
+
+{% block page_title %}Storage Locations{% endblock %}
+
+{% block dashboard_content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+  <div>
+    <nav aria-label="breadcrumb">
+      <ol class="breadcrumb mb-1">
+        <li class="breadcrumb-item"><a href="{% url 'inventory:dashboard' %}">Inventory</a></li>
+        <li class="breadcrumb-item"><a href="{% url 'inventory:configuration' %}">Configuration</a></li>
+        <li class="breadcrumb-item active">Storage Locations</li>
+      </ol>
+    </nav>
+    <h1 class="h3 mb-0 text-gray-800">
+      <i class="bi bi-building text-primary me-2"></i>Storage Locations
+    </h1>
+    <p class="text-muted mb-0">Manage warehouse locations and storage facilities</p>
+  </div>
+  
+  <div class="btn-group" role="group">
+    <a href="{% url 'inventory:storage_location_create' %}" class="btn btn-primary">
+      <i class="bi bi-plus-circle me-2"></i>Add Location
+    </a>
+    <button class="btn btn-outline-secondary dropdown-toggle" type="button" data-bs-toggle="dropdown">
+      <i class="bi bi-gear me-2"></i>Actions
+    </button>
+    <ul class="dropdown-menu">
+      <li><a class="dropdown-item" href="#" onclick="exportLocations()">
+        <i class="bi bi-download me-2"></i>Export List
+      </a></li>
+      <li><a class="dropdown-item" href="#" data-bs-toggle="modal" data-bs-target="#bulkActionsModal">
+        <i class="bi bi-list-check me-2"></i>Bulk Actions
+      </a></li>
+      <li><hr class="dropdown-divider"></li>
+      <li><a class="dropdown-item" href="{% url 'inventory:configuration' %}">
+        <i class="bi bi-arrow-left me-2"></i>Back to Configuration
+      </a></li>
+    </ul>
+  </div>
+</div>
+
+<!-- Summary Cards -->
+<div class="row mb-4">
+  <div class="col-lg-3 col-md-6 mb-4">
+    <div class="card bg-primary text-white shadow h-100 py-2">
+      <div class="card-body">
+        <div class="row no-gutters align-items-center">
+          <div class="col mr-2">
+            <div class="text-xs font-weight-bold text-white-50 text-uppercase mb-1">
+              Total Locations
+            </div>
+            <div class="h5 mb-0 font-weight-bold">{{ total_locations|default:0 }}</div>
+          </div>
+          <div class="col-auto">
+            <i class="bi bi-building fa-2x text-white-50"></i>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="col-lg-3 col-md-6 mb-4">
+    <div class="card bg-success text-white shadow h-100 py-2">
+      <div class="card-body">
+        <div class="row no-gutters align-items-center">
+          <div class="col mr-2">
+            <div class="text-xs font-weight-bold text-white-50 text-uppercase mb-1">
+              Active Locations
+            </div>
+            <div class="h5 mb-0 font-weight-bold">{{ active_locations|default:0 }}</div>
+          </div>
+          <div class="col-auto">
+            <i class="bi bi-check-circle fa-2x text-white-50"></i>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="col-lg-3 col-md-6 mb-4">
+    <div class="card bg-info text-white shadow h-100 py-2">
+      <div class="card-body">
+        <div class="row no-gutters align-items-center">
+          <div class="col mr-2">
+            <div class="text-xs font-weight-bold text-white-50 text-uppercase mb-1">
+              Storage Bins
+            </div>
+            <div class="h5 mb-0 font-weight-bold">{{ total_bins|default:0 }}</div>
+          </div>
+          <div class="col-auto">
+            <i class="bi bi-box fa-2x text-white-50"></i>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="col-lg-3 col-md-6 mb-4">
+    <div class="card bg-warning text-white shadow h-100 py-2">
+      <div class="card-body">
+        <div class="row no-gutters align-items-center">
+          <div class="col mr-2">
+            <div class="text-xs font-weight-bold text-white-50 text-uppercase mb-1">
+              Total Capacity
+            </div>
+            <div class="h5 mb-0 font-weight-bold">{{ total_capacity|default:0 }}</div>
+          </div>
+          <div class="col-auto">
+            <i class="bi bi-stack fa-2x text-white-50"></i>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Filters -->
+<div class="card shadow mb-4">
+  <div class="card-header py-3">
+    <h6 class="m-0 font-weight-bold text-info">
+      <i class="bi bi-funnel me-2"></i>Filters & Search
+    </h6>
+  </div>
+  <div class="card-body">
+    <form method="get" class="row g-3">
+      <div class="col-md-3">
+        <label for="search" class="form-label">Search</label>
+        <input type="text" class="form-control" id="search" name="search" 
+               value="{{ request.GET.search }}" placeholder="Search locations...">
+      </div>
+      <div class="col-md-2">
+        <label for="location_type" class="form-label">Type</label>
+        <select class="form-select" id="location_type" name="location_type">
+          <option value="">All Types</option>
+          <option value="warehouse" {% if request.GET.location_type == 'warehouse' %}selected{% endif %}>Warehouse</option>
+          <option value="store" {% if request.GET.location_type == 'store' %}selected{% endif %}>Store</option>
+          <option value="supplier" {% if request.GET.location_type == 'supplier' %}selected{% endif %}>Supplier</option>
+          <option value="customer" {% if request.GET.location_type == 'customer' %}selected{% endif %}>Customer</option>
+          <option value="transit" {% if request.GET.location_type == 'transit' %}selected{% endif %}>Transit</option>
+        </select>
+      </div>
+      <div class="col-md-2">
+        <label for="status" class="form-label">Status</label>
+        <select class="form-select" id="status" name="status">
+          <option value="">All Status</option>
+          <option value="active" {% if request.GET.status == 'active' %}selected{% endif %}>Active</option>
+          <option value="inactive" {% if request.GET.status == 'inactive' %}selected{% endif %}>Inactive</option>
+        </select>
+      </div>
+      <div class="col-md-2">
+        <label for="sort_by" class="form-label">Sort By</label>
+        <select class="form-select" id="sort_by" name="sort_by">
+          <option value="name" {% if request.GET.sort_by == 'name' %}selected{% endif %}>Name</option>
+          <option value="location_type" {% if request.GET.sort_by == 'location_type' %}selected{% endif %}>Type</option>
+          <option value="capacity_used" {% if request.GET.sort_by == 'capacity_used' %}selected{% endif %}>Capacity</option>
+          <option value="created_at" {% if request.GET.sort_by == 'created_at' %}selected{% endif %}>Created</option>
+        </select>
+      </div>
+      <div class="col-md-3 d-flex align-items-end gap-2">
+        <button type="submit" class="btn btn-primary">
+          <i class="bi bi-search me-2"></i>Filter
+        </button>
+        <a href="{% url 'inventory:storage_location_list' %}" class="btn btn-outline-secondary">
+          <i class="bi bi-arrow-clockwise me-2"></i>Reset
+        </a>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- Locations Table -->
+<div class="card shadow">
+  <div class="card-header py-3 d-flex justify-content-between align-items-center">
+    <h6 class="m-0 font-weight-bold text-primary">
+      <i class="bi bi-table me-2"></i>Storage Locations ({{ locations.count }})
+    </h6>
+    <div class="btn-group btn-group-sm" role="group">
+      <input type="checkbox" class="btn-check" id="selectAll">
+      <label class="btn btn-outline-secondary" for="selectAll">
+        <i class="bi bi-check-all"></i>
+      </label>
+      <button type="button" class="btn btn-outline-secondary" data-bs-toggle="modal" data-bs-target="#bulkActionsModal">
+        <i class="bi bi-list-check me-1"></i>Bulk
+      </button>
+    </div>
+  </div>
+  <div class="card-body p-0">
+    {% if locations.exists %}
+    <div class="table-responsive">
+      <table class="table table-hover mb-0">
+        <thead class="table-light">
+          <tr>
+            <th width="40">
+              <input type="checkbox" id="selectAllHeader" class="form-check-input">
+            </th>
+            <th>Location</th>
+            <th>Type</th>
+            <th>Address</th>
+            <th>Bins</th>
+            <th>Capacity</th>
+            <th>Status</th>
+            <th class="text-center">Actions</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for location in locations %}
+          <tr>
+            <td>
+              <input type="checkbox" class="form-check-input location-checkbox" value="{{ location.pk }}">
+            </td>
+            <td>
+              <div class="d-flex align-items-center">
+                <div class="location-icon me-3">
+                  {% if location.location_type == 'warehouse' %}
+                    <i class="bi bi-building text-primary"></i>
+                  {% elif location.location_type == 'store' %}
+                    <i class="bi bi-shop text-success"></i>
+                  {% elif location.location_type == 'supplier' %}
+                    <i class="bi bi-truck text-info"></i>
+                  {% elif location.location_type == 'customer' %}
+                    <i class="bi bi-person text-warning"></i>
+                  {% else %}
+                    <i class="bi bi-geo-alt text-secondary"></i>
+                  {% endif %}
+                </div>
+                <div>
+                  <div class="font-weight-bold">
+                    <a href="{% url 'inventory:storage_location_detail' location.pk %}" class="text-decoration-none">
+                      {{ location.name }}
+                    </a>
+                  </div>
+                  {% if location.code %}
+                    <div class="text-muted small">Code: {{ location.code }}</div>
+                  {% endif %}
+                </div>
+              </div>
+            </td>
+            <td>
+              <span class="badge bg-secondary">{{ location.get_location_type_display }}</span>
+            </td>
+            <td>
+              {% if location.address %}
+                <div class="small">
+                  {{ location.address|truncatechars:40 }}
+                  {% if location.city %}<br><strong>{{ location.city }}</strong>{% endif %}
+                </div>
+              {% else %}
+                <span class="text-muted">No address</span>
+              {% endif %}
+            </td>
+            <td>
+              <span class="badge bg-info">{{ location.storage_bins.count }}</span>
+              <div class="small text-muted">bins</div>
+            </td>
+            <td>
+              {% if location.max_capacity %}
+                <div class="progress position-relative" style="height: 20px;">
+                  {% with capacity_percentage=location.capacity_percentage %}
+                  <div class="progress-bar bg-{% if capacity_percentage >= 90 %}danger{% elif capacity_percentage >= 70 %}warning{% else %}success{% endif %}" 
+                       style="width: {{ capacity_percentage }}%"></div>
+                  <small class="position-absolute w-100 text-center text-dark">
+                    {{ location.used_capacity }}/{{ location.max_capacity }}
+                  </small>
+                  {% endwith %}
+                </div>
+                <div class="small text-muted text-center">{{ location.capacity_percentage|floatformat:0 }}% used</div>
+              {% else %}
+                <span class="text-muted small">No limit</span>
+              {% endif %}
+            </td>
+            <td>
+              <span class="badge bg-{{ location.is_active|yesno:'success,secondary' }}">
+                {{ location.is_active|yesno:'Active,Inactive' }}
+              </span>
+            </td>
+            <td class="text-center">
+              <div class="btn-group btn-group-sm" role="group">
+                <a href="{% url 'inventory:storage_location_detail' location.pk %}" 
+                   class="btn btn-outline-primary btn-sm" title="View Details">
+                  <i class="bi bi-eye"></i>
+                </a>
+                <a href="{% url 'inventory:storage_location_edit' location.pk %}" 
+                   class="btn btn-outline-secondary btn-sm" title="Edit">
+                  <i class="bi bi-pencil"></i>
+                </a>
+                <a href="{% url 'inventory:storage_location_delete' location.pk %}" 
+                   class="btn btn-outline-danger btn-sm" title="Delete"
+                   onclick="return confirm('Delete {{ location.name }}?')">
+                  <i class="bi bi-trash"></i>
+                </a>
+              </div>
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+
+    <!-- Pagination -->
+    {% if is_paginated %}
+    <div class="card-footer">
+      <div class="d-flex justify-content-between align-items-center">
+        <div class="text-muted small">
+          Showing {{ page_obj.start_index }}-{{ page_obj.end_index }} of {{ paginator.count }} locations
+        </div>
+        <nav>
+          <ul class="pagination pagination-sm mb-0">
+            {% if page_obj.has_previous %}
+              <li class="page-item">
+                <a class="page-link" href="?page=1{% if request.GET.search %}&search={{ request.GET.search }}{% endif %}{% if request.GET.location_type %}&location_type={{ request.GET.location_type }}{% endif %}{% if request.GET.status %}&status={{ request.GET.status }}{% endif %}">First</a>
+              </li>
+              <li class="page-item">
+                <a class="page-link" href="?page={{ page_obj.previous_page_number }}{% if request.GET.search %}&search={{ request.GET.search }}{% endif %}{% if request.GET.location_type %}&location_type={{ request.GET.location_type }}{% endif %}{% if request.GET.status %}&status={{ request.GET.status }}{% endif %}">Previous</a>
+              </li>
+            {% endif %}
+            
+            <li class="page-item active">
+              <span class="page-link">{{ page_obj.number }}</span>
+            </li>
+            
+            {% if page_obj.has_next %}
+              <li class="page-item">
+                <a class="page-link" href="?page={{ page_obj.next_page_number }}{% if request.GET.search %}&search={{ request.GET.search }}{% endif %}{% if request.GET.location_type %}&location_type={{ request.GET.location_type }}{% endif %}{% if request.GET.status %}&status={{ request.GET.status }}{% endif %}">Next</a>
+              </li>
+              <li class="page-item">
+                <a class="page-link" href="?page={{ paginator.num_pages }}{% if request.GET.search %}&search={{ request.GET.search }}{% endif %}{% if request.GET.location_type %}&location_type={{ request.GET.location_type }}{% endif %}{% if request.GET.status %}&status={{ request.GET.status }}{% endif %}">Last</a>
+              </li>
+            {% endif %}
+          </ul>
+        </nav>
+      </div>
+    </div>
+    {% endif %}
+
+    {% else %}
+    <!-- Empty State -->
+    <div class="text-center py-5">
+      <i class="bi bi-building text-muted" style="font-size: 4rem;"></i>
+      <h5 class="mt-3 text-muted">No Storage Locations Found</h5>
+      <p class="text-muted mb-4">Get started by creating your first storage location.</p>
+      <a href="{% url 'inventory:storage_location_create' %}" class="btn btn-primary">
+        <i class="bi bi-plus-circle me-2"></i>Create First Location
+      </a>
+    </div>
+    {% endif %}
+  </div>
+</div>
+
+<!-- Bulk Actions Modal -->
+<div class="modal fade" id="bulkActionsModal" tabindex="-1">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title">
+          <i class="bi bi-list-check me-2"></i>Bulk Actions
+        </h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <p class="text-muted">Select locations to perform bulk operations:</p>
+        <div class="d-grid gap-2">
+          <button type="button" class="btn btn-outline-success" onclick="bulkActivate()">
+            <i class="bi bi-check-circle me-2"></i>Activate Selected
+          </button>
+          <button type="button" class="btn btn-outline-warning" onclick="bulkDeactivate()">
+            <i class="bi bi-pause-circle me-2"></i>Deactivate Selected
+          </button>
+          <button type="button" class="btn btn-outline-info" onclick="bulkExport()">
+            <i class="bi bi-download me-2"></i>Export Selected
+          </button>
+          <hr>
+          <button type="button" class="btn btn-outline-danger" onclick="bulkDelete()">
+            <i class="bi bi-trash me-2"></i>Delete Selected
+          </button>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+// Select all functionality
+document.addEventListener('DOMContentLoaded', function() {
+  const selectAllHeader = document.getElementById('selectAllHeader');
+  const selectAll = document.getElementById('selectAll');
+  const checkboxes = document.querySelectorAll('.location-checkbox');
+  
+  [selectAllHeader, selectAll].forEach(checkbox => {
+    if (checkbox) {
+      checkbox.addEventListener('change', function() {
+        checkboxes.forEach(cb => cb.checked = this.checked);
+      });
+    }
+  });
+});
+
+// Bulk actions
+function getSelectedLocations() {
+  return Array.from(document.querySelectorAll('.location-checkbox:checked')).map(cb => cb.value);
+}
+
+function bulkActivate() {
+  const selected = getSelectedLocations();
+  if (selected.length === 0) {
+    alert('Please select locations to activate.');
+    return;
+  }
+  
+  if (confirm(`Activate ${selected.length} selected locations?`)) {
+    // Implementation would go here
+    console.log('Activating locations:', selected);
+  }
+}
+
+function bulkDeactivate() {
+  const selected = getSelectedLocations();
+  if (selected.length === 0) {
+    alert('Please select locations to deactivate.');
+    return;
+  }
+  
+  if (confirm(`Deactivate ${selected.length} selected locations?`)) {
+    // Implementation would go here
+    console.log('Deactivating locations:', selected);
+  }
+}
+
+function bulkDelete() {
+  const selected = getSelectedLocations();
+  if (selected.length === 0) {
+    alert('Please select locations to delete.');
+    return;
+  }
+  
+  if (confirm(`Are you sure you want to delete ${selected.length} selected locations? This action cannot be undone.`)) {
+    // Implementation would go here
+    console.log('Deleting locations:', selected);
+  }
+}
+
+function bulkExport() {
+  const selected = getSelectedLocations();
+  if (selected.length === 0) {
+    alert('Please select locations to export.');
+    return;
+  }
+  
+  // Create export URL with selected IDs
+  const params = new URLSearchParams();
+  params.set('export', 'xlsx');
+  params.set('selected', selected.join(','));
+  window.location.href = `${window.location.pathname}?${params.toString()}`;
+}
+
+function exportLocations() {
+  const params = new URLSearchParams(window.location.search);
+  params.set('export', 'xlsx');
+  window.location.href = `${window.location.pathname}?${params.toString()}`;
+}
+</script>
+{% endblock %}

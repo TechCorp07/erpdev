@@ -1,0 +1,657 @@
+{% extends "dashboard_base.html" %}
+{% load static %}
+
+{% block page_title %}Overhead Factors{% endblock %}
+
+{% block dashboard_content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+  <div>
+    <nav aria-label="breadcrumb">
+      <ol class="breadcrumb mb-1">
+        <li class="breadcrumb-item"><a href="{% url 'inventory:dashboard' %}">Inventory</a></li>
+        <li class="breadcrumb-item"><a href="{% url 'inventory:configuration' %}">Configuration</a></li>
+        <li class="breadcrumb-item active">Overhead Factors</li>
+      </ol>
+    </nav>
+    <h1 class="h3 mb-0 text-gray-800">
+      <i class="bi bi-calculator text-primary me-2"></i>Overhead Factors
+    </h1>
+    <p class="text-muted mb-0">Configure overhead factors for accurate cost calculation and pricing</p>
+  </div>
+  
+  <div class="btn-group" role="group">
+    <a href="{% url 'inventory:overhead_factors_create' %}" class="btn btn-primary">
+      <i class="bi bi-plus-circle me-2"></i>Add Factor
+    </a>
+    <button class="btn btn-outline-secondary dropdown-toggle" type="button" data-bs-toggle="dropdown">
+      <i class="bi bi-gear me-2"></i>Actions
+    </button>
+    <ul class="dropdown-menu">
+      <li><a class="dropdown-item" href="#" onclick="calculateImpact()">
+        <i class="bi bi-graph-up me-2"></i>Calculate Impact
+      </a></li>
+      <li><a class="dropdown-item" href="#" onclick="bulkUpdate()">
+        <i class="bi bi-arrow-up-circle me-2"></i>Bulk Update
+      </a></li>
+      <li><hr class="dropdown-divider"></li>
+      <li><a class="dropdown-item" href="#" onclick="exportFactors()">
+        <i class="bi bi-download me-2"></i>Export Configuration
+      </a></li>
+      <li><a class="dropdown-item" href="#" onclick="loadPresets()">
+        <i class="bi bi-folder-open me-2"></i>Load Presets
+      </a></li>
+    </ul>
+  </div>
+</div>
+
+<!-- Impact Summary Cards -->
+<div class="row mb-4">
+  <div class="col-lg-3 col-md-6 mb-4">
+    <div class="card bg-primary text-white shadow h-100 py-2">
+      <div class="card-body">
+        <div class="row no-gutters align-items-center">
+          <div class="col mr-2">
+            <div class="text-xs font-weight-bold text-white-50 text-uppercase mb-1">
+              Total Factors
+            </div>
+            <div class="h5 mb-0 font-weight-bold">{{ total_factors|default:0 }}</div>
+          </div>
+          <div class="col-auto">
+            <i class="bi bi-calculator fa-2x text-white-50"></i>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="col-lg-3 col-md-6 mb-4">
+    <div class="card bg-success text-white shadow h-100 py-2">
+      <div class="card-body">
+        <div class="row no-gutters align-items-center">
+          <div class="col mr-2">
+            <div class="text-xs font-weight-bold text-white-50 text-uppercase mb-1">
+              Average Overhead
+            </div>
+            <div class="h5 mb-0 font-weight-bold">{{ average_overhead|floatformat:1|default:0 }}%</div>
+          </div>
+          <div class="col-auto">
+            <i class="bi bi-percent fa-2x text-white-50"></i>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="col-lg-3 col-md-6 mb-4">
+    <div class="card bg-info text-white shadow h-100 py-2">
+      <div class="card-body">
+        <div class="row no-gutters align-items-center">
+          <div class="col mr-2">
+            <div class="text-xs font-weight-bold text-white-50 text-uppercase mb-1">
+              Cost Impact
+            </div>
+            <div class="h5 mb-0 font-weight-bold">${{ total_cost_impact|floatformat:0|default:0 }}</div>
+          </div>
+          <div class="col-auto">
+            <i class="bi bi-cash-coin fa-2x text-white-50"></i>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="col-lg-3 col-md-6 mb-4">
+    <div class="card bg-warning text-white shadow h-100 py-2">
+      <div class="card-body">
+        <div class="row no-gutters align-items-center">
+          <div class="col mr-2">
+            <div class="text-xs font-weight-bold text-white-50 text-uppercase mb-1">
+              Active Factors
+            </div>
+            <div class="h5 mb-0 font-weight-bold">{{ active_factors|default:0 }}</div>
+          </div>
+          <div class="col-auto">
+            <i class="bi bi-check-circle fa-2x text-white-50"></i>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Quick Filters -->
+<div class="card shadow mb-4">
+  <div class="card-header py-3">
+    <h6 class="m-0 font-weight-bold text-info">
+      <i class="bi bi-funnel me-2"></i>Filters & Search
+    </h6>
+  </div>
+  <div class="card-body">
+    <form method="get" class="row g-3">
+      <div class="col-md-3">
+        <label for="search" class="form-label">Search</label>
+        <input type="text" class="form-control" id="search" name="search" 
+               value="{{ request.GET.search }}" placeholder="Search factors...">
+      </div>
+      <div class="col-md-2">
+        <label for="factor_type" class="form-label">Type</label>
+        <select class="form-select" id="factor_type" name="factor_type">
+          <option value="">All Types</option>
+          <option value="fixed" {% if request.GET.factor_type == 'fixed' %}selected{% endif %}>Fixed Cost</option>
+          <option value="variable" {% if request.GET.factor_type == 'variable' %}selected{% endif %}>Variable</option>
+          <option value="overhead" {% if request.GET.factor_type == 'overhead' %}selected{% endif %}>Overhead</option>
+          <option value="tax" {% if request.GET.factor_type == 'tax' %}selected{% endif %}>Tax</option>
+        </select>
+      </div>
+      <div class="col-md-2">
+        <label for="status" class="form-label">Status</label>
+        <select class="form-select" id="status" name="status">
+          <option value="">All Status</option>
+          <option value="active" {% if request.GET.status == 'active' %}selected{% endif %}>Active</option>
+          <option value="inactive" {% if request.GET.status == 'inactive' %}selected{% endif %}>Inactive</option>
+        </select>
+      </div>
+      <div class="col-md-2">
+        <label for="sort_by" class="form-label">Sort By</label>
+        <select class="form-select" id="sort_by" name="sort_by">
+          <option value="name" {% if request.GET.sort_by == 'name' %}selected{% endif %}>Name</option>
+          <option value="factor_percentage" {% if request.GET.sort_by == 'factor_percentage' %}selected{% endif %}>Percentage</option>
+          <option value="impact" {% if request.GET.sort_by == 'impact' %}selected{% endif %}>Impact</option>
+          <option value="created_at" {% if request.GET.sort_by == 'created_at' %}selected{% endif %}>Created</option>
+        </select>
+      </div>
+      <div class="col-md-3 d-flex align-items-end gap-2">
+        <button type="submit" class="btn btn-primary">
+          <i class="bi bi-search me-2"></i>Filter
+        </button>
+        <a href="{% url 'inventory:overhead_factors_list' %}" class="btn btn-outline-secondary">
+          <i class="bi bi-arrow-clockwise me-2"></i>Reset
+        </a>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- Overhead Factors Cards -->
+<div class="row">
+  {% for factor in overhead_factors %}
+  <div class="col-lg-6 col-md-12 mb-4">
+    <div class="card shadow h-100">
+      <div class="card-header py-3 d-flex justify-content-between align-items-center">
+        <h6 class="m-0 font-weight-bold text-primary">
+          <i class="bi bi-gear me-2"></i>{{ factor.name }}
+        </h6>
+        <div>
+          <span class="badge bg-{{ factor.is_active|yesno:'success,secondary' }}">
+            {{ factor.is_active|yesno:'Active,Inactive' }}
+          </span>
+          {% if factor.is_automatic %}
+          <span class="badge bg-info">Auto</span>
+          {% endif %}
+        </div>
+      </div>
+      <div class="card-body">
+        <!-- Factor Details -->
+        <div class="d-flex justify-content-between align-items-center mb-3">
+          <div>
+            <div class="h3 mb-0 text-success">{{ factor.factor_percentage|floatformat:2 }}%</div>
+            <div class="small text-muted">{{ factor.get_factor_type_display }}</div>
+          </div>
+          <div class="text-end">
+            {% if factor.cost_impact %}
+            <div class="h5 mb-0 text-info">${{ factor.cost_impact|floatformat:0 }}</div>
+            <div class="small text-muted">Total Impact</div>
+            {% endif %}
+          </div>
+        </div>
+
+        <!-- Description -->
+        {% if factor.description %}
+        <p class="text-muted small mb-3">{{ factor.description }}</p>
+        {% endif %}
+
+        <!-- Calculation Method -->
+        <div class="row mb-3">
+          <div class="col-6">
+            <div class="small text-muted">Calculation Method:</div>
+            <div class="font-weight-bold">
+              {% if factor.calculation_method == 'percentage' %}
+                <i class="bi bi-percent text-primary me-1"></i>Percentage
+              {% elif factor.calculation_method == 'fixed' %}
+                <i class="bi bi-cash text-success me-1"></i>Fixed Amount
+              {% else %}
+                <i class="bi bi-calculator text-info me-1"></i>Custom Formula
+              {% endif %}
+            </div>
+          </div>
+          <div class="col-6">
+            <div class="small text-muted">Applies To:</div>
+            <div class="font-weight-bold">
+              {% if factor.applies_to == 'all' %}
+                <i class="bi bi-globe text-primary me-1"></i>All Products
+              {% elif factor.applies_to == 'category' %}
+                <i class="bi bi-tags text-success me-1"></i>Specific Categories
+              {% else %}
+                <i class="bi bi-filter text-info me-1"></i>Custom Rules
+              {% endif %}
+            </div>
+          </div>
+        </div>
+
+        <!-- Categories/Rules if applicable -->
+        {% if factor.categories.exists %}
+        <div class="mb-3">
+          <div class="small text-muted mb-1">Applicable Categories:</div>
+          <div class="d-flex flex-wrap gap-1">
+            {% for category in factor.categories.all|slice:":3" %}
+              <span class="badge bg-secondary badge-sm">{{ category.name }}</span>
+            {% endfor %}
+            {% if factor.categories.count > 3 %}
+              <span class="badge bg-light text-dark badge-sm">+{{ factor.categories.count|add:"-3" }}</span>
+            {% endif %}
+          </div>
+        </div>
+        {% endif %}
+
+        <!-- Usage Statistics -->
+        <div class="row text-center mb-3">
+          <div class="col-4">
+            <div class="small font-weight-bold">{{ factor.products_affected|default:0 }}</div>
+            <div class="small text-muted">Products</div>
+          </div>
+          <div class="col-4">
+            <div class="small font-weight-bold">{{ factor.calculations_count|default:0 }}</div>
+            <div class="small text-muted">Calculations</div>
+          </div>
+          <div class="col-4">
+            <div class="small font-weight-bold">{{ factor.last_updated|date:"M d"|default:"Never" }}</div>
+            <div class="small text-muted">Last Updated</div>
+          </div>
+        </div>
+
+        <!-- Calculation Example -->
+        <div class="alert alert-light py-2 mb-3" role="alert">
+          <small class="text-muted">
+            <strong>Example:</strong> $100 base cost + {{ factor.factor_percentage }}% = 
+            <strong>${{ factor.example_calculation|floatformat:2|default:"105.00" }}</strong>
+          </small>
+        </div>
+
+        <!-- Auto Update Status -->
+        {% if factor.is_automatic %}
+        <div class="small text-info mb-2">
+          <i class="bi bi-arrow-clockwise me-1"></i>
+          Auto-updates from {{ factor.data_source|default:"external source" }}
+          {% if factor.last_auto_update %}
+          • Last: {{ factor.last_auto_update|timesince }} ago
+          {% endif %}
+        </div>
+        {% endif %}
+      </div>
+      <div class="card-footer bg-transparent">
+        <div class="btn-group w-100" role="group">
+          <a href="{% url 'inventory:overhead_factors_detail' factor.pk %}" class="btn btn-outline-primary btn-sm">
+            <i class="bi bi-eye"></i>
+          </a>
+          <a href="{% url 'inventory:overhead_factors_edit' factor.pk %}" class="btn btn-outline-secondary btn-sm">
+            <i class="bi bi-pencil"></i>
+          </a>
+          <button type="button" class="btn btn-outline-info btn-sm" onclick="testCalculation({{ factor.pk }})">
+            <i class="bi bi-calculator"></i>
+          </button>
+          {% if factor.is_active %}
+          <button type="button" class="btn btn-outline-warning btn-sm" onclick="toggleFactor({{ factor.pk }}, false)">
+            <i class="bi bi-pause"></i>
+          </button>
+          {% else %}
+          <button type="button" class="btn btn-outline-success btn-sm" onclick="toggleFactor({{ factor.pk }}, true)">
+            <i class="bi bi-play"></i>
+          </button>
+          {% endif %}
+          <a href="{% url 'inventory:overhead_factors_delete' factor.pk %}" 
+             class="btn btn-outline-danger btn-sm"
+             onclick="return confirm('Delete {{ factor.name }}? This may affect {{ factor.products_affected|default:0 }} products.')">
+            <i class="bi bi-trash"></i>
+          </a>
+        </div>
+      </div>
+    </div>
+  </div>
+  {% empty %}
+  <!-- Empty State -->
+  <div class="col-12">
+    <div class="card shadow">
+      <div class="card-body text-center py-5">
+        <i class="bi bi-calculator text-muted" style="font-size: 4rem;"></i>
+        <h5 class="mt-3 text-muted">No Overhead Factors Configured</h5>
+        <p class="text-muted mb-4">
+          Configure overhead factors to include additional costs in your product pricing.<br>
+          Common factors: rent, utilities, insurance, labor overhead, taxes, and shipping.
+        </p>
+        <div class="btn-group" role="group">
+          <a href="{% url 'inventory:overhead_factors_create' %}" class="btn btn-primary">
+            <i class="bi bi-plus-circle me-2"></i>Create First Factor
+          </a>
+          <button type="button" class="btn btn-outline-secondary" onclick="loadPresets()">
+            <i class="bi bi-folder-open me-2"></i>Load Common Presets
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+  {% endfor %}
+</div>
+
+<!-- Pagination -->
+{% if is_paginated %}
+<div class="d-flex justify-content-center mt-4">
+  <nav>
+    <ul class="pagination">
+      {% if page_obj.has_previous %}
+        <li class="page-item">
+          <a class="page-link" href="?page=1{% if request.GET.search %}&search={{ request.GET.search }}{% endif %}">First</a>
+        </li>
+        <li class="page-item">
+          <a class="page-link" href="?page={{ page_obj.previous_page_number }}{% if request.GET.search %}&search={{ request.GET.search }}{% endif %}">Previous</a>
+        </li>
+      {% endif %}
+      
+      <li class="page-item active">
+        <span class="page-link">{{ page_obj.number }}</span>
+      </li>
+      
+      {% if page_obj.has_next %}
+        <li class="page-item">
+          <a class="page-link" href="?page={{ page_obj.next_page_number }}{% if request.GET.search %}&search={{ request.GET.search }}{% endif %}">Next</a>
+        </li>
+        <li class="page-item">
+          <a class="page-link" href="?page={{ paginator.num_pages }}{% if request.GET.search %}&search={{ request.GET.search }}{% endif %}">Last</a>
+        </li>
+      {% endif %}
+    </ul>
+  </nav>
+</div>
+{% endif %}
+
+<!-- Test Calculation Modal -->
+<div class="modal fade" id="testCalculationModal" tabindex="-1">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title">
+          <i class="bi bi-calculator me-2"></i>Test Factor Calculation
+        </h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <form id="testCalcForm">
+          <div class="mb-3">
+            <label for="baseCost" class="form-label">Base Cost</label>
+            <div class="input-group">
+              <span class="input-group-text">$</span>
+              <input type="number" class="form-control" id="baseCost" step="0.01" value="100.00">
+            </div>
+          </div>
+          <div class="mb-3">
+            <label for="quantity" class="form-label">Quantity</label>
+            <input type="number" class="form-control" id="quantity" min="1" value="1">
+          </div>
+          <div id="calculationResult" class="alert alert-info" style="display: none;">
+            <!-- Results will appear here -->
+          </div>
+        </form>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+        <button type="button" class="btn btn-primary" onclick="runTestCalculation()">Calculate</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Preset Factors Modal -->
+<div class="modal fade" id="presetFactorsModal" tabindex="-1">
+  <div class="modal-dialog modal-lg">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title">
+          <i class="bi bi-folder-open me-2"></i>Common Overhead Factor Presets
+        </h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <div class="row">
+          <div class="col-md-6 mb-3">
+            <div class="card">
+              <div class="card-header py-2">
+                <h6 class="mb-0">Manufacturing Overheads</h6>
+              </div>
+              <div class="card-body py-2">
+                <div class="form-check mb-2">
+                  <input class="form-check-input" type="checkbox" id="factory_rent" value="factory_rent">
+                  <label class="form-check-label" for="factory_rent">
+                    <strong>Factory Rent:</strong> 8.5%
+                  </label>
+                </div>
+                <div class="form-check mb-2">
+                  <input class="form-check-input" type="checkbox" id="utilities" value="utilities">
+                  <label class="form-check-label" for="utilities">
+                    <strong>Utilities:</strong> 3.2%
+                  </label>
+                </div>
+                <div class="form-check mb-2">
+                  <input class="form-check-input" type="checkbox" id="equipment" value="equipment">
+                  <label class="form-check-label" for="equipment">
+                    <strong>Equipment Depreciation:</strong> 5.0%
+                  </label>
+                </div>
+                <div class="form-check">
+                  <input class="form-check-input" type="checkbox" id="maintenance" value="maintenance">
+                  <label class="form-check-label" for="maintenance">
+                    <strong>Maintenance:</strong> 2.5%
+                  </label>
+                </div>
+              </div>
+            </div>
+          </div>
+          
+          <div class="col-md-6 mb-3">
+            <div class="card">
+              <div class="card-header py-2">
+                <h6 class="mb-0">Administrative Costs</h6>
+              </div>
+              <div class="card-body py-2">
+                <div class="form-check mb-2">
+                  <input class="form-check-input" type="checkbox" id="admin_salaries" value="admin_salaries">
+                  <label class="form-check-label" for="admin_salaries">
+                    <strong>Administrative Salaries:</strong> 12.0%
+                  </label>
+                </div>
+                <div class="form-check mb-2">
+                  <input class="form-check-input" type="checkbox" id="office_rent" value="office_rent">
+                  <label class="form-check-label" for="office_rent">
+                    <strong>Office Rent:</strong> 4.5%
+                  </label>
+                </div>
+                <div class="form-check mb-2">
+                  <input class="form-check-input" type="checkbox" id="insurance" value="insurance">
+                  <label class="form-check-label" for="insurance">
+                    <strong>Insurance:</strong> 1.8%
+                  </label>
+                </div>
+                <div class="form-check">
+                  <input class="form-check-input" type="checkbox" id="professional_services" value="professional_services">
+                  <label class="form-check-label" for="professional_services">
+                    <strong>Professional Services:</strong> 2.2%
+                  </label>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+        
+        <div class="row">
+          <div class="col-md-6">
+            <div class="card">
+              <div class="card-header py-2">
+                <h6 class="mb-0">Sales & Marketing</h6>
+              </div>
+              <div class="card-body py-2">
+                <div class="form-check mb-2">
+                  <input class="form-check-input" type="checkbox" id="sales_commission" value="sales_commission">
+                  <label class="form-check-label" for="sales_commission">
+                    <strong>Sales Commission:</strong> 6.0%
+                  </label>
+                </div>
+                <div class="form-check mb-2">
+                  <input class="form-check-input" type="checkbox" id="marketing" value="marketing">
+                  <label class="form-check-label" for="marketing">
+                    <strong>Marketing:</strong> 4.0%
+                  </label>
+                </div>
+                <div class="form-check">
+                  <input class="form-check-input" type="checkbox" id="advertising" value="advertising">
+                  <label class="form-check-label" for="advertising">
+                    <strong>Advertising:</strong> 2.5%
+                  </label>
+                </div>
+              </div>
+            </div>
+          </div>
+          
+          <div class="col-md-6">
+            <div class="card">
+              <div class="card-header py-2">
+                <h6 class="mb-0">Taxes & Compliance</h6>
+              </div>
+              <div class="card-body py-2">
+                <div class="form-check mb-2">
+                  <input class="form-check-input" type="checkbox" id="vat" value="vat">
+                  <label class="form-check-label" for="vat">
+                    <strong>VAT:</strong> 15.0%
+                  </label>
+                </div>
+                <div class="form-check mb-2">
+                  <input class="form-check-input" type="checkbox" id="import_duty" value="import_duty">
+                  <label class="form-check-label" for="import_duty">
+                    <strong>Import Duty:</strong> 10.0%
+                  </label>
+                </div>
+                <div class="form-check">
+                  <input class="form-check-input" type="checkbox" id="compliance" value="compliance">
+                  <label class="form-check-label" for="compliance">
+                    <strong>Compliance Costs:</strong> 1.5%
+                  </label>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+        <button type="button" class="btn btn-primary" onclick="loadSelectedPresets()">Load Selected Factors</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+let currentTestFactorId = null;
+
+function toggleFactor(factorId, activate) {
+  const action = activate ? 'activate' : 'deactivate';
+  
+  if (confirm(`${action.charAt(0).toUpperCase() + action.slice(1)} this overhead factor?`)) {
+    // API call would go here
+    console.log(`${action} factor:`, factorId);
+    location.reload();
+  }
+}
+
+function testCalculation(factorId) {
+  currentTestFactorId = factorId;
+  const modal = new bootstrap.Modal(document.getElementById('testCalculationModal'));
+  modal.show();
+}
+
+function runTestCalculation() {
+  const baseCost = parseFloat(document.getElementById('baseCost').value) || 0;
+  const quantity = parseInt(document.getElementById('quantity').value) || 1;
+  
+  // Simulate calculation (would be API call)
+  const factorPercentage = 8.5; // This would come from the actual factor
+  const overheadAmount = baseCost * (factorPercentage / 100);
+  const totalCost = baseCost + overheadAmount;
+  
+  const resultDiv = document.getElementById('calculationResult');
+  resultDiv.innerHTML = `
+    <h6>Calculation Result:</h6>
+    <div class="row">
+      <div class="col-4">
+        <strong>Base Cost:</strong><br>
+        $${(baseCost * quantity).toFixed(2)}
+      </div>
+      <div class="col-4">
+        <strong>Overhead (${factorPercentage}%):</strong><br>
+        $${(overheadAmount * quantity).toFixed(2)}
+      </div>
+      <div class="col-4">
+        <strong>Total Cost:</strong><br>
+        $${(totalCost * quantity).toFixed(2)}
+      </div>
+    </div>
+  `;
+  resultDiv.style.display = 'block';
+}
+
+function calculateImpact() {
+  alert('Calculate overall impact functionality would be implemented here');
+}
+
+function bulkUpdate() {
+  alert('Bulk update functionality would be implemented here');
+}
+
+function exportFactors() {
+  window.location.href = '/inventory/overhead-factors/export/';
+}
+
+function loadPresets() {
+  const modal = new bootstrap.Modal(document.getElementById('presetFactorsModal'));
+  modal.show();
+}
+
+function loadSelectedPresets() {
+  const selectedPresets = Array.from(document.querySelectorAll('#presetFactorsModal input[type="checkbox"]:checked'))
+                               .map(cb => cb.value);
+  
+  if (selectedPresets.length === 0) {
+    alert('Please select at least one preset to load.');
+    return;
+  }
+  
+  if (confirm(`Load ${selectedPresets.length} preset overhead factors?`)) {
+    // API call would create the factors
+    console.log('Loading presets:', selectedPresets);
+    location.reload();
+  }
+}
+
+// Auto-calculate examples on base cost change
+document.addEventListener('DOMContentLoaded', function() {
+  const baseCostInput = document.getElementById('baseCost');
+  const quantityInput = document.getElementById('quantity');
+  
+  [baseCostInput, quantityInput].forEach(input => {
+    if (input) {
+      input.addEventListener('input', function() {
+        if (document.getElementById('calculationResult').style.display === 'block') {
+          runTestCalculation();
+        }
+      });
+    }
+  });
+});
+</script>
+{% endblock %}

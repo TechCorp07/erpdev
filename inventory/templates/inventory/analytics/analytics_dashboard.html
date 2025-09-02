@@ -1,0 +1,683 @@
+{% extends "dashboard_base.html" %}
+{% load static %}
+
+{% block page_title %}Inventory Analytics{% endblock %}
+
+{% block extra_head %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/date-fns@2.29.3/index.min.js"></script>
+<style>
+  .analytics-card {
+    border-left: 4px solid;
+    transition: all 0.3s ease;
+  }
+  .analytics-card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+  }
+  .metric-value {
+    font-size: 2.5rem;
+    font-weight: 700;
+    line-height: 1;
+  }
+  .metric-change {
+    font-size: 0.875rem;
+    font-weight: 600;
+  }
+  .chart-container {
+    position: relative;
+    height: 300px;
+  }
+  .chart-container-small {
+    position: relative;
+    height: 200px;
+  }
+  .insight-card {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: white;
+    border-radius: 15px;
+  }
+</style>
+{% endblock %}
+
+{% block dashboard_content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+  <div>
+    <nav aria-label="breadcrumb">
+      <ol class="breadcrumb mb-1">
+        <li class="breadcrumb-item"><a href="{% url 'inventory:dashboard' %}">Inventory</a></li>
+        <li class="breadcrumb-item active">Analytics</li>
+      </ol>
+    </nav>
+    <h1 class="h3 mb-0 text-gray-800">
+      <i class="bi bi-graph-up-arrow text-primary me-2"></i>Inventory Analytics Dashboard
+    </h1>
+    <p class="text-muted mb-0">Advanced analytics and business intelligence for inventory management</p>
+  </div>
+  
+  <div class="btn-group" role="group">
+    <button class="btn btn-outline-primary" onclick="refreshData()">
+      <i class="bi bi-arrow-clockwise me-2"></i>Refresh
+    </button>
+    <button class="btn btn-outline-secondary dropdown-toggle" type="button" data-bs-toggle="dropdown">
+      <i class="bi bi-calendar me-2"></i>Time Period
+    </button>
+    <ul class="dropdown-menu">
+      <li><a class="dropdown-item" href="#" onclick="setTimePeriod('7d')">Last 7 Days</a></li>
+      <li><a class="dropdown-item" href="#" onclick="setTimePeriod('30d')">Last 30 Days</a></li>
+      <li><a class="dropdown-item" href="#" onclick="setTimePeriod('90d')">Last 90 Days</a></li>
+      <li><a class="dropdown-item" href="#" onclick="setTimePeriod('1y')">Last Year</a></li>
+      <li><hr class="dropdown-divider"></li>
+      <li><a class="dropdown-item" href="#" onclick="setCustomPeriod()">Custom Range</a></li>
+    </ul>
+  </div>
+</div>
+
+<!-- Key Metrics Cards -->
+<div class="row mb-4">
+  <div class="col-lg-3 col-md-6 mb-4">
+    <div class="card analytics-card border-left-primary shadow h-100 py-2" style="border-left-color: #4e73df;">
+      <div class="card-body">
+        <div class="row no-gutters align-items-center">
+          <div class="col mr-2">
+            <div class="text-xs font-weight-bold text-primary text-uppercase mb-1">
+              Total Inventory Value
+            </div>
+            <div class="metric-value text-gray-800" id="totalInventoryValue">
+              ${{ total_inventory_value|floatformat:0|default:0 }}
+            </div>
+            <div class="metric-change text-success" id="inventoryValueChange">
+              <i class="bi bi-arrow-up"></i> +{{ inventory_value_change|floatformat:1|default:0 }}% vs last period
+            </div>
+          </div>
+          <div class="col-auto">
+            <i class="bi bi-cash-stack fa-2x text-gray-300"></i>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="col-lg-3 col-md-6 mb-4">
+    <div class="card analytics-card border-left-success shadow h-100 py-2" style="border-left-color: #1cc88a;">
+      <div class="card-body">
+        <div class="row no-gutters align-items-center">
+          <div class="col mr-2">
+            <div class="text-xs font-weight-bold text-success text-uppercase mb-1">
+              Inventory Turnover
+            </div>
+            <div class="metric-value text-gray-800" id="inventoryTurnover">
+              {{ inventory_turnover|floatformat:1|default:0 }}x
+            </div>
+            <div class="metric-change text-info" id="turnoverChange">
+              <i class="bi bi-arrow-right"></i> {{ turnover_change|floatformat:1|default:0 }}% vs target
+            </div>
+          </div>
+          <div class="col-auto">
+            <i class="bi bi-arrow-repeat fa-2x text-gray-300"></i>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="col-lg-3 col-md-6 mb-4">
+    <div class="card analytics-card border-left-info shadow h-100 py-2" style="border-left-color: #36b9cc;">
+      <div class="card-body">
+        <div class="row no-gutters align-items-center">
+          <div class="col mr-2">
+            <div class="text-xs font-weight-bold text-info text-uppercase mb-1">
+              Stock Accuracy
+            </div>
+            <div class="metric-value text-gray-800" id="stockAccuracy">
+              {{ stock_accuracy|floatformat:1|default:0 }}%
+            </div>
+            <div class="metric-change text-success" id="accuracyChange">
+              <i class="bi bi-check-circle"></i> {{ accuracy_trend|default:"Stable" }}
+            </div>
+          </div>
+          <div class="col-auto">
+            <i class="bi bi-bullseye fa-2x text-gray-300"></i>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="col-lg-3 col-md-6 mb-4">
+    <div class="card analytics-card border-left-warning shadow h-100 py-2" style="border-left-color: #f6c23e;">
+      <div class="card-body">
+        <div class="row no-gutters align-items-center">
+          <div class="col mr-2">
+            <div class="text-xs font-weight-bold text-warning text-uppercase mb-1">
+              Days of Stock
+            </div>
+            <div class="metric-value text-gray-800" id="daysOfStock">
+              {{ avg_days_of_stock|floatformat:0|default:0 }}
+            </div>
+            <div class="metric-change text-warning" id="daysChange">
+              <i class="bi bi-clock"></i> {{ days_trend|default:"Within target" }}
+            </div>
+          </div>
+          <div class="col-auto">
+            <i class="bi bi-calendar-week fa-2x text-gray-300"></i>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Charts Row -->
+<div class="row mb-4">
+  <!-- Inventory Value Trend -->
+  <div class="col-lg-8 mb-4">
+    <div class="card shadow">
+      <div class="card-header py-3 d-flex justify-content-between align-items-center">
+        <h6 class="m-0 font-weight-bold text-primary">
+          <i class="bi bi-graph-up me-2"></i>Inventory Value Trend
+        </h6>
+        <div class="btn-group btn-group-sm" role="group">
+          <input type="radio" class="btn-check" name="valueChart" id="valueChartValue" checked>
+          <label class="btn btn-outline-primary" for="valueChartValue">Value</label>
+          
+          <input type="radio" class="btn-check" name="valueChart" id="valueChartQuantity">
+          <label class="btn btn-outline-primary" for="valueChartQuantity">Quantity</label>
+        </div>
+      </div>
+      <div class="card-body">
+        <div class="chart-container">
+          <canvas id="inventoryTrendChart"></canvas>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Category Breakdown -->
+  <div class="col-lg-4 mb-4">
+    <div class="card shadow">
+      <div class="card-header py-3">
+        <h6 class="m-0 font-weight-bold text-success">
+          <i class="bi bi-pie-chart me-2"></i>Value by Category
+        </h6>
+      </div>
+      <div class="card-body">
+        <div class="chart-container-small">
+          <canvas id="categoryBreakdownChart"></canvas>
+        </div>
+        <div class="mt-3">
+          <div class="small">
+            <div class="d-flex justify-content-between mb-1">
+              <span>Electronics</span>
+              <span class="font-weight-bold">${{ electronics_value|floatformat:0|default:0 }}</span>
+            </div>
+            <div class="d-flex justify-content-between mb-1">
+              <span>Components</span>
+              <span class="font-weight-bold">${{ components_value|floatformat:0|default:0 }}</span>
+            </div>
+            <div class="d-flex justify-content-between">
+              <span>Others</span>
+              <span class="font-weight-bold">${{ others_value|floatformat:0|default:0 }}</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Analysis Row -->
+<div class="row mb-4">
+  <!-- ABC Analysis -->
+  <div class="col-lg-6 mb-4">
+    <div class="card shadow">
+      <div class="card-header py-3">
+        <h6 class="m-0 font-weight-bold text-info">
+          <i class="bi bi-bar-chart me-2"></i>ABC Analysis
+        </h6>
+      </div>
+      <div class="card-body">
+        <div class="row text-center mb-3">
+          <div class="col-4">
+            <div class="h4 mb-0 text-danger">{{ abc_analysis.A.count|default:0 }}</div>
+            <div class="small text-muted">A-Class Items</div>
+            <div class="small text-success">${{ abc_analysis.A.value|floatformat:0|default:0 }}</div>
+          </div>
+          <div class="col-4">
+            <div class="h4 mb-0 text-warning">{{ abc_analysis.B.count|default:0 }}</div>
+            <div class="small text-muted">B-Class Items</div>
+            <div class="small text-success">${{ abc_analysis.B.value|floatformat:0|default:0 }}</div>
+          </div>
+          <div class="col-4">
+            <div class="h4 mb-0 text-info">{{ abc_analysis.C.count|default:0 }}</div>
+            <div class="small text-muted">C-Class Items</div>
+            <div class="small text-success">${{ abc_analysis.C.value|floatformat:0|default:0 }}</div>
+          </div>
+        </div>
+        <div class="chart-container-small">
+          <canvas id="abcAnalysisChart"></canvas>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Stock Movement Analysis -->
+  <div class="col-lg-6 mb-4">
+    <div class="card shadow">
+      <div class="card-header py-3">
+        <h6 class="m-0 font-weight-bold text-warning">
+          <i class="bi bi-arrow-left-right me-2"></i>Stock Movements
+        </h6>
+      </div>
+      <div class="card-body">
+        <div class="chart-container-small">
+          <canvas id="stockMovementChart"></canvas>
+        </div>
+        <div class="row text-center mt-3">
+          <div class="col-6">
+            <div class="h5 mb-0 text-success">{{ total_stock_in|default:0 }}</div>
+            <div class="small text-muted">Items In</div>
+          </div>
+          <div class="col-6">
+            <div class="h5 mb-0 text-danger">{{ total_stock_out|default:0 }}</div>
+            <div class="small text-muted">Items Out</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Performance Analysis -->
+<div class="row mb-4">
+  <div class="col-lg-8 mb-4">
+    <div class="card shadow">
+      <div class="card-header py-3 d-flex justify-content-between align-items-center">
+        <h6 class="m-0 font-weight-bold text-secondary">
+          <i class="bi bi-speedometer me-2"></i>Performance Analysis
+        </h6>
+        <select class="form-select form-select-sm w-auto" id="performanceMetric">
+          <option value="turnover">Turnover Rate</option>
+          <option value="margin">Profit Margin</option>
+          <option value="accuracy">Stock Accuracy</option>
+          <option value="velocity">Sales Velocity</option>
+        </select>
+      </div>
+      <div class="card-body">
+        <div class="table-responsive">
+          <table class="table table-hover">
+            <thead class="table-light">
+              <tr>
+                <th>Product</th>
+                <th>Category</th>
+                <th>Current Stock</th>
+                <th>Turnover Rate</th>
+                <th>Performance Score</th>
+                <th>Trend</th>
+              </tr>
+            </thead>
+            <tbody id="performanceTableBody">
+              {% for item in performance_data|slice:":10" %}
+              <tr>
+                <td>
+                  <div class="font-weight-bold">{{ item.product_name }}</div>
+                  <div class="small text-muted">{{ item.sku }}</div>
+                </td>
+                <td>{{ item.category }}</td>
+                <td>
+                  <span class="badge bg-{% if item.stock_level == 'low' %}danger{% elif item.stock_level == 'optimal' %}success{% else %}warning{% endif %}">
+                    {{ item.current_stock }}
+                  </span>
+                </td>
+                <td>{{ item.turnover_rate|floatformat:1 }}x</td>
+                <td>
+                  <div class="progress" style="height: 20px;">
+                    <div class="progress-bar bg-{% if item.performance_score >= 80 %}success{% elif item.performance_score >= 60 %}warning{% else %}danger{% endif %}" 
+                         style="width: {{ item.performance_score }}%">
+                      {{ item.performance_score }}%
+                    </div>
+                  </div>
+                </td>
+                <td>
+                  {% if item.trend == 'up' %}
+                    <i class="bi bi-arrow-up text-success"></i>
+                  {% elif item.trend == 'down' %}
+                    <i class="bi bi-arrow-down text-danger"></i>
+                  {% else %}
+                    <i class="bi bi-arrow-right text-info"></i>
+                  {% endif %}
+                </td>
+              </tr>
+              {% empty %}
+              <tr>
+                <td colspan="6" class="text-center text-muted">No performance data available</td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- AI Insights -->
+  <div class="col-lg-4 mb-4">
+    <div class="card insight-card shadow">
+      <div class="card-body">
+        <h6 class="text-white mb-3">
+          <i class="bi bi-lightbulb me-2"></i>AI-Powered Insights
+        </h6>
+        
+        <div class="mb-3">
+          <div class="d-flex align-items-center mb-2">
+            <i class="bi bi-exclamation-triangle text-warning me-2"></i>
+            <span class="text-white small font-weight-bold">Critical Alert</span>
+          </div>
+          <p class="text-white-75 small mb-0">
+            Electronics category showing 15% increase in demand. Consider increasing reorder quantities.
+          </p>
+        </div>
+
+        <div class="mb-3">
+          <div class="d-flex align-items-center mb-2">
+            <i class="bi bi-trending-up text-success me-2"></i>
+            <span class="text-white small font-weight-bold">Opportunity</span>
+          </div>
+          <p class="text-white-75 small mb-0">
+            Resistor family showing optimal turnover. Good candidate for bulk purchasing discounts.
+          </p>
+        </div>
+
+        <div class="mb-3">
+          <div class="d-flex align-items-center mb-2">
+            <i class="bi bi-info-circle text-info me-2"></i>
+            <span class="text-white small font-weight-bold">Recommendation</span>
+          </div>
+          <p class="text-white-75 small mb-0">
+            Consider reviewing reorder levels for 12 products with consistently low turnover rates.
+          </p>
+        </div>
+
+        <button class="btn btn-light btn-sm w-100 mt-2" onclick="viewDetailedInsights()">
+          <i class="bi bi-arrow-right me-2"></i>View Detailed Analysis
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Recent Alerts & Activities -->
+<div class="row">
+  <div class="col-lg-6 mb-4">
+    <div class="card shadow">
+      <div class="card-header py-3">
+        <h6 class="m-0 font-weight-bold text-danger">
+          <i class="bi bi-bell me-2"></i>Recent Alerts
+        </h6>
+      </div>
+      <div class="card-body">
+        {% if recent_alerts %}
+        <div class="list-group list-group-flush">
+          {% for alert in recent_alerts|slice:":5" %}
+          <div class="list-group-item d-flex justify-content-between align-items-start px-0">
+            <div class="ms-2 me-auto">
+              <div class="font-weight-bold text-{{ alert.severity }}">{{ alert.title }}</div>
+              <small class="text-muted">{{ alert.description }}</small>
+            </div>
+            <small class="text-muted">{{ alert.created_at|timesince }} ago</small>
+          </div>
+          {% endfor %}
+        </div>
+        {% else %}
+        <div class="text-center py-3">
+          <i class="bi bi-check-circle text-success" style="font-size: 2rem;"></i>
+          <p class="text-muted mt-2 mb-0">No active alerts</p>
+        </div>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+
+  <div class="col-lg-6 mb-4">
+    <div class="card shadow">
+      <div class="card-header py-3">
+        <h6 class="m-0 font-weight-bold text-info">
+          <i class="bi bi-activity me-2"></i>Recent Activities
+        </h6>
+      </div>
+      <div class="card-body">
+        {% if recent_activities %}
+        <div class="list-group list-group-flush">
+          {% for activity in recent_activities|slice:":5" %}
+          <div class="list-group-item d-flex justify-content-between align-items-start px-0">
+            <div class="ms-2 me-auto">
+              <div class="font-weight-bold">{{ activity.action }}</div>
+              <small class="text-muted">{{ activity.description }}</small>
+            </div>
+            <small class="text-muted">{{ activity.timestamp|timesince }} ago</small>
+          </div>
+          {% endfor %}
+        </div>
+        {% else %}
+        <div class="text-center py-3">
+          <i class="bi bi-clock text-muted" style="font-size: 2rem;"></i>
+          <p class="text-muted mt-2 mb-0">No recent activities</p>
+        </div>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+// Chart instances
+let inventoryTrendChart, categoryBreakdownChart, abcAnalysisChart, stockMovementChart;
+
+document.addEventListener('DOMContentLoaded', function() {
+  initializeCharts();
+  setupEventListeners();
+  loadAnalyticsData();
+});
+
+function setupEventListeners() {
+  // Value chart toggle
+  document.querySelectorAll('input[name="valueChart"]').forEach(radio => {
+    radio.addEventListener('change', function() {
+      updateInventoryTrendChart(this.value === 'valueChartQuantity' ? 'quantity' : 'value');
+    });
+  });
+  
+  // Performance metric selector
+  document.getElementById('performanceMetric').addEventListener('change', function() {
+    updatePerformanceTable(this.value);
+  });
+}
+
+function initializeCharts() {
+  // Inventory Trend Chart
+  const trendCtx = document.getElementById('inventoryTrendChart').getContext('2d');
+  inventoryTrendChart = new Chart(trendCtx, {
+    type: 'line',
+    data: {
+      labels: [],
+      datasets: [{
+        label: 'Inventory Value',
+        data: [],
+        borderColor: '#4e73df',
+        backgroundColor: 'rgba(78, 115, 223, 0.1)',
+        tension: 0.3,
+        fill: true
+      }]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: {
+        legend: { display: false }
+      },
+      scales: {
+        y: {
+          beginAtZero: true,
+          ticks: {
+            callback: function(value) {
+              return '$' + value.toLocaleString();
+            }
+          }
+        }
+      }
+    }
+  });
+
+  // Category Breakdown Chart
+  const categoryCtx = document.getElementById('categoryBreakdownChart').getContext('2d');
+  categoryBreakdownChart = new Chart(categoryCtx, {
+    type: 'doughnut',
+    data: {
+      labels: ['Electronics', 'Components', 'Others'],
+      datasets: [{
+        data: [{{ electronics_value|default:0 }}, {{ components_value|default:0 }}, {{ others_value|default:0 }}],
+        backgroundColor: ['#4e73df', '#1cc88a', '#36b9cc'],
+        borderWidth: 0
+      }]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: {
+        legend: { display: false }
+      }
+    }
+  });
+
+  // ABC Analysis Chart
+  const abcCtx = document.getElementById('abcAnalysisChart').getContext('2d');
+  abcAnalysisChart = new Chart(abcCtx, {
+    type: 'bar',
+    data: {
+      labels: ['A-Class', 'B-Class', 'C-Class'],
+      datasets: [{
+        label: 'Value',
+        data: [
+          {{ abc_analysis.A.value|default:0 }}, 
+          {{ abc_analysis.B.value|default:0 }}, 
+          {{ abc_analysis.C.value|default:0 }}
+        ],
+        backgroundColor: ['#dc3545', '#ffc107', '#17a2b8'],
+        borderWidth: 0
+      }]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: {
+        legend: { display: false }
+      },
+      scales: {
+        y: {
+          beginAtZero: true,
+          ticks: {
+            callback: function(value) {
+              return '$' + value.toLocaleString();
+            }
+          }
+        }
+      }
+    }
+  });
+
+  // Stock Movement Chart
+  const movementCtx = document.getElementById('stockMovementChart').getContext('2d');
+  stockMovementChart = new Chart(movementCtx, {
+    type: 'bar',
+    data: {
+      labels: ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun'],
+      datasets: [{
+        label: 'Stock In',
+        data: {{ stock_in_data|default:"[0,0,0,0,0,0]"|safe }},
+        backgroundColor: '#1cc88a'
+      }, {
+        label: 'Stock Out',
+        data: {{ stock_out_data|default:"[0,0,0,0,0,0]"|safe }},
+        backgroundColor: '#e74a3b'
+      }]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      scales: {
+        y: { beginAtZero: true }
+      }
+    }
+  });
+}
+
+function loadAnalyticsData() {
+  // Load initial data
+  const trendData = {{ inventory_trend_data|default:"[]"|safe }};
+  if (trendData.length > 0) {
+    inventoryTrendChart.data.labels = trendData.map(item => item.date);
+    inventoryTrendChart.data.datasets[0].data = trendData.map(item => item.value);
+    inventoryTrendChart.update();
+  }
+}
+
+function updateInventoryTrendChart(type) {
+  // Update chart based on value or quantity selection
+  const endpoint = type === 'quantity' ? '/api/inventory-quantity-trend/' : '/api/inventory-value-trend/';
+  
+  // API call would go here
+  console.log('Updating trend chart for:', type);
+}
+
+function updatePerformanceTable(metric) {
+  // Update performance table based on selected metric
+  console.log('Updating performance table for:', metric);
+}
+
+function setTimePeriod(period) {
+  // Update all charts and metrics for the selected time period
+  console.log('Setting time period to:', period);
+  refreshData();
+}
+
+function setCustomPeriod() {
+  const startDate = prompt('Enter start date (YYYY-MM-DD):');
+  const endDate = prompt('Enter end date (YYYY-MM-DD):');
+  
+  if (startDate && endDate) {
+    console.log('Custom period:', startDate, 'to', endDate);
+    refreshData();
+  }
+}
+
+function refreshData() {
+  // Refresh all analytics data
+  console.log('Refreshing analytics data...');
+  
+  // Show loading indicators
+  document.querySelectorAll('.metric-value').forEach(element => {
+    element.innerHTML = '<div class="spinner-border spinner-border-sm" role="status"></div>';
+  });
+  
+  // API calls would go here to refresh data
+  setTimeout(() => {
+    location.reload(); // For demo purposes
+  }, 2000);
+}
+
+function viewDetailedInsights() {
+  alert('Detailed AI insights would be implemented here');
+}
+
+// Real-time updates (would be implemented with WebSocket)
+function setupRealTimeUpdates() {
+  setInterval(() => {
+    // Update real-time metrics
+    console.log('Real-time update');
+  }, 30000); // Update every 30 seconds
+}
+
+// Initialize real-time updates
+setupRealTimeUpdates();
+</script>
+{% endblock %}

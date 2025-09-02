@@ -1,0 +1,592 @@
+{% extends "dashboard_base.html" %}
+{% load static crispy_forms_tags %}
+
+{% block page_title %}
+  {% if form.instance.pk %}
+    Edit Storage Bin: {{ form.instance.bin_code }}
+  {% else %}
+    Create Storage Bin
+  {% endif %}
+{% endblock %}
+
+{% block dashboard_content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+  <div>
+    <nav aria-label="breadcrumb">
+      <ol class="breadcrumb mb-1">
+        <li class="breadcrumb-item"><a href="{% url 'inventory:dashboard' %}">Inventory</a></li>
+        <li class="breadcrumb-item"><a href="{% url 'inventory:configuration' %}">Configuration</a></li>
+        <li class="breadcrumb-item"><a href="{% url 'inventory:storage_bin_list' %}">Storage Bins</a></li>
+        <li class="breadcrumb-item active">
+          {% if form.instance.pk %}Edit{% else %}Create{% endif %}
+        </li>
+      </ol>
+    </nav>
+    <h1 class="h3 mb-0 text-gray-800">
+      <i class="bi bi-box text-primary me-2"></i>
+      {% if form.instance.pk %}
+        Edit Storage Bin: {{ form.instance.bin_code }}
+      {% else %}
+        Create Storage Bin
+      {% endif %}
+    </h1>
+    <p class="text-muted mb-0">Configure storage bin details, capacity, and organization settings</p>
+  </div>
+  
+  <div class="btn-group" role="group">
+    {% if form.instance.pk %}
+    <a href="{% url 'inventory:storage_bin_detail' form.instance.pk %}" class="btn btn-outline-info">
+      <i class="bi bi-eye me-2"></i>View Details
+    </a>
+    {% endif %}
+    <a href="{% url 'inventory:storage_bin_list' %}" class="btn btn-outline-secondary">
+      <i class="bi bi-arrow-left me-2"></i>Back to List
+    </a>
+  </div>
+</div>
+
+<div class="row">
+  <!-- Main Form -->
+  <div class="col-lg-8">
+    <div class="card shadow">
+      <div class="card-header py-3">
+        <h6 class="m-0 font-weight-bold text-primary">
+          <i class="bi bi-pencil me-2"></i>Storage Bin Configuration
+        </h6>
+      </div>
+      <div class="card-body">
+        <form method="post" novalidate>
+          {% csrf_token %}
+          
+          <!-- Basic Information -->
+          <div class="form-section">
+            <h5 class="form-section-title">
+              <i class="bi bi-info-circle text-primary"></i>Basic Information
+            </h5>
+            
+            <div class="row">
+              <div class="col-md-6">
+                <div class="mb-3">
+                  {{ form.location|as_crispy_field }}
+                </div>
+              </div>
+              <div class="col-md-6">
+                <div class="mb-3">
+                  {{ form.bin_code|as_crispy_field }}
+                </div>
+              </div>
+            </div>
+
+            <div class="mb-3">
+              {{ form.name|as_crispy_field }}
+            </div>
+
+            <div class="form-check">
+              {{ form.is_active }}
+              <label class="form-check-label" for="{{ form.is_active.id_for_label }}">
+                {{ form.is_active.label }}
+              </label>
+            </div>
+          </div>
+
+          <!-- Physical Position -->
+          <div class="form-section">
+            <h5 class="form-section-title">
+              <i class="bi bi-geo-alt text-info"></i>Physical Position
+            </h5>
+            
+            <div class="row">
+              <div class="col-md-4">
+                <div class="mb-3">
+                  {{ form.row|as_crispy_field }}
+                </div>
+              </div>
+              <div class="col-md-4">
+                <div class="mb-3">
+                  {{ form.column|as_crispy_field }}
+                </div>
+              </div>
+              <div class="col-md-4">
+                <div class="mb-3">
+                  {{ form.shelf|as_crispy_field }}
+                </div>
+              </div>
+            </div>
+
+            <div class="alert alert-info py-2" role="alert">
+              <i class="bi bi-info-circle me-2"></i>
+              <small>Use Row, Column, and Shelf to specify the exact physical position within the storage location.</small>
+            </div>
+
+            <!-- Position Preview -->
+            <div class="card bg-light">
+              <div class="card-body py-2">
+                <div class="small text-muted">Position Preview:</div>
+                <div class="h5 mb-0" id="positionPreview">
+                  <span class="badge bg-secondary">Not specified</span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Capacity Settings -->
+          <div class="form-section">
+            <h5 class="form-section-title">
+              <i class="bi bi-stack text-success"></i>Capacity Settings
+            </h5>
+            
+            <div class="row">
+              <div class="col-md-6">
+                <div class="mb-3">
+                  {{ form.max_capacity_items|as_crispy_field }}
+                </div>
+              </div>
+              <div class="col-md-6">
+                <div class="mb-3">
+                  <label for="capacityUtilization" class="form-label">Current Utilization</label>
+                  <div class="input-group">
+                    <input type="text" class="form-control" id="capacityUtilization" 
+                           value="{% if form.instance.pk %}{{ form.instance.capacity_percentage|floatformat:1 }}%{% else %}0%{% endif %}" 
+                           readonly>
+                    <span class="input-group-text">of capacity</span>
+                  </div>
+                  <div class="form-text">Read-only: Calculated based on current inventory</div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Capacity Warnings -->
+            <div class="row">
+              <div class="col-md-6">
+                <div class="mb-3">
+                  <label for="warningThreshold" class="form-label">Warning Threshold (%)</label>
+                  <input type="number" class="form-control" id="warningThreshold" 
+                         min="0" max="100" value="80" step="5">
+                  <div class="form-text">Alert when bin reaches this capacity percentage</div>
+                </div>
+              </div>
+              <div class="col-md-6">
+                <div class="mb-3">
+                  <label for="criticalThreshold" class="form-label">Critical Threshold (%)</label>
+                  <input type="number" class="form-control" id="criticalThreshold" 
+                         min="0" max="100" value="95" step="5">
+                  <div class="form-text">Critical alert threshold</div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Component Family Assignment -->
+          <div class="form-section">
+            <h5 class="form-section-title">
+              <i class="bi bi-cpu text-warning"></i>Component Family Assignment
+            </h5>
+            
+            <div class="mb-3">
+              {{ form.component_families|as_crispy_field }}
+              <div class="form-text">
+                Select which component families can be stored in this bin. Leave empty to allow all types.
+              </div>
+            </div>
+
+            <!-- Family Guidelines -->
+            <div class="alert alert-warning py-2" role="alert">
+              <i class="bi bi-lightbulb me-2"></i>
+              <small><strong>Best Practice:</strong> Assign specific component families to maintain organization and ensure compatible components are grouped together.</small>
+            </div>
+          </div>
+
+          <!-- Special Requirements -->
+          <div class="form-section">
+            <h5 class="form-section-title">
+              <i class="bi bi-shield-exclamation text-danger"></i>Special Requirements
+            </h5>
+            
+            <div class="form-check mb-3">
+              {{ form.requires_special_handling }}
+              <label class="form-check-label" for="{{ form.requires_special_handling.id_for_label }}">
+                {{ form.requires_special_handling.label }}
+              </label>
+              <div class="form-text">Check if this bin requires special handling procedures</div>
+            </div>
+
+            <!-- Special Handling Options -->
+            <div id="specialHandlingOptions" class="mb-3" style="display: none;">
+              <div class="card border-warning">
+                <div class="card-header py-2 bg-warning text-dark">
+                  <small class="font-weight-bold">Special Handling Requirements</small>
+                </div>
+                <div class="card-body py-2">
+                  <div class="row">
+                    <div class="col-md-6">
+                      <div class="form-check mb-2">
+                        <input class="form-check-input" type="checkbox" id="temperatureControlled">
+                        <label class="form-check-label" for="temperatureControlled">
+                          Temperature Controlled
+                        </label>
+                      </div>
+                      <div class="form-check mb-2">
+                        <input class="form-check-input" type="checkbox" id="antiStatic">
+                        <label class="form-check-label" for="antiStatic">
+                          Anti-Static Required
+                        </label>
+                      </div>
+                      <div class="form-check mb-2">
+                        <input class="form-check-input" type="checkbox" id="humidityControl">
+                        <label class="form-check-label" for="humidityControl">
+                          Humidity Control
+                        </label>
+                      </div>
+                    </div>
+                    <div class="col-md-6">
+                      <div class="form-check mb-2">
+                        <input class="form-check-input" type="checkbox" id="restrictedAccess">
+                        <label class="form-check-label" for="restrictedAccess">
+                          Restricted Access
+                        </label>
+                      </div>
+                      <div class="form-check mb-2">
+                        <input class="form-check-input" type="checkbox" id="hazmatCompliant">
+                        <label class="form-check-label" for="hazmatCompliant">
+                          HAZMAT Compliant
+                        </label>
+                      </div>
+                      <div class="form-check mb-2">
+                        <input class="form-check-input" type="checkbox" id="securitySealed">
+                        <label class="form-check-label" for="securitySealed">
+                          Security Sealed
+                        </label>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div class="mb-3">
+              {{ form.notes|as_crispy_field }}
+            </div>
+          </div>
+
+          <!-- Automation & Integration -->
+          <div class="form-section">
+            <h5 class="form-section-title">
+              <i class="bi bi-qr-code text-secondary"></i>Automation & Integration
+            </h5>
+            
+            <div class="row">
+              <div class="col-md-6">
+                <div class="form-check mb-3">
+                  <input class="form-check-input" type="checkbox" id="generateQRCode" checked>
+                  <label class="form-check-label" for="generateQRCode">
+                    Generate QR Code
+                  </label>
+                  <div class="form-text">Automatically generate QR code for mobile scanning</div>
+                </div>
+              </div>
+              <div class="col-md-6">
+                <div class="form-check mb-3">
+                  <input class="form-check-input" type="checkbox" id="enableAlerts">
+                  <label class="form-check-label" for="enableAlerts">
+                    Enable Capacity Alerts
+                  </label>
+                  <div class="form-text">Send notifications when capacity thresholds are reached</div>
+                </div>
+              </div>
+            </div>
+
+            <div class="row">
+              <div class="col-md-6">
+                <div class="form-check mb-3">
+                  <input class="form-check-input" type="checkbox" id="autoReorder">
+                  <label class="form-check-label" for="autoReorder">
+                    Auto-Reorder Integration
+                  </label>
+                  <div class="form-text">Include in automated reorder calculations</div>
+                </div>
+              </div>
+              <div class="col-md-6">
+                <div class="form-check mb-3">
+                  <input class="form-check-input" type="checkbox" id="cycleCount">
+                  <label class="form-check-label" for="cycleCount">
+                    Cycle Count Enabled
+                  </label>
+                  <div class="form-text">Include in regular cycle counting schedule</div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Form Actions -->
+          <div class="row">
+            <div class="col-12">
+              <div class="d-flex justify-content-between">
+                <a href="{% url 'inventory:storage_bin_list' %}" class="btn btn-secondary">
+                  <i class="bi bi-arrow-left me-2"></i>Cancel
+                </a>
+                <div>
+                  <button type="submit" class="btn btn-primary">
+                    <i class="bi bi-check-circle me-2"></i>
+                    {% if form.instance.pk %}Update Bin{% else %}Create Bin{% endif %}
+                  </button>
+                  {% if form.instance.pk %}
+                  <a href="{% url 'inventory:storage_bin_delete' form.instance.pk %}" 
+                     class="btn btn-outline-danger ms-2"
+                     onclick="return confirm('Are you sure you want to delete this storage bin?')">
+                    <i class="bi bi-trash me-2"></i>Delete
+                  </a>
+                  {% endif %}
+                </div>
+              </div>
+            </div>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <!-- Sidebar -->
+  <div class="col-lg-4">
+    {% if form.instance.pk %}
+    <!-- Current Status -->
+    <div class="card shadow mb-4">
+      <div class="card-header py-3">
+        <h6 class="m-0 font-weight-bold text-info">
+          <i class="bi bi-bar-chart me-2"></i>Current Status
+        </h6>
+      </div>
+      <div class="card-body">
+        <div class="row text-center">
+          <div class="col-6 mb-3">
+            <div class="h4 mb-0 text-primary">{{ form.instance.current_items|default:0 }}</div>
+            <small class="text-muted">Items Stored</small>
+          </div>
+          <div class="col-6 mb-3">
+            <div class="h4 mb-0 text-success">${{ form.instance.total_value|floatformat:0|default:0 }}</div>
+            <small class="text-muted">Total Value</small>
+          </div>
+        </div>
+        
+        {% if form.instance.max_capacity_items %}
+        <div class="progress mb-2" style="height: 8px;">
+          <div class="progress-bar bg-{% if form.instance.capacity_percentage >= 90 %}danger{% elif form.instance.capacity_percentage >= 70 %}warning{% else %}success{% endif %}" 
+               style="width: {{ form.instance.capacity_percentage }}%"></div>
+        </div>
+        <div class="text-center">
+          <small class="text-muted">{{ form.instance.capacity_percentage|floatformat:1 }}% capacity used</small>
+        </div>
+        {% endif %}
+      </div>
+    </div>
+    {% endif %}
+
+    <!-- Organization Tips -->
+    <div class="card shadow mb-4">
+      <div class="card-header py-3">
+        <h6 class="m-0 font-weight-bold text-success">
+          <i class="bi bi-lightbulb me-2"></i>Organization Tips
+        </h6>
+      </div>
+      <div class="card-body">
+        <div class="small">
+          <ul class="list-unstyled">
+            <li class="mb-2">
+              <i class="bi bi-check-circle text-success me-2"></i>
+              Use consistent bin coding scheme
+            </li>
+            <li class="mb-2">
+              <i class="bi bi-check-circle text-success me-2"></i>
+              Group similar component families
+            </li>
+            <li class="mb-2">
+              <i class="bi bi-check-circle text-success me-2"></i>
+              Set realistic capacity limits
+            </li>
+            <li class="mb-2">
+              <i class="bi bi-check-circle text-success me-2"></i>
+              Use physical position coordinates
+            </li>
+            <li class="mb-2">
+              <i class="bi bi-check-circle text-success me-2"></i>
+              Enable QR codes for mobile access
+            </li>
+            <li class="mb-2">
+              <i class="bi bi-check-circle text-success me-2"></i>
+              Document special requirements
+            </li>
+          </ul>
+        </div>
+      </div>
+    </div>
+
+    <!-- Bin Code Suggestions -->
+    <div class="card shadow mb-4">
+      <div class="card-header py-3">
+        <h6 class="m-0 font-weight-bold text-info">
+          <i class="bi bi-tag me-2"></i>Bin Code Examples
+        </h6>
+      </div>
+      <div class="card-body">
+        <div class="small">
+          <p class="mb-2"><strong>Common Patterns:</strong></p>
+          <ul class="list-unstyled">
+            <li class="mb-1">
+              <code>WH1-A-01-01</code> - Location-Row-Column-Shelf
+            </li>
+            <li class="mb-1">
+              <code>R-A1-001</code> - Type-Section-Number
+            </li>
+            <li class="mb-1">
+              <code>BIN-001-A</code> - Prefix-Number-Zone
+            </li>
+            <li class="mb-1">
+              <code>ST-IC-01</code> - Location-Family-Number
+            </li>
+          </ul>
+          <p class="mb-0 text-muted">Choose a consistent pattern for your organization.</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- Component Family Guide -->
+    <div class="card shadow">
+      <div class="card-header py-3">
+        <h6 class="m-0 font-weight-bold text-warning">
+          <i class="bi bi-cpu me-2"></i>Component Families
+        </h6>
+      </div>
+      <div class="card-body">
+        <div class="small">
+          <p class="mb-2">Available families:</p>
+          {% for family in component_families %}
+          <div class="d-flex justify-content-between align-items-center mb-1">
+            <span>{{ family.name }}</span>
+            <span class="badge bg-secondary badge-sm">{{ family.products.count }}</span>
+          </div>
+          {% endfor %}
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+  // Auto-generate bin code
+  const locationField = document.getElementById('{{ form.location.id_for_label }}');
+  const binCodeField = document.getElementById('{{ form.bin_code.id_for_label }}');
+  const rowField = document.getElementById('{{ form.row.id_for_label }}');
+  const columnField = document.getElementById('{{ form.column.id_for_label }}');
+  const shelfField = document.getElementById('{{ form.shelf.id_for_label }}');
+  
+  // Update position preview
+  function updatePositionPreview() {
+    const row = rowField.value;
+    const column = columnField.value;
+    const shelf = shelfField.value;
+    const preview = document.getElementById('positionPreview');
+    
+    if (row || column || shelf) {
+      let position = '';
+      if (row) position += `R${row}`;
+      if (column) position += `-C${column}`;
+      if (shelf) position += `-S${shelf}`;
+      preview.innerHTML = `<span class="badge bg-primary">${position}</span>`;
+    } else {
+      preview.innerHTML = '<span class="badge bg-secondary">Not specified</span>';
+    }
+  }
+  
+  // Auto-generate bin code if empty
+  function generateBinCode() {
+    if (binCodeField.value) return; // Don't overwrite existing code
+    
+    const locationSelect = locationField;
+    const locationText = locationSelect.options[locationSelect.selectedIndex]?.text || 'BIN';
+    const locationCode = locationText.substring(0, 3).toUpperCase();
+    
+    const row = rowField.value || '1';
+    const column = columnField.value || '1';
+    const shelf = shelfField.value || '1';
+    
+    const suggestedCode = `${locationCode}-R${row}C${column}S${shelf}`;
+    binCodeField.value = suggestedCode;
+  }
+  
+  // Event listeners
+  [rowField, columnField, shelfField].forEach(field => {
+    if (field) {
+      field.addEventListener('input', updatePositionPreview);
+      field.addEventListener('change', generateBinCode);
+    }
+  });
+  
+  if (locationField) {
+    locationField.addEventListener('change', generateBinCode);
+  }
+  
+  // Special handling toggle
+  const specialHandlingCheckbox = document.getElementById('{{ form.requires_special_handling.id_for_label }}');
+  const specialHandlingOptions = document.getElementById('specialHandlingOptions');
+  
+  if (specialHandlingCheckbox && specialHandlingOptions) {
+    specialHandlingCheckbox.addEventListener('change', function() {
+      specialHandlingOptions.style.display = this.checked ? 'block' : 'none';
+    });
+    
+    // Initial state
+    specialHandlingOptions.style.display = specialHandlingCheckbox.checked ? 'block' : 'none';
+  }
+  
+  // Initialize position preview
+  updatePositionPreview();
+  
+  // Capacity threshold validation
+  const warningThreshold = document.getElementById('warningThreshold');
+  const criticalThreshold = document.getElementById('criticalThreshold');
+  
+  function validateThresholds() {
+    const warning = parseInt(warningThreshold.value) || 0;
+    const critical = parseInt(criticalThreshold.value) || 0;
+    
+    if (critical <= warning) {
+      criticalThreshold.setCustomValidity('Critical threshold must be higher than warning threshold');
+    } else {
+      criticalThreshold.setCustomValidity('');
+    }
+  }
+  
+  [warningThreshold, criticalThreshold].forEach(field => {
+    if (field) {
+      field.addEventListener('input', validateThresholds);
+    }
+  });
+});
+
+// Form validation
+function validateForm() {
+  const form = document.querySelector('form');
+  const requiredFields = form.querySelectorAll('[required]');
+  let isValid = true;
+  
+  requiredFields.forEach(field => {
+    if (!field.value.trim()) {
+      field.classList.add('is-invalid');
+      isValid = false;
+    } else {
+      field.classList.remove('is-invalid');
+    }
+  });
+  
+  return isValid;
+}
+
+// Add form validation on submit
+document.querySelector('form').addEventListener('submit', function(e) {
+  if (!validateForm()) {
+    e.preventDefault();
+    alert('Please fill in all required fields.');
+  }
+});
+</script>
+{% endblock %}

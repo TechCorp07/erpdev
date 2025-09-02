@@ -1,0 +1,592 @@
+{% extends "dashboard_base.html" %}
+{% load static %}
+
+{% block page_title %}Storage Bin: {{ storage_bin.bin_code }}{% endblock %}
+
+{% block dashboard_content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+  <div>
+    <nav aria-label="breadcrumb">
+      <ol class="breadcrumb mb-1">
+        <li class="breadcrumb-item"><a href="{% url 'inventory:dashboard' %}">Inventory</a></li>
+        <li class="breadcrumb-item"><a href="{% url 'inventory:configuration' %}">Configuration</a></li>
+        <li class="breadcrumb-item"><a href="{% url 'inventory:storage_bin_list' %}">Storage Bins</a></li>
+        <li class="breadcrumb-item active">{{ storage_bin.bin_code }}</li>
+      </ol>
+    </nav>
+    <h1 class="h3 mb-0 text-gray-800">
+      <i class="bi bi-box text-primary me-2"></i>{{ storage_bin.bin_code }}
+    </h1>
+    <p class="text-muted mb-0">
+      <i class="bi bi-building me-1"></i>{{ storage_bin.location.name }}
+      {% if storage_bin.name %} • {{ storage_bin.name }}{% endif %}
+    </p>
+  </div>
+  
+  <div class="btn-group" role="group">
+    <a href="{% url 'inventory:storage_bin_edit' storage_bin.pk %}" class="btn btn-primary">
+      <i class="bi bi-pencil me-2"></i>Edit
+    </a>
+    <button class="btn btn-outline-secondary dropdown-toggle" type="button" data-bs-toggle="dropdown">
+      <i class="bi bi-gear me-2"></i>Actions
+    </button>
+    <ul class="dropdown-menu">
+      <li><a class="dropdown-item" href="#" onclick="printBinLabel()">
+        <i class="bi bi-printer me-2"></i>Print Label
+      </a></li>
+      <li><a class="dropdown-item" href="#" onclick="generateQRCode()">
+        <i class="bi bi-qr-code me-2"></i>Generate QR Code
+      </a></li>
+      <li><hr class="dropdown-divider"></li>
+      <li><a class="dropdown-item" href="#" onclick="moveAllProducts()">
+        <i class="bi bi-arrow-right-circle me-2"></i>Move All Products
+      </a></li>
+      <li><a class="dropdown-item" href="#" onclick="stockTake()">
+        <i class="bi bi-clipboard-check me-2"></i>Perform Stock Take
+      </a></li>
+    </ul>
+  </div>
+</div>
+
+<!-- Status Alerts -->
+{% if not storage_bin.is_active %}
+<div class="alert alert-warning d-flex align-items-center mb-4" role="alert">
+  <i class="bi bi-exclamation-triangle me-3"></i>
+  <div>
+    <strong>Inactive Bin:</strong> This storage bin is currently inactive and not available for new product assignments.
+  </div>
+</div>
+{% endif %}
+
+{% if storage_bin.capacity_percentage >= 95 %}
+<div class="alert alert-danger d-flex align-items-center mb-4" role="alert">
+  <i class="bi bi-exclamation-triangle-fill me-3"></i>
+  <div>
+    <strong>Bin Full:</strong> This bin is {{ storage_bin.capacity_percentage|floatformat:1 }}% full. Consider redistributing products.
+  </div>
+</div>
+{% elif storage_bin.capacity_percentage >= 80 %}
+<div class="alert alert-warning d-flex align-items-center mb-4" role="alert">
+  <i class="bi bi-exclamation-triangle me-3"></i>
+  <div>
+    <strong>Bin Nearly Full:</strong> This bin is {{ storage_bin.capacity_percentage|floatformat:1 }}% full.
+  </div>
+</div>
+{% endif %}
+
+<div class="row">
+  <!-- Main Content -->
+  <div class="col-lg-8">
+    <!-- Bin Information -->
+    <div class="card shadow mb-4">
+      <div class="card-header py-3">
+        <h6 class="m-0 font-weight-bold text-primary">
+          <i class="bi bi-info-circle me-2"></i>Bin Information
+        </h6>
+      </div>
+      <div class="card-body">
+        <div class="row">
+          <div class="col-md-6">
+            <table class="table table-sm table-borderless">
+              <tr>
+                <th class="text-muted" width="40%">Bin Code:</th>
+                <td><strong><code>{{ storage_bin.bin_code }}</code></strong></td>
+              </tr>
+              <tr>
+                <th class="text-muted">Name:</th>
+                <td>{{ storage_bin.name|default:"No name set" }}</td>
+              </tr>
+              <tr>
+                <th class="text-muted">Location:</th>
+                <td>
+                  <a href="{% url 'inventory:storage_location_detail' storage_bin.location.pk %}" class="text-decoration-none">
+                    {{ storage_bin.location.name }}
+                  </a>
+                </td>
+              </tr>
+              <tr>
+                <th class="text-muted">Position:</th>
+                <td>
+                  {% if storage_bin.row or storage_bin.column or storage_bin.shelf %}
+                    <span class="badge bg-light text-dark">
+                      {% if storage_bin.row %}R{{ storage_bin.row }}{% endif %}
+                      {% if storage_bin.column %}-C{{ storage_bin.column }}{% endif %}
+                      {% if storage_bin.shelf %}-S{{ storage_bin.shelf }}{% endif %}
+                    </span>
+                  {% else %}
+                    <span class="text-muted">Not specified</span>
+                  {% endif %}
+                </td>
+              </tr>
+            </table>
+          </div>
+          <div class="col-md-6">
+            <table class="table table-sm table-borderless">
+              <tr>
+                <th class="text-muted" width="40%">Status:</th>
+                <td>
+                  <span class="badge bg-{{ storage_bin.is_active|yesno:'success,secondary' }}">
+                    {{ storage_bin.is_active|yesno:'Active,Inactive' }}
+                  </span>
+                </td>
+              </tr>
+              <tr>
+                <th class="text-muted">Created:</th>
+                <td>{{ storage_bin.created_at|date:"M d, Y" }}</td>
+              </tr>
+              <tr>
+                <th class="text-muted">Updated:</th>
+                <td>{{ storage_bin.updated_at|date:"M d, Y" }}</td>
+              </tr>
+              <tr>
+                <th class="text-muted">Special Handling:</th>
+                <td>
+                  {% if storage_bin.requires_special_handling %}
+                    <i class="bi bi-exclamation-triangle text-warning me-1"></i>Required
+                  {% else %}
+                    <i class="bi bi-check-circle text-success me-1"></i>Not Required
+                  {% endif %}
+                </td>
+              </tr>
+            </table>
+          </div>
+        </div>
+
+        <!-- Notes -->
+        {% if storage_bin.notes %}
+        <hr>
+        <div>
+          <h6 class="text-muted mb-2">Notes</h6>
+          <p class="mb-0">{{ storage_bin.notes|linebreaks }}</p>
+        </div>
+        {% endif %}
+      </div>
+    </div>
+
+    <!-- Component Families -->
+    {% if storage_bin.component_families.exists %}
+    <div class="card shadow mb-4">
+      <div class="card-header py-3">
+        <h6 class="m-0 font-weight-bold text-success">
+          <i class="bi bi-cpu me-2"></i>Component Families
+        </h6>
+      </div>
+      <div class="card-body">
+        <p class="text-muted mb-3">This bin is configured for the following component families:</p>
+        <div class="row">
+          {% for family in storage_bin.component_families.all %}
+          <div class="col-md-6 mb-3">
+            <div class="card border-left-success">
+              <div class="card-body py-2">
+                <div class="d-flex justify-content-between align-items-center">
+                  <div>
+                    <div class="font-weight-bold">
+                      <a href="{% url 'inventory:component_family_detail' family.pk %}" class="text-decoration-none">
+                        {{ family.name }}
+                      </a>
+                    </div>
+                    <div class="small text-muted">{{ family.description|truncatechars:50 }}</div>
+                  </div>
+                  <div class="text-end">
+                    <div class="small text-success">{{ family.products.count }} products</div>
+                    <div class="small text-muted">{{ family.typical_markup_percentage }}% markup</div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+          {% endfor %}
+        </div>
+      </div>
+    </div>
+    {% endif %}
+
+    <!-- Products in Bin -->
+    <div class="card shadow">
+      <div class="card-header py-3 d-flex justify-content-between align-items-center">
+        <h6 class="m-0 font-weight-bold text-info">
+          <i class="bi bi-box me-2"></i>Products in Bin ({{ products_in_bin.count }})
+        </h6>
+        <div class="btn-group btn-group-sm" role="group">
+          <button type="button" class="btn btn-outline-primary" onclick="addProduct()">
+            <i class="bi bi-plus-circle me-1"></i>Add Product
+          </button>
+          <button type="button" class="btn btn-outline-secondary" onclick="scanBarcode()">
+            <i class="bi bi-upc-scan me-1"></i>Scan
+          </button>
+        </div>
+      </div>
+      <div class="card-body">
+        {% if products_in_bin.exists %}
+        <div class="table-responsive">
+          <table class="table table-hover">
+            <thead class="table-light">
+              <tr>
+                <th>Product</th>
+                <th>SKU</th>
+                <th>Stock Level</th>
+                <th>Last Movement</th>
+                <th>Value</th>
+                <th class="text-center">Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for product in products_in_bin %}
+              <tr>
+                <td>
+                  <div class="d-flex align-items-center">
+                    {% if product.image %}
+                    <img src="{{ product.image.url }}" class="rounded me-2" width="40" height="40" alt="Product">
+                    {% else %}
+                    <div class="bg-light rounded me-2 d-flex align-items-center justify-content-center" style="width: 40px; height: 40px;">
+                      <i class="bi bi-box text-muted"></i>
+                    </div>
+                    {% endif %}
+                    <div>
+                      <div class="font-weight-bold">
+                        <a href="{% url 'inventory:product_detail' product.pk %}" class="text-decoration-none">
+                          {{ product.name }}
+                        </a>
+                      </div>
+                      <div class="small text-muted">{{ product.category.name }}</div>
+                    </div>
+                  </div>
+                </td>
+                <td><code>{{ product.sku }}</code></td>
+                <td>
+                  {% if product.current_stock <= product.reorder_level %}
+                    <span class="badge bg-warning">{{ product.current_stock }}</span>
+                    <div class="small text-warning">Low Stock</div>
+                  {% elif product.current_stock <= 0 %}
+                    <span class="badge bg-danger">{{ product.current_stock }}</span>
+                    <div class="small text-danger">Out of Stock</div>
+                  {% else %}
+                    <span class="badge bg-success">{{ product.current_stock }}</span>
+                    <div class="small text-success">In Stock</div>
+                  {% endif %}
+                </td>
+                <td>
+                  {% if product.last_movement %}
+                    <div class="small">{{ product.last_movement.created_at|date:"M d, Y" }}</div>
+                    <div class="small text-muted">{{ product.last_movement.get_movement_type_display }}</div>
+                  {% else %}
+                    <span class="text-muted small">No movements</span>
+                  {% endif %}
+                </td>
+                <td>
+                  <div class="font-weight-bold">${{ product.total_value|floatformat:2 }}</div>
+                  <div class="small text-muted">${{ product.cost_price }} × {{ product.current_stock }}</div>
+                </td>
+                <td class="text-center">
+                  <div class="btn-group btn-group-sm" role="group">
+                    <a href="{% url 'inventory:product_detail' product.pk %}" 
+                       class="btn btn-outline-primary btn-sm" title="View Product">
+                      <i class="bi bi-eye"></i>
+                    </a>
+                    <button type="button" class="btn btn-outline-warning btn-sm" 
+                            onclick="adjustStock({{ product.pk }})" title="Adjust Stock">
+                      <i class="bi bi-pencil"></i>
+                    </button>
+                    <button type="button" class="btn btn-outline-danger btn-sm" 
+                            onclick="moveProduct({{ product.pk }})" title="Move to Another Bin">
+                      <i class="bi bi-arrow-right"></i>
+                    </button>
+                  </div>
+                </td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+        {% else %}
+        <div class="text-center py-4">
+          <i class="bi bi-inbox text-muted" style="font-size: 3rem;"></i>
+          <h5 class="mt-3 text-muted">No Products in Bin</h5>
+          <p class="text-muted mb-4">This storage bin is currently empty.</p>
+          <button type="button" class="btn btn-primary" onclick="addProduct()">
+            <i class="bi bi-plus-circle me-2"></i>Add First Product
+          </button>
+        </div>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+
+  <!-- Sidebar -->
+  <div class="col-lg-4">
+    <!-- Capacity Overview -->
+    <div class="card shadow mb-4">
+      <div class="card-header py-3">
+        <h6 class="m-0 font-weight-bold text-info">
+          <i class="bi bi-bar-chart me-2"></i>Capacity Overview
+        </h6>
+      </div>
+      <div class="card-body">
+        {% if storage_bin.max_capacity_items %}
+        <div class="mb-3">
+          <div class="d-flex justify-content-between mb-1">
+            <small class="text-muted">Items in Bin</small>
+            <small class="text-muted">{{ storage_bin.current_items }}/{{ storage_bin.max_capacity_items }}</small>
+          </div>
+          <div class="progress mb-2" style="height: 10px;">
+            <div class="progress-bar bg-{% if storage_bin.capacity_percentage >= 90 %}danger{% elif storage_bin.capacity_percentage >= 70 %}warning{% else %}success{% endif %}" 
+                 style="width: {{ storage_bin.capacity_percentage }}%"></div>
+          </div>
+          <div class="text-center">
+            <span class="h4 text-{% if storage_bin.capacity_percentage >= 90 %}danger{% elif storage_bin.capacity_percentage >= 70 %}warning{% else %}success{% endif %}">
+              {{ storage_bin.capacity_percentage|floatformat:1 }}%
+            </span>
+          </div>
+        </div>
+        <hr>
+        {% endif %}
+        
+        <div class="row text-center">
+          <div class="col-6 mb-3">
+            <div class="h4 mb-0 text-primary">{{ products_in_bin.count }}</div>
+            <small class="text-muted">Products</small>
+          </div>
+          <div class="col-6 mb-3">
+            <div class="h4 mb-0 text-success">${{ total_bin_value|floatformat:0|default:0 }}</div>
+            <small class="text-muted">Total Value</small>
+          </div>
+        </div>
+        
+        {% if low_stock_products %}
+        <hr>
+        <div class="text-center">
+          <div class="h5 mb-0 text-warning">{{ low_stock_products }}</div>
+          <small class="text-muted">Low Stock Items</small>
+        </div>
+        {% endif %}
+      </div>
+    </div>
+
+    <!-- QR Code -->
+    {% if storage_bin.qr_code %}
+    <div class="card shadow mb-4">
+      <div class="card-header py-3">
+        <h6 class="m-0 font-weight-bold text-secondary">
+          <i class="bi bi-qr-code me-2"></i>QR Code
+        </h6>
+      </div>
+      <div class="card-body text-center">
+        <img src="{{ storage_bin.qr_code.url }}" alt="QR Code" class="img-fluid mb-3" style="max-width: 150px;">
+        <div class="d-grid gap-2">
+          <button type="button" class="btn btn-outline-primary btn-sm" onclick="printQRCode()">
+            <i class="bi bi-printer me-2"></i>Print QR Code
+          </button>
+          <button type="button" class="btn btn-outline-secondary btn-sm" onclick="downloadQRCode()">
+            <i class="bi bi-download me-2"></i>Download
+          </button>
+        </div>
+      </div>
+    </div>
+    {% endif %}
+
+    <!-- Recent Activity -->
+    <div class="card shadow mb-4">
+      <div class="card-header py-3">
+        <h6 class="m-0 font-weight-bold text-warning">
+          <i class="bi bi-clock-history me-2"></i>Recent Activity
+        </h6>
+      </div>
+      <div class="card-body">
+        {% if recent_movements %}
+        <div class="list-group list-group-flush">
+          {% for movement in recent_movements|slice:":5" %}
+          <div class="list-group-item px-0 py-2">
+            <div class="d-flex justify-content-between align-items-start">
+              <div>
+                <div class="small font-weight-bold">
+                  {% if movement.movement_type == 'in' %}
+                    <i class="bi bi-arrow-down text-success me-1"></i>Stock In
+                  {% elif movement.movement_type == 'out' %}
+                    <i class="bi bi-arrow-up text-danger me-1"></i>Stock Out
+                  {% else %}
+                    <i class="bi bi-arrow-left-right text-info me-1"></i>Transfer
+                  {% endif %}
+                </div>
+                <div class="small text-muted">{{ movement.product.name|truncatechars:30 }}</div>
+                <div class="small text-muted">Qty: {{ movement.quantity }}</div>
+              </div>
+              <small class="text-muted">{{ movement.created_at|timesince }}</small>
+            </div>
+          </div>
+          {% endfor %}
+        </div>
+        {% else %}
+        <div class="text-center py-3">
+          <i class="bi bi-clock text-muted" style="font-size: 2rem;"></i>
+          <p class="text-muted small mt-2 mb-0">No recent activity</p>
+        </div>
+        {% endif %}
+      </div>
+    </div>
+
+    <!-- Quick Actions -->
+    <div class="card shadow">
+      <div class="card-header py-3">
+        <h6 class="m-0 font-weight-bold text-primary">
+          <i class="bi bi-lightning me-2"></i>Quick Actions
+        </h6>
+      </div>
+      <div class="card-body">
+        <div class="d-grid gap-2">
+          <a href="{% url 'inventory:storage_bin_edit' storage_bin.pk %}" class="btn btn-primary btn-sm">
+            <i class="bi bi-pencil me-2"></i>Edit Bin
+          </a>
+          <button type="button" class="btn btn-success btn-sm" onclick="addProduct()">
+            <i class="bi bi-plus-circle me-2"></i>Add Product
+          </button>
+          <button type="button" class="btn btn-info btn-sm" onclick="stockTake()">
+            <i class="bi bi-clipboard-check me-2"></i>Stock Take
+          </button>
+          <button type="button" class="btn btn-outline-secondary btn-sm" onclick="printBinLabel()">
+            <i class="bi bi-printer me-2"></i>Print Label
+          </button>
+          {% if not storage_bin.qr_code %}
+          <button type="button" class="btn btn-outline-info btn-sm" onclick="generateQRCode()">
+            <i class="bi bi-qr-code me-2"></i>Generate QR Code
+          </button>
+          {% endif %}
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Move Product Modal -->
+<div class="modal fade" id="moveProductModal" tabindex="-1">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title">
+          <i class="bi bi-arrow-right me-2"></i>Move Product
+        </h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <form id="moveProductForm">
+          <div class="mb-3">
+            <label for="targetBin" class="form-label">Target Bin</label>
+            <select class="form-select" id="targetBin" required>
+              <option value="">Select target bin...</option>
+              {% for bin in available_bins %}
+              <option value="{{ bin.pk }}">{{ bin.bin_code }} - {{ bin.location.name }}</option>
+              {% endfor %}
+            </select>
+          </div>
+          <div class="mb-3">
+            <label for="moveQuantity" class="form-label">Quantity to Move</label>
+            <input type="number" class="form-control" id="moveQuantity" min="1" required>
+          </div>
+          <div class="mb-3">
+            <label for="moveReason" class="form-label">Reason</label>
+            <textarea class="form-control" id="moveReason" rows="2" placeholder="Optional reason for move"></textarea>
+          </div>
+        </form>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+        <button type="button" class="btn btn-primary" onclick="processMoveProduct()">Move Product</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+let currentProductId = null;
+
+function addProduct() {
+  // Implementation would show product selection modal
+  alert('Add product functionality would be implemented here');
+}
+
+function moveProduct(productId) {
+  currentProductId = productId;
+  const modal = new bootstrap.Modal(document.getElementById('moveProductModal'));
+  modal.show();
+}
+
+function processMoveProduct() {
+  const targetBin = document.getElementById('targetBin').value;
+  const quantity = document.getElementById('moveQuantity').value;
+  const reason = document.getElementById('moveReason').value;
+  
+  if (!targetBin || !quantity) {
+    alert('Please fill in all required fields');
+    return;
+  }
+  
+  if (confirm(`Move ${quantity} items to the selected bin?`)) {
+    // Implementation would process the move
+    console.log('Moving product:', currentProductId, 'to bin:', targetBin, 'quantity:', quantity);
+    bootstrap.Modal.getInstance(document.getElementById('moveProductModal')).hide();
+    location.reload();
+  }
+}
+
+function adjustStock(productId) {
+  // Implementation would show stock adjustment modal
+  alert(`Stock adjustment for product ${productId} would be implemented here`);
+}
+
+function scanBarcode() {
+  // Implementation would open barcode scanner
+  alert('Barcode scanner functionality would be implemented here');
+}
+
+function stockTake() {
+  // Implementation would start stock take process for this bin
+  if (confirm('Start a stock take for this bin? This will count all products currently in the bin.')) {
+    window.location.href = `/inventory/stock-takes/create/?bin={{ storage_bin.pk }}`;
+  }
+}
+
+function moveAllProducts() {
+  if (confirm('Move ALL products from this bin to another location?')) {
+    alert('Move all products functionality would be implemented here');
+  }
+}
+
+function printBinLabel() {
+  // Implementation would print bin label
+  window.print();
+}
+
+function generateQRCode() {
+  if (confirm('Generate QR code for this storage bin?')) {
+    // Implementation would generate QR code
+    alert('QR code generation would be implemented here');
+    location.reload();
+  }
+}
+
+function printQRCode() {
+  const qrImage = document.querySelector('.card img[alt="QR Code"]');
+  const printWindow = window.open('', '_blank');
+  printWindow.document.write(`
+    <html>
+      <head><title>QR Code - {{ storage_bin.bin_code }}</title></head>
+      <body style="text-align: center; font-family: Arial, sans-serif;">
+        <h3>{{ storage_bin.bin_code }}</h3>
+        <p>{{ storage_bin.location.name }}</p>
+        <img src="${qrImage.src}" style="max-width: 300px;">
+        <p>Scan to access bin details</p>
+      </body>
+    </html>
+  `);
+  printWindow.document.close();
+  printWindow.print();
+}
+
+function downloadQRCode() {
+  const qrImage = document.querySelector('.card img[alt="QR Code"]');
+  const link = document.createElement('a');
+  link.download = '{{ storage_bin.bin_code }}_qr_code.png';
+  link.href = qrImage.src;
+  link.click();
+}
+</script>
+{% endblock %}

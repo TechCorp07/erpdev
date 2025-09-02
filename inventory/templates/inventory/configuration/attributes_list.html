@@ -1,0 +1,628 @@
+{% extends "dashboard_base.html" %}
+{% load static %}
+
+{% block page_title %}Product Attributes{% endblock %}
+
+{% block dashboard_content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+  <div>
+    <nav aria-label="breadcrumb">
+      <ol class="breadcrumb mb-1">
+        <li class="breadcrumb-item"><a href="{% url 'inventory:dashboard' %}">Inventory</a></li>
+        <li class="breadcrumb-item"><a href="{% url 'inventory:configuration' %}">Configuration</a></li>
+        <li class="breadcrumb-item active">Product Attributes</li>
+      </ol>
+    </nav>
+    <h1 class="h3 mb-0 text-gray-800">
+      <i class="bi bi-tags text-primary me-2"></i>Product Attributes
+    </h1>
+    <p class="text-muted mb-0">Define custom attributes for different product types and component families</p>
+  </div>
+  
+  <div class="btn-group" role="group">
+    <a href="{% url 'inventory:attributes_create' %}" class="btn btn-primary">
+      <i class="bi bi-plus-circle me-2"></i>Add Attribute
+    </a>
+    <button class="btn btn-outline-secondary dropdown-toggle" type="button" data-bs-toggle="dropdown">
+      <i class="bi bi-gear me-2"></i>Actions
+    </button>
+    <ul class="dropdown-menu">
+      <li><a class="dropdown-item" href="#" onclick="importAttributes()">
+        <i class="bi bi-upload me-2"></i>Import Attributes
+      </a></li>
+      <li><a class="dropdown-item" href="#" onclick="exportAttributes()">
+        <i class="bi bi-download me-2"></i>Export List
+      </a></li>
+      <li><hr class="dropdown-divider"></li>
+      <li><a class="dropdown-item" href="#" onclick="bulkManagement()">
+        <i class="bi bi-list-check me-2"></i>Bulk Management
+      </a></li>
+    </ul>
+  </div>
+</div>
+
+<!-- Summary Cards -->
+<div class="row mb-4">
+  <div class="col-lg-3 col-md-6 mb-4">
+    <div class="card bg-primary text-white shadow h-100 py-2">
+      <div class="card-body">
+        <div class="row no-gutters align-items-center">
+          <div class="col mr-2">
+            <div class="text-xs font-weight-bold text-white-50 text-uppercase mb-1">
+              Total Attributes
+            </div>
+            <div class="h5 mb-0 font-weight-bold">{{ total_attributes|default:0 }}</div>
+          </div>
+          <div class="col-auto">
+            <i class="bi bi-tags fa-2x text-white-50"></i>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="col-lg-3 col-md-6 mb-4">
+    <div class="card bg-success text-white shadow h-100 py-2">
+      <div class="card-body">
+        <div class="row no-gutters align-items-center">
+          <div class="col mr-2">
+            <div class="text-xs font-weight-bold text-white-50 text-uppercase mb-1">
+              Active Attributes
+            </div>
+            <div class="h5 mb-0 font-weight-bold">{{ active_attributes|default:0 }}</div>
+          </div>
+          <div class="col-auto">
+            <i class="bi bi-check-circle fa-2x text-white-50"></i>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="col-lg-3 col-md-6 mb-4">
+    <div class="card bg-info text-white shadow h-100 py-2">
+      <div class="card-body">
+        <div class="row no-gutters align-items-center">
+          <div class="col mr-2">
+            <div class="text-xs font-weight-bold text-white-50 text-uppercase mb-1">
+              Required Attributes
+            </div>
+            <div class="h5 mb-0 font-weight-bold">{{ required_attributes|default:0 }}</div>
+          </div>
+          <div class="col-auto">
+            <i class="bi bi-exclamation-circle fa-2x text-white-50"></i>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="col-lg-3 col-md-6 mb-4">
+    <div class="card bg-warning text-white shadow h-100 py-2">
+      <div class="card-body">
+        <div class="row no-gutters align-items-center">
+          <div class="col mr-2">
+            <div class="text-xs font-weight-bold text-white-50 text-uppercase mb-1">
+              Component Families
+            </div>
+            <div class="h5 mb-0 font-weight-bold">{{ component_families_count|default:0 }}</div>
+          </div>
+          <div class="col-auto">
+            <i class="bi bi-cpu fa-2x text-white-50"></i>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Filters -->
+<div class="card shadow mb-4">
+  <div class="card-header py-3">
+    <h6 class="m-0 font-weight-bold text-info">
+      <i class="bi bi-funnel me-2"></i>Filters & Search
+    </h6>
+  </div>
+  <div class="card-body">
+    <form method="get" class="row g-3">
+      <div class="col-md-3">
+        <label for="search" class="form-label">Search</label>
+        <input type="text" class="form-control" id="search" name="search" 
+               value="{{ request.GET.search }}" placeholder="Search attributes...">
+      </div>
+      <div class="col-md-2">
+        <label for="attribute_type" class="form-label">Type</label>
+        <select class="form-select" id="attribute_type" name="attribute_type">
+          <option value="">All Types</option>
+          <option value="text" {% if request.GET.attribute_type == 'text' %}selected{% endif %}>Text</option>
+          <option value="number" {% if request.GET.attribute_type == 'number' %}selected{% endif %}>Number</option>
+          <option value="choice" {% if request.GET.attribute_type == 'choice' %}selected{% endif %}>Choice</option>
+          <option value="boolean" {% if request.GET.attribute_type == 'boolean' %}selected{% endif %}>Boolean</option>
+          <option value="date" {% if request.GET.attribute_type == 'date' %}selected{% endif %}>Date</option>
+        </select>
+      </div>
+      <div class="col-md-2">
+        <label for="component_family" class="form-label">Component Family</label>
+        <select class="form-select" id="component_family" name="component_family">
+          <option value="">All Families</option>
+          {% for family in component_families %}
+          <option value="{{ family.pk }}" {% if request.GET.component_family == family.pk|stringformat:"s" %}selected{% endif %}>
+            {{ family.name }}
+          </option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="col-md-2">
+        <label for="status" class="form-label">Status</label>
+        <select class="form-select" id="status" name="status">
+          <option value="">All Status</option>
+          <option value="active" {% if request.GET.status == 'active' %}selected{% endif %}>Active</option>
+          <option value="inactive" {% if request.GET.status == 'inactive' %}selected{% endif %}>Inactive</option>
+          <option value="required" {% if request.GET.status == 'required' %}selected{% endif %}>Required</option>
+        </select>
+      </div>
+      <div class="col-md-3 d-flex align-items-end gap-2">
+        <button type="submit" class="btn btn-primary">
+          <i class="bi bi-search me-2"></i>Filter
+        </button>
+        <a href="{% url 'inventory:attributes_list' %}" class="btn btn-outline-secondary">
+          <i class="bi bi-arrow-clockwise me-2"></i>Reset
+        </a>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- Attributes Table -->
+<div class="card shadow">
+  <div class="card-header py-3 d-flex justify-content-between align-items-center">
+    <h6 class="m-0 font-weight-bold text-primary">
+      <i class="bi bi-table me-2"></i>Product Attributes ({{ attributes.count }})
+    </h6>
+    <div class="btn-group btn-group-sm" role="group">
+      <input type="checkbox" class="btn-check" id="selectAll">
+      <label class="btn btn-outline-secondary" for="selectAll">
+        <i class="bi bi-check-all"></i>
+      </label>
+      <button type="button" class="btn btn-outline-primary" onclick="bulkActions()">
+        <i class="bi bi-list-check me-1"></i>Bulk Actions
+      </button>
+    </div>
+  </div>
+  <div class="card-body p-0">
+    {% if attributes.exists %}
+    <div class="table-responsive">
+      <table class="table table-hover mb-0">
+        <thead class="table-light">
+          <tr>
+            <th width="40">
+              <input type="checkbox" id="selectAllHeader" class="form-check-input">
+            </th>
+            <th>Attribute Name</th>
+            <th>Type</th>
+            <th>Component Families</th>
+            <th>Options/Validation</th>
+            <th>Usage</th>
+            <th>Status</th>
+            <th class="text-center">Actions</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for attribute in attributes %}
+          <tr>
+            <td>
+              <input type="checkbox" class="form-check-input attribute-checkbox" value="{{ attribute.pk }}">
+            </td>
+            <td>
+              <div class="d-flex align-items-center">
+                <div class="attribute-icon me-3">
+                  {% if attribute.attribute_type == 'text' %}
+                    <i class="bi bi-type text-primary"></i>
+                  {% elif attribute.attribute_type == 'number' %}
+                    <i class="bi bi-123 text-info"></i>
+                  {% elif attribute.attribute_type == 'choice' %}
+                    <i class="bi bi-list text-success"></i>
+                  {% elif attribute.attribute_type == 'boolean' %}
+                    <i class="bi bi-toggle-on text-warning"></i>
+                  {% elif attribute.attribute_type == 'date' %}
+                    <i class="bi bi-calendar text-secondary"></i>
+                  {% else %}
+                    <i class="bi bi-tag text-muted"></i>
+                  {% endif %}
+                </div>
+                <div>
+                  <div class="font-weight-bold">
+                    <a href="{% url 'inventory:attributes_detail' attribute.pk %}" class="text-decoration-none">
+                      {{ attribute.name }}
+                    </a>
+                  </div>
+                  {% if attribute.description %}
+                    <div class="small text-muted">{{ attribute.description|truncatechars:50 }}</div>
+                  {% endif %}
+                </div>
+              </div>
+            </td>
+            <td>
+              <span class="badge bg-secondary">{{ attribute.get_attribute_type_display }}</span>
+              {% if attribute.is_required %}
+                <br><span class="badge bg-danger badge-sm mt-1">Required</span>
+              {% endif %}
+            </td>
+            <td>
+              {% if attribute.component_families.exists %}
+                <div class="d-flex flex-wrap gap-1">
+                  {% for family in attribute.component_families.all|slice:":3" %}
+                    <span class="badge bg-primary badge-sm">{{ family.name }}</span>
+                  {% endfor %}
+                  {% if attribute.component_families.count > 3 %}
+                    <span class="badge bg-secondary badge-sm">+{{ attribute.component_families.count|add:"-3" }}</span>
+                  {% endif %}
+                </div>
+              {% else %}
+                <span class="text-muted small">All families</span>
+              {% endif %}
+            </td>
+            <td>
+              {% if attribute.attribute_type == 'choice' and attribute.choices %}
+                <div class="small">
+                  {% for choice in attribute.choices|slice:":3" %}
+                    <span class="badge bg-light text-dark badge-sm me-1">{{ choice }}</span>
+                  {% endfor %}
+                  {% if attribute.choices|length > 3 %}
+                    <span class="badge bg-secondary badge-sm">+{{ attribute.choices|length|add:"-3" }}</span>
+                  {% endif %}
+                </div>
+              {% elif attribute.attribute_type == 'number' %}
+                <div class="small text-muted">
+                  {% if attribute.min_value %}Min: {{ attribute.min_value }}{% endif %}
+                  {% if attribute.max_value %}Max: {{ attribute.max_value }}{% endif %}
+                  {% if attribute.unit %}Unit: {{ attribute.unit }}{% endif %}
+                </div>
+              {% elif attribute.attribute_type == 'text' %}
+                <div class="small text-muted">
+                  {% if attribute.max_length %}Max: {{ attribute.max_length }} chars{% endif %}
+                  {% if attribute.validation_pattern %}Pattern validation{% endif %}
+                </div>
+              {% else %}
+                <span class="text-muted small">—</span>
+              {% endif %}
+            </td>
+            <td>
+              <div class="text-center">
+                <div class="h6 mb-0">{{ attribute.usage_count|default:0 }}</div>
+                <div class="small text-muted">products</div>
+              </div>
+            </td>
+            <td>
+              <span class="badge bg-{{ attribute.is_active|yesno:'success,secondary' }}">
+                {{ attribute.is_active|yesno:'Active,Inactive' }}
+              </span>
+            </td>
+            <td class="text-center">
+              <div class="btn-group btn-group-sm" role="group">
+                <a href="{% url 'inventory:attributes_detail' attribute.pk %}" 
+                   class="btn btn-outline-primary btn-sm" title="View Details">
+                  <i class="bi bi-eye"></i>
+                </a>
+                <a href="{% url 'inventory:attributes_edit' attribute.pk %}" 
+                   class="btn btn-outline-secondary btn-sm" title="Edit">
+                  <i class="bi bi-pencil"></i>
+                </a>
+                {% if attribute.usage_count == 0 %}
+                <a href="{% url 'inventory:attributes_delete' attribute.pk %}" 
+                   class="btn btn-outline-danger btn-sm" title="Delete"
+                   onclick="return confirm('Delete {{ attribute.name }}?')">
+                  <i class="bi bi-trash"></i>
+                </a>
+                {% else %}
+                <button class="btn btn-outline-danger btn-sm disabled" title="Cannot delete - in use">
+                  <i class="bi bi-trash"></i>
+                </button>
+                {% endif %}
+              </div>
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+
+    <!-- Pagination -->
+    {% if is_paginated %}
+    <div class="card-footer">
+      <div class="d-flex justify-content-between align-items-center">
+        <div class="text-muted small">
+          Showing {{ page_obj.start_index }}-{{ page_obj.end_index }} of {{ paginator.count }} attributes
+        </div>
+        <nav>
+          <ul class="pagination pagination-sm mb-0">
+            {% if page_obj.has_previous %}
+              <li class="page-item">
+                <a class="page-link" href="?page=1{% if request.GET.search %}&search={{ request.GET.search }}{% endif %}">First</a>
+              </li>
+              <li class="page-item">
+                <a class="page-link" href="?page={{ page_obj.previous_page_number }}{% if request.GET.search %}&search={{ request.GET.search }}{% endif %}">Previous</a>
+              </li>
+            {% endif %}
+            
+            <li class="page-item active">
+              <span class="page-link">{{ page_obj.number }}</span>
+            </li>
+            
+            {% if page_obj.has_next %}
+              <li class="page-item">
+                <a class="page-link" href="?page={{ page_obj.next_page_number }}{% if request.GET.search %}&search={{ request.GET.search }}{% endif %}">Next</a>
+              </li>
+              <li class="page-item">
+                <a class="page-link" href="?page={{ paginator.num_pages }}{% if request.GET.search %}&search={{ request.GET.search }}{% endif %}">Last</a>
+              </li>
+            {% endif %}
+          </ul>
+        </nav>
+      </div>
+    </div>
+    {% endif %}
+
+    {% else %}
+    <!-- Empty State -->
+    <div class="text-center py-5">
+      <i class="bi bi-tags text-muted" style="font-size: 4rem;"></i>
+      <h5 class="mt-3 text-muted">No Product Attributes Found</h5>
+      <p class="text-muted mb-4">
+        Create custom attributes to capture detailed product specifications.<br>
+        Perfect for electronics components with technical specifications.
+      </p>
+      <a href="{% url 'inventory:attributes_create' %}" class="btn btn-primary">
+        <i class="bi bi-plus-circle me-2"></i>Create First Attribute
+      </a>
+    </div>
+    {% endif %}
+  </div>
+</div>
+
+<!-- Attribute Type Examples -->
+<div class="row mt-4">
+  <div class="col-12">
+    <div class="card border-info">
+      <div class="card-header bg-info text-white py-2">
+        <h6 class="mb-0">
+          <i class="bi bi-lightbulb me-2"></i>Common Electronics Attributes Examples
+        </h6>
+      </div>
+      <div class="card-body py-3">
+        <div class="row">
+          <div class="col-lg-3 col-md-6 mb-2">
+            <div class="small">
+              <strong>Resistors:</strong><br>
+              • Resistance (Number)<br>
+              • Tolerance (Choice: 1%, 5%, 10%)<br>
+              • Power Rating (Number)<br>
+              • Package Type (Choice)
+            </div>
+          </div>
+          <div class="col-lg-3 col-md-6 mb-2">
+            <div class="small">
+              <strong>Capacitors:</strong><br>
+              • Capacitance (Number)<br>
+              • Voltage Rating (Number)<br>
+              • Dielectric Type (Choice)<br>
+              • Polarized (Boolean)
+            </div>
+          </div>
+          <div class="col-lg-3 col-md-6 mb-2">
+            <div class="small">
+              <strong>ICs/Semiconductors:</strong><br>
+              • Part Number (Text)<br>
+              • Pin Count (Number)<br>
+              • Package Type (Choice)<br>
+              • Operating Temperature (Number)
+            </div>
+          </div>
+          <div class="col-lg-3 col-md-6 mb-2">
+            <div class="small">
+              <strong>Connectors:</strong><br>
+              • Connector Type (Choice)<br>
+              • Current Rating (Number)<br>
+              • Pitch (Number)<br>
+              • Mounting Type (Choice)
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Bulk Actions Modal -->
+<div class="modal fade" id="bulkActionsModal" tabindex="-1">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title">
+          <i class="bi bi-list-check me-2"></i>Bulk Actions
+        </h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <p class="text-muted">Select attributes to perform bulk operations:</p>
+        <div class="d-grid gap-2">
+          <button type="button" class="btn btn-outline-success" onclick="bulkActivate()">
+            <i class="bi bi-check-circle me-2"></i>Activate Selected
+          </button>
+          <button type="button" class="btn btn-outline-warning" onclick="bulkDeactivate()">
+            <i class="bi bi-pause-circle me-2"></i>Deactivate Selected
+          </button>
+          <button type="button" class="btn btn-outline-info" onclick="bulkAssignFamily()">
+            <i class="bi bi-cpu me-2"></i>Assign to Component Family
+          </button>
+          <hr>
+          <button type="button" class="btn btn-outline-danger" onclick="bulkDelete()">
+            <i class="bi bi-trash me-2"></i>Delete Unused Attributes
+          </button>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Import Attributes Modal -->
+<div class="modal fade" id="importAttributesModal" tabindex="-1">
+  <div class="modal-dialog modal-lg">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title">
+          <i class="bi bi-upload me-2"></i>Import Product Attributes
+        </h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <div class="mb-3">
+          <label for="importFile" class="form-label">Select CSV File</label>
+          <input type="file" class="form-control" id="importFile" accept=".csv">
+          <div class="form-text">
+            CSV should have columns: name, attribute_type, description, choices (for choice type), is_required
+          </div>
+        </div>
+        <div class="mb-3">
+          <label for="targetFamily" class="form-label">Assign to Component Family (Optional)</label>
+          <select class="form-select" id="targetFamily">
+            <option value="">No specific family</option>
+            {% for family in component_families %}
+            <option value="{{ family.pk }}">{{ family.name }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div class="alert alert-info">
+          <i class="bi bi-info-circle me-2"></i>
+          <strong>CSV Format Example:</strong><br>
+          name,attribute_type,description,choices,is_required<br>
+          Resistance,number,"Resistance value in Ohms",,true<br>
+          Package Type,choice,"Component package type","SMD,Through-hole,BGA",true
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+        <button type="button" class="btn btn-primary" onclick="processImport()">Import Attributes</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+// Select all functionality
+document.addEventListener('DOMContentLoaded', function() {
+  const selectAllHeader = document.getElementById('selectAllHeader');
+  const selectAll = document.getElementById('selectAll');
+  const checkboxes = document.querySelectorAll('.attribute-checkbox');
+  
+  [selectAllHeader, selectAll].forEach(checkbox => {
+    if (checkbox) {
+      checkbox.addEventListener('change', function() {
+        checkboxes.forEach(cb => cb.checked = this.checked);
+      });
+    }
+  });
+});
+
+// Get selected attributes
+function getSelectedAttributes() {
+  return Array.from(document.querySelectorAll('.attribute-checkbox:checked')).map(cb => cb.value);
+}
+
+// Bulk actions
+function bulkActions() {
+  const selected = getSelectedAttributes();
+  if (selected.length === 0) {
+    alert('Please select attributes first.');
+    return;
+  }
+  
+  const modal = new bootstrap.Modal(document.getElementById('bulkActionsModal'));
+  modal.show();
+}
+
+function bulkActivate() {
+  const selected = getSelectedAttributes();
+  if (selected.length === 0) {
+    alert('Please select attributes to activate.');
+    return;
+  }
+  
+  if (confirm(`Activate ${selected.length} selected attributes?`)) {
+    // Implementation would go here
+    console.log('Activating attributes:', selected);
+  }
+}
+
+function bulkDeactivate() {
+  const selected = getSelectedAttributes();
+  if (selected.length === 0) {
+    alert('Please select attributes to deactivate.');
+    return;
+  }
+  
+  if (confirm(`Deactivate ${selected.length} selected attributes?`)) {
+    // Implementation would go here
+    console.log('Deactivating attributes:', selected);
+  }
+}
+
+function bulkAssignFamily() {
+  const selected = getSelectedAttributes();
+  if (selected.length === 0) {
+    alert('Please select attributes first.');
+    return;
+  }
+  
+  const family = prompt('Enter component family ID to assign:');
+  if (family) {
+    console.log('Assigning attributes to family:', selected, family);
+  }
+}
+
+function bulkDelete() {
+  const selected = getSelectedAttributes();
+  if (selected.length === 0) {
+    alert('Please select attributes to delete.');
+    return;
+  }
+  
+  if (confirm(`Delete ${selected.length} selected attributes? This action cannot be undone.`)) {
+    // Implementation would go here
+    console.log('Deleting attributes:', selected);
+  }
+}
+
+function importAttributes() {
+  const modal = new bootstrap.Modal(document.getElementById('importAttributesModal'));
+  modal.show();
+}
+
+function processImport() {
+  const fileInput = document.getElementById('importFile');
+  const family = document.getElementById('targetFamily').value;
+  
+  if (!fileInput.files[0]) {
+    alert('Please select a CSV file to import.');
+    return;
+  }
+  
+  // Implementation would process the CSV file
+  alert('Import functionality would be implemented here');
+  bootstrap.Modal.getInstance(document.getElementById('importAttributesModal')).hide();
+}
+
+function exportAttributes() {
+  const params = new URLSearchParams(window.location.search);
+  params.set('export', 'csv');
+  window.location.href = `${window.location.pathname}?${params.toString()}`;
+}
+
+function bulkManagement() {
+  alert('Advanced bulk management interface would be implemented here');
+}
+</script>
+{% endblock %}

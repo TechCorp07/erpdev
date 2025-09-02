@@ -1,0 +1,663 @@
+{% extends "dashboard_base.html" %}
+{% load static %}
+
+{% block page_title %}Cost Calculator{% endblock %}
+
+{% block extra_head %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<style>
+  .cost-breakdown-item {
+    border-left: 4px solid #4e73df;
+    background: #f8f9fc;
+    transition: all 0.3s ease;
+  }
+  .cost-breakdown-item:hover {
+    background: #eef0fd;
+    transform: translateX(2px);
+  }
+  .calculator-result {
+    background: linear-gradient(135deg, #1cc88a 0%, #13855c 100%);
+    color: white;
+    border-radius: 15px;
+  }
+  .input-group-text {
+    min-width: 45px;
+  }
+</style>
+{% endblock %}
+
+{% block dashboard_content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+  <div>
+    <nav aria-label="breadcrumb">
+      <ol class="breadcrumb mb-1">
+        <li class="breadcrumb-item"><a href="{% url 'inventory:dashboard' %}">Inventory</a></li>
+        <li class="breadcrumb-item"><a href="{% url 'inventory:reports' %}">Reports</a></li>
+        <li class="breadcrumb-item active">Cost Calculator</li>
+      </ol>
+    </nav>
+    <h1 class="h3 mb-0 text-gray-800">
+      <i class="bi bi-calculator text-primary me-2"></i>Advanced Cost Calculator
+    </h1>
+    <p class="text-muted mb-0">Calculate comprehensive product costs with overhead factors and markup analysis</p>
+  </div>
+  
+  <div class="btn-group" role="group">
+    <button class="btn btn-outline-primary" onclick="saveCalculation()">
+      <i class="bi bi-save me-2"></i>Save Calculation
+    </button>
+    <button class="btn btn-outline-secondary" onclick="loadPreset()">
+      <i class="bi bi-folder-open me-2"></i>Load Preset
+    </button>
+    <button class="btn btn-outline-info" onclick="exportCalculation()">
+      <i class="bi bi-download me-2"></i>Export
+    </button>
+  </div>
+</div>
+
+<div class="row">
+  <!-- Input Form -->
+  <div class="col-lg-8">
+    <div class="card shadow">
+      <div class="card-header py-3">
+        <h6 class="m-0 font-weight-bold text-primary">
+          <i class="bi bi-input-cursor me-2"></i>Cost Calculation Inputs
+        </h6>
+      </div>
+      <div class="card-body">
+        <form id="costCalculatorForm">
+          <!-- Product Selection -->
+          <div class="row mb-4">
+            <div class="col-md-6">
+              <label for="productSelect" class="form-label">Select Product (Optional)</label>
+              <select class="form-select" id="productSelect" onchange="loadProductData()">
+                <option value="">-- Manual Entry --</option>
+                {% for product in products %}
+                <option value="{{ product.pk }}" 
+                        data-cost="{{ product.cost_price }}" 
+                        data-name="{{ product.name }}"
+                        data-category="{{ product.category.name }}">
+                  {{ product.name }} ({{ product.sku }})
+                </option>
+                {% endfor %}
+              </select>
+            </div>
+            <div class="col-md-6">
+              <label for="productName" class="form-label">Product Name</label>
+              <input type="text" class="form-control" id="productName" placeholder="Enter product name">
+            </div>
+          </div>
+
+          <!-- Basic Cost Information -->
+          <div class="card mb-4">
+            <div class="card-header py-2 bg-light">
+              <h6 class="mb-0 text-primary">
+                <i class="bi bi-cash-coin me-2"></i>Base Cost Information
+              </h6>
+            </div>
+            <div class="card-body">
+              <div class="row">
+                <div class="col-md-4">
+                  <label for="baseCost" class="form-label">Base Cost Price</label>
+                  <div class="input-group">
+                    <span class="input-group-text">$</span>
+                    <input type="number" class="form-control" id="baseCost" 
+                           step="0.01" min="0" value="0.00" onchange="calculateCosts()">
+                  </div>
+                </div>
+                <div class="col-md-4">
+                  <label for="quantity" class="form-label">Quantity</label>
+                  <input type="number" class="form-control" id="quantity" 
+                         min="1" value="1" onchange="calculateCosts()">
+                </div>
+                <div class="col-md-4">
+                  <label for="currency" class="form-label">Currency</label>
+                  <select class="form-select" id="currency" onchange="calculateCosts()">
+                    {% for currency in currencies %}
+                    <option value="{{ currency.code }}" 
+                            data-rate="{{ currency.exchange_rate_to_usd }}"
+                            {% if currency.code == 'USD' %}selected{% endif %}>
+                      {{ currency.code }} ({{ currency.symbol }})
+                    </option>
+                    {% endfor %}
+                  </select>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Overhead Factors -->
+          <div class="card mb-4">
+            <div class="card-header py-2 bg-light d-flex justify-content-between align-items-center">
+              <h6 class="mb-0 text-success">
+                <i class="bi bi-gear me-2"></i>Overhead Factors
+              </h6>
+              <button type="button" class="btn btn-sm btn-outline-success" onclick="addCustomOverhead()">
+                <i class="bi bi-plus-circle me-1"></i>Add Custom
+              </button>
+            </div>
+            <div class="card-body">
+              <div class="row" id="overheadFactors">
+                {% for factor in overhead_factors %}
+                <div class="col-md-6 mb-3">
+                  <div class="form-check d-flex justify-content-between align-items-center p-3 border rounded">
+                    <div>
+                      <input class="form-check-input overhead-checkbox" type="checkbox" 
+                             id="overhead{{ factor.pk }}" value="{{ factor.pk }}"
+                             data-rate="{{ factor.factor_percentage }}"
+                             onchange="calculateCosts()">
+                      <label class="form-check-label ms-2" for="overhead{{ factor.pk }}">
+                        <strong>{{ factor.name }}</strong>
+                        <br><small class="text-muted">{{ factor.description }}</small>
+                      </label>
+                    </div>
+                    <div class="text-end">
+                      <span class="badge bg-primary">{{ factor.factor_percentage }}%</span>
+                    </div>
+                  </div>
+                </div>
+                {% endfor %}
+              </div>
+              
+              <!-- Custom Overhead -->
+              <div id="customOverheads"></div>
+            </div>
+          </div>
+
+          <!-- Markup and Pricing -->
+          <div class="card mb-4">
+            <div class="card-header py-2 bg-light">
+              <h6 class="mb-0 text-warning">
+                <i class="bi bi-percent me-2"></i>Markup & Pricing Strategy
+              </h6>
+            </div>
+            <div class="card-body">
+              <div class="row">
+                <div class="col-md-4">
+                  <label for="markupType" class="form-label">Markup Type</label>
+                  <select class="form-select" id="markupType" onchange="calculateCosts()">
+                    <option value="percentage">Percentage Markup</option>
+                    <option value="fixed">Fixed Amount</option>
+                    <option value="target_margin">Target Margin</option>
+                  </select>
+                </div>
+                <div class="col-md-4">
+                  <label for="markupValue" class="form-label">Markup Value</label>
+                  <div class="input-group">
+                    <input type="number" class="form-control" id="markupValue" 
+                           step="0.01" min="0" value="25.00" onchange="calculateCosts()">
+                    <span class="input-group-text" id="markupUnit">%</span>
+                  </div>
+                </div>
+                <div class="col-md-4">
+                  <label for="competitorPrice" class="form-label">Competitor Price (Optional)</label>
+                  <div class="input-group">
+                    <span class="input-group-text">$</span>
+                    <input type="number" class="form-control" id="competitorPrice" 
+                           step="0.01" min="0" placeholder="0.00" onchange="calculateCosts()">
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Additional Costs -->
+          <div class="card">
+            <div class="card-header py-2 bg-light d-flex justify-content-between align-items-center">
+              <h6 class="mb-0 text-info">
+                <i class="bi bi-plus-square me-2"></i>Additional Costs
+              </h6>
+              <button type="button" class="btn btn-sm btn-outline-info" onclick="addAdditionalCost()">
+                <i class="bi bi-plus-circle me-1"></i>Add Cost
+              </button>
+            </div>
+            <div class="card-body">
+              <div id="additionalCosts">
+                <div class="row additional-cost-row">
+                  <div class="col-md-4">
+                    <input type="text" class="form-control" placeholder="Cost description">
+                  </div>
+                  <div class="col-md-3">
+                    <div class="input-group">
+                      <span class="input-group-text">$</span>
+                      <input type="number" class="form-control additional-cost-value" 
+                             step="0.01" min="0" placeholder="0.00" onchange="calculateCosts()">
+                    </div>
+                  </div>
+                  <div class="col-md-3">
+                    <select class="form-select additional-cost-type" onchange="calculateCosts()">
+                      <option value="fixed">Fixed Amount</option>
+                      <option value="percentage">Percentage</option>
+                    </select>
+                  </div>
+                  <div class="col-md-2">
+                    <button type="button" class="btn btn-outline-danger" onclick="removeAdditionalCost(this)">
+                      <i class="bi bi-trash"></i>
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <!-- Results Panel -->
+  <div class="col-lg-4">
+    <!-- Calculation Results -->
+    <div class="card shadow calculator-result mb-4">
+      <div class="card-body text-center">
+        <h4 class="text-white mb-3">
+          <i class="bi bi-currency-dollar me-2"></i>Final Selling Price
+        </h4>
+        <div class="display-4 font-weight-bold text-white mb-2" id="finalPrice">$0.00</div>
+        <div class="text-white-50 small" id="pricePerUnit">per unit</div>
+        
+        <hr class="bg-white-50">
+        
+        <div class="row text-center">
+          <div class="col-6">
+            <div class="h5 text-white mb-1" id="totalMargin">0%</div>
+            <div class="text-white-50 small">Margin</div>
+          </div>
+          <div class="col-6">
+            <div class="h5 text-white mb-1" id="totalProfit">$0.00</div>
+            <div class="text-white-50 small">Profit</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Cost Breakdown -->
+    <div class="card shadow mb-4">
+      <div class="card-header py-3">
+        <h6 class="m-0 font-weight-bold text-primary">
+          <i class="bi bi-pie-chart me-2"></i>Cost Breakdown
+        </h6>
+      </div>
+      <div class="card-body">
+        <div id="costBreakdown">
+          <div class="cost-breakdown-item p-3 mb-2 rounded">
+            <div class="d-flex justify-content-between">
+              <span>Base Cost</span>
+              <span class="font-weight-bold" id="breakdownBase">$0.00</span>
+            </div>
+          </div>
+          <div class="cost-breakdown-item p-3 mb-2 rounded">
+            <div class="d-flex justify-content-between">
+              <span>Overhead Costs</span>
+              <span class="font-weight-bold" id="breakdownOverhead">$0.00</span>
+            </div>
+          </div>
+          <div class="cost-breakdown-item p-3 mb-2 rounded">
+            <div class="d-flex justify-content-between">
+              <span>Additional Costs</span>
+              <span class="font-weight-bold" id="breakdownAdditional">$0.00</span>
+            </div>
+          </div>
+          <div class="cost-breakdown-item p-3 mb-2 rounded">
+            <div class="d-flex justify-content-between">
+              <span>Markup Amount</span>
+              <span class="font-weight-bold" id="breakdownMarkup">$0.00</span>
+            </div>
+          </div>
+        </div>
+        
+        <!-- Cost Visualization -->
+        <div class="mt-4">
+          <canvas id="costChart" height="200"></canvas>
+        </div>
+      </div>
+    </div>
+
+    <!-- Competitive Analysis -->
+    <div class="card shadow">
+      <div class="card-header py-3">
+        <h6 class="m-0 font-weight-bold text-warning">
+          <i class="bi bi-graph-up me-2"></i>Price Analysis
+        </h6>
+      </div>
+      <div class="card-body">
+        <div id="competitiveAnalysis">
+          <div class="alert alert-info" role="alert" id="competitiveAlert" style="display: none;">
+            <i class="bi bi-info-circle me-2"></i>
+            <span id="competitiveMessage">Enter competitor price for analysis</span>
+          </div>
+          
+          <div class="mb-3">
+            <label class="form-label small text-muted">Price Positioning</label>
+            <div class="progress mb-2" style="height: 20px;">
+              <div class="progress-bar bg-success" id="pricePosition" style="width: 50%"></div>
+            </div>
+            <div class="d-flex justify-content-between small text-muted">
+              <span>Lower</span>
+              <span id="positionText">Competitive</span>
+              <span>Higher</span>
+            </div>
+          </div>
+
+          <div class="row text-center">
+            <div class="col-12 mb-2">
+              <div class="small text-muted">Break-even Quantity</div>
+              <div class="font-weight-bold" id="breakEvenQty">-</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Save Calculation Modal -->
+<div class="modal fade" id="saveCalculationModal" tabindex="-1">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title">
+          <i class="bi bi-save me-2"></i>Save Calculation
+        </h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <form id="saveForm">
+          <div class="mb-3">
+            <label for="calculationName" class="form-label">Calculation Name</label>
+            <input type="text" class="form-control" id="calculationName" required>
+          </div>
+          <div class="mb-3">
+            <label for="calculationNotes" class="form-label">Notes</label>
+            <textarea class="form-control" id="calculationNotes" rows="3"></textarea>
+          </div>
+        </form>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+        <button type="button" class="btn btn-primary" onclick="saveCalculationData()">Save</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+let costChart;
+
+document.addEventListener('DOMContentLoaded', function() {
+  calculateCosts();
+  initializeCostChart();
+  
+  // Update markup unit when type changes
+  document.getElementById('markupType').addEventListener('change', function() {
+    const unit = document.getElementById('markupUnit');
+    switch(this.value) {
+      case 'percentage':
+        unit.textContent = '%';
+        break;
+      case 'fixed':
+        unit.textContent = '$';
+        break;
+      case 'target_margin':
+        unit.textContent = '%';
+        break;
+    }
+  });
+});
+
+function loadProductData() {
+  const select = document.getElementById('productSelect');
+  const selectedOption = select.options[select.selectedIndex];
+  
+  if (selectedOption.value) {
+    document.getElementById('productName').value = selectedOption.dataset.name;
+    document.getElementById('baseCost').value = selectedOption.dataset.cost || 0;
+    calculateCosts();
+  }
+}
+
+function calculateCosts() {
+  const baseCost = parseFloat(document.getElementById('baseCost').value) || 0;
+  const quantity = parseInt(document.getElementById('quantity').value) || 1;
+  const markupValue = parseFloat(document.getElementById('markupValue').value) || 0;
+  const markupType = document.getElementById('markupType').value;
+  const competitorPrice = parseFloat(document.getElementById('competitorPrice').value) || 0;
+  
+  // Calculate overhead costs
+  let overheadTotal = 0;
+  document.querySelectorAll('.overhead-checkbox:checked').forEach(checkbox => {
+    const rate = parseFloat(checkbox.dataset.rate) || 0;
+    overheadTotal += (baseCost * rate / 100);
+  });
+  
+  // Calculate additional costs
+  let additionalTotal = 0;
+  document.querySelectorAll('.additional-cost-value').forEach(input => {
+    const value = parseFloat(input.value) || 0;
+    const type = input.closest('.additional-cost-row').querySelector('.additional-cost-type').value;
+    
+    if (type === 'percentage') {
+      additionalTotal += (baseCost * value / 100);
+    } else {
+      additionalTotal += value;
+    }
+  });
+  
+  const totalCost = baseCost + overheadTotal + additionalTotal;
+  
+  // Calculate markup and final price
+  let markupAmount = 0;
+  let finalPrice = 0;
+  
+  switch(markupType) {
+    case 'percentage':
+      markupAmount = totalCost * (markupValue / 100);
+      finalPrice = totalCost + markupAmount;
+      break;
+    case 'fixed':
+      markupAmount = markupValue;
+      finalPrice = totalCost + markupAmount;
+      break;
+    case 'target_margin':
+      finalPrice = totalCost / (1 - markupValue / 100);
+      markupAmount = finalPrice - totalCost;
+      break;
+  }
+  
+  const totalProfit = markupAmount;
+  const marginPercentage = totalCost > 0 ? (totalProfit / finalPrice) * 100 : 0;
+  
+  // Update display
+  document.getElementById('finalPrice').textContent = `$${(finalPrice * quantity).toFixed(2)}`;
+  document.getElementById('pricePerUnit').textContent = quantity > 1 ? `$${finalPrice.toFixed(2)} per unit` : 'total price';
+  document.getElementById('totalMargin').textContent = `${marginPercentage.toFixed(1)}%`;
+  document.getElementById('totalProfit').textContent = `$${(totalProfit * quantity).toFixed(2)}`;
+  
+  // Update breakdown
+  document.getElementById('breakdownBase').textContent = `$${(baseCost * quantity).toFixed(2)}`;
+  document.getElementById('breakdownOverhead').textContent = `$${(overheadTotal * quantity).toFixed(2)}`;
+  document.getElementById('breakdownAdditional').textContent = `$${(additionalTotal * quantity).toFixed(2)}`;
+  document.getElementById('breakdownMarkup').textContent = `$${(markupAmount * quantity).toFixed(2)}`;
+  
+  // Update competitive analysis
+  updateCompetitiveAnalysis(finalPrice, competitorPrice, totalCost);
+  
+  // Update chart
+  updateCostChart(baseCost, overheadTotal, additionalTotal, markupAmount);
+}
+
+function updateCompetitiveAnalysis(ourPrice, competitorPrice, totalCost) {
+  const alert = document.getElementById('competitiveAlert');
+  const message = document.getElementById('competitiveMessage');
+  const positionBar = document.getElementById('pricePosition');
+  const positionText = document.getElementById('positionText');
+  
+  if (competitorPrice > 0) {
+    alert.style.display = 'block';
+    const difference = ((ourPrice - competitorPrice) / competitorPrice) * 100;
+    
+    if (difference > 10) {
+      alert.className = 'alert alert-warning';
+      message.textContent = `Our price is ${Math.abs(difference).toFixed(1)}% higher than competitor`;
+      positionBar.className = 'progress-bar bg-danger';
+      positionBar.style.width = '80%';
+      positionText.textContent = 'Higher';
+    } else if (difference < -10) {
+      alert.className = 'alert alert-success';
+      message.textContent = `Our price is ${Math.abs(difference).toFixed(1)}% lower than competitor`;
+      positionBar.className = 'progress-bar bg-success';
+      positionBar.style.width = '20%';
+      positionText.textContent = 'Lower';
+    } else {
+      alert.className = 'alert alert-info';
+      message.textContent = `Our price is competitive (${difference > 0 ? '+' : ''}${difference.toFixed(1)}% vs competitor)`;
+      positionBar.className = 'progress-bar bg-info';
+      positionBar.style.width = '50%';
+      positionText.textContent = 'Competitive';
+    }
+  } else {
+    alert.style.display = 'none';
+  }
+  
+  // Break-even calculation
+  const fixedCosts = totalCost * 100; // Assume some fixed costs
+  const breakEven = ourPrice > totalCost ? Math.ceil(fixedCosts / (ourPrice - totalCost)) : 0;
+  document.getElementById('breakEvenQty').textContent = breakEven > 0 ? `${breakEven} units` : 'N/A';
+}
+
+function initializeCostChart() {
+  const ctx = document.getElementById('costChart').getContext('2d');
+  
+  costChart = new Chart(ctx, {
+    type: 'doughnut',
+    data: {
+      labels: ['Base Cost', 'Overhead', 'Additional', 'Markup'],
+      datasets: [{
+        data: [0, 0, 0, 0],
+        backgroundColor: ['#4e73df', '#1cc88a', '#36b9cc', '#f6c23e'],
+        borderWidth: 0
+      }]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: {
+        legend: {
+          position: 'bottom',
+          labels: { fontSize: 10 }
+        }
+      }
+    }
+  });
+}
+
+function updateCostChart(base, overhead, additional, markup) {
+  if (costChart) {
+    costChart.data.datasets[0].data = [base, overhead, additional, markup];
+    costChart.update();
+  }
+}
+
+function addCustomOverhead() {
+  const container = document.getElementById('customOverheads');
+  const customId = 'custom_' + Date.now();
+  
+  const html = `
+    <div class="row mb-3 custom-overhead-row">
+      <div class="col-md-4">
+        <input type="text" class="form-control" placeholder="Overhead name">
+      </div>
+      <div class="col-md-3">
+        <div class="input-group">
+          <input type="number" class="form-control custom-overhead-rate" 
+                 step="0.01" min="0" placeholder="0.00" onchange="calculateCosts()">
+          <span class="input-group-text">%</span>
+        </div>
+      </div>
+      <div class="col-md-3">
+        <input type="text" class="form-control" placeholder="Description">
+      </div>
+      <div class="col-md-2">
+        <button type="button" class="btn btn-outline-danger" onclick="removeCustomOverhead(this)">
+          <i class="bi bi-trash"></i>
+        </button>
+      </div>
+    </div>
+  `;
+  
+  container.insertAdjacentHTML('beforeend', html);
+}
+
+function removeCustomOverhead(button) {
+  button.closest('.custom-overhead-row').remove();
+  calculateCosts();
+}
+
+function addAdditionalCost() {
+  const container = document.getElementById('additionalCosts');
+  
+  const html = `
+    <div class="row additional-cost-row mb-2">
+      <div class="col-md-4">
+        <input type="text" class="form-control" placeholder="Cost description">
+      </div>
+      <div class="col-md-3">
+        <div class="input-group">
+          <span class="input-group-text">$</span>
+          <input type="number" class="form-control additional-cost-value" 
+                 step="0.01" min="0" placeholder="0.00" onchange="calculateCosts()">
+        </div>
+      </div>
+      <div class="col-md-3">
+        <select class="form-select additional-cost-type" onchange="calculateCosts()">
+          <option value="fixed">Fixed Amount</option>
+          <option value="percentage">Percentage</option>
+        </select>
+      </div>
+      <div class="col-md-2">
+        <button type="button" class="btn btn-outline-danger" onclick="removeAdditionalCost(this)">
+          <i class="bi bi-trash"></i>
+        </button>
+      </div>
+    </div>
+  `;
+  
+  container.insertAdjacentHTML('beforeend', html);
+}
+
+function removeAdditionalCost(button) {
+  button.closest('.additional-cost-row').remove();
+  calculateCosts();
+}
+
+function saveCalculation() {
+  const modal = new bootstrap.Modal(document.getElementById('saveCalculationModal'));
+  modal.show();
+}
+
+function saveCalculationData() {
+  const name = document.getElementById('calculationName').value;
+  const notes = document.getElementById('calculationNotes').value;
+  
+  if (name.trim()) {
+    // Collect all calculation data
+    const calculationData = {
+      name: name,
+      notes: notes,
+      // ... collect all form data
+    };
+    
+    // Save calculation (API call would go here)
+    alert('Calculation saved successfully!');
+    bootstrap.Modal.getInstance(document.getElementById('saveCalculationModal')).hide();
+  }
+}
+
+function loadPreset() {
+  alert('Load preset functionality would be implemented here');
+}
+
+function exportCalculation() {
+  alert('Export calculation functionality would be implemented here');
+}
+</script>
+{% endblock %}

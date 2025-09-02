@@ -1,0 +1,559 @@
+{% extends "dashboard_base.html" %}
+{% load static %}
+
+{% block page_title %}Storage Location: {{ location.name }}{% endblock %}
+
+{% block dashboard_content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+  <div>
+    <nav aria-label="breadcrumb">
+      <ol class="breadcrumb mb-1">
+        <li class="breadcrumb-item"><a href="{% url 'inventory:dashboard' %}">Inventory</a></li>
+        <li class="breadcrumb-item"><a href="{% url 'inventory:configuration' %}">Configuration</a></li>
+        <li class="breadcrumb-item"><a href="{% url 'inventory:storage_location_list' %}">Storage Locations</a></li>
+        <li class="breadcrumb-item active">{{ location.name }}</li>
+      </ol>
+    </nav>
+    <h1 class="h3 mb-0 text-gray-800">
+      <i class="bi bi-building text-primary me-2"></i>{{ location.name }}
+    </h1>
+    <p class="text-muted mb-0">{{ location.get_location_type_display }} • {{ location.code }}</p>
+  </div>
+  
+  <div class="btn-group" role="group">
+    <a href="{% url 'inventory:storage_location_edit' location.pk %}" class="btn btn-primary">
+      <i class="bi bi-pencil me-2"></i>Edit
+    </a>
+    <button class="btn btn-outline-secondary dropdown-toggle" type="button" data-bs-toggle="dropdown">
+      <i class="bi bi-gear me-2"></i>Actions
+    </button>
+    <ul class="dropdown-menu">
+      <li><a class="dropdown-item" href="#" onclick="generateLocationReport()">
+        <i class="bi bi-file-earmark-text me-2"></i>Generate Report
+      </a></li>
+      <li><a class="dropdown-item" href="#" onclick="printLocationLabel()">
+        <i class="bi bi-printer me-2"></i>Print Label
+      </a></li>
+      <li><hr class="dropdown-divider"></li>
+      <li><a class="dropdown-item" href="{% url 'inventory:storage_bin_create' %}?location={{ location.pk }}">
+        <i class="bi bi-plus-circle me-2"></i>Add Storage Bin
+      </a></li>
+      <li><a class="dropdown-item" href="#" onclick="bulkCreateBins()">
+        <i class="bi bi-stack me-2"></i>Bulk Create Bins
+      </a></li>
+    </ul>
+  </div>
+</div>
+
+<!-- Status Alert -->
+{% if not location.is_active %}
+<div class="alert alert-warning d-flex align-items-center mb-4" role="alert">
+  <i class="bi bi-exclamation-triangle me-3"></i>
+  <div>
+    <strong>Inactive Location:</strong> This storage location is currently inactive and not available for new inventory assignments.
+  </div>
+</div>
+{% endif %}
+
+<!-- Capacity Alert -->
+{% if location.capacity_percentage >= 90 %}
+<div class="alert alert-danger d-flex align-items-center mb-4" role="alert">
+  <i class="bi bi-exclamation-triangle-fill me-3"></i>
+  <div>
+    <strong>Capacity Alert:</strong> This location is {{ location.capacity_percentage|floatformat:1 }}% full. Consider redistributing inventory or expanding capacity.
+  </div>
+</div>
+{% elif location.capacity_percentage >= 80 %}
+<div class="alert alert-warning d-flex align-items-center mb-4" role="alert">
+  <i class="bi bi-exclamation-triangle me-3"></i>
+  <div>
+    <strong>Capacity Warning:</strong> This location is {{ location.capacity_percentage|floatformat:1 }}% full. Monitor capacity closely.
+  </div>
+</div>
+{% endif %}
+
+<div class="row">
+  <!-- Main Details -->
+  <div class="col-lg-8">
+    <!-- Basic Information -->
+    <div class="card shadow mb-4">
+      <div class="card-header py-3">
+        <h6 class="m-0 font-weight-bold text-primary">
+          <i class="bi bi-info-circle me-2"></i>Location Information
+        </h6>
+      </div>
+      <div class="card-body">
+        <div class="row">
+          <div class="col-md-6">
+            <table class="table table-sm table-borderless">
+              <tr>
+                <th class="text-muted" width="40%">Name:</th>
+                <td><strong>{{ location.name }}</strong></td>
+              </tr>
+              <tr>
+                <th class="text-muted">Code:</th>
+                <td><code>{{ location.code }}</code></td>
+              </tr>
+              <tr>
+                <th class="text-muted">Type:</th>
+                <td>
+                  {% if location.location_type == 'warehouse' %}
+                    <i class="bi bi-building text-primary me-1"></i>
+                  {% elif location.location_type == 'store' %}
+                    <i class="bi bi-shop text-success me-1"></i>
+                  {% elif location.location_type == 'supplier' %}
+                    <i class="bi bi-truck text-info me-1"></i>
+                  {% elif location.location_type == 'customer' %}
+                    <i class="bi bi-person text-warning me-1"></i>
+                  {% else %}
+                    <i class="bi bi-geo-alt text-secondary me-1"></i>
+                  {% endif %}
+                  {{ location.get_location_type_display }}
+                </td>
+              </tr>
+              <tr>
+                <th class="text-muted">Status:</th>
+                <td>
+                  <span class="badge bg-{{ location.is_active|yesno:'success,secondary' }}">
+                    {{ location.is_active|yesno:'Active,Inactive' }}
+                  </span>
+                </td>
+              </tr>
+            </table>
+          </div>
+          <div class="col-md-6">
+            <table class="table table-sm table-borderless">
+              <tr>
+                <th class="text-muted" width="40%">Created:</th>
+                <td>{{ location.created_at|date:"M d, Y" }}</td>
+              </tr>
+              <tr>
+                <th class="text-muted">Updated:</th>
+                <td>{{ location.updated_at|date:"M d, Y" }}</td>
+              </tr>
+              {% if location.temperature_controlled %}
+              <tr>
+                <th class="text-muted">Temperature:</th>
+                <td>
+                  <i class="bi bi-thermometer text-info me-1"></i>
+                  Controlled
+                </td>
+              </tr>
+              {% endif %}
+              {% if location.security_level %}
+              <tr>
+                <th class="text-muted">Security Level:</th>
+                <td>
+                  <span class="badge bg-secondary">{{ location.get_security_level_display }}</span>
+                </td>
+              </tr>
+              {% endif %}
+            </table>
+          </div>
+        </div>
+
+        {% if location.description %}
+        <hr>
+        <div>
+          <h6 class="text-muted mb-2">Description</h6>
+          <p class="mb-0">{{ location.description|linebreaks }}</p>
+        </div>
+        {% endif %}
+      </div>
+    </div>
+
+    <!-- Address Information -->
+    {% if location.address %}
+    <div class="card shadow mb-4">
+      <div class="card-header py-3">
+        <h6 class="m-0 font-weight-bold text-info">
+          <i class="bi bi-geo-alt me-2"></i>Address Information
+        </h6>
+      </div>
+      <div class="card-body">
+        <div class="row">
+          <div class="col-md-8">
+            <address class="mb-0">
+              <strong>{{ location.name }}</strong><br>
+              {{ location.address }}<br>
+              {% if location.city %}{{ location.city }}, {% endif %}
+              {% if location.state %}{{ location.state }} {% endif %}
+              {% if location.postal_code %}{{ location.postal_code }}{% endif %}<br>
+              {% if location.country %}{{ location.country }}{% endif %}
+            </address>
+          </div>
+          <div class="col-md-4">
+            {% if location.latitude and location.longitude %}
+            <button class="btn btn-outline-primary btn-sm" onclick="showMap()">
+              <i class="bi bi-map me-2"></i>View on Map
+            </button>
+            {% endif %}
+            <button class="btn btn-outline-secondary btn-sm" onclick="getDirections()">
+              <i class="bi bi-signpost me-2"></i>Get Directions
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+    {% endif %}
+
+    <!-- Contact Information -->
+    {% if location.manager_name or location.manager_email or location.phone %}
+    <div class="card shadow mb-4">
+      <div class="card-header py-3">
+        <h6 class="m-0 font-weight-bold text-warning">
+          <i class="bi bi-person me-2"></i>Contact Information
+        </h6>
+      </div>
+      <div class="card-body">
+        <div class="row">
+          <div class="col-md-6">
+            {% if location.manager_name %}
+            <div class="mb-2">
+              <strong>Manager:</strong> {{ location.manager_name }}
+            </div>
+            {% endif %}
+            {% if location.manager_email %}
+            <div class="mb-2">
+              <strong>Email:</strong> 
+              <a href="mailto:{{ location.manager_email }}">{{ location.manager_email }}</a>
+            </div>
+            {% endif %}
+          </div>
+          <div class="col-md-6">
+            {% if location.phone %}
+            <div class="mb-2">
+              <strong>Phone:</strong> 
+              <a href="tel:{{ location.phone }}">{{ location.phone }}</a>
+            </div>
+            {% endif %}
+            {% if location.emergency_contact %}
+            <div class="mb-2">
+              <strong>Emergency:</strong> {{ location.emergency_contact }}
+            </div>
+            {% endif %}
+          </div>
+        </div>
+      </div>
+    </div>
+    {% endif %}
+
+    <!-- Storage Bins -->
+    <div class="card shadow">
+      <div class="card-header py-3 d-flex justify-content-between align-items-center">
+        <h6 class="m-0 font-weight-bold text-success">
+          <i class="bi bi-box me-2"></i>Storage Bins ({{ location.storage_bins.count }})
+        </h6>
+        <div class="btn-group btn-group-sm" role="group">
+          <a href="{% url 'inventory:storage_bin_create' %}?location={{ location.pk }}" class="btn btn-primary btn-sm">
+            <i class="bi bi-plus-circle me-1"></i>Add Bin
+          </a>
+          <button type="button" class="btn btn-outline-secondary btn-sm" onclick="bulkCreateBins()">
+            <i class="bi bi-stack me-1"></i>Bulk Create
+          </button>
+        </div>
+      </div>
+      <div class="card-body">
+        {% if location.storage_bins.exists %}
+        <div class="row">
+          {% for bin in location.storage_bins.all|slice:":12" %}
+          <div class="col-lg-4 col-md-6 mb-3">
+            <div class="card border-left-primary">
+              <div class="card-body py-2">
+                <div class="d-flex justify-content-between align-items-center">
+                  <div>
+                    <div class="font-weight-bold">
+                      <a href="{% url 'inventory:storage_bin_detail' bin.pk %}" class="text-decoration-none">
+                        {{ bin.bin_code }}
+                      </a>
+                    </div>
+                    <div class="small text-muted">{{ bin.name|default:"No name" }}</div>
+                    {% if bin.row or bin.column or bin.shelf %}
+                    <div class="small text-info">
+                      {% if bin.row %}R{{ bin.row }}{% endif %}
+                      {% if bin.column %}-C{{ bin.column }}{% endif %}
+                      {% if bin.shelf %}-S{{ bin.shelf }}{% endif %}
+                    </div>
+                    {% endif %}
+                  </div>
+                  <div class="text-end">
+                    <span class="badge bg-{{ bin.is_active|yesno:'success,secondary' }}">
+                      {{ bin.is_active|yesno:'Active,Inactive' }}
+                    </span>
+                    {% if bin.max_capacity_items %}
+                    <div class="small text-muted mt-1">
+                      {{ bin.current_items|default:0 }}/{{ bin.max_capacity_items }}
+                    </div>
+                    {% endif %}
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+          {% endfor %}
+        </div>
+        
+        {% if location.storage_bins.count > 12 %}
+        <div class="text-center mt-3">
+          <a href="{% url 'inventory:storage_bin_list' %}?location={{ location.pk }}" class="btn btn-outline-primary">
+            View All {{ location.storage_bins.count }} Bins
+          </a>
+        </div>
+        {% endif %}
+        
+        {% else %}
+        <div class="text-center py-4">
+          <i class="bi bi-box text-muted" style="font-size: 3rem;"></i>
+          <p class="text-muted mt-3 mb-3">No storage bins configured</p>
+          <a href="{% url 'inventory:storage_bin_create' %}?location={{ location.pk }}" class="btn btn-primary">
+            <i class="bi bi-plus-circle me-2"></i>Create First Bin
+          </a>
+        </div>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+
+  <!-- Sidebar -->
+  <div class="col-lg-4">
+    <!-- Capacity Overview -->
+    <div class="card shadow mb-4">
+      <div class="card-header py-3">
+        <h6 class="m-0 font-weight-bold text-info">
+          <i class="bi bi-bar-chart me-2"></i>Capacity Overview
+        </h6>
+      </div>
+      <div class="card-body">
+        {% if location.max_capacity %}
+        <div class="mb-3">
+          <div class="d-flex justify-content-between mb-1">
+            <small class="text-muted">Capacity Used</small>
+            <small class="text-muted">{{ location.used_capacity }}/{{ location.max_capacity }} {{ location.capacity_unit }}</small>
+          </div>
+          <div class="progress mb-2" style="height: 10px;">
+            <div class="progress-bar bg-{% if location.capacity_percentage >= 90 %}danger{% elif location.capacity_percentage >= 70 %}warning{% else %}success{% endif %}" 
+                 style="width: {{ location.capacity_percentage }}%"></div>
+          </div>
+          <div class="text-center">
+            <span class="h4 text-{% if location.capacity_percentage >= 90 %}danger{% elif location.capacity_percentage >= 70 %}warning{% else %}success{% endif %}">
+              {{ location.capacity_percentage|floatformat:1 }}%
+            </span>
+          </div>
+        </div>
+        <hr>
+        {% endif %}
+        
+        <div class="row text-center">
+          <div class="col-6 mb-3">
+            <div class="h4 mb-0 text-primary">{{ location.storage_bins.count }}</div>
+            <small class="text-muted">Total Bins</small>
+          </div>
+          <div class="col-6 mb-3">
+            <div class="h4 mb-0 text-success">{{ location.storage_bins.filter:is_active=True.count }}</div>
+            <small class="text-muted">Active Bins</small>
+          </div>
+        </div>
+        
+        {% if location.products.exists %}
+        <hr>
+        <div class="text-center">
+          <div class="h5 mb-0 text-info">{{ location.products.count }}</div>
+          <small class="text-muted">Products Stored</small>
+        </div>
+        {% endif %}
+      </div>
+    </div>
+
+    <!-- Location Features -->
+    <div class="card shadow mb-4">
+      <div class="card-header py-3">
+        <h6 class="m-0 font-weight-bold text-secondary">
+          <i class="bi bi-shield-check me-2"></i>Features & Capabilities
+        </h6>
+      </div>
+      <div class="card-body">
+        <div class="list-group list-group-flush">
+          <div class="list-group-item d-flex justify-content-between align-items-center px-0 py-2">
+            <span class="small">Temperature Controlled</span>
+            <i class="bi bi-{% if location.temperature_controlled %}check-circle text-success{% else %}x-circle text-muted{% endif %}"></i>
+          </div>
+          <div class="list-group-item d-flex justify-content-between align-items-center px-0 py-2">
+            <span class="small">Security Monitoring</span>
+            <i class="bi bi-{% if location.security_level %}check-circle text-success{% else %}x-circle text-muted{% endif %}"></i>
+          </div>
+          <div class="list-group-item d-flex justify-content-between align-items-center px-0 py-2">
+            <span class="small">24/7 Access</span>
+            <i class="bi bi-{% if location.operating_hours_24_7 %}check-circle text-success{% else %}x-circle text-muted{% endif %}"></i>
+          </div>
+          <div class="list-group-item d-flex justify-content-between align-items-center px-0 py-2">
+            <span class="small">Loading Dock</span>
+            <i class="bi bi-{% if location.has_loading_dock %}check-circle text-success{% else %}x-circle text-muted{% endif %}"></i>
+          </div>
+          <div class="list-group-item d-flex justify-content-between align-items-center px-0 py-2">
+            <span class="small">Forklift Access</span>
+            <i class="bi bi-{% if location.forklift_access %}check-circle text-success{% else %}x-circle text-muted{% endif %}"></i>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Quick Actions -->
+    <div class="card shadow mb-4">
+      <div class="card-header py-3">
+        <h6 class="m-0 font-weight-bold text-warning">
+          <i class="bi bi-lightning me-2"></i>Quick Actions
+        </h6>
+      </div>
+      <div class="card-body">
+        <div class="d-grid gap-2">
+          <a href="{% url 'inventory:storage_location_edit' location.pk %}" class="btn btn-primary btn-sm">
+            <i class="bi bi-pencil me-2"></i>Edit Location
+          </a>
+          <a href="{% url 'inventory:storage_bin_create' %}?location={{ location.pk }}" class="btn btn-success btn-sm">
+            <i class="bi bi-plus-circle me-2"></i>Add Storage Bin
+          </a>
+          <button type="button" class="btn btn-info btn-sm" onclick="generateLocationReport()">
+            <i class="bi bi-file-earmark-text me-2"></i>Generate Report
+          </button>
+          <button type="button" class="btn btn-outline-secondary btn-sm" onclick="printLocationLabel()">
+            <i class="bi bi-printer me-2"></i>Print Location Label
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Recent Activity -->
+    <div class="card shadow">
+      <div class="card-header py-3">
+        <h6 class="m-0 font-weight-bold text-secondary">
+          <i class="bi bi-clock-history me-2"></i>Recent Activity
+        </h6>
+      </div>
+      <div class="card-body">
+        {% if recent_activities %}
+        <div class="list-group list-group-flush">
+          {% for activity in recent_activities|slice:":5" %}
+          <div class="list-group-item px-0 py-2">
+            <div class="d-flex justify-content-between align-items-start">
+              <div>
+                <div class="small font-weight-bold">{{ activity.action }}</div>
+                <div class="small text-muted">{{ activity.description }}</div>
+              </div>
+              <small class="text-muted">{{ activity.timestamp|timesince }}</small>
+            </div>
+          </div>
+          {% endfor %}
+        </div>
+        {% else %}
+        <div class="text-center py-3">
+          <i class="bi bi-clock text-muted" style="font-size: 2rem;"></i>
+          <p class="text-muted small mt-2 mb-0">No recent activity</p>
+        </div>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Bulk Create Bins Modal -->
+<div class="modal fade" id="bulkCreateBinsModal" tabindex="-1">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title">
+          <i class="bi bi-stack me-2"></i>Bulk Create Storage Bins
+        </h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <form id="bulkCreateForm">
+          <div class="row">
+            <div class="col-md-6">
+              <label for="binPrefix" class="form-label">Bin Code Prefix</label>
+              <input type="text" class="form-control" id="binPrefix" value="{{ location.code }}-" required>
+            </div>
+            <div class="col-md-6">
+              <label for="binCount" class="form-label">Number of Bins</label>
+              <input type="number" class="form-control" id="binCount" min="1" max="100" value="10" required>
+            </div>
+          </div>
+          <div class="row mt-3">
+            <div class="col-md-4">
+              <label for="startRow" class="form-label">Start Row</label>
+              <input type="number" class="form-control" id="startRow" min="1" value="1">
+            </div>
+            <div class="col-md-4">
+              <label for="startColumn" class="form-label">Start Column</label>
+              <input type="number" class="form-control" id="startColumn" min="1" value="1">
+            </div>
+            <div class="col-md-4">
+              <label for="shelfNumber" class="form-label">Shelf Number</label>
+              <input type="number" class="form-control" id="shelfNumber" min="1" value="1">
+            </div>
+          </div>
+          <div class="mt-3">
+            <label for="binCapacity" class="form-label">Default Capacity (Optional)</label>
+            <input type="number" class="form-control" id="binCapacity" min="1" placeholder="Items per bin">
+          </div>
+        </form>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+        <button type="button" class="btn btn-primary" onclick="processBulkCreate()">Create Bins</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+function bulkCreateBins() {
+  const modal = new bootstrap.Modal(document.getElementById('bulkCreateBinsModal'));
+  modal.show();
+}
+
+function processBulkCreate() {
+  const form = document.getElementById('bulkCreateForm');
+  const formData = new FormData(form);
+  
+  // Validate form
+  const binCount = parseInt(document.getElementById('binCount').value);
+  const prefix = document.getElementById('binPrefix').value.trim();
+  
+  if (!prefix || binCount < 1) {
+    alert('Please fill in all required fields');
+    return;
+  }
+  
+  if (confirm(`Create ${binCount} storage bins with prefix "${prefix}"?`)) {
+    // Implementation would submit to backend
+    alert('Bulk bin creation would be processed here');
+    bootstrap.Modal.getInstance(document.getElementById('bulkCreateBinsModal')).hide();
+  }
+}
+
+function generateLocationReport() {
+  // Generate location utilization report
+  window.open('/inventory/locations/{{ location.pk }}/report/', '_blank');
+}
+
+function printLocationLabel() {
+  // Print location label with QR code
+  window.print();
+}
+
+function showMap() {
+  // Show location on map
+  {% if location.latitude and location.longitude %}
+  const lat = {{ location.latitude }};
+  const lng = {{ location.longitude }};
+  window.open(`https://maps.google.com/maps?q=${lat},${lng}`, '_blank');
+  {% endif %}
+}
+
+function getDirections() {
+  // Get directions to location
+  const address = encodeURIComponent("{{ location.address }}, {{ location.city }}");
+  window.open(`https://maps.google.com/maps?q=${address}`, '_blank');
+}
+</script>
+{% endblock %}

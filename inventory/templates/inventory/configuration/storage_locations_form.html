@@ -1,0 +1,543 @@
+{% extends "dashboard_base.html" %}
+{% load static crispy_forms_tags %}
+
+{% block page_title %}
+  {% if form.instance.pk %}
+    Edit Storage Location: {{ form.instance.name }}
+  {% else %}
+    Create Storage Location
+  {% endif %}
+{% endblock %}
+
+{% block dashboard_content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+  <div>
+    <nav aria-label="breadcrumb">
+      <ol class="breadcrumb mb-1">
+        <li class="breadcrumb-item"><a href="{% url 'inventory:dashboard' %}">Inventory</a></li>
+        <li class="breadcrumb-item"><a href="{% url 'inventory:configuration' %}">Configuration</a></li>
+        <li class="breadcrumb-item"><a href="{% url 'inventory:storage_location_list' %}">Storage Locations</a></li>
+        <li class="breadcrumb-item active">
+          {% if form.instance.pk %}Edit{% else %}Create{% endif %}
+        </li>
+      </ol>
+    </nav>
+    <h1 class="h3 mb-0 text-gray-800">
+      <i class="bi bi-building text-primary me-2"></i>
+      {% if form.instance.pk %}
+        Edit Storage Location: {{ form.instance.name }}
+      {% else %}
+        Create Storage Location
+      {% endif %}
+    </h1>
+    <p class="text-muted mb-0">Configure storage location details and capacity settings</p>
+  </div>
+  
+  <div class="btn-group" role="group">
+    {% if form.instance.pk %}
+    <a href="{% url 'inventory:storage_location_detail' form.instance.pk %}" class="btn btn-outline-info">
+      <i class="bi bi-eye me-2"></i>View Details
+    </a>
+    {% endif %}
+    <a href="{% url 'inventory:storage_location_list' %}" class="btn btn-outline-secondary">
+      <i class="bi bi-arrow-left me-2"></i>Back to List
+    </a>
+  </div>
+</div>
+
+<div class="row">
+  <!-- Main Form -->
+  <div class="col-lg-8">
+    <div class="card shadow">
+      <div class="card-header py-3">
+        <h6 class="m-0 font-weight-bold text-primary">
+          <i class="bi bi-pencil me-2"></i>Location Information
+        </h6>
+      </div>
+      <div class="card-body">
+        <form method="post" novalidate>
+          {% csrf_token %}
+          
+          <!-- Basic Information -->
+          <div class="form-section">
+            <h5 class="form-section-title">
+              <i class="bi bi-info-circle text-primary"></i>Basic Information
+            </h5>
+            
+            <div class="row">
+              <div class="col-md-6">
+                <div class="mb-3">
+                  {{ form.name|as_crispy_field }}
+                </div>
+              </div>
+              <div class="col-md-6">
+                <div class="mb-3">
+                  {{ form.code|as_crispy_field }}
+                </div>
+              </div>
+            </div>
+
+            <div class="row">
+              <div class="col-md-6">
+                <div class="mb-3">
+                  {{ form.location_type|as_crispy_field }}
+                </div>
+              </div>
+              <div class="col-md-6">
+                <div class="mb-3">
+                  <div class="form-check">
+                    {{ form.is_active }}
+                    <label class="form-check-label" for="{{ form.is_active.id_for_label }}">
+                      {{ form.is_active.label }}
+                    </label>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div class="mb-3">
+              {{ form.description|as_crispy_field }}
+            </div>
+          </div>
+
+          <!-- Address Information -->
+          <div class="form-section">
+            <h5 class="form-section-title">
+              <i class="bi bi-geo-alt text-info"></i>Address Information
+            </h5>
+            
+            <div class="mb-3">
+              {{ form.address|as_crispy_field }}
+            </div>
+
+            <div class="row">
+              <div class="col-md-4">
+                <div class="mb-3">
+                  {{ form.city|as_crispy_field }}
+                </div>
+              </div>
+              <div class="col-md-4">
+                <div class="mb-3">
+                  {{ form.state|as_crispy_field }}
+                </div>
+              </div>
+              <div class="col-md-4">
+                <div class="mb-3">
+                  {{ form.postal_code|as_crispy_field }}
+                </div>
+              </div>
+            </div>
+
+            <div class="mb-3">
+              {{ form.country|as_crispy_field }}
+            </div>
+          </div>
+
+          <!-- Capacity & Settings -->
+          <div class="form-section">
+            <h5 class="form-section-title">
+              <i class="bi bi-stack text-success"></i>Capacity & Settings
+            </h5>
+            
+            <div class="row">
+              <div class="col-md-6">
+                <div class="mb-3">
+                  {{ form.max_capacity|as_crispy_field }}
+                </div>
+              </div>
+              <div class="col-md-6">
+                <div class="mb-3">
+                  {{ form.capacity_unit|as_crispy_field }}
+                </div>
+              </div>
+            </div>
+
+            <div class="row">
+              <div class="col-md-6">
+                <div class="mb-3">
+                  {{ form.temperature_controlled|as_crispy_field }}
+                </div>
+              </div>
+              <div class="col-md-6">
+                <div class="mb-3">
+                  {{ form.security_level|as_crispy_field }}
+                </div>
+              </div>
+            </div>
+
+            {% if form.temperature_controlled %}
+            <div class="row" id="temperatureSettings" style="display: none;">
+              <div class="col-md-6">
+                <div class="mb-3">
+                  <label for="minTemp" class="form-label">Min Temperature (°C)</label>
+                  <input type="number" class="form-control" id="minTemp" step="0.1">
+                </div>
+              </div>
+              <div class="col-md-6">
+                <div class="mb-3">
+                  <label for="maxTemp" class="form-label">Max Temperature (°C)</label>
+                  <input type="number" class="form-control" id="maxTemp" step="0.1">
+                </div>
+              </div>
+            </div>
+            {% endif %}
+          </div>
+
+          <!-- Contact Information -->
+          <div class="form-section">
+            <h5 class="form-section-title">
+              <i class="bi bi-person text-warning"></i>Contact Information
+            </h5>
+            
+            <div class="row">
+              <div class="col-md-6">
+                <div class="mb-3">
+                  {{ form.manager_name|as_crispy_field }}
+                </div>
+              </div>
+              <div class="col-md-6">
+                <div class="mb-3">
+                  {{ form.manager_email|as_crispy_field }}
+                </div>
+              </div>
+            </div>
+
+            <div class="row">
+              <div class="col-md-6">
+                <div class="mb-3">
+                  {{ form.phone|as_crispy_field }}
+                </div>
+              </div>
+              <div class="col-md-6">
+                <div class="mb-3">
+                  {{ form.emergency_contact|as_crispy_field }}
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Operating Schedule -->
+          <div class="form-section">
+            <h5 class="form-section-title">
+              <i class="bi bi-clock text-secondary"></i>Operating Schedule
+            </h5>
+            
+            <div class="row">
+              <div class="col-md-6">
+                <div class="mb-3">
+                  <label for="operatingHours" class="form-label">Operating Hours</label>
+                  <select class="form-select" id="operatingHours">
+                    <option value="24_7">24/7 Access</option>
+                    <option value="business_hours">Business Hours (9-5)</option>
+                    <option value="extended">Extended Hours (7-7)</option>
+                    <option value="custom">Custom Schedule</option>
+                  </select>
+                </div>
+              </div>
+              <div class="col-md-6">
+                <div class="mb-3">
+                  <label for="timezone" class="form-label">Timezone</label>
+                  <select class="form-select" id="timezone">
+                    <option value="UTC">UTC</option>
+                    <option value="Africa/Harare" selected>Africa/Harare (CAT)</option>
+                    <option value="America/New_York">America/New_York (EST)</option>
+                    <option value="Europe/London">Europe/London (GMT)</option>
+                  </select>
+                </div>
+              </div>
+            </div>
+
+            <div id="customSchedule" class="mb-3" style="display: none;">
+              <label class="form-label">Custom Schedule</label>
+              <div class="table-responsive">
+                <table class="table table-sm">
+                  <thead>
+                    <tr>
+                      <th>Day</th>
+                      <th>Open</th>
+                      <th>Close</th>
+                      <th>Closed</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <tr>
+                      <td>Monday</td>
+                      <td><input type="time" class="form-control form-control-sm" value="09:00"></td>
+                      <td><input type="time" class="form-control form-control-sm" value="17:00"></td>
+                      <td><input type="checkbox" class="form-check-input"></td>
+                    </tr>
+                    <!-- Repeat for other days -->
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+
+          <!-- Additional Settings -->
+          <div class="form-section">
+            <h5 class="form-section-title">
+              <i class="bi bi-gear text-secondary"></i>Additional Settings
+            </h5>
+            
+            <div class="mb-3">
+              {{ form.notes|as_crispy_field }}
+            </div>
+
+            <div class="row">
+              <div class="col-md-6">
+                <div class="form-check mb-2">
+                  <input class="form-check-input" type="checkbox" id="allowReceiving">
+                  <label class="form-check-label" for="allowReceiving">
+                    Allow Receiving
+                  </label>
+                </div>
+                <div class="form-check mb-2">
+                  <input class="form-check-input" type="checkbox" id="allowShipping">
+                  <label class="form-check-label" for="allowShipping">
+                    Allow Shipping
+                  </label>
+                </div>
+                <div class="form-check mb-2">
+                  <input class="form-check-input" type="checkbox" id="requiresAppointment">
+                  <label class="form-check-label" for="requiresAppointment">
+                    Requires Appointment
+                  </label>
+                </div>
+              </div>
+              <div class="col-md-6">
+                <div class="form-check mb-2">
+                  <input class="form-check-input" type="checkbox" id="hazmatApproved">
+                  <label class="form-check-label" for="hazmatApproved">
+                    HAZMAT Approved
+                  </label>
+                </div>
+                <div class="form-check mb-2">
+                  <input class="form-check-input" type="checkbox" id="dock_available">
+                  <label class="form-check-label" for="dock_available">
+                    Loading Dock Available
+                  </label>
+                </div>
+                <div class="form-check mb-2">
+                  <input class="form-check-input" type="checkbox" id="forklift_access">
+                  <label class="form-check-label" for="forklift_access">
+                    Forklift Access
+                  </label>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Form Actions -->
+          <div class="row">
+            <div class="col-12">
+              <div class="d-flex justify-content-between">
+                <a href="{% url 'inventory:storage_location_list' %}" class="btn btn-secondary">
+                  <i class="bi bi-arrow-left me-2"></i>Cancel
+                </a>
+                <div>
+                  <button type="submit" class="btn btn-primary">
+                    <i class="bi bi-check-circle me-2"></i>
+                    {% if form.instance.pk %}Update Location{% else %}Create Location{% endif %}
+                  </button>
+                  {% if form.instance.pk %}
+                  <a href="{% url 'inventory:storage_location_delete' form.instance.pk %}" 
+                     class="btn btn-outline-danger ms-2"
+                     onclick="return confirm('Are you sure you want to delete this storage location?')">
+                    <i class="bi bi-trash me-2"></i>Delete
+                  </a>
+                  {% endif %}
+                </div>
+              </div>
+            </div>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <!-- Sidebar -->
+  <div class="col-lg-4">
+    {% if form.instance.pk %}
+    <!-- Location Statistics -->
+    <div class="card shadow mb-4">
+      <div class="card-header py-3">
+        <h6 class="m-0 font-weight-bold text-info">
+          <i class="bi bi-bar-chart me-2"></i>Location Statistics
+        </h6>
+      </div>
+      <div class="card-body">
+        <div class="row text-center">
+          <div class="col-6 mb-3">
+            <div class="h4 mb-0 text-primary">{{ form.instance.storage_bins.count|default:0 }}</div>
+            <small class="text-muted">Storage Bins</small>
+          </div>
+          <div class="col-6 mb-3">
+            <div class="h4 mb-0 text-success">{{ form.instance.active_bins|default:0 }}</div>
+            <small class="text-muted">Active Bins</small>
+          </div>
+        </div>
+        
+        {% if form.instance.max_capacity %}
+        <hr>
+        <div class="mb-2">
+          <div class="d-flex justify-content-between">
+            <span class="small">Capacity Used:</span>
+            <span class="small font-weight-bold">{{ form.instance.capacity_percentage|floatformat:1 }}%</span>
+          </div>
+          <div class="progress">
+            <div class="progress-bar bg-{% if form.instance.capacity_percentage >= 90 %}danger{% elif form.instance.capacity_percentage >= 70 %}warning{% else %}success{% endif %}" 
+                 style="width: {{ form.instance.capacity_percentage }}%"></div>
+          </div>
+        </div>
+        {% endif %}
+      </div>
+    </div>
+    {% endif %}
+
+    <!-- Best Practices -->
+    <div class="card shadow mb-4">
+      <div class="card-header py-3">
+        <h6 class="m-0 font-weight-bold text-success">
+          <i class="bi bi-lightbulb me-2"></i>Best Practices
+        </h6>
+      </div>
+      <div class="card-body">
+        <div class="small">
+          <ul class="list-unstyled">
+            <li class="mb-2">
+              <i class="bi bi-check-circle text-success me-2"></i>
+              Use descriptive location names
+            </li>
+            <li class="mb-2">
+              <i class="bi bi-check-circle text-success me-2"></i>
+              Set realistic capacity limits
+            </li>
+            <li class="mb-2">
+              <i class="bi bi-check-circle text-success me-2"></i>
+              Keep contact information updated
+            </li>
+            <li class="mb-2">
+              <i class="bi bi-check-circle text-success me-2"></i>
+              Monitor capacity utilization
+            </li>
+            <li class="mb-2">
+              <i class="bi bi-check-circle text-success me-2"></i>
+              Configure appropriate access controls
+            </li>
+            <li class="mb-2">
+              <i class="bi bi-check-circle text-success me-2"></i>
+              Set maintenance schedules
+            </li>
+          </ul>
+        </div>
+      </div>
+    </div>
+
+    <!-- Location Types Guide -->
+    <div class="card shadow">
+      <div class="card-header py-3">
+        <h6 class="m-0 font-weight-bold text-primary">
+          <i class="bi bi-info-circle me-2"></i>Location Types
+        </h6>
+      </div>
+      <div class="card-body">
+        <div class="small">
+          <ul class="list-unstyled">
+            <li class="mb-2">
+              <i class="bi bi-building text-primary me-2"></i>
+              <strong>Warehouse:</strong> Large storage facility
+            </li>
+            <li class="mb-2">
+              <i class="bi bi-shop text-success me-2"></i>
+              <strong>Store:</strong> Retail or showroom location
+            </li>
+            <li class="mb-2">
+              <i class="bi bi-truck text-info me-2"></i>
+              <strong>Supplier:</strong> External supplier location
+            </li>
+            <li class="mb-2">
+              <i class="bi bi-person text-warning me-2"></i>
+              <strong>Customer:</strong> Customer delivery location
+            </li>
+            <li class="mb-2">
+              <i class="bi bi-arrow-left-right text-secondary me-2"></i>
+              <strong>Transit:</strong> Temporary transit location
+            </li>
+          </ul>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+  // Temperature controlled toggle
+  const tempControlled = document.getElementById('{{ form.temperature_controlled.id_for_label }}');
+  const tempSettings = document.getElementById('temperatureSettings');
+  
+  if (tempControlled && tempSettings) {
+    tempControlled.addEventListener('change', function() {
+      tempSettings.style.display = this.checked ? 'block' : 'none';
+    });
+    
+    // Initial state
+    tempSettings.style.display = tempControlled.checked ? 'block' : 'none';
+  }
+  
+  // Operating hours toggle
+  document.getElementById('operatingHours').addEventListener('change', function() {
+    const customSchedule = document.getElementById('customSchedule');
+    customSchedule.style.display = this.value === 'custom' ? 'block' : 'none';
+  });
+  
+  // Auto-generate code from name
+  const nameField = document.getElementById('{{ form.name.id_for_label }}');
+  const codeField = document.getElementById('{{ form.code.id_for_label }}');
+  
+  if (nameField && codeField && !codeField.value) {
+    nameField.addEventListener('input', function() {
+      const code = this.value
+        .toUpperCase()
+        .replace(/[^A-Z0-9 ]/g, '')
+        .replace(/\s+/g, '_')
+        .substring(0, 10);
+      codeField.value = code;
+    });
+  }
+});
+
+// Validation
+function validateForm() {
+  const form = document.querySelector('form');
+  const requiredFields = form.querySelectorAll('[required]');
+  let isValid = true;
+  
+  requiredFields.forEach(field => {
+    if (!field.value.trim()) {
+      field.classList.add('is-invalid');
+      isValid = false;
+    } else {
+      field.classList.remove('is-invalid');
+    }
+  });
+  
+  // Validate capacity
+  const capacity = document.getElementById('{{ form.max_capacity.id_for_label }}');
+  if (capacity && capacity.value && parseFloat(capacity.value) <= 0) {
+    capacity.classList.add('is-invalid');
+    isValid = false;
+  }
+  
+  return isValid;
+}
+
+// Add form validation on submit
+document.querySelector('form').addEventListener('submit', function(e) {
+  if (!validateForm()) {
+    e.preventDefault();
+    alert('Please fill in all required fields correctly.');
+  }
+});
+</script>
+{% endblock %}

@@ -1,0 +1,287 @@
+{% extends "dashboard_base.html" %}
+{% load static %}
+
+{% block page_title %}Component Family: {{ family.name }}{% endblock %}
+
+{% block dashboard_content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+  <div>
+    <nav aria-label="breadcrumb">
+      <ol class="breadcrumb mb-1">
+        <li class="breadcrumb-item"><a href="{% url 'inventory:dashboard' %}">Inventory</a></li>
+        <li class="breadcrumb-item"><a href="{% url 'inventory:configuration' %}">Configuration</a></li>
+        <li class="breadcrumb-item"><a href="{% url 'inventory:component_family_list' %}">Component Families</a></li>
+        <li class="breadcrumb-item active">{{ family.name }}</li>
+      </ol>
+    </nav>
+    <h1 class="h3 mb-0 text-gray-800">
+      <i class="bi bi-cpu text-primary me-2"></i>{{ family.name }}
+    </h1>
+    <p class="text-muted mb-0">{{ family.description }}</p>
+  </div>
+  
+  <div class="btn-group" role="group">
+    <a href="{% url 'inventory:component_family_edit' family.pk %}" class="btn btn-primary">
+      <i class="bi bi-pencil me-2"></i>Edit
+    </a>
+    <a href="{% url 'inventory:component_family_list' %}" class="btn btn-outline-secondary">
+      <i class="bi bi-list me-2"></i>All Families
+    </a>
+  </div>
+</div>
+
+<div class="row">
+  <!-- Main Details -->
+  <div class="col-lg-8 mb-4">
+    <div class="card shadow">
+      <div class="card-header py-3 d-flex justify-content-between align-items-center">
+        <h6 class="m-0 font-weight-bold text-primary">
+          <i class="bi bi-info-circle me-2"></i>Family Details
+        </h6>
+        <span class="badge bg-{{ family.is_active|yesno:'success,secondary' }}">
+          {{ family.is_active|yesno:'Active,Inactive' }}
+        </span>
+      </div>
+      <div class="card-body">
+        <div class="row">
+          <div class="col-md-6">
+            <table class="table table-sm table-borderless">
+              <tr>
+                <th class="text-muted" width="40%">Name:</th>
+                <td><strong>{{ family.name }}</strong></td>
+              </tr>
+              <tr>
+                <th class="text-muted">Slug:</th>
+                <td><code>{{ family.slug }}</code></td>
+              </tr>
+              <tr>
+                <th class="text-muted">Display Order:</th>
+                <td>{{ family.display_order|default:"Not set" }}</td>
+              </tr>
+              <tr>
+                <th class="text-muted">Default Bin Prefix:</th>
+                <td><code>{{ family.default_bin_prefix|default:"None" }}</code></td>
+              </tr>
+            </table>
+          </div>
+          <div class="col-md-6">
+            <table class="table table-sm table-borderless">
+              <tr>
+                <th class="text-muted" width="40%">Typical Markup:</th>
+                <td>
+                  <span class="badge bg-success">
+                    {{ family.typical_markup_percentage|floatformat:1 }}%
+                  </span>
+                </td>
+              </tr>
+              <tr>
+                <th class="text-muted">Created:</th>
+                <td>{{ family.created_at|date:"M d, Y" }}</td>
+              </tr>
+              <tr>
+                <th class="text-muted">Updated:</th>
+                <td>{{ family.updated_at|date:"M d, Y" }}</td>
+              </tr>
+              <tr>
+                <th class="text-muted">Status:</th>
+                <td>
+                  <span class="badge bg-{{ family.is_active|yesno:'success,secondary' }}">
+                    {{ family.is_active|yesno:'Active,Inactive' }}
+                  </span>
+                </td>
+              </tr>
+            </table>
+          </div>
+        </div>
+
+        {% if family.description %}
+        <hr>
+        <div>
+          <h6 class="text-muted mb-2">Description</h6>
+          <p class="mb-0">{{ family.description|linebreaks }}</p>
+        </div>
+        {% endif %}
+
+        {% if family.default_attributes %}
+        <hr>
+        <div>
+          <h6 class="text-muted mb-3">Default Attributes</h6>
+          <div class="row">
+            {% for key, value in family.default_attributes.items %}
+            <div class="col-md-6 mb-2">
+              <div class="d-flex justify-content-between border-bottom pb-1">
+                <span class="text-muted">{{ key|title }}:</span>
+                <span><strong>{{ value }}</strong></span>
+              </div>
+            </div>
+            {% endfor %}
+          </div>
+        </div>
+        {% endif %}
+      </div>
+    </div>
+
+    <!-- Products in this Family -->
+    <div class="card shadow mt-4">
+      <div class="card-header py-3">
+        <h6 class="m-0 font-weight-bold text-success">
+          <i class="bi bi-box me-2"></i>Products in Family ({{ products.count }})
+        </h6>
+      </div>
+      <div class="card-body">
+        {% if products.exists %}
+        <div class="table-responsive">
+          <table class="table table-hover">
+            <thead class="table-light">
+              <tr>
+                <th>SKU</th>
+                <th>Name</th>
+                <th>Category</th>
+                <th>Stock</th>
+                <th>Price</th>
+                <th class="text-center">Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for product in products|slice:":10" %}
+              <tr>
+                <td><code>{{ product.sku }}</code></td>
+                <td>
+                  <a href="{% url 'inventory:product_detail' product.pk %}" class="text-decoration-none">
+                    {{ product.name }}
+                  </a>
+                </td>
+                <td>
+                  <a href="{% url 'inventory:category_detail' product.category.pk %}" class="text-muted text-decoration-none">
+                    {{ product.category.name }}
+                  </a>
+                </td>
+                <td>
+                  {% if product.current_stock <= product.reorder_level %}
+                    <span class="badge bg-warning">{{ product.current_stock }}</span>
+                  {% else %}
+                    <span class="badge bg-success">{{ product.current_stock }}</span>
+                  {% endif %}
+                </td>
+                <td>${{ product.selling_price|floatformat:2 }}</td>
+                <td class="text-center">
+                  <a href="{% url 'inventory:product_detail' product.pk %}" 
+                     class="btn btn-sm btn-outline-primary">
+                    <i class="bi bi-eye"></i>
+                  </a>
+                </td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+          {% if products.count > 10 %}
+          <div class="text-center mt-3">
+            <a href="{% url 'inventory:product_list' %}?component_family={{ family.pk }}" 
+               class="btn btn-outline-primary">
+              View All {{ products.count }} Products
+            </a>
+          </div>
+          {% endif %}
+        </div>
+        {% else %}
+        <div class="text-center py-4">
+          <i class="bi bi-inbox text-muted" style="font-size: 3rem;"></i>
+          <p class="text-muted mt-2 mb-3">No products found in this family</p>
+          <a href="{% url 'inventory:product_create' %}?component_family={{ family.pk }}" 
+             class="btn btn-primary">
+            <i class="bi bi-plus-circle me-2"></i>Add First Product
+          </a>
+        </div>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+
+  <!-- Sidebar -->
+  <div class="col-lg-4">
+    <!-- Statistics -->
+    <div class="card shadow mb-4">
+      <div class="card-header py-3">
+        <h6 class="m-0 font-weight-bold text-info">
+          <i class="bi bi-bar-chart me-2"></i>Family Statistics
+        </h6>
+      </div>
+      <div class="card-body">
+        <div class="row text-center">
+          <div class="col-6 mb-3">
+            <div class="h4 mb-0 text-primary">{{ products.count|default:0 }}</div>
+            <small class="text-muted">Products</small>
+          </div>
+          <div class="col-6 mb-3">
+            <div class="h4 mb-0 text-success">{{ active_products|default:0 }}</div>
+            <small class="text-muted">Active</small>
+          </div>
+        </div>
+        
+        {% if total_stock %}
+        <hr>
+        <div class="text-center">
+          <div class="h5 mb-0 text-info">{{ total_stock|default:0 }}</div>
+          <small class="text-muted">Total Stock Units</small>
+        </div>
+        {% endif %}
+      </div>
+    </div>
+
+    <!-- Actions -->
+    <div class="card shadow mb-4">
+      <div class="card-header py-3">
+        <h6 class="m-0 font-weight-bold text-secondary">
+          <i class="bi bi-gear me-2"></i>Actions
+        </h6>
+      </div>
+      <div class="card-body">
+        <div class="d-grid gap-2">
+          <a href="{% url 'inventory:component_family_edit' family.pk %}" 
+             class="btn btn-primary">
+            <i class="bi bi-pencil me-2"></i>Edit Family
+          </a>
+          <a href="{% url 'inventory:product_create' %}?component_family={{ family.pk }}" 
+             class="btn btn-success">
+            <i class="bi bi-plus-circle me-2"></i>Add Product
+          </a>
+          {% if products.exists %}
+          <a href="{% url 'inventory:product_list' %}?component_family={{ family.pk }}" 
+             class="btn btn-outline-info">
+            <i class="bi bi-list me-2"></i>View All Products
+          </a>
+          {% endif %}
+          <hr>
+          <a href="{% url 'inventory:component_family_delete' family.pk %}" 
+             class="btn btn-outline-danger"
+             onclick="return confirm('Are you sure you want to delete this family? This will affect {{ products.count }} product(s).')">
+            <i class="bi bi-trash me-2"></i>Delete Family
+          </a>
+        </div>
+      </div>
+    </div>
+
+    <!-- Family Hierarchy -->
+    {% if related_families %}
+    <div class="card shadow mb-4">
+      <div class="card-header py-3">
+        <h6 class="m-0 font-weight-bold text-secondary">
+          <i class="bi bi-diagram-3 me-2"></i>Related Families
+        </h6>
+      </div>
+      <div class="card-body">
+        <div class="list-group list-group-flush">
+          {% for related in related_families %}
+          <a href="{% url 'inventory:component_family_detail' related.pk %}" 
+             class="list-group-item list-group-item-action d-flex justify-content-between align-items-center">
+            {{ related.name }}
+            <small class="badge bg-secondary">{{ related.products.count }}</small>
+          </a>
+          {% endfor %}
+        </div>
+      </div>
+    </div>
+    {% endif %}
+  </div>
+</div>
+{% endblock %}

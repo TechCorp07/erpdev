@@ -1,0 +1,415 @@
+{% extends "dashboard_base.html" %}
+{% load static crispy_forms_tags %}
+
+{% block page_title %}
+  {% if form.instance.pk %}
+    Edit Component Family: {{ form.instance.name }}
+  {% else %}
+    Create Component Family
+  {% endif %}
+{% endblock %}
+
+{% block extra_head %}
+<style>
+  .json-editor {
+    font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
+    font-size: 14px;
+  }
+</style>
+{% endblock %}
+
+{% block dashboard_content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+  <div>
+    <nav aria-label="breadcrumb">
+      <ol class="breadcrumb mb-1">
+        <li class="breadcrumb-item"><a href="{% url 'inventory:dashboard' %}">Inventory</a></li>
+        <li class="breadcrumb-item"><a href="{% url 'inventory:configuration' %}">Configuration</a></li>
+        <li class="breadcrumb-item"><a href="{% url 'inventory:component_family_list' %}">Component Families</a></li>
+        <li class="breadcrumb-item active">
+          {% if form.instance.pk %}Edit{% else %}Create{% endif %}
+        </li>
+      </ol>
+    </nav>
+    <h1 class="h3 mb-0 text-gray-800">
+      <i class="bi bi-cpu text-primary me-2"></i>
+      {% if form.instance.pk %}
+        Edit Component Family: {{ form.instance.name }}
+      {% else %}
+        Create Component Family
+      {% endif %}
+    </h1>
+    <p class="text-muted mb-0">Configure component family settings and default attributes</p>
+  </div>
+  
+  <div class="btn-group" role="group">
+    {% if form.instance.pk %}
+    <a href="{% url 'inventory:component_family_detail' form.instance.pk %}" class="btn btn-outline-info">
+      <i class="bi bi-eye me-2"></i>View Details
+    </a>
+    {% endif %}
+    <a href="{% url 'inventory:component_family_list' %}" class="btn btn-outline-secondary">
+      <i class="bi bi-arrow-left me-2"></i>Back to List
+    </a>
+  </div>
+</div>
+
+<div class="row">
+  <!-- Main Form -->
+  <div class="col-lg-8">
+    <div class="card shadow">
+      <div class="card-header py-3">
+        <h6 class="m-0 font-weight-bold text-primary">
+          <i class="bi bi-pencil me-2"></i>Family Information
+        </h6>
+      </div>
+      <div class="card-body">
+        <form method="post" novalidate>
+          {% csrf_token %}
+          
+          <!-- Basic Information -->
+          <div class="row">
+            <div class="col-md-6">
+              <div class="mb-3">
+                {{ form.name|as_crispy_field }}
+              </div>
+            </div>
+            <div class="col-md-6">
+              <div class="mb-3">
+                {{ form.slug|as_crispy_field }}
+              </div>
+            </div>
+          </div>
+
+          <div class="mb-3">
+            {{ form.description|as_crispy_field }}
+          </div>
+
+          <!-- Configuration Section -->
+          <div class="form-section">
+            <h5 class="form-section-title">
+              <i class="bi bi-gear text-info"></i>Configuration
+            </h5>
+            
+            <div class="row">
+              <div class="col-md-4">
+                <div class="mb-3">
+                  {{ form.typical_markup_percentage|as_crispy_field }}
+                </div>
+              </div>
+              <div class="col-md-4">
+                <div class="mb-3">
+                  {{ form.default_bin_prefix|as_crispy_field }}
+                </div>
+              </div>
+              <div class="col-md-4">
+                <div class="mb-3">
+                  {{ form.display_order|as_crispy_field }}
+                </div>
+              </div>
+            </div>
+
+            <div class="form-check">
+              {{ form.is_active }}
+              <label class="form-check-label" for="{{ form.is_active.id_for_label }}">
+                {{ form.is_active.label }}
+              </label>
+            </div>
+          </div>
+
+          <!-- Default Attributes Section -->
+          <div class="form-section">
+            <h5 class="form-section-title">
+              <i class="bi bi-tags text-warning"></i>Default Attributes
+              <small class="text-muted">(JSON Format)</small>
+            </h5>
+            
+            <div class="mb-3">
+              <label for="{{ form.default_attributes.id_for_label }}" class="form-label">
+                Default Attributes
+              </label>
+              <textarea 
+                class="form-control json-editor" 
+                id="{{ form.default_attributes.id_for_label }}" 
+                name="{{ form.default_attributes.html_name }}" 
+                rows="8"
+                placeholder='{"resistance": "", "tolerance": "", "power_rating": "", "package": ""}'
+              >{{ form.default_attributes.value|default:"" }}</textarea>
+              <div class="form-text">
+                Define default attributes as JSON. These will be automatically applied to new products in this family.
+                <br><strong>Example:</strong> {"resistance": "1k", "tolerance": "5%", "power_rating": "0.25W"}
+              </div>
+              {% if form.default_attributes.errors %}
+                <div class="invalid-feedback d-block">
+                  {{ form.default_attributes.errors.0 }}
+                </div>
+              {% endif %}
+            </div>
+
+            <!-- Common Attribute Templates -->
+            <div class="row">
+              <div class="col-12">
+                <div class="card bg-light">
+                  <div class="card-header py-2">
+                    <small class="text-muted font-weight-bold">Common Component Attribute Templates</small>
+                  </div>
+                  <div class="card-body py-2">
+                    <div class="row">
+                      <div class="col-md-6">
+                        <h6 class="small font-weight-bold text-primary">Resistors</h6>
+                        <button type="button" class="btn btn-sm btn-outline-primary mb-2" 
+                                onclick="setAttributes('resistor')">
+                          Use Template
+                        </button>
+                        <pre class="small text-muted mb-3"><code>{
+  "resistance": "",
+  "tolerance": "",
+  "power_rating": "",
+  "package": "",
+  "temperature_coefficient": ""
+}</code></pre>
+                      </div>
+                      <div class="col-md-6">
+                        <h6 class="small font-weight-bold text-success">Capacitors</h6>
+                        <button type="button" class="btn btn-sm btn-outline-success mb-2" 
+                                onclick="setAttributes('capacitor')">
+                          Use Template
+                        </button>
+                        <pre class="small text-muted mb-3"><code>{
+  "capacitance": "",
+  "voltage_rating": "",
+  "tolerance": "",
+  "dielectric_type": "",
+  "package": ""
+}</code></pre>
+                      </div>
+                    </div>
+                    <div class="row">
+                      <div class="col-md-6">
+                        <h6 class="small font-weight-bold text-info">ICs/Semiconductors</h6>
+                        <button type="button" class="btn btn-sm btn-outline-info mb-2" 
+                                onclick="setAttributes('ic')">
+                          Use Template
+                        </button>
+                        <pre class="small text-muted"><code>{
+  "part_number": "",
+  "package": "",
+  "pin_count": "",
+  "operating_voltage": "",
+  "operating_temperature": ""
+}</code></pre>
+                      </div>
+                      <div class="col-md-6">
+                        <h6 class="small font-weight-bold text-warning">Connectors</h6>
+                        <button type="button" class="btn btn-sm btn-outline-warning mb-2" 
+                                onclick="setAttributes('connector')">
+                          Use Template
+                        </button>
+                        <pre class="small text-muted"><code>{
+  "connector_type": "",
+  "pin_count": "",
+  "pitch": "",
+  "current_rating": "",
+  "mounting_type": ""
+}</code></pre>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Form Actions -->
+          <div class="row">
+            <div class="col-12">
+              <div class="d-flex justify-content-between">
+                <a href="{% url 'inventory:component_family_list' %}" class="btn btn-secondary">
+                  <i class="bi bi-arrow-left me-2"></i>Cancel
+                </a>
+                <div>
+                  <button type="submit" class="btn btn-primary">
+                    <i class="bi bi-check-circle me-2"></i>
+                    {% if form.instance.pk %}Update Family{% else %}Create Family{% endif %}
+                  </button>
+                  {% if form.instance.pk %}
+                  <a href="{% url 'inventory:component_family_delete' form.instance.pk %}" 
+                     class="btn btn-outline-danger ms-2"
+                     onclick="return confirm('Are you sure you want to delete this component family?')">
+                    <i class="bi bi-trash me-2"></i>Delete
+                  </a>
+                  {% endif %}
+                </div>
+              </div>
+            </div>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <!-- Sidebar -->
+  <div class="col-lg-4">
+    {% if form.instance.pk %}
+    <!-- Family Statistics -->
+    <div class="card shadow mb-4">
+      <div class="card-header py-3">
+        <h6 class="m-0 font-weight-bold text-info">
+          <i class="bi bi-bar-chart me-2"></i>Family Statistics
+        </h6>
+      </div>
+      <div class="card-body">
+        <div class="row text-center">
+          <div class="col-6 mb-3">
+            <div class="h4 mb-0 text-primary">{{ form.instance.products.count|default:0 }}</div>
+            <small class="text-muted">Products</small>
+          </div>
+          <div class="col-6 mb-3">
+            <div class="h4 mb-0 text-success">{{ form.instance.products.filter:is_active=True.count|default:0 }}</div>
+            <small class="text-muted">Active</small>
+          </div>
+        </div>
+      </div>
+    </div>
+    {% endif %}
+
+    <!-- Help & Guidelines -->
+    <div class="card shadow mb-4">
+      <div class="card-header py-3">
+        <h6 class="m-0 font-weight-bold text-success">
+          <i class="bi bi-lightbulb me-2"></i>Best Practices
+        </h6>
+      </div>
+      <div class="card-body">
+        <div class="small">
+          <ul class="list-unstyled">
+            <li class="mb-2">
+              <i class="bi bi-check-circle text-success me-2"></i>
+              Use descriptive, standardized family names
+            </li>
+            <li class="mb-2">
+              <i class="bi bi-check-circle text-success me-2"></i>
+              Set realistic markup percentages based on market analysis
+            </li>
+            <li class="mb-2">
+              <i class="bi bi-check-circle text-success me-2"></i>
+              Define comprehensive default attributes
+            </li>
+            <li class="mb-2">
+              <i class="bi bi-check-circle text-success me-2"></i>
+              Use consistent bin prefixes for organization
+            </li>
+            <li class="mb-2">
+              <i class="bi bi-check-circle text-success me-2"></i>
+              Order families logically with display order
+            </li>
+          </ul>
+        </div>
+      </div>
+    </div>
+
+    <!-- JSON Validation -->
+    <div class="card shadow">
+      <div class="card-header py-3">
+        <h6 class="m-0 font-weight-bold text-warning">
+          <i class="bi bi-code-slash me-2"></i>JSON Validation
+        </h6>
+      </div>
+      <div class="card-body">
+        <div class="small text-muted">
+          <p class="mb-2">
+            <i class="bi bi-info-circle me-2"></i>
+            Default attributes must be valid JSON format.
+          </p>
+          <p class="mb-2">
+            <strong>Valid:</strong> {"key": "value", "number": 123}
+          </p>
+          <p class="mb-0">
+            <strong>Invalid:</strong> {key: value} or {'key': 'value'}
+          </p>
+        </div>
+        <button type="button" class="btn btn-sm btn-outline-warning mt-2" 
+                onclick="validateJSON()">
+          <i class="bi bi-check-circle me-2"></i>Validate JSON
+        </button>
+        <div id="json-validation-result" class="mt-2"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+// Attribute Templates
+const attributeTemplates = {
+  resistor: {
+    "resistance": "",
+    "tolerance": "",
+    "power_rating": "",
+    "package": "",
+    "temperature_coefficient": ""
+  },
+  capacitor: {
+    "capacitance": "",
+    "voltage_rating": "",
+    "tolerance": "",
+    "dielectric_type": "",
+    "package": ""
+  },
+  ic: {
+    "part_number": "",
+    "package": "",
+    "pin_count": "",
+    "operating_voltage": "",
+    "operating_temperature": ""
+  },
+  connector: {
+    "connector_type": "",
+    "pin_count": "",
+    "pitch": "",
+    "current_rating": "",
+    "mounting_type": ""
+  }
+};
+
+function setAttributes(type) {
+  const textarea = document.getElementById('{{ form.default_attributes.id_for_label }}');
+  const template = attributeTemplates[type];
+  if (template) {
+    textarea.value = JSON.stringify(template, null, 2);
+  }
+}
+
+function validateJSON() {
+  const textarea = document.getElementById('{{ form.default_attributes.id_for_label }}');
+  const resultDiv = document.getElementById('json-validation-result');
+  
+  try {
+    if (textarea.value.trim() === '') {
+      resultDiv.innerHTML = '<div class="alert alert-info alert-sm py-2 mb-0"><small>JSON is empty - this is valid.</small></div>';
+      return;
+    }
+    
+    JSON.parse(textarea.value);
+    resultDiv.innerHTML = '<div class="alert alert-success alert-sm py-2 mb-0"><small><i class="bi bi-check-circle me-1"></i>Valid JSON format!</small></div>';
+  } catch (e) {
+    resultDiv.innerHTML = `<div class="alert alert-danger alert-sm py-2 mb-0"><small><i class="bi bi-exclamation-triangle me-1"></i>Invalid JSON: ${e.message}</small></div>`;
+  }
+}
+
+// Auto-generate slug from name
+document.getElementById('{{ form.name.id_for_label }}').addEventListener('input', function() {
+  const nameField = this;
+  const slugField = document.getElementById('{{ form.slug.id_for_label }}');
+  
+  if (slugField && !slugField.value) {
+    const slug = nameField.value
+      .toLowerCase()
+      .replace(/[^a-z0-9 -]/g, '') // Remove invalid chars
+      .replace(/\s+/g, '-')        // Replace spaces with -
+      .replace(/-+/g, '-')         // Replace multiple - with single -
+      .trim('-');                  // Trim - from ends
+    slugField.value = slug;
+  }
+});
+</script>
+{% endblock %}
