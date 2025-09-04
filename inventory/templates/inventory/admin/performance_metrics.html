@@ -1,0 +1,244 @@
+<!-- inventory/admin/performance_metrics.html -->
+{% extends "dashboard_base.html" %}
+{% load static %}
+
+{% block page_title %}Performance Metrics{% endblock %}
+
+{% block extra_css %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+{% endblock %}
+
+{% block dashboard_content %}
+<div class="row mb-4">
+    <div class="col-12">
+        <div class="card shadow">
+            <div class="card-header bg-info text-white">
+                <h5 class="card-title mb-0">
+                    <i class="bi bi-speedometer2"></i> System Performance Metrics
+                </h5>
+            </div>
+            <div class="card-body">
+                <!-- Performance Overview -->
+                <div class="row mb-4">
+                    <div class="col-md-3">
+                        <div class="card bg-primary text-white">
+                            <div class="card-body text-center">
+                                <i class="bi bi-clock fa-2x mb-2"></i>
+                                <h4>{{ avg_response_time|floatformat:2 }}ms</h4>
+                                <h6>Avg Response Time</h6>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-3">
+                        <div class="card bg-success text-white">
+                            <div class="card-body text-center">
+                                <i class="bi bi-check-circle fa-2x mb-2"></i>
+                                <h4>{{ uptime_percentage|floatformat:1 }}%</h4>
+                                <h6>System Uptime</h6>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-3">
+                        <div class="card bg-warning text-white">
+                            <div class="card-body text-center">
+                                <i class="bi bi-database fa-2x mb-2"></i>
+                                <h4>{{ db_query_time|floatformat:1 }}ms</h4>
+                                <h6>DB Query Time</h6>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-3">
+                        <div class="card bg-info text-white">
+                            <div class="card-body text-center">
+                                <i class="bi bi-memory fa-2x mb-2"></i>
+                                <h4>{{ memory_usage|floatformat:1 }}%</h4>
+                                <h6>Memory Usage</h6>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Performance Charts -->
+                <div class="row mb-4">
+                    <div class="col-md-6">
+                        <canvas id="responseTimeChart" height="200"></canvas>
+                    </div>
+                    <div class="col-md-6">
+                        <canvas id="throughputChart" height="200"></canvas>
+                    </div>
+                </div>
+
+                <!-- Detailed Metrics -->
+                <div class="row">
+                    <div class="col-md-6">
+                        <div class="card">
+                            <div class="card-header">
+                                <h6 class="card-title mb-0">Database Performance</h6>
+                            </div>
+                            <div class="card-body">
+                                <table class="table table-sm">
+                                    <tr>
+                                        <td>Active Connections:</td>
+                                        <td><strong>{{ db_active_connections }}</strong></td>
+                                    </tr>
+                                    <tr>
+                                        <td>Slow Queries (>1s):</td>
+                                        <td><strong>{{ slow_queries_count }}</strong></td>
+                                    </tr>
+                                    <tr>
+                                        <td>Cache Hit Ratio:</td>
+                                        <td><strong>{{ cache_hit_ratio|floatformat:1 }}%</strong></td>
+                                    </tr>
+                                    <tr>
+                                        <td>Index Usage:</td>
+                                        <td><strong>{{ index_usage|floatformat:1 }}%</strong></td>
+                                    </tr>
+                                    <tr>
+                                        <td>Deadlocks (24h):</td>
+                                        <td><strong>{{ deadlocks_count }}</strong></td>
+                                    </tr>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-6">
+                        <div class="card">
+                            <div class="card-header">
+                                <h6 class="card-title mb-0">System Resources</h6>
+                            </div>
+                            <div class="card-body">
+                                <table class="table table-sm">
+                                    <tr>
+                                        <td>CPU Usage:</td>
+                                        <td>
+                                            <div class="progress" style="height: 20px;">
+                                                <div class="progress-bar" style="width: {{ cpu_usage }}%">{{ cpu_usage|floatformat:1 }}%</div>
+                                            </div>
+                                        </td>
+                                    </tr>
+                                    <tr>
+                                        <td>Memory Usage:</td>
+                                        <td>
+                                            <div class="progress" style="height: 20px;">
+                                                <div class="progress-bar bg-warning" style="width: {{ memory_usage }}%">{{ memory_usage|floatformat:1 }}%</div>
+                                            </div>
+                                        </td>
+                                    </tr>
+                                    <tr>
+                                        <td>Disk I/O:</td>
+                                        <td>
+                                            <div class="progress" style="height: 20px;">
+                                                <div class="progress-bar bg-info" style="width: {{ disk_io }}%">{{ disk_io|floatformat:1 }}%</div>
+                                            </div>
+                                        </td>
+                                    </tr>
+                                    <tr>
+                                        <td>Network I/O:</td>
+                                        <td><strong>{{ network_io|filesizeformat }}/s</strong></td>
+                                    </tr>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Performance Alerts -->
+                {% if performance_alerts %}
+                <div class="card mt-4">
+                    <div class="card-header bg-warning text-white">
+                        <h6 class="card-title mb-0">
+                            <i class="bi bi-exclamation-triangle"></i> Performance Alerts
+                        </h6>
+                    </div>
+                    <div class="card-body">
+                        {% for alert in performance_alerts %}
+                        <div class="alert alert-{{ alert.severity }} alert-dismissible">
+                            <strong>{{ alert.title }}</strong>
+                            <p class="mb-0">{{ alert.message }}</p>
+                            <small class="text-muted">{{ alert.timestamp|timesince }} ago</small>
+                            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+                        </div>
+                        {% endfor %}
+                    </div>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+// Response Time Chart
+const ctx1 = document.getElementById('responseTimeChart').getContext('2d');
+const responseChart = new Chart(ctx1, {
+    type: 'line',
+    data: {
+        labels: [{% for point in response_time_data %}'{{ point.time }}'{% if not forloop.last %},{% endif %}{% endfor %}],
+        datasets: [{
+            label: 'Response Time (ms)',
+            data: [{% for point in response_time_data %}{{ point.response_time }}{% if not forloop.last %},{% endif %}{% endfor %}],
+            borderColor: 'rgb(75, 192, 192)',
+            backgroundColor: 'rgba(75, 192, 192, 0.1)',
+            tension: 0.1
+        }]
+    },
+    options: {
+        responsive: true,
+        plugins: {
+            title: {
+                display: true,
+                text: 'Response Time Trend'
+            }
+        },
+        scales: {
+            y: {
+                beginAtZero: true,
+                title: {
+                    display: true,
+                    text: 'Response Time (ms)'
+                }
+            }
+        }
+    }
+});
+
+// Throughput Chart
+const ctx2 = document.getElementById('throughputChart').getContext('2d');
+const throughputChart = new Chart(ctx2, {
+    type: 'bar',
+    data: {
+        labels: [{% for point in throughput_data %}'{{ point.hour }}'{% if not forloop.last %},{% endif %}{% endfor %}],
+        datasets: [{
+            label: 'Requests/Hour',
+            data: [{% for point in throughput_data %}{{ point.requests }}{% if not forloop.last %},{% endif %}{% endfor %}],
+            backgroundColor: 'rgba(54, 162, 235, 0.5)',
+            borderColor: 'rgba(54, 162, 235, 1)',
+            borderWidth: 1
+        }]
+    },
+    options: {
+        responsive: true,
+        plugins: {
+            title: {
+                display: true,
+                text: 'System Throughput'
+            }
+        },
+        scales: {
+            y: {
+                beginAtZero: true,
+                title: {
+                    display: true,
+                    text: 'Requests per Hour'
+                }
+            }
+        }
+    }
+});
+
+// Auto-refresh every 30 seconds
+setInterval(function() {
+    location.reload();
+}, 30000);
+</script>
+{% endblock %}

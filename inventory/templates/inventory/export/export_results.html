@@ -1,0 +1,461 @@
+<!-- inventory/export/export_results.html -->
+{% extends "dashboard_base.html" %}
+{% load static %}
+
+{% block page_title %}Export Results{% endblock %}
+
+{% block dashboard_content %}
+<div class="row">
+    <div class="col-12">
+        <div class="card shadow">
+            <div class="card-header bg-success text-white">
+                <h5 class="card-title mb-0">
+                    <i class="bi bi-download"></i> Export Results
+                </h5>
+            </div>
+            <div class="card-body">
+                {% if export_result %}
+                <!-- Export Status -->
+                <div class="row mb-4">
+                    <div class="col-md-3">
+                        <div class="card {% if export_result.status == 'completed' %}bg-success{% elif export_result.status == 'failed' %}bg-danger{% else %}bg-warning{% endif %} text-white">
+                            <div class="card-body text-center">
+                                <i class="bi bi-{% if export_result.status == 'completed' %}check-circle{% elif export_result.status == 'failed' %}x-circle{% else %}clock{% endif %} fa-2x"></i>
+                                <h6 class="mt-2">Status</h6>
+                                <h5>{{ export_result.get_status_display }}</h5>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-3">
+                        <div class="card bg-info text-white">
+                            <div class="card-body text-center">
+                                <i class="bi bi-file-earmark fa-2x"></i>
+                                <h6 class="mt-2">Export Type</h6>
+                                <h5>{{ export_result.export_type|upper }}</h5>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-3">
+                        <div class="card bg-primary text-white">
+                            <div class="card-body text-center">
+                                <i class="bi bi-list-ol fa-2x"></i>
+                                <h6 class="mt-2">Records</h6>
+                                <h5>{{ export_result.total_records|default:0 }}</h5>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-3">
+                        <div class="card bg-secondary text-white">
+                            <div class="card-body text-center">
+                                <i class="bi bi-hdd fa-2x"></i>
+                                <h6 class="mt-2">File Size</h6>
+                                <h5>{{ export_result.file_size|filesizeformat }}</h5>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Export Details -->
+                <div class="row mb-4">
+                    <div class="col-md-6">
+                        <div class="card">
+                            <div class="card-header">
+                                <h6 class="card-title mb-0">Export Details</h6>
+                            </div>
+                            <div class="card-body">
+                                <table class="table table-borderless">
+                                    <tr>
+                                        <td><strong>Export ID:</strong></td>
+                                        <td>{{ export_result.id }}</td>
+                                    </tr>
+                                    <tr>
+                                        <td><strong>Initiated by:</strong></td>
+                                        <td>{{ export_result.created_by.get_full_name|default:export_result.created_by.username }}</td>
+                                    </tr>
+                                    <tr>
+                                        <td><strong>Started:</strong></td>
+                                        <td>{{ export_result.created_at|date:"M d, Y H:i:s" }}</td>
+                                    </tr>
+                                    <tr>
+                                        <td><strong>Completed:</strong></td>
+                                        <td>
+                                            {% if export_result.completed_at %}
+                                                {{ export_result.completed_at|date:"M d, Y H:i:s" }}
+                                            {% else %}
+                                                <span class="text-muted">Not completed</span>
+                                            {% endif %}
+                                        </td>
+                                    </tr>
+                                    <tr>
+                                        <td><strong>Duration:</strong></td>
+                                        <td>
+                                            {% if export_result.duration %}
+                                                {{ export_result.duration }} seconds
+                                            {% else %}
+                                                <span class="text-muted">N/A</span>
+                                            {% endif %}
+                                        </td>
+                                    </tr>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-6">
+                        <div class="card">
+                            <div class="card-header">
+                                <h6 class="card-title mb-0">Export Parameters</h6>
+                            </div>
+                            <div class="card-body">
+                                {% if export_result.filters %}
+                                <table class="table table-borderless">
+                                    {% for key, value in export_result.filters.items %}
+                                    <tr>
+                                        <td><strong>{{ key|title }}:</strong></td>
+                                        <td>{{ value }}</td>
+                                    </tr>
+                                    {% endfor %}
+                                </table>
+                                {% else %}
+                                <p class="text-muted">No filters applied - exported all records</p>
+                                {% endif %}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Download Section -->
+                {% if export_result.status == 'completed' and export_result.file_path %}
+                <div class="card border-success">
+                    <div class="card-header bg-success text-white">
+                        <h6 class="card-title mb-0">
+                            <i class="bi bi-download"></i> Download Your Export
+                        </h6>
+                    </div>
+                    <div class="card-body">
+                        <div class="row align-items-center">
+                            <div class="col-md-8">
+                                <h6>{{ export_result.filename }}</h6>
+                                <p class="text-muted mb-0">
+                                    {{ export_result.file_size|filesizeformat }} • 
+                                    {{ export_result.total_records }} records • 
+                                    Generated {{ export_result.completed_at|timesince }} ago
+                                </p>
+                            </div>
+                            <div class="col-md-4 text-end">
+                                <div class="btn-group">
+                                    <a href="{% url 'inventory:download_export' export_result.id %}" class="btn btn-success">
+                                        <i class="bi bi-download"></i> Download
+                                    </a>
+                                    <button class="btn btn-outline-success" onclick="previewExport()">
+                                        <i class="bi bi-eye"></i> Preview
+                                    </button>
+                                    <button class="btn btn-outline-secondary" onclick="shareExport()">
+                                        <i class="bi bi-share"></i> Share
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="alert alert-info mt-3" role="alert">
+                            <i class="bi bi-info-circle"></i>
+                            <strong>Note:</strong> Export files are automatically deleted after 7 days. 
+                            Download your file now to ensure you don't lose access to it.
+                        </div>
+                    </div>
+                </div>
+                {% endif %}
+
+                <!-- Error Details -->
+                {% if export_result.status == 'failed' %}
+                <div class="card border-danger">
+                    <div class="card-header bg-danger text-white">
+                        <h6 class="card-title mb-0">
+                            <i class="bi bi-exclamation-triangle"></i> Export Failed
+                        </h6>
+                    </div>
+                    <div class="card-body">
+                        <div class="alert alert-danger">
+                            <strong>Error:</strong> {{ export_result.error_message|default:"Unknown error occurred" }}
+                        </div>
+                        {% if export_result.error_details %}
+                        <div class="mt-3">
+                            <h6>Error Details:</h6>
+                            <pre class="bg-light p-3"><code>{{ export_result.error_details }}</code></pre>
+                        </div>
+                        {% endif %}
+                        <div class="mt-3">
+                            <button class="btn btn-warning" onclick="retryExport()">
+                                <i class="bi bi-arrow-clockwise"></i> Retry Export
+                            </button>
+                            <a href="{% url 'inventory:export_data' %}" class="btn btn-primary">
+                                <i class="bi bi-plus"></i> New Export
+                            </a>
+                        </div>
+                    </div>
+                </div>
+                {% endif %}
+
+                <!-- Processing Status -->
+                {% if export_result.status == 'processing' %}
+                <div class="card border-warning">
+                    <div class="card-header bg-warning text-white">
+                        <h6 class="card-title mb-0">
+                            <i class="bi bi-clock"></i> Export in Progress
+                        </h6>
+                    </div>
+                    <div class="card-body">
+                        <div class="d-flex align-items-center mb-3">
+                            <div class="spinner-border text-warning me-3" role="status"></div>
+                            <div>
+                                <p class="mb-0">Your export is being processed...</p>
+                                <small class="text-muted">
+                                    {% if export_result.progress_percentage %}
+                                        {{ export_result.progress_percentage }}% complete
+                                    {% else %}
+                                        This may take a few minutes for large datasets.
+                                    {% endif %}
+                                </small>
+                            </div>
+                        </div>
+                        
+                        {% if export_result.progress_percentage %}
+                        <div class="progress">
+                            <div class="progress-bar progress-bar-striped progress-bar-animated" 
+                                 style="width: {{ export_result.progress_percentage }}%">
+                                {{ export_result.progress_percentage }}%
+                            </div>
+                        </div>
+                        {% endif %}
+                        
+                        <div class="mt-3">
+                            <button class="btn btn-info" onclick="refreshStatus()">
+                                <i class="bi bi-arrow-clockwise"></i> Refresh Status
+                            </button>
+                            <button class="btn btn-outline-danger" onclick="cancelExport()">
+                                <i class="bi bi-stop"></i> Cancel Export
+                            </button>
+                        </div>
+                    </div>
+                </div>
+                {% endif %}
+
+                <!-- Recent Exports -->
+                {% if recent_exports %}
+                <div class="card mt-4">
+                    <div class="card-header">
+                        <h6 class="card-title mb-0">Recent Exports</h6>
+                    </div>
+                    <div class="card-body">
+                        <div class="table-responsive">
+                            <table class="table table-sm">
+                                <thead>
+                                    <tr>
+                                        <th>Type</th>
+                                        <th>Records</th>
+                                        <th>Status</th>
+                                        <th>Created</th>
+                                        <th>Actions</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {% for export in recent_exports %}
+                                    <tr>
+                                        <td>{{ export.export_type|upper }}</td>
+                                        <td>{{ export.total_records|default:"-" }}</td>
+                                        <td>
+                                            <span class="badge 
+                                                {% if export.status == 'completed' %}bg-success
+                                                {% elif export.status == 'failed' %}bg-danger
+                                                {% elif export.status == 'processing' %}bg-warning
+                                                {% else %}bg-secondary{% endif %}">
+                                                {{ export.get_status_display }}
+                                            </span>
+                                        </td>
+                                        <td>{{ export.created_at|date:"M d, H:i" }}</td>
+                                        <td>
+                                            {% if export.status == 'completed' %}
+                                                <a href="{% url 'inventory:download_export' export.id %}" class="btn btn-sm btn-outline-primary">
+                                                    <i class="bi bi-download"></i>
+                                                </a>
+                                            {% endif %}
+                                            <a href="{% url 'inventory:export_results' export.id %}" class="btn btn-sm btn-outline-info">
+                                                <i class="bi bi-eye"></i>
+                                            </a>
+                                        </td>
+                                    </tr>
+                                    {% endfor %}
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+                {% endif %}
+
+                {% else %}
+                <!-- No Export Result -->
+                <div class="text-center">
+                    <i class="bi bi-file-earmark-x fa-4x text-muted mb-3"></i>
+                    <h5 class="text-muted">Export Not Found</h5>
+                    <p class="text-muted">The export you're looking for doesn't exist or has been deleted.</p>
+                    <a href="{% url 'inventory:export_data' %}" class="btn btn-primary">
+                        <i class="bi bi-plus"></i> Create New Export
+                    </a>
+                </div>
+                {% endif %}
+
+                <!-- Action Buttons -->
+                <div class="row mt-4">
+                    <div class="col-12 text-center">
+                        <div class="btn-group">
+                            <a href="{% url 'inventory:export_data' %}" class="btn btn-primary">
+                                <i class="bi bi-plus"></i> New Export
+                            </a>
+                            <a href="{% url 'inventory:dashboard' %}" class="btn btn-outline-secondary">
+                                <i class="bi bi-house"></i> Dashboard
+                            </a>
+                            <a href="{% url 'inventory:reports' %}" class="btn btn-outline-info">
+                                <i class="bi bi-graph-up"></i> Reports
+                            </a>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Preview Modal -->
+<div class="modal fade" id="previewModal" tabindex="-1">
+    <div class="modal-dialog modal-xl">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Export Preview</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div id="preview-content">
+                    <div class="text-center">
+                        <div class="spinner-border" role="status"></div>
+                        <p class="mt-2">Loading preview...</p>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                <a href="{% if export_result %}{% url 'inventory:download_export' export_result.id %}{% endif %}" class="btn btn-primary">
+                    <i class="bi bi-download"></i> Download Full Export
+                </a>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+{% if export_result.status == 'processing' %}
+// Auto-refresh for processing exports
+let refreshInterval;
+
+function startAutoRefresh() {
+    refreshInterval = setInterval(function() {
+        refreshStatus();
+    }, 5000); // Refresh every 5 seconds
+}
+
+function stopAutoRefresh() {
+    if (refreshInterval) {
+        clearInterval(refreshInterval);
+    }
+}
+
+// Start auto-refresh on page load
+startAutoRefresh();
+
+// Stop auto-refresh when page is about to unload
+window.addEventListener('beforeunload', stopAutoRefresh);
+{% endif %}
+
+function refreshStatus() {
+    fetch(window.location.href + '?ajax=1')
+        .then(response => response.json())
+        .then(data => {
+            if (data.status !== 'processing') {
+                window.location.reload();
+            } else if (data.progress_percentage) {
+                // Update progress bar if it exists
+                const progressBar = document.querySelector('.progress-bar');
+                if (progressBar) {
+                    progressBar.style.width = data.progress_percentage + '%';
+                    progressBar.textContent = data.progress_percentage + '%';
+                }
+            }
+        })
+        .catch(error => {
+            console.error('Error refreshing status:', error);
+        });
+}
+
+function previewExport() {
+    const previewModal = new bootstrap.Modal(document.getElementById('previewModal'));
+    previewModal.show();
+    
+    fetch('{% if export_result %}{% url "inventory:preview_export" export_result.id %}{% endif %}')
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                document.getElementById('preview-content').innerHTML = data.html;
+            } else {
+                document.getElementById('preview-content').innerHTML = 
+                    '<div class="alert alert-danger">Failed to load preview: ' + data.message + '</div>';
+            }
+        })
+        .catch(error => {
+            document.getElementById('preview-content').innerHTML = 
+                '<div class="alert alert-danger">Failed to load preview: ' + error.message + '</div>';
+        });
+}
+
+function shareExport() {
+    // Generate shareable link (could be temporary download link)
+    const shareUrl = window.location.origin + '{% if export_result %}{% url "inventory:download_export" export_result.id %}{% endif %}';
+    
+    if (navigator.share) {
+        navigator.share({
+            title: 'Inventory Export',
+            text: 'Inventory export file',
+            url: shareUrl
+        });
+    } else {
+        // Fallback - copy to clipboard
+        navigator.clipboard.writeText(shareUrl).then(() => {
+            alert('Download link copied to clipboard!');
+        });
+    }
+}
+
+function retryExport() {
+    if (confirm('Are you sure you want to retry this export?')) {
+        // Redirect to export page with same parameters
+        window.location.href = '{% url "inventory:export_data" %}?retry={{ export_result.id }}';
+    }
+}
+
+function cancelExport() {
+    if (confirm('Are you sure you want to cancel this export?')) {
+        fetch('{% if export_result %}{% url "inventory:cancel_export" export_result.id %}{% endif %}', {
+            method: 'POST',
+            headers: {
+                'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value
+            }
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                window.location.reload();
+            } else {
+                alert('Failed to cancel export: ' + data.message);
+            }
+        });
+    }
+}
+</script>
+{% endblock %}

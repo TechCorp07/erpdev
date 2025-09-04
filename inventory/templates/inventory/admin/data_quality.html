@@ -1,0 +1,384 @@
+<!-- inventory/admin/data_quality.html -->
+{% extends "dashboard_base.html" %}
+{% load static %}
+
+{% block page_title %}Data Quality Dashboard{% endblock %}
+
+{% block extra_css %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+{% endblock %}
+
+{% block dashboard_content %}
+<div class="row mb-4">
+    <div class="col-12">
+        <div class="card shadow">
+            <div class="card-header bg-warning text-white">
+                <h5 class="card-title mb-0">
+                    <i class="bi bi-shield-check"></i> Data Quality Dashboard
+                </h5>
+            </div>
+            <div class="card-body">
+                <!-- Quality Score Overview -->
+                <div class="row mb-4">
+                    <div class="col-md-3">
+                        <div class="card bg-primary text-white">
+                            <div class="card-body text-center">
+                                <i class="bi bi-clipboard-data fa-2x mb-2"></i>
+                                <h4>{{ overall_quality_score|floatformat:1 }}%</h4>
+                                <h6>Overall Quality Score</h6>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-3">
+                        <div class="card bg-success text-white">
+                            <div class="card-body text-center">
+                                <i class="bi bi-check-circle fa-2x mb-2"></i>
+                                <h4>{{ complete_products_count }}</h4>
+                                <h6>Complete Products</h6>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-3">
+                        <div class="card bg-warning text-white">
+                            <div class="card-body text-center">
+                                <i class="bi bi-exclamation-triangle fa-2x mb-2"></i>
+                                <h4>{{ issues_count }}</h4>
+                                <h6>Data Issues Found</h6>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-3">
+                        <div class="card bg-info text-white">
+                            <div class="card-body text-center">
+                                <i class="bi bi-arrow-clockwise fa-2x mb-2"></i>
+                                <h4>{{ last_scan|timesince }}</h4>
+                                <h6>Last Quality Scan</h6>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Quality Metrics Charts -->
+                <div class="row mb-4">
+                    <div class="col-md-6">
+                        <canvas id="qualityScoreChart" height="200"></canvas>
+                    </div>
+                    <div class="col-md-6">
+                        <canvas id="issueTypeChart" height="200"></canvas>
+                    </div>
+                </div>
+
+                <!-- Data Quality Issues -->
+                <div class="card mb-4">
+                    <div class="card-header">
+                        <h6 class="card-title mb-0">
+                            <i class="bi bi-exclamation-triangle text-warning"></i> Critical Data Quality Issues
+                        </h6>
+                    </div>
+                    <div class="card-body">
+                        <div class="table-responsive">
+                            <table class="table table-striped">
+                                <thead>
+                                    <tr>
+                                        <th>Issue Type</th>
+                                        <th>Severity</th>
+                                        <th>Products Affected</th>
+                                        <th>Description</th>
+                                        <th>Actions</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {% for issue in quality_issues %}
+                                    <tr>
+                                        <td>
+                                            <strong>{{ issue.issue_type|title }}</strong>
+                                        </td>
+                                        <td>
+                                            <span class="badge 
+                                                {% if issue.severity == 'critical' %}bg-danger
+                                                {% elif issue.severity == 'high' %}bg-warning
+                                                {% elif issue.severity == 'medium' %}bg-info
+                                                {% else %}bg-secondary{% endif %}">
+                                                {{ issue.severity|title }}
+                                            </span>
+                                        </td>
+                                        <td>{{ issue.affected_count }}</td>
+                                        <td>{{ issue.description }}</td>
+                                        <td>
+                                            <div class="btn-group btn-group-sm">
+                                                <button class="btn btn-outline-primary" onclick="viewIssueDetails('{{ issue.issue_type }}')">
+                                                    <i class="bi bi-eye"></i> View
+                                                </button>
+                                                <button class="btn btn-outline-success" onclick="fixIssue('{{ issue.issue_type }}')">
+                                                    <i class="bi bi-tools"></i> Fix
+                                                </button>
+                                            </div>
+                                        </td>
+                                    </tr>
+                                    {% empty %}
+                                    <tr>
+                                        <td colspan="5" class="text-center text-success">
+                                            <i class="bi bi-check-circle"></i> No critical data quality issues found!
+                                        </td>
+                                    </tr>
+                                    {% endfor %}
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Data Completeness Analysis -->
+                <div class="row mb-4">
+                    <div class="col-md-6">
+                        <div class="card">
+                            <div class="card-header">
+                                <h6 class="card-title mb-0">Field Completeness</h6>
+                            </div>
+                            <div class="card-body">
+                                {% for field in field_completeness %}
+                                <div class="mb-3">
+                                    <div class="d-flex justify-content-between">
+                                        <span>{{ field.name|title }}</span>
+                                        <span class="text-muted">{{ field.completion_rate|floatformat:1 }}%</span>
+                                    </div>
+                                    <div class="progress">
+                                        <div class="progress-bar 
+                                            {% if field.completion_rate >= 90 %}bg-success
+                                            {% elif field.completion_rate >= 70 %}bg-warning
+                                            {% else %}bg-danger{% endif %}" 
+                                            style="width: {{ field.completion_rate }}%">
+                                        </div>
+                                    </div>
+                                    <small class="text-muted">{{ field.missing_count }} missing out of {{ field.total_count }}</small>
+                                </div>
+                                {% endfor %}
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-6">
+                        <div class="card">
+                            <div class="card-header">
+                                <h6 class="card-title mb-0">Data Validation Rules</h6>
+                            </div>
+                            <div class="card-body">
+                                <div class="list-group">
+                                    {% for rule in validation_rules %}
+                                    <div class="list-group-item d-flex justify-content-between align-items-center">
+                                        <div>
+                                            <h6 class="mb-1">{{ rule.name }}</h6>
+                                            <p class="mb-1 text-muted small">{{ rule.description }}</p>
+                                        </div>
+                                        <div>
+                                            {% if rule.violations_count > 0 %}
+                                                <span class="badge bg-danger">{{ rule.violations_count }} violations</span>
+                                            {% else %}
+                                                <span class="badge bg-success">Passing</span>
+                                            {% endif %}
+                                        </div>
+                                    </div>
+                                    {% endfor %}
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Quick Actions -->
+                <div class="card">
+                    <div class="card-header">
+                        <h6 class="card-title mb-0">Quick Actions</h6>
+                    </div>
+                    <div class="card-body">
+                        <div class="row">
+                            <div class="col-md-3 mb-3">
+                                <div class="d-grid">
+                                    <button class="btn btn-primary" onclick="runQualityScan()">
+                                        <i class="bi bi-arrow-clockwise"></i><br>
+                                        Run Quality Scan
+                                    </button>
+                                </div>
+                            </div>
+                            <div class="col-md-3 mb-3">
+                                <div class="d-grid">
+                                    <button class="btn btn-success" onclick="autoFixIssues()">
+                                        <i class="bi bi-tools"></i><br>
+                                        Auto-Fix Issues
+                                    </button>
+                                </div>
+                            </div>
+                            <div class="col-md-3 mb-3">
+                                <div class="d-grid">
+                                    <button class="btn btn-info" onclick="exportQualityReport()">
+                                        <i class="bi bi-download"></i><br>
+                                        Export Report
+                                    </button>
+                                </div>
+                            </div>
+                            <div class="col-md-3 mb-3">
+                                <div class="d-grid">
+                                    <button class="btn btn-warning" onclick="scheduleCleanup()">
+                                        <i class="bi bi-calendar"></i><br>
+                                        Schedule Cleanup
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Issue Details Modal -->
+<div class="modal fade" id="issueDetailsModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Data Quality Issue Details</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div id="issue-details-content">
+                    <!-- Issue details will be loaded here -->
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                <button type="button" class="btn btn-primary" id="fix-issue-btn">Fix Selected Issues</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+// Quality Score Chart
+const ctx1 = document.getElementById('qualityScoreChart').getContext('2d');
+const qualityChart = new Chart(ctx1, {
+    type: 'doughnut',
+    data: {
+        labels: ['Complete', 'Missing Data', 'Invalid Data', 'Duplicates'],
+        datasets: [{
+            data: [{{ complete_products_count }}, {{ missing_data_count }}, {{ invalid_data_count }}, {{ duplicate_count }}],
+            backgroundColor: ['#28a745', '#ffc107', '#dc3545', '#6c757d']
+        }]
+    },
+    options: {
+        responsive: true,
+        plugins: {
+            title: {
+                display: true,
+                text: 'Data Quality Distribution'
+            },
+            legend: {
+                position: 'bottom'
+            }
+        }
+    }
+});
+
+// Issue Type Chart
+const ctx2 = document.getElementById('issueTypeChart').getContext('2d');
+const issueChart = new Chart(ctx2, {
+    type: 'bar',
+    data: {
+        labels: [{% for issue in quality_issues %}'{{ issue.issue_type }}'{% if not forloop.last %},{% endif %}{% endfor %}],
+        datasets: [{
+            label: 'Issues Count',
+            data: [{% for issue in quality_issues %}{{ issue.affected_count }}{% if not forloop.last %},{% endif %}{% endfor %}],
+            backgroundColor: 'rgba(255, 193, 7, 0.7)',
+            borderColor: 'rgba(255, 193, 7, 1)',
+            borderWidth: 1
+        }]
+    },
+    options: {
+        responsive: true,
+        plugins: {
+            title: {
+                display: true,
+                text: 'Issues by Type'
+            }
+        },
+        scales: {
+            y: {
+                beginAtZero: true
+            }
+        }
+    }
+});
+
+function runQualityScan() {
+    if (confirm('Run a comprehensive data quality scan? This may take several minutes.')) {
+        const btn = event.target;
+        btn.innerHTML = '<i class="bi bi-spinner-border spinner-border-sm"></i> Scanning...';
+        btn.disabled = true;
+        
+        fetch('/inventory/admin/run-quality-scan/', {
+            method: 'POST',
+            headers: {
+                'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value
+            }
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                window.location.reload();
+            } else {
+                alert('Scan failed: ' + data.message);
+            }
+        })
+        .catch(error => {
+            alert('Scan failed: ' + error.message);
+        })
+        .finally(() => {
+            btn.innerHTML = '<i class="bi bi-arrow-clockwise"></i><br>Run Quality Scan';
+            btn.disabled = false;
+        });
+    }
+}
+
+function viewIssueDetails(issueType) {
+    fetch(`/inventory/admin/quality-issue-details/${issueType}/`)
+        .then(response => response.json())
+        .then(data => {
+            document.getElementById('issue-details-content').innerHTML = data.html;
+            new bootstrap.Modal(document.getElementById('issueDetailsModal')).show();
+        });
+}
+
+function fixIssue(issueType) {
+    if (confirm(`Attempt to automatically fix all "${issueType}" issues?`)) {
+        fetch(`/inventory/admin/fix-quality-issue/${issueType}/`, {
+            method: 'POST',
+            headers: {
+                'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value
+            }
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                alert(`Fixed ${data.fixed_count} issues`);
+                window.location.reload();
+            } else {
+                alert('Fix failed: ' + data.message);
+            }
+        });
+    }
+}
+
+function autoFixIssues() {
+    if (confirm('Attempt to automatically fix all resolvable data quality issues?')) {
+        window.location.href = '/inventory/admin/auto-fix-issues/';
+    }
+}
+
+function exportQualityReport() {
+    window.location.href = '/inventory/admin/export-quality-report/';
+}
+
+function scheduleCleanup() {
+    window.location.href = '/inventory/admin/schedule-cleanup/';
+}
+</script>
+{% endblock %}

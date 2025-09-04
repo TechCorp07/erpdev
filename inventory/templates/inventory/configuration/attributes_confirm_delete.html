@@ -1,0 +1,95 @@
+<!-- inventory/configuration/attributes_confirm_delete.html -->
+{% extends "dashboard_base.html" %}
+{% load static %}
+
+{% block page_title %}Delete Product Attribute{% endblock %}
+
+{% block dashboard_content %}
+<div class="row">
+    <div class="col-md-8 mx-auto">
+        <div class="card shadow">
+            <div class="card-header bg-danger text-white">
+                <h5 class="card-title mb-0">
+                    <i class="bi bi-trash"></i> Delete Product Attribute
+                </h5>
+            </div>
+            <div class="card-body">
+                <div class="alert alert-warning" role="alert">
+                    <i class="bi bi-exclamation-triangle"></i>
+                    <strong>Warning!</strong> You are about to delete the following product attribute:
+                </div>
+                
+                <div class="row mb-4">
+                    <div class="col-md-6">
+                        <h6>Attribute Details:</h6>
+                        <ul class="list-unstyled">
+                            <li><strong>Name:</strong> {{ object.name }}</li>
+                            <li><strong>Display Name:</strong> {{ object.display_name }}</li>
+                            <li><strong>Type:</strong> {{ object.get_attribute_type_display }}</li>
+                            <li><strong>Component Family:</strong> {{ object.component_family.name }}</li>
+                            <li><strong>Required:</strong> 
+                                <span class="badge {% if object.is_required %}bg-warning{% else %}bg-secondary{% endif %}">
+                                    {% if object.is_required %}Yes{% else %}No{% endif %}
+                                </span>
+                            </li>
+                        </ul>
+                    </div>
+                    <div class="col-md-6">
+                        <h6>Usage Impact:</h6>
+                        <ul class="list-unstyled">
+                            <li><strong>Products Using:</strong> {{ products_count }} products</li>
+                            <li><strong>Active Values:</strong> {{ active_values_count }} values</li>
+                            <li><strong>In Quotes:</strong> {{ quotes_using_count }} quotes</li>
+                        </ul>
+                    </div>
+                </div>
+
+                {% if products_count > 0 or active_values_count > 0 %}
+                <div class="alert alert-danger" role="alert">
+                    <i class="bi bi-exclamation-octagon"></i>
+                    <strong>Cannot Delete!</strong> This attribute is currently being used by products. 
+                    Removing it will delete all associated values. Consider marking it as inactive instead.
+                </div>
+                
+                <div class="mb-3">
+                    <h6>Products that will be affected:</h6>
+                    <div class="list-group">
+                        {% for product in affected_products|slice:":10" %}
+                        <div class="list-group-item">
+                            <strong>{{ product.name }}</strong> ({{ product.sku }})
+                        </div>
+                        {% endfor %}
+                        {% if affected_products|length > 10 %}
+                        <div class="list-group-item text-muted">
+                            ... and {{ affected_products|length|add:"-10" }} more products
+                        </div>
+                        {% endif %}
+                    </div>
+                </div>
+                {% endif %}
+
+                <form method="post">
+                    {% csrf_token %}
+                    <div class="d-flex justify-content-between">
+                        <a href="{% url 'inventory:product_attribute_list' %}" class="btn btn-secondary">
+                            <i class="bi bi-arrow-left"></i> Cancel
+                        </a>
+                        {% if object.is_required and products_count > 0 %}
+                        <div>
+                            <span class="text-muted me-2">Cannot delete required attribute in use</span>
+                            <a href="{% url 'inventory:product_attribute_edit' object.pk %}" class="btn btn-warning">
+                                <i class="bi bi-pencil"></i> Make Inactive Instead
+                            </a>
+                        </div>
+                        {% else %}
+                        <button type="submit" class="btn btn-danger">
+                            <i class="bi bi-trash"></i> Yes, Delete Attribute
+                        </button>
+                        {% endif %}
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

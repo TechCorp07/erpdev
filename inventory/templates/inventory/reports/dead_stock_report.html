@@ -1,0 +1,268 @@
+<!-- inventory/reports/dead_stock_report.html -->
+{% extends "dashboard_base.html" %}
+{% load static %}
+
+{% block page_title %}Dead Stock Report{% endblock %}
+
+{% block dashboard_content %}
+<div class="row mb-4">
+    <div class="col-12">
+        <div class="card shadow">
+            <div class="card-header bg-danger text-white">
+                <h5 class="card-title mb-0">
+                    <i class="bi bi-archive"></i> Dead Stock Report
+                </h5>
+            </div>
+            <div class="card-body">
+                <!-- Filter Controls -->
+                <div class="row mb-4">
+                    <div class="col-md-3">
+                        <label class="form-label">No Movement Period:</label>
+                        <select class="form-select" id="period-filter">
+                            <option value="90">90 Days</option>
+                            <option value="180" selected>6 Months</option>
+                            <option value="365">1 Year</option>
+                            <option value="730">2 Years</option>
+                        </select>
+                    </div>
+                    <div class="col-md-3">
+                        <label class="form-label">Minimum Stock Value:</label>
+                        <input type="number" class="form-control" id="min-value" placeholder="0.00" step="0.01">
+                    </div>
+                    <div class="col-md-3">
+                        <label class="form-label">Category:</label>
+                        <select class="form-select" id="category-filter">
+                            <option value="">All Categories</option>
+                            {% for category in categories %}
+                            <option value="{{ category.id }}">{{ category.name }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="col-md-3">
+                        <label class="form-label">&nbsp;</label>
+                        <div>
+                            <button class="btn btn-primary" onclick="refreshReport()">
+                                <i class="bi bi-funnel"></i> Filter
+                            </button>
+                            <button class="btn btn-success" onclick="exportReport()">
+                                <i class="bi bi-download"></i> Export
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Summary Cards -->
+                <div class="row mb-4">
+                    <div class="col-md-3">
+                        <div class="card bg-danger text-white">
+                            <div class="card-body">
+                                <div class="d-flex justify-content-between">
+                                    <div>
+                                        <h6>Dead Stock Items</h6>
+                                        <h4>{{ dead_stock_count }}</h4>
+                                    </div>
+                                    <i class="bi bi-archive fa-2x"></i>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-3">
+                        <div class="card bg-warning text-white">
+                            <div class="card-body">
+                                <div class="d-flex justify-content-between">
+                                    <div>
+                                        <h6>Total Value</h6>
+                                        <h4>${{ total_dead_stock_value|floatformat:0 }}</h4>
+                                    </div>
+                                    <i class="bi bi-currency-dollar fa-2x"></i>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-3">
+                        <div class="card bg-info text-white">
+                            <div class="card-body">
+                                <div class="d-flex justify-content-between">
+                                    <div>
+                                        <h6>Avg Days Static</h6>
+                                        <h4>{{ avg_days_static|floatformat:0 }}</h4>
+                                    </div>
+                                    <i class="bi bi-calendar fa-2x"></i>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-3">
+                        <div class="card bg-secondary text-white">
+                            <div class="card-body">
+                                <div class="d-flex justify-content-between">
+                                    <div>
+                                        <h6>Storage Cost</h6>
+                                        <h4>${{ estimated_storage_cost|floatformat:0 }}</h4>
+                                    </div>
+                                    <i class="bi bi-building fa-2x"></i>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Dead Stock Table -->
+                <div class="table-responsive">
+                    <table class="table table-striped">
+                        <thead>
+                            <tr>
+                                <th>Product</th>
+                                <th>Category</th>
+                                <th>Last Movement</th>
+                                <th>Days Static</th>
+                                <th>Current Stock</th>
+                                <th>Stock Value</th>
+                                <th>Supplier</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for item in dead_stock_items %}
+                            <tr>
+                                <td>
+                                    <strong>{{ item.product.name }}</strong><br>
+                                    <small class="text-muted">{{ item.product.sku }}</small>
+                                </td>
+                                <td>{{ item.product.category.name }}</td>
+                                <td>
+                                    {% if item.last_movement_date %}
+                                        {{ item.last_movement_date|date:"M d, Y" }}<br>
+                                        <small class="text-muted">{{ item.last_movement_type }}</small>
+                                    {% else %}
+                                        <span class="text-muted">Never</span>
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    <span class="badge {% if item.days_static > 365 %}bg-danger{% elif item.days_static > 180 %}bg-warning{% else %}bg-secondary{% endif %}">
+                                        {{ item.days_static }} days
+                                    </span>
+                                </td>
+                                <td>{{ item.product.current_stock|floatformat:0 }}</td>
+                                <td>${{ item.stock_value|floatformat:2 }}</td>
+                                <td>
+                                    {% if item.product.supplier %}
+                                        {{ item.product.supplier.name }}
+                                    {% else %}
+                                        <span class="text-muted">No supplier</span>
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    <div class="btn-group btn-group-sm" role="group">
+                                        <a href="{% url 'inventory:product_detail' item.product.pk %}" class="btn btn-outline-primary" title="View Product">
+                                            <i class="bi bi-eye"></i>
+                                        </a>
+                                        <button class="btn btn-outline-warning" onclick="markForDisposal({{ item.product.pk }})" title="Mark for Disposal">
+                                            <i class="bi bi-trash"></i>
+                                        </button>
+                                        <button class="btn btn-outline-success" onclick="createDiscountPromotion({{ item.product.pk }})" title="Create Promotion">
+                                            <i class="bi bi-percent"></i>
+                                        </button>
+                                    </div>
+                                </td>
+                            </tr>
+                            {% empty %}
+                            <tr>
+                                <td colspan="8" class="text-center text-muted">No dead stock found for the selected criteria</td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Bulk Actions Modal -->
+<div class="modal fade" id="bulkActionsModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Bulk Actions for Dead Stock</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div class="row">
+                    <div class="col-12">
+                        <div class="d-grid gap-2">
+                            <button class="btn btn-warning" onclick="bulkMarkForDisposal()">
+                                <i class="bi bi-trash"></i> Mark All for Disposal
+                            </button>
+                            <button class="btn btn-success" onclick="bulkCreatePromotions()">
+                                <i class="bi bi-percent"></i> Create Clearance Promotions
+                            </button>
+                            <button class="btn btn-info" onclick="bulkReturnToSupplier()">
+                                <i class="bi bi-arrow-return-left"></i> Return to Supplier
+                            </button>
+                            <button class="btn btn-secondary" onclick="bulkMarkInactive()">
+                                <i class="bi bi-pause-circle"></i> Mark as Inactive
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+function refreshReport() {
+    const period = document.getElementById('period-filter').value;
+    const minValue = document.getElementById('min-value').value;
+    const category = document.getElementById('category-filter').value;
+    
+    let url = window.location.pathname + '?period=' + period;
+    if (minValue) url += '&min_value=' + minValue;
+    if (category) url += '&category=' + category;
+    
+    window.location.href = url;
+}
+
+function exportReport() {
+    window.location.href = window.location.pathname + 'export/' + window.location.search;
+}
+
+function markForDisposal(productId) {
+    if (confirm('Mark this product for disposal?')) {
+        // Implement disposal marking logic
+        console.log('Mark product ' + productId + ' for disposal');
+    }
+}
+
+function createDiscountPromotion(productId) {
+    // Implement promotion creation logic
+    console.log('Create promotion for product ' + productId);
+}
+
+// Add bulk action functions
+function bulkMarkForDisposal() {
+    if (confirm('Mark all dead stock items for disposal?')) {
+        // Implement bulk disposal logic
+        console.log('Bulk mark for disposal');
+    }
+}
+
+function bulkCreatePromotions() {
+    // Implement bulk promotion creation
+    console.log('Create bulk promotions');
+}
+
+function bulkReturnToSupplier() {
+    // Implement bulk return to supplier
+    console.log('Bulk return to supplier');
+}
+
+function bulkMarkInactive() {
+    if (confirm('Mark all items as inactive?')) {
+        // Implement bulk inactive marking
+        console.log('Bulk mark inactive');
+    }
+}
+</script>
+{% endblock %}

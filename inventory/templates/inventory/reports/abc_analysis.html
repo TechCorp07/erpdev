@@ -1,0 +1,327 @@
+<!-- inventory/reports/abc_analysis.html -->
+{% extends "dashboard_base.html" %}
+{% load static %}
+
+{% block page_title %}ABC Analysis Report{% endblock %}
+
+{% block extra_css %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+{% endblock %}
+
+{% block dashboard_content %}
+<div class="row mb-4">
+    <div class="col-12">
+        <div class="card shadow">
+            <div class="card-header bg-info text-white">
+                <h5 class="card-title mb-0">
+                    <i class="bi bi-graph-up"></i> ABC Analysis - Product Classification
+                </h5>
+            </div>
+            <div class="card-body">
+                <!-- Analysis Explanation -->
+                <div class="alert alert-info mb-4" role="alert">
+                    <h6><i class="bi bi-info-circle"></i> ABC Analysis Methodology</h6>
+                    <p class="mb-0">
+                        <strong>Class A (80-20):</strong> High-value products that contribute to 80% of revenue but represent ~20% of inventory.<br>
+                        <strong>Class B (15-15):</strong> Medium-value products contributing ~15% of revenue and ~15% of inventory.<br>
+                        <strong>Class C (5-65):</strong> Low-value products contributing ~5% of revenue but ~65% of inventory.
+                    </p>
+                </div>
+
+                <!-- Filter Controls -->
+                <div class="row mb-4">
+                    <div class="col-md-3">
+                        <label class="form-label">Analysis Period:</label>
+                        <select class="form-select" id="period-filter">
+                            <option value="90" selected>Last 90 Days</option>
+                            <option value="180">Last 6 Months</option>
+                            <option value="365">Last Year</option>
+                        </select>
+                    </div>
+                    <div class="col-md-3">
+                        <label class="form-label">Analysis Criteria:</label>
+                        <select class="form-select" id="criteria-filter">
+                            <option value="revenue" selected>Revenue</option>
+                            <option value="quantity">Quantity Sold</option>
+                            <option value="profit">Profit Margin</option>
+                        </select>
+                    </div>
+                    <div class="col-md-3">
+                        <label class="form-label">&nbsp;</label>
+                        <div>
+                            <button class="btn btn-primary" onclick="refreshAnalysis()">
+                                <i class="bi bi-arrow-clockwise"></i> Refresh
+                            </button>
+                            <button class="btn btn-success" onclick="exportAnalysis()">
+                                <i class="bi bi-download"></i> Export
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- ABC Summary Cards -->
+                <div class="row mb-4">
+                    <div class="col-md-4">
+                        <div class="card bg-danger text-white">
+                            <div class="card-body">
+                                <div class="d-flex justify-content-between">
+                                    <div>
+                                        <h6>Class A Products</h6>
+                                        <h4>{{ class_a_count }} ({{ class_a_percentage|floatformat:1 }}%)</h4>
+                                        <small>Revenue: ${{ class_a_revenue|floatformat:0 }}</small>
+                                    </div>
+                                    <i class="bi bi-star-fill fa-2x"></i>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-4">
+                        <div class="card bg-warning text-white">
+                            <div class="card-body">
+                                <div class="d-flex justify-content-between">
+                                    <div>
+                                        <h6>Class B Products</h6>
+                                        <h4>{{ class_b_count }} ({{ class_b_percentage|floatformat:1 }}%)</h4>
+                                        <small>Revenue: ${{ class_b_revenue|floatformat:0 }}</small>
+                                    </div>
+                                    <i class="bi bi-star-half fa-2x"></i>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-4">
+                        <div class="card bg-secondary text-white">
+                            <div class="card-body">
+                                <div class="d-flex justify-content-between">
+                                    <div>
+                                        <h6>Class C Products</h6>
+                                        <h4>{{ class_c_count }} ({{ class_c_percentage|floatformat:1 }}%)</h4>
+                                        <small>Revenue: ${{ class_c_revenue|floatformat:0 }}</small>
+                                    </div>
+                                    <i class="bi bi-star fa-2x"></i>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- ABC Distribution Chart -->
+                <div class="row mb-4">
+                    <div class="col-md-6">
+                        <canvas id="abcPieChart" height="300"></canvas>
+                    </div>
+                    <div class="col-md-6">
+                        <canvas id="paretoCurveChart" height="300"></canvas>
+                    </div>
+                </div>
+
+                <!-- ABC Classification Table -->
+                <div class="table-responsive">
+                    <table class="table table-striped">
+                        <thead class="table-dark">
+                            <tr>
+                                <th>Rank</th>
+                                <th>Product</th>
+                                <th>Category</th>
+                                <th>Revenue</th>
+                                <th>% of Total</th>
+                                <th>Cumulative %</th>
+                                <th>ABC Class</th>
+                                <th>Strategy</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for item in abc_data %}
+                            <tr>
+                                <td>{{ forloop.counter }}</td>
+                                <td>
+                                    <strong>{{ item.product.name }}</strong><br>
+                                    <small class="text-muted">{{ item.product.sku }}</small>
+                                </td>
+                                <td>{{ item.product.category.name }}</td>
+                                <td>${{ item.revenue|floatformat:0 }}</td>
+                                <td>{{ item.percentage|floatformat:2 }}%</td>
+                                <td>{{ item.cumulative_percentage|floatformat:2 }}%</td>
+                                <td>
+                                    {% if item.abc_class == 'A' %}
+                                        <span class="badge bg-danger">Class A</span>
+                                    {% elif item.abc_class == 'B' %}
+                                        <span class="badge bg-warning">Class B</span>
+                                    {% else %}
+                                        <span class="badge bg-secondary">Class C</span>
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    <small>
+                                    {% if item.abc_class == 'A' %}
+                                        Tight control, frequent review
+                                    {% elif item.abc_class == 'B' %}
+                                        Normal control, periodic review
+                                    {% else %}
+                                        Simple control, annual review
+                                    {% endif %}
+                                    </small>
+                                </td>
+                            </tr>
+                            {% empty %}
+                            <tr>
+                                <td colspan="8" class="text-center text-muted">No data available for analysis</td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- ABC Management Recommendations -->
+<div class="row">
+    <div class="col-md-4">
+        <div class="card shadow">
+            <div class="card-header bg-danger text-white">
+                <h6 class="card-title mb-0"><i class="bi bi-star-fill"></i> Class A Recommendations</h6>
+            </div>
+            <div class="card-body">
+                <ul class="list-unstyled">
+                    <li><i class="bi bi-check-circle text-success"></i> Implement tight inventory control</li>
+                    <li><i class="bi bi-check-circle text-success"></i> Weekly stock reviews</li>
+                    <li><i class="bi bi-check-circle text-success"></i> Multiple supplier relationships</li>
+                    <li><i class="bi bi-check-circle text-success"></i> Premium storage locations</li>
+                    <li><i class="bi bi-check-circle text-success"></i> Detailed demand forecasting</li>
+                </ul>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-4">
+        <div class="card shadow">
+            <div class="card-header bg-warning text-white">
+                <h6 class="card-title mb-0"><i class="bi bi-star-half"></i> Class B Recommendations</h6>
+            </div>
+            <div class="card-body">
+                <ul class="list-unstyled">
+                    <li><i class="bi bi-check-circle text-success"></i> Normal inventory control</li>
+                    <li><i class="bi bi-check-circle text-success"></i> Monthly stock reviews</li>
+                    <li><i class="bi bi-check-circle text-success"></i> Primary + backup supplier</li>
+                    <li><i class="bi bi-check-circle text-success"></i> Standard storage areas</li>
+                    <li><i class="bi bi-check-circle text-success"></i> Basic demand forecasting</li>
+                </ul>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-4">
+        <div class="card shadow">
+            <div class="card-header bg-secondary text-white">
+                <h6 class="card-title mb-0"><i class="bi bi-star"></i> Class C Recommendations</h6>
+            </div>
+            <div class="card-body">
+                <ul class="list-unstyled">
+                    <li><i class="bi bi-check-circle text-success"></i> Simple inventory control</li>
+                    <li><i class="bi bi-check-circle text-success"></i> Quarterly/annual reviews</li>
+                    <li><i class="bi bi-check-circle text-success"></i> Single reliable supplier</li>
+                    <li><i class="bi bi-check-circle text-success"></i> Bulk orders, lower storage</li>
+                    <li><i class="bi bi-check-circle text-success"></i> Simple reorder points</li>
+                </ul>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+// ABC Distribution Pie Chart
+const ctxPie = document.getElementById('abcPieChart').getContext('2d');
+const abcPieChart = new Chart(ctxPie, {
+    type: 'doughnut',
+    data: {
+        labels: ['Class A', 'Class B', 'Class C'],
+        datasets: [{
+            data: [{{ class_a_count }}, {{ class_b_count }}, {{ class_c_count }}],
+            backgroundColor: ['#dc3545', '#ffc107', '#6c757d']
+        }]
+    },
+    options: {
+        responsive: true,
+        plugins: {
+            legend: {
+                position: 'bottom'
+            },
+            title: {
+                display: true,
+                text: 'ABC Distribution by Product Count'
+            }
+        }
+    }
+});
+
+// Pareto Curve Chart
+const ctxPareto = document.getElementById('paretoCurveChart').getContext('2d');
+const paretoCurveChart = new Chart(ctxPareto, {
+    type: 'line',
+    data: {
+        labels: [{% for item in pareto_data %}'{{ forloop.counter }}'{% if not forloop.last %},{% endif %}{% endfor %}],
+        datasets: [{
+            label: 'Cumulative Revenue %',
+            data: [{% for item in pareto_data %}{{ item.cumulative_percentage }}{% if not forloop.last %},{% endif %}{% endfor %}],
+            borderColor: 'rgb(75, 192, 192)',
+            backgroundColor: 'rgba(75, 192, 192, 0.1)',
+            tension: 0.1,
+            yAxisID: 'y'
+        }, {
+            type: 'bar',
+            label: 'Individual Revenue %',
+            data: [{% for item in pareto_data %}{{ item.percentage }}{% if not forloop.last %},{% endif %}{% endfor %}],
+            backgroundColor: 'rgba(255, 99, 132, 0.5)',
+            yAxisID: 'y1'
+        }]
+    },
+    options: {
+        responsive: true,
+        scales: {
+            y: {
+                type: 'linear',
+                display: true,
+                position: 'left',
+                min: 0,
+                max: 100,
+                title: {
+                    display: true,
+                    text: 'Cumulative %'
+                }
+            },
+            y1: {
+                type: 'linear',
+                display: true,
+                position: 'right',
+                min: 0,
+                title: {
+                    display: true,
+                    text: 'Individual %'
+                },
+                grid: {
+                    drawOnChartArea: false,
+                }
+            }
+        },
+        plugins: {
+            title: {
+                display: true,
+                text: 'Pareto Analysis Curve'
+            }
+        }
+    }
+});
+
+function refreshAnalysis() {
+    const period = document.getElementById('period-filter').value;
+    const criteria = document.getElementById('criteria-filter').value;
+    
+    let url = window.location.pathname + '?period=' + period + '&criteria=' + criteria;
+    window.location.href = url;
+}
+
+function exportAnalysis() {
+    window.location.href = window.location.pathname + 'export/' + window.location.search;
+}
+</script>
+{% endblock %}

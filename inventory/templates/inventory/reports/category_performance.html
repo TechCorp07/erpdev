@@ -1,0 +1,232 @@
+<!-- inventory/reports/category_performance.html -->
+{% extends "dashboard_base.html" %}
+{% load static %}
+
+{% block page_title %}Category Performance Report{% endblock %}
+
+{% block extra_css %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+{% endblock %}
+
+{% block dashboard_content %}
+<div class="row mb-4">
+    <div class="col-12">
+        <div class="card shadow">
+            <div class="card-header bg-success text-white">
+                <h5 class="card-title mb-0">
+                    <i class="bi bi-graph-up"></i> Category Performance Analysis
+                </h5>
+            </div>
+            <div class="card-body">
+                <!-- Filter Controls -->
+                <div class="row mb-4">
+                    <div class="col-md-3">
+                        <select class="form-select" id="period-filter">
+                            <option value="30">Last 30 Days</option>
+                            <option value="90" selected>Last 90 Days</option>
+                            <option value="180">Last 6 Months</option>
+                            <option value="365">Last Year</option>
+                        </select>
+                    </div>
+                    <div class="col-md-3">
+                        <select class="form-select" id="metric-filter">
+                            <option value="revenue">Revenue</option>
+                            <option value="units">Units Sold</option>
+                            <option value="margin">Gross Margin</option>
+                            <option value="turnover">Turnover Ratio</option>
+                        </select>
+                    </div>
+                    <div class="col-md-3">
+                        <button class="btn btn-primary" onclick="refreshReport()">
+                            <i class="bi bi-arrow-clockwise"></i> Refresh
+                        </button>
+                    </div>
+                    <div class="col-md-3">
+                        <button class="btn btn-success" onclick="exportReport()">
+                            <i class="bi bi-download"></i> Export
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Performance Charts -->
+                <div class="row mb-4">
+                    <div class="col-md-8">
+                        <canvas id="performanceChart" height="100"></canvas>
+                    </div>
+                    <div class="col-md-4">
+                        <canvas id="categoryPieChart" height="200"></canvas>
+                    </div>
+                </div>
+
+                <!-- Category Performance Table -->
+                <div class="table-responsive">
+                    <table class="table table-striped">
+                        <thead>
+                            <tr>
+                                <th>Category</th>
+                                <th>Products</th>
+                                <th>Revenue</th>
+                                <th>Units Sold</th>
+                                <th>Avg Margin %</th>
+                                <th>Turnover</th>
+                                <th>Growth %</th>
+                                <th>Performance</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for category in category_performance %}
+                            <tr>
+                                <td>
+                                    <strong>{{ category.name }}</strong><br>
+                                    <small class="text-muted">{{ category.description|truncatechars:50 }}</small>
+                                </td>
+                                <td>{{ category.product_count }}</td>
+                                <td>${{ category.revenue|floatformat:0 }}</td>
+                                <td>{{ category.units_sold|floatformat:0 }}</td>
+                                <td>{{ category.avg_margin|floatformat:1 }}%</td>
+                                <td>{{ category.turnover_ratio|floatformat:2 }}x</td>
+                                <td>
+                                    {% if category.growth_rate >= 0 %}
+                                        <span class="text-success">+{{ category.growth_rate|floatformat:1 }}%</span>
+                                    {% else %}
+                                        <span class="text-danger">{{ category.growth_rate|floatformat:1 }}%</span>
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    {% if category.performance_score >= 80 %}
+                                        <span class="badge bg-success">Excellent</span>
+                                    {% elif category.performance_score >= 60 %}
+                                        <span class="badge bg-primary">Good</span>
+                                    {% elif category.performance_score >= 40 %}
+                                        <span class="badge bg-warning">Average</span>
+                                    {% else %}
+                                        <span class="badge bg-danger">Poor</span>
+                                    {% endif %}
+                                </td>
+                            </tr>
+                            {% empty %}
+                            <tr>
+                                <td colspan="8" class="text-center text-muted">No category data available</td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Performance Insights -->
+<div class="row">
+    <div class="col-md-6">
+        <div class="card shadow">
+            <div class="card-header bg-info text-white">
+                <h6 class="card-title mb-0">
+                    <i class="bi bi-lightbulb"></i> Top Performers
+                </h6>
+            </div>
+            <div class="card-body">
+                <ul class="list-unstyled">
+                    {% for category in top_performers %}
+                    <li class="mb-2">
+                        <strong>{{ category.name }}</strong>
+                        <div class="progress" style="height: 6px;">
+                            <div class="progress-bar bg-success" style="width: {{ category.performance_percentage }}%"></div>
+                        </div>
+                        <small class="text-muted">{{ category.performance_score }}% performance score</small>
+                    </li>
+                    {% endfor %}
+                </ul>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-6">
+        <div class="card shadow">
+            <div class="card-header bg-warning text-white">
+                <h6 class="card-title mb-0">
+                    <i class="bi bi-exclamation-triangle"></i> Needs Attention
+                </h6>
+            </div>
+            <div class="card-body">
+                <ul class="list-unstyled">
+                    {% for category in underperformers %}
+                    <li class="mb-2">
+                        <strong>{{ category.name }}</strong>
+                        <div class="progress" style="height: 6px;">
+                            <div class="progress-bar bg-danger" style="width: {{ category.performance_percentage }}%"></div>
+                        </div>
+                        <small class="text-muted">{{ category.issues|join:", " }}</small>
+                    </li>
+                    {% endfor %}
+                </ul>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+// Performance Chart
+const ctx1 = document.getElementById('performanceChart').getContext('2d');
+const performanceChart = new Chart(ctx1, {
+    type: 'line',
+    data: {
+        labels: [{% for item in chart_data %}'{{ item.period }}'{% if not forloop.last %},{% endif %}{% endfor %}],
+        datasets: [{
+            label: 'Revenue',
+            data: [{% for item in chart_data %}{{ item.revenue }}{% if not forloop.last %},{% endif %}{% endfor %}],
+            borderColor: 'rgb(75, 192, 192)',
+            backgroundColor: 'rgba(75, 192, 192, 0.1)',
+            tension: 0.1
+        }]
+    },
+    options: {
+        responsive: true,
+        scales: {
+            y: {
+                beginAtZero: true,
+                title: {
+                    display: true,
+                    text: 'Revenue ($)'
+                }
+            }
+        }
+    }
+});
+
+// Category Pie Chart
+const ctx2 = document.getElementById('categoryPieChart').getContext('2d');
+const categoryPieChart = new Chart(ctx2, {
+    type: 'doughnut',
+    data: {
+        labels: [{% for cat in category_performance %}'{{ cat.name }}'{% if not forloop.last %},{% endif %}{% endfor %}],
+        datasets: [{
+            data: [{% for cat in category_performance %}{{ cat.revenue }}{% if not forloop.last %},{% endif %}{% endfor %}],
+            backgroundColor: [
+                '#FF6384', '#36A2EB', '#FFCE56', '#4BC0C0', '#9966FF', '#FF9F40'
+            ]
+        }]
+    },
+    options: {
+        responsive: true,
+        plugins: {
+            legend: {
+                position: 'bottom'
+            }
+        }
+    }
+});
+
+function refreshReport() {
+    const period = document.getElementById('period-filter').value;
+    const metric = document.getElementById('metric-filter').value;
+    
+    let url = window.location.pathname + '?period=' + period + '&metric=' + metric;
+    window.location.href = url;
+}
+
+function exportReport() {
+    window.location.href = window.location.pathname + 'export/' + window.location.search;
+}
+</script>
+{% endblock %>

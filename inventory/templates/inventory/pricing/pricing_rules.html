@@ -1,0 +1,302 @@
+<!-- inventory/pricing/pricing_rules.html -->
+{% extends "dashboard_base.html" %}
+{% load static %}
+
+{% block page_title %}Pricing Rules Management{% endblock %}
+
+{% block dashboard_content %}
+<div class="row mb-4">
+    <div class="col-12">
+        <div class="card shadow">
+            <div class="card-header bg-primary text-white d-flex justify-content-between align-items-center">
+                <h5 class="card-title mb-0">
+                    <i class="bi bi-gear"></i> Pricing Rules Management
+                </h5>
+                <div>
+                    <button class="btn btn-light btn-sm" data-bs-toggle="modal" data-bs-target="#createRuleModal">
+                        <i class="bi bi-plus"></i> Add Rule
+                    </button>
+                    <button class="btn btn-outline-light btn-sm" onclick="refreshRules()">
+                        <i class="bi bi-arrow-clockwise"></i> Refresh
+                    </button>
+                </div>
+            </div>
+            <div class="card-body">
+                <!-- Rule Categories -->
+                <div class="row mb-4">
+                    <div class="col-md-3">
+                        <div class="card text-center">
+                            <div class="card-body">
+                                <i class="bi bi-percent fa-2x text-primary"></i>
+                                <h6 class="card-title mt-2">Markup Rules</h6>
+                                <p class="card-text">{{ markup_rules_count }} active</p>
+                                <a href="{% url 'inventory:markup_rule_list' %}" class="btn btn-sm btn-primary">Manage</a>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-3">
+                        <div class="card text-center">
+                            <div class="card-body">
+                                <i class="bi bi-graph-down fa-2x text-success"></i>
+                                <h6 class="card-title mt-2">Discount Rules</h6>
+                                <p class="card-text">{{ discount_rules_count }} active</p>
+                                <button class="btn btn-sm btn-success" onclick="manageDiscountRules()">Manage</button>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-3">
+                        <div class="card text-center">
+                            <div class="card-body">
+                                <i class="bi bi-layers fa-2x text-warning"></i>
+                                <h6 class="card-title mt-2">Tier Pricing</h6>
+                                <p class="card-text">{{ tier_rules_count }} active</p>
+                                <button class="btn btn-sm btn-warning" onclick="manageTierPricing()">Manage</button>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-3">
+                        <div class="card text-center">
+                            <div class="card-body">
+                                <i class="bi bi-clock fa-2x text-info"></i>
+                                <h6 class="card-title mt-2">Time-Based</h6>
+                                <p class="card-text">{{ time_rules_count }} active</p>
+                                <button class="btn btn-sm btn-info" onclick="manageTimeRules()">Manage</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Active Rules Summary -->
+                <div class="table-responsive">
+                    <table class="table table-striped">
+                        <thead class="table-dark">
+                            <tr>
+                                <th>Rule Name</th>
+                                <th>Type</th>
+                                <th>Priority</th>
+                                <th>Applies To</th>
+                                <th>Effect</th>
+                                <th>Status</th>
+                                <th>Products Affected</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for rule in pricing_rules %}
+                            <tr>
+                                <td>
+                                    <strong>{{ rule.name }}</strong><br>
+                                    <small class="text-muted">{{ rule.description|truncatechars:40 }}</small>
+                                </td>
+                                <td>
+                                    <span class="badge 
+                                        {% if rule.rule_type == 'markup' %}bg-primary
+                                        {% elif rule.rule_type == 'discount' %}bg-success
+                                        {% elif rule.rule_type == 'tier' %}bg-warning
+                                        {% else %}bg-info{% endif %}">
+                                        {{ rule.get_rule_type_display }}
+                                    </span>
+                                </td>
+                                <td>
+                                    <span class="badge {% if rule.priority <= 3 %}bg-danger{% elif rule.priority <= 6 %}bg-warning{% else %}bg-secondary{% endif %}">
+                                        {{ rule.priority }}
+                                    </span>
+                                </td>
+                                <td>
+                                    {% if rule.category %}
+                                        Category: {{ rule.category.name }}
+                                    {% elif rule.supplier %}
+                                        Supplier: {{ rule.supplier.name }}
+                                    {% elif rule.brand %}
+                                        Brand: {{ rule.brand.name }}
+                                    {% else %}
+                                        All Products
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    {% if rule.rule_type == 'markup' %}
+                                        +{{ rule.percentage }}%
+                                    {% elif rule.rule_type == 'discount' %}
+                                        -{{ rule.percentage }}%
+                                    {% else %}
+                                        {{ rule.effect_description }}
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    <span class="badge {% if rule.is_active %}bg-success{% else %}bg-secondary{% endif %}">
+                                        {% if rule.is_active %}Active{% else %}Inactive{% endif %}
+                                    </span>
+                                </td>
+                                <td>{{ rule.products_affected_count|default:0 }}</td>
+                                <td>
+                                    <div class="btn-group btn-group-sm">
+                                        <button class="btn btn-outline-info" onclick="previewRule({{ rule.pk }})" title="Preview">
+                                            <i class="bi bi-eye"></i>
+                                        </button>
+                                        <button class="btn btn-outline-primary" onclick="editRule({{ rule.pk }})" title="Edit">
+                                            <i class="bi bi-pencil"></i>
+                                        </button>
+                                        <button class="btn btn-outline-warning" onclick="toggleRule({{ rule.pk }}, {{ rule.is_active|yesno:'false,true' }})" 
+                                                title="{% if rule.is_active %}Deactivate{% else %}Activate{% endif %}">
+                                            <i class="bi bi-{% if rule.is_active %}pause{% else %}play{% endif %}"></i>
+                                        </button>
+                                        <button class="btn btn-outline-danger" onclick="deleteRule({{ rule.pk }})" title="Delete">
+                                            <i class="bi bi-trash"></i>
+                                        </button>
+                                    </div>
+                                </td>
+                            </tr>
+                            {% empty %}
+                            <tr>
+                                <td colspan="8" class="text-center text-muted">
+                                    No pricing rules configured. 
+                                    <button class="btn btn-sm btn-primary ms-2" data-bs-toggle="modal" data-bs-target="#createRuleModal">
+                                        Create First Rule
+                                    </button>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+
+                <!-- Rule Conflicts -->
+                {% if rule_conflicts %}
+                <div class="alert alert-warning mt-4">
+                    <h6><i class="bi bi-exclamation-triangle"></i> Rule Conflicts Detected</h6>
+                    <ul class="mb-0">
+                        {% for conflict in rule_conflicts %}
+                        <li>{{ conflict.description }} - <a href="#" onclick="resolveConflict({{ conflict.id }})">Resolve</a></li>
+                        {% endfor %}
+                    </ul>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Create Rule Modal -->
+<div class="modal fade" id="createRuleModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Create New Pricing Rule</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div class="row">
+                    <div class="col-md-6 mb-3">
+                        <div class="card text-center h-100" onclick="createRule('markup')" style="cursor: pointer;">
+                            <div class="card-body">
+                                <i class="bi bi-percent fa-3x text-primary"></i>
+                                <h6 class="card-title mt-2">Markup Rule</h6>
+                                <p class="card-text">Add percentage markup to cost price</p>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-6 mb-3">
+                        <div class="card text-center h-100" onclick="createRule('discount')" style="cursor: pointer;">
+                            <div class="card-body">
+                                <i class="bi bi-graph-down fa-3x text-success"></i>
+                                <h6 class="card-title mt-2">Discount Rule</h6>
+                                <p class="card-text">Apply discounts based on criteria</p>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-6 mb-3">
+                        <div class="card text-center h-100" onclick="createRule('tier')" style="cursor: pointer;">
+                            <div class="card-body">
+                                <i class="bi bi-layers fa-3x text-warning"></i>
+                                <h6 class="card-title mt-2">Tier Pricing</h6>
+                                <p class="card-text">Volume-based pricing tiers</p>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-6 mb-3">
+                        <div class="card text-center h-100" onclick="createRule('time')" style="cursor: pointer;">
+                            <div class="card-body">
+                                <i class="bi bi-clock fa-3x text-info"></i>
+                                <h6 class="card-title mt-2">Time-Based</h6>
+                                <p class="card-text">Scheduled price changes</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+function createRule(type) {
+    document.getElementById('createRuleModal').querySelector('.btn-close').click();
+    
+    if (type === 'markup') {
+        window.location.href = '{% url "inventory:markup_rule_create" %}';
+    } else {
+        // Redirect to other rule creation pages when implemented
+        console.log('Create rule of type:', type);
+    }
+}
+
+function previewRule(ruleId) {
+    // Show rule preview modal
+    console.log('Preview rule:', ruleId);
+}
+
+function editRule(ruleId) {
+    window.location.href = `/inventory/pricing/rules/${ruleId}/edit/`;
+}
+
+function toggleRule(ruleId, activate) {
+    const action = activate ? 'activate' : 'deactivate';
+    if (confirm(`Are you sure you want to ${action} this pricing rule?`)) {
+        fetch(`/inventory/pricing/rules/${ruleId}/toggle/`, {
+            method: 'POST',
+            headers: {
+                'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value
+            }
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                window.location.reload();
+            } else {
+                alert('Failed to toggle rule: ' + data.message);
+            }
+        });
+    }
+}
+
+function deleteRule(ruleId) {
+    if (confirm('Are you sure you want to delete this pricing rule? This action cannot be undone.')) {
+        window.location.href = `/inventory/pricing/rules/${ruleId}/delete/`;
+    }
+}
+
+function refreshRules() {
+    window.location.reload();
+}
+
+function manageDiscountRules() {
+    // Navigate to discount rules management
+    console.log('Manage discount rules');
+}
+
+function manageTierPricing() {
+    // Navigate to tier pricing management
+    console.log('Manage tier pricing');
+}
+
+function manageTimeRules() {
+    // Navigate to time-based rules management
+    console.log('Manage time rules');
+}
+
+function resolveConflict(conflictId) {
+    // Navigate to conflict resolution page
+    window.location.href = `/inventory/pricing/conflicts/${conflictId}/resolve/`;
+}
+</script>
+{% endblock %}

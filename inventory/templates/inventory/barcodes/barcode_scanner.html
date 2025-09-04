@@ -1,0 +1,483 @@
+<!-- inventory/barcodes/barcode_scanner.html -->
+{% extends "dashboard_base.html" %}
+{% load static %}
+
+{% block page_title %}Barcode Scanner{% endblock %}
+
+{% block extra_css %}
+<script src="https://unpkg.com/@zxing/library@latest"></script>
+<style>
+#scanner-container {
+    max-width: 500px;
+    margin: 0 auto;
+    position: relative;
+}
+
+#scanner-video {
+    width: 100%;
+    height: auto;
+    border-radius: 8px;
+}
+
+.scanner-overlay {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    width: 250px;
+    height: 150px;
+    border: 3px solid #00ff00;
+    border-radius: 8px;
+    box-shadow: 0 0 0 9999px rgba(0, 0, 0, 0.5);
+}
+
+.scanner-line {
+    position: absolute;
+    width: 100%;
+    height: 2px;
+    background: linear-gradient(to right, transparent, #00ff00, transparent);
+    animation: scan 2s linear infinite;
+}
+
+@keyframes scan {
+    0% { top: 0; }
+    100% { top: calc(100% - 2px); }
+}
+</style>
+{% endblock %}
+
+{% block dashboard_content %}
+<div class="row">
+    <div class="col-12">
+        <div class="card shadow">
+            <div class="card-header bg-primary text-white">
+                <h5 class="card-title mb-0">
+                    <i class="bi bi-upc-scan"></i> Barcode Scanner
+                </h5>
+            </div>
+            <div class="card-body">
+                <!-- Scanner Interface -->
+                <div class="row">
+                    <div class="col-md-6">
+                        <div id="scanner-container" class="mb-4">
+                            <video id="scanner-video" autoplay muted playsinline></video>
+                            <div class="scanner-overlay">
+                                <div class="scanner-line"></div>
+                            </div>
+                        </div>
+                        
+                        <div class="text-center mb-4">
+                            <button id="start-scan" class="btn btn-success me-2">
+                                <i class="bi bi-play"></i> Start Scanning
+                            </button>
+                            <button id="stop-scan" class="btn btn-danger me-2" style="display: none;">
+                                <i class="bi bi-stop"></i> Stop Scanning
+                            </button>
+                            <button id="switch-camera" class="btn btn-info">
+                                <i class="bi bi-camera"></i> Switch Camera
+                            </button>
+                        </div>
+
+                        <!-- Manual Input -->
+                        <div class="card">
+                            <div class="card-header">
+                                <h6 class="card-title mb-0">Manual Barcode Entry</h6>
+                            </div>
+                            <div class="card-body">
+                                <div class="input-group">
+                                    <input type="text" id="manual-barcode" class="form-control" 
+                                           placeholder="Enter barcode manually..." autocomplete="off">
+                                    <button class="btn btn-primary" onclick="processManualBarcode()">
+                                        <i class="bi bi-search"></i> Search
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="col-md-6">
+                        <!-- Scan Results -->
+                        <div class="card">
+                            <div class="card-header">
+                                <h6 class="card-title mb-0">Scan Results</h6>
+                            </div>
+                            <div class="card-body">
+                                <div id="scan-result" style="display: none;">
+                                    <div class="alert alert-success">
+                                        <h6 class="alert-heading">Barcode Detected!</h6>
+                                        <p class="mb-1"><strong>Code:</strong> <span id="detected-barcode"></span></p>
+                                        <hr>
+                                        <div id="product-info">
+                                            <!-- Product information will be loaded here -->
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <div id="no-result" class="alert alert-warning" style="display: none;">
+                                    <h6 class="alert-heading">Product Not Found</h6>
+                                    <p class="mb-1">The scanned barcode doesn't match any products in the system.</p>
+                                    <hr>
+                                    <button class="btn btn-primary btn-sm" onclick="createNewProduct()">
+                                        <i class="bi bi-plus"></i> Create New Product
+                                    </button>
+                                </div>
+
+                                <div id="scan-history" class="mt-4">
+                                    <h6>Recent Scans</h6>
+                                    <div id="history-list" class="list-group">
+                                        <!-- Recent scans will be added here -->
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Quick Actions -->
+                        <div class="card mt-4">
+                            <div class="card-header">
+                                <h6 class="card-title mb-0">Quick Actions</h6>
+                            </div>
+                            <div class="card-body">
+                                <div class="d-grid gap-2">
+                                    <button class="btn btn-outline-primary" onclick="adjustStock()">
+                                        <i class="bi bi-plus-minus"></i> Adjust Stock
+                                    </button>
+                                    <button class="btn btn-outline-success" onclick="viewProduct()">
+                                        <i class="bi bi-eye"></i> View Product Details
+                                    </button>
+                                    <button class="btn btn-outline-warning" onclick="updatePrice()">
+                                        <i class="bi bi-currency-dollar"></i> Update Price
+                                    </button>
+                                    <button class="btn btn-outline-info" onclick="printLabel()">
+                                        <i class="bi bi-printer"></i> Print Label
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Quick Stock Adjustment Modal -->
+<div class="modal fade" id="stockAdjustmentModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Quick Stock Adjustment</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <form id="stock-adjustment-form">
+                    <div class="mb-3">
+                        <label class="form-label">Product:</label>
+                        <input type="text" class="form-control" id="adjustment-product" readonly>
+                        <input type="hidden" id="adjustment-product-id">
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Current Stock:</label>
+                        <input type="text" class="form-control" id="current-stock" readonly>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Adjustment Type:</label>
+                        <select class="form-select" id="adjustment-type">
+                            <option value="add">Add Stock</option>
+                            <option value="remove">Remove Stock</option>
+                            <option value="set">Set Stock Level</option>
+                        </select>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Quantity:</label>
+                        <input type="number" class="form-control" id="adjustment-quantity" min="0" step="1" required>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Reason:</label>
+                        <textarea class="form-control" id="adjustment-reason" rows="2"></textarea>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-primary" onclick="saveStockAdjustment()">
+                    <i class="bi bi-check"></i> Save Adjustment
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+let codeReader = null;
+let selectedDeviceId = null;
+let scanHistory = [];
+let currentProduct = null;
+
+document.addEventListener('DOMContentLoaded', function() {
+    initializeScanner();
+    
+    // Auto-focus manual input
+    document.getElementById('manual-barcode').addEventListener('keypress', function(e) {
+        if (e.key === 'Enter') {
+            processManualBarcode();
+        }
+    });
+});
+
+function initializeScanner() {
+    codeReader = new ZXing.BrowserBarcodeReader();
+    
+    document.getElementById('start-scan').addEventListener('click', startScanning);
+    document.getElementById('stop-scan').addEventListener('click', stopScanning);
+    document.getElementById('switch-camera').addEventListener('click', switchCamera);
+}
+
+async function startScanning() {
+    try {
+        const videoInputDevices = await codeReader.listVideoInputDevices();
+        
+        if (videoInputDevices.length === 0) {
+            alert('No camera devices found');
+            return;
+        }
+        
+        if (!selectedDeviceId) {
+            selectedDeviceId = videoInputDevices[0].deviceId;
+        }
+        
+        await codeReader.decodeFromVideoDevice(selectedDeviceId, 'scanner-video', (result, err) => {
+            if (result) {
+                processScannedBarcode(result.text);
+            }
+            if (err && !(err instanceof ZXing.NotFoundException)) {
+                console.error(err);
+            }
+        });
+        
+        document.getElementById('start-scan').style.display = 'none';
+        document.getElementById('stop-scan').style.display = 'inline-block';
+        
+    } catch (err) {
+        console.error('Error starting scanner:', err);
+        alert('Error starting camera: ' + err.message);
+    }
+}
+
+function stopScanning() {
+    if (codeReader) {
+        codeReader.reset();
+    }
+    
+    document.getElementById('start-scan').style.display = 'inline-block';
+    document.getElementById('stop-scan').style.display = 'none';
+}
+
+async function switchCamera() {
+    try {
+        const videoInputDevices = await codeReader.listVideoInputDevices();
+        
+        if (videoInputDevices.length <= 1) {
+            alert('Only one camera available');
+            return;
+        }
+        
+        const currentIndex = videoInputDevices.findIndex(device => device.deviceId === selectedDeviceId);
+        const nextIndex = (currentIndex + 1) % videoInputDevices.length;
+        selectedDeviceId = videoInputDevices[nextIndex].deviceId;
+        
+        if (document.getElementById('stop-scan').style.display !== 'none') {
+            stopScanning();
+            setTimeout(startScanning, 100);
+        }
+        
+    } catch (err) {
+        console.error('Error switching camera:', err);
+    }
+}
+
+function processManualBarcode() {
+    const barcode = document.getElementById('manual-barcode').value.trim();
+    if (barcode) {
+        processScannedBarcode(barcode);
+        document.getElementById('manual-barcode').value = '';
+    }
+}
+
+function processScannedBarcode(barcode) {
+    document.getElementById('detected-barcode').textContent = barcode;
+    
+    // Add to history
+    addToHistory(barcode);
+    
+    // Lookup product
+    fetch(`/inventory/api/barcodes/lookup/${encodeURIComponent(barcode)}/`)
+        .then(response => response.json())
+        .then(data => {
+            if (data.success && data.product) {
+                currentProduct = data.product;
+                showProductInfo(data.product);
+                document.getElementById('scan-result').style.display = 'block';
+                document.getElementById('no-result').style.display = 'none';
+            } else {
+                currentProduct = null;
+                document.getElementById('scan-result').style.display = 'none';
+                document.getElementById('no-result').style.display = 'block';
+            }
+        })
+        .catch(error => {
+            console.error('Error looking up barcode:', error);
+            currentProduct = null;
+            document.getElementById('scan-result').style.display = 'none';
+            document.getElementById('no-result').style.display = 'block';
+        });
+}
+
+function showProductInfo(product) {
+    const productInfo = document.getElementById('product-info');
+    productInfo.innerHTML = `
+        <div class="row">
+            <div class="col-12">
+                <h6>${product.name}</h6>
+                <p class="mb-1"><strong>SKU:</strong> ${product.sku}</p>
+                <p class="mb-1"><strong>Category:</strong> ${product.category}</p>
+                <p class="mb-1"><strong>Current Stock:</strong> ${product.current_stock}</p>
+                <p class="mb-1"><strong>Price:</strong> $${product.sell_price}</p>
+                ${product.current_stock <= product.reorder_level ? 
+                    '<span class="badge bg-warning">Low Stock</span>' : 
+                    '<span class="badge bg-success">In Stock</span>'
+                }
+            </div>
+        </div>
+    `;
+}
+
+function addToHistory(barcode) {
+    const timestamp = new Date().toLocaleTimeString();
+    scanHistory.unshift({ barcode, timestamp });
+    
+    // Keep only last 10 scans
+    scanHistory = scanHistory.slice(0, 10);
+    
+    updateHistoryDisplay();
+}
+
+function updateHistoryDisplay() {
+    const historyList = document.getElementById('history-list');
+    historyList.innerHTML = '';
+    
+    scanHistory.forEach((scan, index) => {
+        const item = document.createElement('div');
+        item.className = 'list-group-item d-flex justify-content-between align-items-center';
+        item.innerHTML = `
+            <div>
+                <strong>${scan.barcode}</strong><br>
+                <small class="text-muted">${scan.timestamp}</small>
+            </div>
+            <button class="btn btn-sm btn-outline-primary" onclick="processScannedBarcode('${scan.barcode}')">
+                <i class="bi bi-arrow-clockwise"></i>
+            </button>
+        `;
+        historyList.appendChild(item);
+    });
+}
+
+// Quick Actions
+function adjustStock() {
+    if (!currentProduct) {
+        alert('Please scan a product first');
+        return;
+    }
+    
+    document.getElementById('adjustment-product').value = currentProduct.name;
+    document.getElementById('adjustment-product-id').value = currentProduct.id;
+    document.getElementById('current-stock').value = currentProduct.current_stock;
+    
+    new bootstrap.Modal(document.getElementById('stockAdjustmentModal')).show();
+}
+
+function viewProduct() {
+    if (!currentProduct) {
+        alert('Please scan a product first');
+        return;
+    }
+    
+    window.open(`/inventory/products/${currentProduct.id}/`, '_blank');
+}
+
+function updatePrice() {
+    if (!currentProduct) {
+        alert('Please scan a product first');
+        return;
+    }
+    
+    window.location.href = `/inventory/products/${currentProduct.id}/edit/`;
+}
+
+function printLabel() {
+    if (!currentProduct) {
+        alert('Please scan a product first');
+        return;
+    }
+    
+    window.open(`/inventory/products/${currentProduct.id}/print-label/`, '_blank');
+}
+
+function createNewProduct() {
+    const barcode = document.getElementById('detected-barcode').textContent;
+    window.location.href = `/inventory/products/create/?barcode=${encodeURIComponent(barcode)}`;
+}
+
+function saveStockAdjustment() {
+    const productId = document.getElementById('adjustment-product-id').value;
+    const type = document.getElementById('adjustment-type').value;
+    const quantity = parseInt(document.getElementById('adjustment-quantity').value);
+    const reason = document.getElementById('adjustment-reason').value;
+    
+    if (!quantity || quantity <= 0) {
+        alert('Please enter a valid quantity');
+        return;
+    }
+    
+    const data = {
+        product_id: productId,
+        adjustment_type: type,
+        quantity: quantity,
+        reason: reason
+    };
+    
+    fetch('/inventory/api/stock/adjust/', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value
+        },
+        body: JSON.stringify(data)
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            alert('Stock adjustment saved successfully');
+            bootstrap.Modal.getInstance(document.getElementById('stockAdjustmentModal')).hide();
+            
+            // Update current product stock display
+            if (currentProduct) {
+                currentProduct.current_stock = data.new_stock_level;
+                showProductInfo(currentProduct);
+            }
+        } else {
+            alert('Error saving adjustment: ' + data.message);
+        }
+    })
+    .catch(error => {
+        alert('Error saving adjustment: ' + error.message);
+    });
+}
+
+// Cleanup on page unload
+window.addEventListener('beforeunload', function() {
+    if (codeReader) {
+        codeReader.reset();
+    }
+});
+</script>
+{% endblock %}

@@ -1,0 +1,313 @@
+<!-- inventory/admin/system_settings.html -->
+{% extends "dashboard_base.html" %}
+{% load static %}
+{% load crispy_forms_tags %}
+
+{% block page_title %}System Settings{% endblock %}
+
+{% block dashboard_content %}
+<div class="row">
+    <div class="col-12">
+        <div class="card shadow">
+            <div class="card-header bg-primary text-white">
+                <h5 class="card-title mb-0">
+                    <i class="bi bi-gear"></i> System Settings
+                </h5>
+            </div>
+            <div class="card-body">
+                <form method="post">
+                    {% csrf_token %}
+                    
+                    <!-- General Settings -->
+                    <div class="card mb-4">
+                        <div class="card-header">
+                            <h6 class="card-title mb-0">General Settings</h6>
+                        </div>
+                        <div class="card-body">
+                            <div class="row">
+                                <div class="col-md-6">
+                                    <div class="mb-3">
+                                        <label class="form-label">Company Name</label>
+                                        <input type="text" class="form-control" name="company_name" value="{{ settings.company_name }}">
+                                    </div>
+                                    <div class="mb-3">
+                                        <label class="form-label">Default Currency</label>
+                                        <select name="default_currency" class="form-select">
+                                            {% for currency in currencies %}
+                                            <option value="{{ currency.code }}" {% if currency.code == settings.default_currency %}selected{% endif %}>
+                                                {{ currency.code }} - {{ currency.name }}
+                                            </option>
+                                            {% endfor %}
+                                        </select>
+                                    </div>
+                                </div>
+                                <div class="col-md-6">
+                                    <div class="mb-3">
+                                        <label class="form-label">System Timezone</label>
+                                        <select name="timezone" class="form-select">
+                                            {% for tz in timezones %}
+                                            <option value="{{ tz }}" {% if tz == settings.timezone %}selected{% endif %}>{{ tz }}</option>
+                                            {% endfor %}
+                                        </select>
+                                    </div>
+                                    <div class="mb-3">
+                                        <label class="form-label">Date Format</label>
+                                        <select name="date_format" class="form-select">
+                                            <option value="MM/DD/YYYY" {% if settings.date_format == 'MM/DD/YYYY' %}selected{% endif %}>MM/DD/YYYY</option>
+                                            <option value="DD/MM/YYYY" {% if settings.date_format == 'DD/MM/YYYY' %}selected{% endif %}>DD/MM/YYYY</option>
+                                            <option value="YYYY-MM-DD" {% if settings.date_format == 'YYYY-MM-DD' %}selected{% endif %}>YYYY-MM-DD</option>
+                                        </select>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Inventory Settings -->
+                    <div class="card mb-4">
+                        <div class="card-header">
+                            <h6 class="card-title mb-0">Inventory Settings</h6>
+                        </div>
+                        <div class="card-body">
+                            <div class="row">
+                                <div class="col-md-6">
+                                    <div class="mb-3">
+                                        <label class="form-label">Default Reorder Level</label>
+                                        <input type="number" class="form-control" name="default_reorder_level" value="{{ settings.default_reorder_level }}" min="0">
+                                    </div>
+                                    <div class="mb-3">
+                                        <label class="form-label">Low Stock Threshold</label>
+                                        <input type="number" class="form-control" name="low_stock_threshold" value="{{ settings.low_stock_threshold }}" min="0">
+                                    </div>
+                                    <div class="mb-3">
+                                        <div class="form-check">
+                                            <input class="form-check-input" type="checkbox" name="auto_calculate_reorder" 
+                                                   {% if settings.auto_calculate_reorder %}checked{% endif %}>
+                                            <label class="form-check-label">Auto-calculate reorder levels</label>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="col-md-6">
+                                    <div class="mb-3">
+                                        <label class="form-label">Stock Valuation Method</label>
+                                        <select name="stock_valuation_method" class="form-select">
+                                            <option value="fifo" {% if settings.stock_valuation_method == 'fifo' %}selected{% endif %}>FIFO</option>
+                                            <option value="lifo" {% if settings.stock_valuation_method == 'lifo' %}selected{% endif %}>LIFO</option>
+                                            <option value="weighted_avg" {% if settings.stock_valuation_method == 'weighted_avg' %}selected{% endif %}>Weighted Average</option>
+                                        </select>
+                                    </div>
+                                    <div class="mb-3">
+                                        <label class="form-label">Negative Stock</label>
+                                        <select name="allow_negative_stock" class="form-select">
+                                            <option value="false" {% if not settings.allow_negative_stock %}selected{% endif %}>Not Allowed</option>
+                                            <option value="true" {% if settings.allow_negative_stock %}selected{% endif %}>Allowed</option>
+                                        </select>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Pricing Settings -->
+                    <div class="card mb-4">
+                        <div class="card-header">
+                            <h6 class="card-title mb-0">Pricing Settings</h6>
+                        </div>
+                        <div class="card-body">
+                            <div class="row">
+                                <div class="col-md-6">
+                                    <div class="mb-3">
+                                        <label class="form-label">Default Markup Percentage</label>
+                                        <input type="number" class="form-control" name="default_markup" 
+                                               value="{{ settings.default_markup }}" step="0.1" min="0">
+                                    </div>
+                                    <div class="mb-3">
+                                        <label class="form-label">Price Rounding</label>
+                                        <select name="price_rounding" class="form-select">
+                                            <option value="0.01" {% if settings.price_rounding == '0.01' %}selected{% endif %}>$0.01</option>
+                                            <option value="0.05" {% if settings.price_rounding == '0.05' %}selected{% endif %}>$0.05</option>
+                                            <option value="0.10" {% if settings.price_rounding == '0.10' %}selected{% endif %}>$0.10</option>
+                                            <option value="1.00" {% if settings.price_rounding == '1.00' %}selected{% endif %}>$1.00</option>
+                                        </select>
+                                    </div>
+                                </div>
+                                <div class="col-md-6">
+                                    <div class="mb-3">
+                                        <div class="form-check">
+                                            <input class="form-check-input" type="checkbox" name="auto_update_prices" 
+                                                   {% if settings.auto_update_prices %}checked{% endif %}>
+                                            <label class="form-check-label">Auto-update prices when costs change</label>
+                                        </div>
+                                    </div>
+                                    <div class="mb-3">
+                                        <div class="form-check">
+                                            <input class="form-check-input" type="checkbox" name="show_cost_prices" 
+                                                   {% if settings.show_cost_prices %}checked{% endif %}>
+                                            <label class="form-check-label">Show cost prices to all users</label>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Notification Settings -->
+                    <div class="card mb-4">
+                        <div class="card-header">
+                            <h6 class="card-title mb-0">Notification Settings</h6>
+                        </div>
+                        <div class="card-body">
+                            <div class="row">
+                                <div class="col-md-6">
+                                    <div class="mb-3">
+                                        <div class="form-check">
+                                            <input class="form-check-input" type="checkbox" name="enable_low_stock_alerts" 
+                                                   {% if settings.enable_low_stock_alerts %}checked{% endif %}>
+                                            <label class="form-check-label">Enable low stock alerts</label>
+                                        </div>
+                                    </div>
+                                    <div class="mb-3">
+                                        <div class="form-check">
+                                            <input class="form-check-input" type="checkbox" name="enable_price_change_alerts" 
+                                                   {% if settings.enable_price_change_alerts %}checked{% endif %}>
+                                            <label class="form-check-label">Enable price change alerts</label>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="col-md-6">
+                                    <div class="mb-3">
+                                        <label class="form-label">Admin Email</label>
+                                        <input type="email" class="form-control" name="admin_email" value="{{ settings.admin_email }}">
+                                    </div>
+                                    <div class="mb-3">
+                                        <label class="form-label">Notification Email Frequency</label>
+                                        <select name="notification_frequency" class="form-select">
+                                            <option value="immediate" {% if settings.notification_frequency == 'immediate' %}selected{% endif %}>Immediate</option>
+                                            <option value="daily" {% if settings.notification_frequency == 'daily' %}selected{% endif %}>Daily Digest</option>
+                                            <option value="weekly" {% if settings.notification_frequency == 'weekly' %}selected{% endif %}>Weekly Digest</option>
+                                        </select>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Security Settings -->
+                    <div class="card mb-4">
+                        <div class="card-header">
+                            <h6 class="card-title mb-0">Security Settings</h6>
+                        </div>
+                        <div class="card-body">
+                            <div class="row">
+                                <div class="col-md-6">
+                                    <div class="mb-3">
+                                        <label class="form-label">Session Timeout (minutes)</label>
+                                        <input type="number" class="form-control" name="session_timeout" 
+                                               value="{{ settings.session_timeout }}" min="5" max="1440">
+                                    </div>
+                                    <div class="mb-3">
+                                        <label class="form-label">Password Expiry (days)</label>
+                                        <input type="number" class="form-control" name="password_expiry_days" 
+                                               value="{{ settings.password_expiry_days }}" min="0">
+                                        <small class="form-text text-muted">0 = no expiry</small>
+                                    </div>
+                                </div>
+                                <div class="col-md-6">
+                                    <div class="mb-3">
+                                        <div class="form-check">
+                                            <input class="form-check-input" type="checkbox" name="require_2fa" 
+                                                   {% if settings.require_2fa %}checked{% endif %}>
+                                            <label class="form-check-label">Require two-factor authentication</label>
+                                        </div>
+                                    </div>
+                                    <div class="mb-3">
+                                        <div class="form-check">
+                                            <input class="form-check-input" type="checkbox" name="audit_all_actions" 
+                                                   {% if settings.audit_all_actions %}checked{% endif %}>
+                                            <label class="form-check-label">Audit all user actions</label>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Integration Settings -->
+                    <div class="card mb-4">
+                        <div class="card-header">
+                            <h6 class="card-title mb-0">Integration Settings</h6>
+                        </div>
+                        <div class="card-body">
+                            <div class="row">
+                                <div class="col-md-6">
+                                    <div class="mb-3">
+                                        <label class="form-label">API Rate Limit (requests/hour)</label>
+                                        <input type="number" class="form-control" name="api_rate_limit" 
+                                               value="{{ settings.api_rate_limit }}" min="0">
+                                    </div>
+                                    <div class="mb-3">
+                                        <div class="form-check">
+                                            <input class="form-check-input" type="checkbox" name="enable_api_access" 
+                                                   {% if settings.enable_api_access %}checked{% endif %}>
+                                            <label class="form-check-label">Enable API access</label>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="col-md-6">
+                                    <div class="mb-3">
+                                        <div class="form-check">
+                                            <input class="form-check-input" type="checkbox" name="enable_webhooks" 
+                                                   {% if settings.enable_webhooks %}checked{% endif %}>
+                                            <label class="form-check-label">Enable webhooks</label>
+                                        </div>
+                                    </div>
+                                    <div class="mb-3">
+                                        <label class="form-label">Webhook URL</label>
+                                        <input type="url" class="form-control" name="webhook_url" value="{{ settings.webhook_url }}">
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Save Changes -->
+                    <div class="d-flex justify-content-between">
+                        <button type="button" class="btn btn-outline-secondary" onclick="resetToDefaults()">
+                            <i class="bi bi-arrow-counterclockwise"></i> Reset to Defaults
+                        </button>
+                        <div>
+                            <a href="{% url 'inventory:dashboard' %}" class="btn btn-secondary">
+                                <i class="bi bi-arrow-left"></i> Cancel
+                            </a>
+                            <button type="submit" class="btn btn-primary">
+                                <i class="bi bi-check"></i> Save Changes
+                            </button>
+                        </div>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+function resetToDefaults() {
+    if (confirm('Are you sure you want to reset all settings to their default values? This action cannot be undone.')) {
+        fetch('/inventory/admin/reset-settings/', {
+            method: 'POST',
+            headers: {
+                'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value
+            }
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                window.location.reload();
+            } else {
+                alert('Failed to reset settings: ' + data.message);
+            }
+        });
+    }
+}
+</script>
+{% endblock %}

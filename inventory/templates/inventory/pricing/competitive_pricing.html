@@ -1,0 +1,253 @@
+<!-- inventory/pricing/competitive_pricing.html -->
+{% extends "dashboard_base.html" %}
+{% load static %}
+
+{% block page_title %}Competitive Pricing Analysis{% endblock %}
+
+{% block dashboard_content %}
+<div class="row mb-4">
+    <div class="col-12">
+        <div class="card shadow">
+            <div class="card-header bg-info text-white">
+                <h5 class="card-title mb-0">
+                    <i class="bi bi-graph-up-arrow"></i> Competitive Pricing Analysis
+                </h5>
+            </div>
+            <div class="card-body">
+                <!-- Data Source Notice -->
+                <div class="alert alert-info mb-4">
+                    <i class="bi bi-info-circle"></i>
+                    <strong>Data Sources:</strong> Competitor pricing data can be imported from external sources, 
+                    market research, or manual entry. Set up automated price monitoring for key products.
+                </div>
+
+                <!-- Filter Controls -->
+                <div class="row mb-4">
+                    <div class="col-md-3">
+                        <select class="form-select" id="category-filter">
+                            <option value="">All Categories</option>
+                            {% for category in categories %}
+                            <option value="{{ category.id }}">{{ category.name }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="col-md-3">
+                        <select class="form-select" id="competitor-filter">
+                            <option value="">All Competitors</option>
+                            {% for competitor in competitors %}
+                            <option value="{{ competitor.id }}">{{ competitor.name }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="col-md-3">
+                        <select class="form-select" id="price-position">
+                            <option value="">All Positions</option>
+                            <option value="above">Above Market</option>
+                            <option value="competitive">Competitive</option>
+                            <option value="below">Below Market</option>
+                        </select>
+                    </div>
+                    <div class="col-md-3">
+                        <button class="btn btn-primary" onclick="refreshData()">
+                            <i class="bi bi-arrow-clockwise"></i> Refresh
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Price Position Summary -->
+                <div class="row mb-4">
+                    <div class="col-md-4">
+                        <div class="card bg-danger text-white">
+                            <div class="card-body">
+                                <h6>Above Market</h6>
+                                <h4>{{ above_market_count }} products</h4>
+                                <small>Avg difference: +{{ above_market_avg|floatformat:1 }}%</small>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-4">
+                        <div class="card bg-success text-white">
+                            <div class="card-body">
+                                <h6>Competitive</h6>
+                                <h4>{{ competitive_count }} products</h4>
+                                <small>Within ±5% of market</small>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-4">
+                        <div class="card bg-warning text-white">
+                            <div class="card-body">
+                                <h6>Below Market</h6>
+                                <h4>{{ below_market_count }} products</h4>
+                                <small>Avg difference: -{{ below_market_avg|floatformat:1 }}%</small>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Competitive Analysis Table -->
+                <div class="table-responsive">
+                    <table class="table table-striped">
+                        <thead class="table-dark">
+                            <tr>
+                                <th>Product</th>
+                                <th>Our Price</th>
+                                <th>Market Low</th>
+                                <th>Market High</th>
+                                <th>Market Avg</th>
+                                <th>Position</th>
+                                <th>Opportunity</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for item in competitive_analysis %}
+                            <tr>
+                                <td>
+                                    <strong>{{ item.product.name }}</strong><br>
+                                    <small class="text-muted">{{ item.product.sku }}</small>
+                                </td>
+                                <td><strong>${{ item.our_price|floatformat:2 }}</strong></td>
+                                <td>${{ item.market_low|floatformat:2 }}</td>
+                                <td>${{ item.market_high|floatformat:2 }}</td>
+                                <td>${{ item.market_avg|floatformat:2 }}</td>
+                                <td>
+                                    {% if item.position == 'above' %}
+                                        <span class="badge bg-danger">Above Market</span>
+                                        <br><small class="text-muted">+{{ item.difference|floatformat:1 }}%</small>
+                                    {% elif item.position == 'below' %}
+                                        <span class="badge bg-warning">Below Market</span>
+                                        <br><small class="text-muted">-{{ item.difference|floatformat:1 }}%</small>
+                                    {% else %}
+                                        <span class="badge bg-success">Competitive</span>
+                                        <br><small class="text-muted">±{{ item.difference|floatformat:1 }}%</small>
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    {% if item.opportunity_type %}
+                                        <span class="badge bg-info">{{ item.opportunity_type }}</span>
+                                        <br><small>${{ item.opportunity_amount|floatformat:2 }}</small>
+                                    {% else %}
+                                        <span class="text-muted">-</span>
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    <div class="btn-group btn-group-sm">
+                                        <button class="btn btn-outline-primary" onclick="viewDetails({{ item.product.pk }})" title="View Details">
+                                            <i class="bi bi-eye"></i>
+                                        </button>
+                                        <button class="btn btn-outline-success" onclick="adjustPrice({{ item.product.pk }})" title="Adjust Price">
+                                            <i class="bi bi-currency-dollar"></i>
+                                        </button>
+                                        <button class="btn btn-outline-warning" onclick="setPriceAlert({{ item.product.pk }})" title="Price Alert">
+                                            <i class="bi bi-bell"></i>
+                                        </button>
+                                    </div>
+                                </td>
+                            </tr>
+                            {% empty %}
+                            <tr>
+                                <td colspan="8" class="text-center text-muted">
+                                    No competitive pricing data available. 
+                                    <a href="{% url 'inventory:import_competitor_prices' %}" class="btn btn-sm btn-primary ms-2">
+                                        Import Pricing Data
+                                    </a>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+
+                <!-- Bulk Price Adjustment -->
+                <div class="row mt-4">
+                    <div class="col-12">
+                        <div class="card">
+                            <div class="card-header">
+                                <h6 class="card-title mb-0">Bulk Price Optimization</h6>
+                            </div>
+                            <div class="card-body">
+                                <div class="row">
+                                    <div class="col-md-3">
+                                        <button class="btn btn-warning w-100" onclick="optimizePrices('above_market')">
+                                            <i class="bi bi-arrow-down"></i> Lower Above-Market Prices
+                                        </button>
+                                    </div>
+                                    <div class="col-md-3">
+                                        <button class="btn btn-success w-100" onclick="optimizePrices('below_market')">
+                                            <i class="bi bi-arrow-up"></i> Raise Below-Market Prices
+                                        </button>
+                                    </div>
+                                    <div class="col-md-3">
+                                        <button class="btn btn-info w-100" onclick="optimizePrices('match_market')">
+                                            <i class="bi bi-arrow-repeat"></i> Match Market Average
+                                        </button>
+                                    </div>
+                                    <div class="col-md-3">
+                                        <button class="btn btn-primary w-100" onclick="exportOpportunities()">
+                                            <i class="bi bi-download"></i> Export Opportunities
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Price Detail Modal -->
+<div class="modal fade" id="priceDetailModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Competitive Price Details</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div id="price-detail-content">
+                    <!-- Price details will be loaded here -->
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+function refreshData() {
+    window.location.reload();
+}
+
+function viewDetails(productId) {
+    // Load and show price details modal
+    fetch(`/inventory/pricing/competitive-details/${productId}/`)
+        .then(response => response.json())
+        .then(data => {
+            document.getElementById('price-detail-content').innerHTML = data.html;
+            new bootstrap.Modal(document.getElementById('priceDetailModal')).show();
+        });
+}
+
+function adjustPrice(productId) {
+    window.location.href = `/inventory/products/${productId}/price-adjustment/`;
+}
+
+function setPriceAlert(productId) {
+    // Implement price alert setting
+    console.log('Set price alert for product', productId);
+}
+
+function optimizePrices(strategy) {
+    if (confirm(`Are you sure you want to ${strategy.replace('_', ' ')} for selected products?`)) {
+        // Implement bulk price optimization
+        console.log('Optimize prices with strategy:', strategy);
+    }
+}
+
+function exportOpportunities() {
+    window.location.href = '/inventory/pricing/competitive-analysis/export/';
+}
+</script>
+{% endblock %}

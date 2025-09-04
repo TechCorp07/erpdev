@@ -1,0 +1,203 @@
+<!-- inventory/admin/permission_overview.html -->
+{% extends "dashboard_base.html" %}
+{% load static %}
+
+{% block page_title %}Permission Overview{% endblock %}
+
+{% block dashboard_content %}
+<div class="row">
+    <div class="col-12">
+        <div class="card shadow">
+            <div class="card-header bg-secondary text-white">
+                <h5 class="card-title mb-0">
+                    <i class="bi bi-shield-lock"></i> Permission Overview
+                </h5>
+            </div>
+            <div class="card-body">
+                <!-- Permission Summary -->
+                <div class="row mb-4">
+                    <div class="col-md-3">
+                        <div class="card bg-primary text-white">
+                            <div class="card-body text-center">
+                                <i class="bi bi-people fa-2x mb-2"></i>
+                                <h4>{{ total_users }}</h4>
+                                <h6>Total Users</h6>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-3">
+                        <div class="card bg-success text-white">
+                            <div class="card-body text-center">
+                                <i class="bi bi-person-check fa-2x mb-2"></i>
+                                <h4>{{ active_users }}</h4>
+                                <h6>Active Users</h6>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-3">
+                        <div class="card bg-warning text-white">
+                            <div class="card-body text-center">
+                                <i class="bi bi-shield fa-2x mb-2"></i>
+                                <h4>{{ total_roles }}</h4>
+                                <h6>User Roles</h6>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-3">
+                        <div class="card bg-info text-white">
+                            <div class="card-body text-center">
+                                <i class="bi bi-key fa-2x mb-2"></i>
+                                <h4>{{ total_permissions }}</h4>
+                                <h6>Permissions</h6>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Permission Matrix -->
+                <div class="card mb-4">
+                    <div class="card-header">
+                        <h6 class="card-title mb-0">Permission Matrix</h6>
+                    </div>
+                    <div class="card-body">
+                        <div class="table-responsive">
+                            <table class="table table-bordered table-sm">
+                                <thead class="table-dark">
+                                    <tr>
+                                        <th>User Role</th>
+                                        {% for module in app_modules %}
+                                        <th class="text-center">{{ module.name }}</th>
+                                        {% endfor %}
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {% for role in user_roles %}
+                                    <tr>
+                                        <td>
+                                            <strong>{{ role.name }}</strong><br>
+                                            <small class="text-muted">{{ role.user_count }} users</small>
+                                        </td>
+                                        {% for module in app_modules %}
+                                        <td class="text-center">
+                                            {% with role_permission=role.permissions|lookup:module.key %}
+                                            {% if role_permission == 'admin' %}
+                                                <span class="badge bg-danger" title="Full Admin Access">A</span>
+                                            {% elif role_permission == 'edit' %}
+                                                <span class="badge bg-warning" title="Edit Access">E</span>
+                                            {% elif role_permission == 'view' %}
+                                                <span class="badge bg-success" title="View Access">V</span>
+                                            {% else %}
+                                                <span class="badge bg-secondary" title="No Access">-</span>
+                                            {% endif %}
+                                            {% endwith %}
+                                        </td>
+                                        {% endfor %}
+                                    </tr>
+                                    {% endfor %}
+                                </tbody>
+                            </table>
+                        </div>
+                        <div class="mt-3">
+                            <small class="text-muted">
+                                <strong>Legend:</strong>
+                                <span class="badge bg-danger me-2">A</span>Admin
+                                <span class="badge bg-warning me-2">E</span>Edit
+                                <span class="badge bg-success me-2">V</span>View
+                                <span class="badge bg-secondary me-2">-</span>No Access
+                            </small>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- User Permissions -->
+                <div class="row">
+                    <div class="col-md-6">
+                        <div class="card">
+                            <div class="card-header">
+                                <h6 class="card-title mb-0">Recent Permission Changes</h6>
+                            </div>
+                            <div class="card-body">
+                                {% for change in recent_permission_changes %}
+                                <div class="d-flex justify-content-between align-items-start mb-3">
+                                    <div>
+                                        <strong>{{ change.user.get_full_name|default:change.user.username }}</strong>
+                                        <br>
+                                        <small class="text-muted">
+                                            {{ change.action }} - {{ change.permission_name }}
+                                        </small>
+                                    </div>
+                                    <div class="text-end">
+                                        <small class="text-muted">{{ change.timestamp|timesince }} ago</small>
+                                        <br>
+                                        <small>by {{ change.changed_by.username }}</small>
+                                    </div>
+                                </div>
+                                {% empty %}
+                                <p class="text-muted">No recent permission changes</p>
+                                {% endfor %}
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-6">
+                        <div class="card">
+                            <div class="card-header">
+                                <h6 class="card-title mb-0">Permission Violations</h6>
+                            </div>
+                            <div class="card-body">
+                                {% for violation in permission_violations %}
+                                <div class="alert alert-{{ violation.severity }} alert-sm">
+                                    <div class="d-flex justify-content-between">
+                                        <div>
+                                            <strong>{{ violation.user.username }}</strong>
+                                            <br>
+                                            <small>{{ violation.description }}</small>
+                                        </div>
+                                        <small>{{ violation.timestamp|date:"M d, H:i" }}</small>
+                                    </div>
+                                </div>
+                                {% empty %}
+                                <div class="alert alert-success">
+                                    <i class="bi bi-check-circle"></i> No permission violations detected
+                                </div>
+                                {% endfor %}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Actions -->
+                <div class="row mt-4">
+                    <div class="col-12 text-center">
+                        <div class="btn-group">
+                            <a href="{% url 'core:manage_user_roles' %}" class="btn btn-primary">
+                                <i class="bi bi-people"></i> Manage Users
+                            </a>
+                            <a href="{% url 'core:permission_settings' %}" class="btn btn-outline-primary">
+                                <i class="bi bi-gear"></i> Permission Settings
+                            </a>
+                            <button class="btn btn-outline-info" onclick="exportPermissionReport()">
+                                <i class="bi bi-download"></i> Export Report
+                            </button>
+                            <button class="btn btn-outline-warning" onclick="auditPermissions()">
+                                <i class="bi bi-search"></i> Audit Permissions
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+function exportPermissionReport() {
+    window.location.href = '/inventory/admin/export-permission-report/';
+}
+
+function auditPermissions() {
+    if (confirm('Run a comprehensive permission audit? This will check all user permissions against current roles.')) {
+        window.location.href = '/inventory/admin/audit-permissions/';
+    }
+}
+</script>
+{% endblock %}

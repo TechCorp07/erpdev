@@ -1,0 +1,278 @@
+<!-- inventory/configuration/storage_locations_confirm_delete.html -->
+{% extends "dashboard_base.html" %}
+{% load static %}
+
+{% block page_title %}Delete Storage Location{% endblock %}
+
+{% block dashboard_content %}
+<div class="row">
+    <div class="col-md-8 mx-auto">
+        <div class="card shadow">
+            <div class="card-header bg-danger text-white">
+                <h5 class="card-title mb-0">
+                    <i class="bi bi-trash"></i> Delete Storage Location
+                </h5>
+            </div>
+            <div class="card-body">
+                <div class="alert alert-warning" role="alert">
+                    <i class="bi bi-exclamation-triangle"></i>
+                    <strong>Warning!</strong> You are about to delete the following storage location:
+                </div>
+                
+                <div class="row mb-4">
+                    <div class="col-md-6">
+                        <h6>Location Details:</h6>
+                        <ul class="list-unstyled">
+                            <li><strong>Name:</strong> {{ object.name }}</li>
+                            <li><strong>Location Type:</strong> {{ object.get_location_type_display|default:"Not specified" }}</li>
+                            <li><strong>Address:</strong> {{ object.address|default:"No address provided" }}</li>
+                            <li><strong>Contact:</strong> {{ object.contact_person|default:"No contact" }}</li>
+                            <li><strong>Status:</strong> 
+                                <span class="badge {% if object.is_active %}bg-success{% else %}bg-secondary{% endif %}">
+                                    {% if object.is_active %}Active{% else %}Inactive{% endif %}
+                                </span>
+                            </li>
+                        </ul>
+                    </div>
+                    <div class="col-md-6">
+                        <h6>Impact Analysis:</h6>
+                        <ul class="list-unstyled">
+                            <li><strong>Storage Bins:</strong> {{ object.storage_bins.count }} bins</li>
+                            <li><strong>Products Stored:</strong> {{ products_count }} products</li>
+                            <li><strong>Current Stock Items:</strong> {{ stock_items_count }} items</li>
+                            <li><strong>Recent Movements:</strong> {{ recent_movements_count }} in last 30 days</li>
+                            <li><strong>Active Stock Takes:</strong> {{ active_stock_takes_count }} pending</li>
+                        </ul>
+                    </div>
+                </div>
+
+                <!-- Detailed Impact Information -->
+                <div class="row mb-4">
+                    <div class="col-12">
+                        <h6>Affected Items:</h6>
+                        
+                        <!-- Storage Bins -->
+                        {% if object.storage_bins.exists %}
+                        <div class="mb-3">
+                            <h6 class="text-danger">
+                                <i class="bi bi-box"></i> Storage Bins ({{ object.storage_bins.count }})
+                            </h6>
+                            <div class="row">
+                                {% for bin in object.storage_bins.all|slice:":6" %}
+                                <div class="col-md-4 mb-2">
+                                    <div class="card card-body py-2">
+                                        <small>
+                                            <strong>{{ bin.bin_code }}</strong><br>
+                                            {{ bin.products.count }} products
+                                        </small>
+                                    </div>
+                                </div>
+                                {% endfor %}
+                                {% if object.storage_bins.count > 6 %}
+                                <div class="col-12">
+                                    <small class="text-muted">... and {{ object.storage_bins.count|add:"-6" }} more bins</small>
+                                </div>
+                                {% endif %}
+                            </div>
+                        </div>
+                        {% endif %}
+
+                        <!-- Products with Stock -->
+                        {% if products_with_stock %}
+                        <div class="mb-3">
+                            <h6 class="text-warning">
+                                <i class="bi bi-exclamation-triangle"></i> Products with Current Stock ({{ products_with_stock|length }})
+                            </h6>
+                            <div class="table-responsive">
+                                <table class="table table-sm">
+                                    <thead>
+                                        <tr>
+                                            <th>Product</th>
+                                            <th>SKU</th>
+                                            <th>Current Stock</th>
+                                            <th>Value</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {% for item in products_with_stock|slice:":5" %}
+                                        <tr>
+                                            <td>{{ item.product.name|truncatechars:30 }}</td>
+                                            <td>{{ item.product.sku }}</td>
+                                            <td>{{ item.quantity }}</td>
+                                            <td>${{ item.total_value|floatformat:2 }}</td>
+                                        </tr>
+                                        {% endfor %}
+                                        {% if products_with_stock|length > 5 %}
+                                        <tr>
+                                            <td colspan="4" class="text-muted">
+                                                ... and {{ products_with_stock|length|add:"-5" }} more products
+                                            </td>
+                                        </tr>
+                                        {% endif %}
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                        {% endif %}
+                    </div>
+                </div>
+
+                <!-- Deletion Constraints -->
+                {% if has_constraints %}
+                <div class="alert alert-danger" role="alert">
+                    <i class="bi bi-exclamation-octagon"></i>
+                    <strong>Cannot Delete!</strong> This storage location has active dependencies:
+                    <ul class="mb-0 mt-2">
+                        {% if object.storage_bins.exists %}
+                        <li>{{ object.storage_bins.count }} storage bin(s) must be deleted first</li>
+                        {% endif %}
+                        {% if products_with_stock %}
+                        <li>{{ products_with_stock|length }} product(s) have current stock at this location</li>
+                        {% endif %}
+                        {% if active_stock_takes_count > 0 %}
+                        <li>{{ active_stock_takes_count }} active stock take(s) in progress</li>
+                        {% endif %}
+                        {% if recent_movements_count > 0 %}
+                        <li>Recent stock movements (last 30 days) reference this location</li>
+                        {% endif %}
+                    </ul>
+                </div>
+
+                <!-- Suggested Actions -->
+                <div class="card border-info">
+                    <div class="card-header bg-info text-white">
+                        <h6 class="card-title mb-0">
+                            <i class="bi bi-lightbulb"></i> Suggested Actions
+                        </h6>
+                    </div>
+                    <div class="card-body">
+                        <ol class="mb-0">
+                            <li>Transfer all stock to other locations</li>
+                            {% if object.storage_bins.exists %}
+                            <li>Delete or reassign all storage bins</li>
+                            {% endif %}
+                            {% if active_stock_takes_count > 0 %}
+                            <li>Complete all pending stock takes</li>
+                            {% endif %}
+                            <li>Mark location as inactive instead of deleting</li>
+                        </ol>
+                    </div>
+                </div>
+                {% else %}
+                <div class="alert alert-success" role="alert">
+                    <i class="bi bi-check-circle"></i>
+                    <strong>Safe to Delete:</strong> This storage location has no active dependencies and can be safely removed.
+                </div>
+                {% endif %}
+
+                <!-- Action Buttons -->
+                <form method="post" class="mt-4">
+                    {% csrf_token %}
+                    <div class="d-flex justify-content-between">
+                        <div>
+                            <a href="{% url 'inventory:storage_location_list' %}" class="btn btn-secondary">
+                                <i class="bi bi-arrow-left"></i> Cancel
+                            </a>
+                            {% if has_constraints %}
+                            <a href="{% url 'inventory:storage_location_edit' object.pk %}" class="btn btn-warning ms-2">
+                                <i class="bi bi-pause-circle"></i> Mark Inactive Instead
+                            </a>
+                            {% endif %}
+                        </div>
+                        <div>
+                            {% if not has_constraints %}
+                            <button type="submit" class="btn btn-danger">
+                                <i class="bi bi-trash"></i> Yes, Delete Location
+                            </button>
+                            {% else %}
+                            <button type="button" class="btn btn-outline-danger" disabled title="Cannot delete due to dependencies">
+                                <i class="bi bi-lock"></i> Cannot Delete
+                            </button>
+                            {% endif %}
+                        </div>
+                    </div>
+                </form>
+
+                <!-- Quick Transfer Options -->
+                {% if products_with_stock and not has_constraints %}
+                <div class="card border-warning mt-4">
+                    <div class="card-header bg-warning text-white">
+                        <h6 class="card-title mb-0">
+                            <i class="bi bi-arrow-right"></i> Quick Stock Transfer
+                        </h6>
+                    </div>
+                    <div class="card-body">
+                        <form id="bulk-transfer-form">
+                            <div class="row">
+                                <div class="col-md-8">
+                                    <label class="form-label">Transfer all stock to:</label>
+                                    <select class="form-select" id="target-location">
+                                        <option value="">Select target location...</option>
+                                        {% for location in available_locations %}
+                                        <option value="{{ location.id }}">{{ location.name }}</option>
+                                        {% endfor %}
+                                    </select>
+                                </div>
+                                <div class="col-md-4">
+                                    <label class="form-label">&nbsp;</label>
+                                    <button type="button" class="btn btn-warning d-block" onclick="bulkTransferStock()">
+                                        <i class="bi bi-arrow-right"></i> Transfer All
+                                    </button>
+                                </div>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+function bulkTransferStock() {
+    const targetLocationId = document.getElementById('target-location').value;
+    
+    if (!targetLocationId) {
+        alert('Please select a target location');
+        return;
+    }
+    
+    if (!confirm('Transfer all stock from this location? This action cannot be undone.')) {
+        return;
+    }
+    
+    const transferBtn = event.target;
+    transferBtn.innerHTML = '<i class="bi bi-spinner-border spinner-border-sm"></i> Transferring...';
+    transferBtn.disabled = true;
+    
+    fetch('{% url "inventory:bulk_transfer_stock" %}', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value
+        },
+        body: JSON.stringify({
+            source_location_id: {{ object.id }},
+            target_location_id: targetLocationId
+        })
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            alert(`Successfully transferred ${data.items_transferred} stock items`);
+            window.location.reload();
+        } else {
+            alert('Transfer failed: ' + data.message);
+        }
+    })
+    .catch(error => {
+        alert('Transfer failed: ' + error.message);
+    })
+    .finally(() => {
+        transferBtn.innerHTML = '<i class="bi bi-arrow-right"></i> Transfer All';
+        transferBtn.disabled = false;
+    });
+}
+</script>
+{% endblock %}

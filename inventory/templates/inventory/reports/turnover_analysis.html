@@ -1,0 +1,206 @@
+<!-- inventory/reports/turnover_analysis.html -->
+{% extends "dashboard_base.html" %}
+{% load static %}
+
+{% block page_title %}Inventory Turnover Analysis{% endblock %}
+
+{% block extra_css %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+{% endblock %}
+
+{% block dashboard_content %}
+<div class="row mb-4">
+    <div class="col-12">
+        <div class="card shadow">
+            <div class="card-header bg-info text-white">
+                <h5 class="card-title mb-0">
+                    <i class="bi bi-arrow-repeat"></i> Inventory Turnover Analysis
+                </h5>
+            </div>
+            <div class="card-body">
+                <!-- Filter Controls -->
+                <div class="row mb-4">
+                    <div class="col-md-3">
+                        <select class="form-select" id="period-filter">
+                            <option value="30">Last 30 Days</option>
+                            <option value="90" selected>Last 90 Days</option>
+                            <option value="180">Last 6 Months</option>
+                            <option value="365">Last Year</option>
+                        </select>
+                    </div>
+                    <div class="col-md-3">
+                        <select class="form-select" id="category-filter">
+                            <option value="">All Categories</option>
+                            {% for category in categories %}
+                            <option value="{{ category.id }}">{{ category.name }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="col-md-3">
+                        <button class="btn btn-primary" onclick="refreshReport()">
+                            <i class="bi bi-arrow-clockwise"></i> Refresh
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Summary Cards -->
+                <div class="row mb-4">
+                    <div class="col-md-3">
+                        <div class="card bg-primary text-white">
+                            <div class="card-body">
+                                <div class="d-flex justify-content-between">
+                                    <div>
+                                        <h6>Average Turnover</h6>
+                                        <h4>{{ avg_turnover|floatformat:2 }}x</h4>
+                                    </div>
+                                    <i class="bi bi-arrow-repeat fa-2x"></i>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-3">
+                        <div class="card bg-success text-white">
+                            <div class="card-body">
+                                <div class="d-flex justify-content-between">
+                                    <div>
+                                        <h6>Fast Movers</h6>
+                                        <h4>{{ fast_movers_count }}</h4>
+                                    </div>
+                                    <i class="bi bi-graph-up fa-2x"></i>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-3">
+                        <div class="card bg-warning text-white">
+                            <div class="card-body">
+                                <div class="d-flex justify-content-between">
+                                    <div>
+                                        <h6>Slow Movers</h6>
+                                        <h4>{{ slow_movers_count }}</h4>
+                                    </div>
+                                    <i class="bi bi-graph-down fa-2x"></i>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-3">
+                        <div class="card bg-danger text-white">
+                            <div class="card-body">
+                                <div class="d-flex justify-content-between">
+                                    <div>
+                                        <h6>No Movement</h6>
+                                        <h4>{{ no_movement_count }}</h4>
+                                    </div>
+                                    <i class="bi bi-pause-circle fa-2x"></i>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Turnover Chart -->
+                <div class="row mb-4">
+                    <div class="col-12">
+                        <canvas id="turnoverChart" height="100"></canvas>
+                    </div>
+                </div>
+
+                <!-- Products Table -->
+                <div class="table-responsive">
+                    <table class="table table-striped">
+                        <thead>
+                            <tr>
+                                <th>Product</th>
+                                <th>Category</th>
+                                <th>Avg Stock</th>
+                                <th>Units Sold</th>
+                                <th>Turnover Ratio</th>
+                                <th>Days of Stock</th>
+                                <th>Status</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for item in turnover_data %}
+                            <tr>
+                                <td>
+                                    <strong>{{ item.product.name }}</strong><br>
+                                    <small class="text-muted">{{ item.product.sku }}</small>
+                                </td>
+                                <td>{{ item.product.category.name }}</td>
+                                <td>{{ item.avg_stock|floatformat:0 }}</td>
+                                <td>{{ item.units_sold|floatformat:0 }}</td>
+                                <td>{{ item.turnover_ratio|floatformat:2 }}x</td>
+                                <td>{{ item.days_of_stock|floatformat:0 }} days</td>
+                                <td>
+                                    {% if item.turnover_ratio > 6 %}
+                                        <span class="badge bg-success">Fast Mover</span>
+                                    {% elif item.turnover_ratio > 2 %}
+                                        <span class="badge bg-primary">Normal</span>
+                                    {% elif item.turnover_ratio > 0 %}
+                                        <span class="badge bg-warning">Slow Mover</span>
+                                    {% else %}
+                                        <span class="badge bg-danger">No Movement</span>
+                                    {% endif %}
+                                </td>
+                            </tr>
+                            {% empty %}
+                            <tr>
+                                <td colspan="7" class="text-center text-muted">No data available for selected period</td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+const ctx = document.getElementById('turnoverChart').getContext('2d');
+const turnoverChart = new Chart(ctx, {
+    type: 'bar',
+    data: {
+        labels: [{% for item in chart_data %}'{{ item.category }}'{% if not forloop.last %},{% endif %}{% endfor %}],
+        datasets: [{
+            label: 'Average Turnover Ratio',
+            data: [{% for item in chart_data %}{{ item.avg_turnover }}{% if not forloop.last %},{% endif %}{% endfor %}],
+            backgroundColor: 'rgba(54, 162, 235, 0.5)',
+            borderColor: 'rgba(54, 162, 235, 1)',
+            borderWidth: 1
+        }]
+    },
+    options: {
+        responsive: true,
+        scales: {
+            y: {
+                beginAtZero: true,
+                title: {
+                    display: true,
+                    text: 'Turnover Ratio'
+                }
+            },
+            x: {
+                title: {
+                    display: true,
+                    text: 'Category'
+                }
+            }
+        }
+    }
+});
+
+function refreshReport() {
+    const period = document.getElementById('period-filter').value;
+    const category = document.getElementById('category-filter').value;
+    
+    let url = window.location.pathname + '?period=' + period;
+    if (category) {
+        url += '&category=' + category;
+    }
+    
+    window.location.href = url;
+}
+</script>
+{% endblock %}

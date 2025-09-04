@@ -1,0 +1,290 @@
+<!-- inventory/reports/stock_movements_report.html -->
+{% extends "dashboard_base.html" %}
+{% load static %}
+
+{% block page_title %}Stock Movements Report{% endblock %}
+
+{% block extra_css %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+{% endblock %}
+
+{% block dashboard_content %}
+<div class="row mb-4">
+    <div class="col-12">
+        <div class="card shadow">
+            <div class="card-header bg-primary text-white">
+                <h5 class="card-title mb-0">
+                    <i class="bi bi-arrow-left-right"></i> Stock Movements Report
+                </h5>
+            </div>
+            <div class="card-body">
+                <!-- Filter Controls -->
+                <form method="get" class="row mb-4">
+                    <div class="col-md-2">
+                        <label class="form-label">Date From:</label>
+                        <input type="date" name="date_from" class="form-control" value="{{ date_from }}">
+                    </div>
+                    <div class="col-md-2">
+                        <label class="form-label">Date To:</label>
+                        <input type="date" name="date_to" class="form-control" value="{{ date_to }}">
+                    </div>
+                    <div class="col-md-2">
+                        <label class="form-label">Movement Type:</label>
+                        <select name="movement_type" class="form-select">
+                            <option value="">All Types</option>
+                            <option value="in" {% if movement_type == 'in' %}selected{% endif %}>Stock In</option>
+                            <option value="out" {% if movement_type == 'out' %}selected{% endif %}>Stock Out</option>
+                            <option value="adjustment" {% if movement_type == 'adjustment' %}selected{% endif %}>Adjustment</option>
+                            <option value="transfer" {% if movement_type == 'transfer' %}selected{% endif %}>Transfer</option>
+                        </select>
+                    </div>
+                    <div class="col-md-2">
+                        <label class="form-label">Product:</label>
+                        <input type="text" name="product" class="form-control" placeholder="Search product..." value="{{ product_filter }}">
+                    </div>
+                    <div class="col-md-2">
+                        <label class="form-label">Location:</label>
+                        <select name="location" class="form-select">
+                            <option value="">All Locations</option>
+                            {% for location in locations %}
+                            <option value="{{ location.id }}" {% if location.id|stringformat:"s" == location_filter %}selected{% endif %}>
+                                {{ location.name }}
+                            </option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="col-md-2">
+                        <label class="form-label">&nbsp;</label>
+                        <div>
+                            <button type="submit" class="btn btn-primary">
+                                <i class="bi bi-funnel"></i> Filter
+                            </button>
+                            <a href="{% url 'inventory:stock_movements_report' %}" class="btn btn-secondary">
+                                <i class="bi bi-arrow-clockwise"></i>
+                            </a>
+                        </div>
+                    </div>
+                </form>
+
+                <!-- Summary Cards -->
+                <div class="row mb-4">
+                    <div class="col-md-3">
+                        <div class="card bg-success text-white">
+                            <div class="card-body">
+                                <div class="d-flex justify-content-between">
+                                    <div>
+                                        <h6>Total Movements</h6>
+                                        <h4>{{ total_movements }}</h4>
+                                    </div>
+                                    <i class="bi bi-arrow-left-right fa-2x"></i>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-3">
+                        <div class="card bg-primary text-white">
+                            <div class="card-body">
+                                <div class="d-flex justify-content-between">
+                                    <div>
+                                        <h6>Stock In</h6>
+                                        <h4>{{ total_stock_in }}</h4>
+                                    </div>
+                                    <i class="bi bi-arrow-down fa-2x"></i>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-3">
+                        <div class="card bg-warning text-white">
+                            <div class="card-body">
+                                <div class="d-flex justify-content-between">
+                                    <div>
+                                        <h6>Stock Out</h6>
+                                        <h4>{{ total_stock_out }}</h4>
+                                    </div>
+                                    <i class="bi bi-arrow-up fa-2x"></i>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-3">
+                        <div class="card bg-info text-white">
+                            <div class="card-body">
+                                <div class="d-flex justify-content-between">
+                                    <div>
+                                        <h6>Net Movement</h6>
+                                        <h4>{{ net_movement }}</h4>
+                                    </div>
+                                    <i class="bi bi-calculator fa-2x"></i>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Movement Trend Chart -->
+                <div class="row mb-4">
+                    <div class="col-12">
+                        <canvas id="movementTrendChart" height="100"></canvas>
+                    </div>
+                </div>
+
+                <!-- Export Options -->
+                <div class="row mb-3">
+                    <div class="col-12 text-end">
+                        <div class="btn-group" role="group">
+                            <button type="button" class="btn btn-success" onclick="exportData('csv')">
+                                <i class="bi bi-filetype-csv"></i> CSV
+                            </button>
+                            <button type="button" class="btn btn-danger" onclick="exportData('pdf')">
+                                <i class="bi bi-filetype-pdf"></i> PDF
+                            </button>
+                            <button type="button" class="btn btn-primary" onclick="exportData('excel')">
+                                <i class="bi bi-file-earmark-excel"></i> Excel
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Movements Table -->
+                <div class="table-responsive">
+                    <table class="table table-striped table-hover">
+                        <thead class="table-dark">
+                            <tr>
+                                <th>Date</th>
+                                <th>Product</th>
+                                <th>Type</th>
+                                <th>Quantity</th>
+                                <th>Location</th>
+                                <th>Reference</th>
+                                <th>User</th>
+                                <th>Notes</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for movement in movements %}
+                            <tr>
+                                <td>{{ movement.created_at|date:"M d, Y H:i" }}</td>
+                                <td>
+                                    <strong>{{ movement.product.name }}</strong><br>
+                                    <small class="text-muted">{{ movement.product.sku }}</small>
+                                </td>
+                                <td>
+                                    <span class="badge 
+                                        {% if movement.movement_type == 'in' %}bg-success
+                                        {% elif movement.movement_type == 'out' %}bg-warning
+                                        {% elif movement.movement_type == 'adjustment' %}bg-info
+                                        {% else %}bg-primary{% endif %}">
+                                        {{ movement.get_movement_type_display }}
+                                    </span>
+                                </td>
+                                <td>
+                                    {% if movement.movement_type == 'out' or movement.quantity < 0 %}
+                                        <span class="text-danger">-{{ movement.quantity|floatformat:0 }}</span>
+                                    {% else %}
+                                        <span class="text-success">+{{ movement.quantity|floatformat:0 }}</span>
+                                    {% endif %}
+                                </td>
+                                <td>{{ movement.location.name|default:"N/A" }}</td>
+                                <td>{{ movement.reference|default:"-" }}</td>
+                                <td>
+                                    {% if movement.created_by %}
+                                        {{ movement.created_by.get_full_name|default:movement.created_by.username }}
+                                    {% else %}
+                                        <span class="text-muted">System</span>
+                                    {% endif %}
+                                </td>
+                                <td>{{ movement.notes|default:"-"|truncatechars:50 }}</td>
+                            </tr>
+                            {% empty %}
+                            <tr>
+                                <td colspan="8" class="text-center text-muted">No movements found for the selected criteria</td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+
+                <!-- Pagination -->
+                {% if movements.has_other_pages %}
+                <nav aria-label="Movements pagination">
+                    <ul class="pagination justify-content-center">
+                        {% if movements.has_previous %}
+                            <li class="page-item">
+                                <a class="page-link" href="?page={{ movements.previous_page_number }}{{ url_params }}">&laquo; Previous</a>
+                            </li>
+                        {% endif %}
+                        
+                        {% for num in movements.paginator.page_range %}
+                            {% if movements.number == num %}
+                                <li class="page-item active">
+                                    <span class="page-link">{{ num }}</span>
+                                </li>
+                            {% elif num > movements.number|add:'-3' and num < movements.number|add:'3' %}
+                                <li class="page-item">
+                                    <a class="page-link" href="?page={{ num }}{{ url_params }}">{{ num }}</a>
+                                </li>
+                            {% endif %}
+                        {% endfor %}
+                        
+                        {% if movements.has_next %}
+                            <li class="page-item">
+                                <a class="page-link" href="?page={{ movements.next_page_number }}{{ url_params }}">Next &raquo;</a>
+                            </li>
+                        {% endif %}
+                    </ul>
+                </nav>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+// Movement Trend Chart
+const ctx = document.getElementById('movementTrendChart').getContext('2d');
+const movementChart = new Chart(ctx, {
+    type: 'line',
+    data: {
+        labels: [{% for item in chart_data %}'{{ item.date }}'{% if not forloop.last %},{% endif %}{% endfor %}],
+        datasets: [{
+            label: 'Stock In',
+            data: [{% for item in chart_data %}{{ item.stock_in }}{% if not forloop.last %},{% endif %}{% endfor %}],
+            borderColor: 'rgb(75, 192, 192)',
+            backgroundColor: 'rgba(75, 192, 192, 0.1)',
+            tension: 0.1
+        }, {
+            label: 'Stock Out',
+            data: [{% for item in chart_data %}{{ item.stock_out }}{% if not forloop.last %},{% endif %}{% endfor %}],
+            borderColor: 'rgb(255, 99, 132)',
+            backgroundColor: 'rgba(255, 99, 132, 0.1)',
+            tension: 0.1
+        }]
+    },
+    options: {
+        responsive: true,
+        scales: {
+            y: {
+                beginAtZero: true,
+                title: {
+                    display: true,
+                    text: 'Quantity'
+                }
+            },
+            x: {
+                title: {
+                    display: true,
+                    text: 'Date'
+                }
+            }
+        }
+    }
+});
+
+function exportData(format) {
+    const params = new URLSearchParams(window.location.search);
+    params.set('export', format);
+    window.location.href = window.location.pathname + '?' + params.toString();
+}
+</script>
+{% endblock %}

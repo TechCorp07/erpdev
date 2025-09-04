@@ -1,0 +1,127 @@
+<!-- inventory/reports/movement_history.html -->
+{% extends "dashboard_base.html" %}
+{% load static %}
+
+{% block page_title %}Movement History Report{% endblock %}
+
+{% block dashboard_content %}
+<div class="row mb-4">
+    <div class="col-12">
+        <div class="card shadow">
+            <div class="card-header bg-secondary text-white">
+                <h5 class="card-title mb-0">
+                    <i class="bi bi-clock-history"></i> Movement History Report
+                </h5>
+            </div>
+            <div class="card-body">
+                <!-- Product Selection -->
+                <div class="row mb-4">
+                    <div class="col-md-6">
+                        <label class="form-label">Select Product:</label>
+                        <select class="form-select" id="product-select">
+                            {% for product in products %}
+                            <option value="{{ product.id }}" {% if product.id == selected_product_id %}selected{% endif %}>
+                                {{ product.name }} ({{ product.sku }})
+                            </option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="col-md-3">
+                        <label class="form-label">Period:</label>
+                        <select class="form-select" id="period-select">
+                            <option value="30">Last 30 Days</option>
+                            <option value="90" selected>Last 90 Days</option>
+                            <option value="365">Last Year</option>
+                            <option value="all">All History</option>
+                        </select>
+                    </div>
+                    <div class="col-md-3">
+                        <label class="form-label">&nbsp;</label>
+                        <button class="btn btn-primary d-block" onclick="loadHistory()">
+                            <i class="bi bi-search"></i> Load History
+                        </button>
+                    </div>
+                </div>
+
+                {% if selected_product %}
+                <!-- Movement Timeline -->
+                <div class="timeline">
+                    {% for movement in movement_history %}
+                    <div class="timeline-item">
+                        <div class="timeline-marker 
+                            {% if movement.movement_type == 'in' %}bg-success
+                            {% elif movement.movement_type == 'out' %}bg-warning  
+                            {% else %}bg-info{% endif %}">
+                        </div>
+                        <div class="timeline-content">
+                            <h6>{{ movement.get_movement_type_display }}</h6>
+                            <p class="text-muted mb-1">{{ movement.created_at|date:"M d, Y H:i" }}</p>
+                            <p><strong>Quantity:</strong> {{ movement.quantity|floatformat:0 }}</p>
+                            {% if movement.notes %}
+                            <p><strong>Notes:</strong> {{ movement.notes }}</p>
+                            {% endif %}
+                            {% if movement.created_by %}
+                            <small class="text-muted">By: {{ movement.created_by.get_full_name }}</small>
+                            {% endif %}
+                        </div>
+                    </div>
+                    {% endfor %}
+                </div>
+                {% else %}
+                <div class="text-center text-muted">
+                    <i class="bi bi-search fa-3x mb-3"></i>
+                    <p>Select a product to view its movement history</p>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+
+<style>
+.timeline {
+    position: relative;
+    padding-left: 30px;
+}
+
+.timeline::before {
+    content: '';
+    position: absolute;
+    left: 15px;
+    top: 0;
+    bottom: 0;
+    width: 2px;
+    background: #dee2e6;
+}
+
+.timeline-item {
+    position: relative;
+    margin-bottom: 30px;
+}
+
+.timeline-marker {
+    position: absolute;
+    left: -23px;
+    width: 16px;
+    height: 16px;
+    border-radius: 50%;
+    border: 3px solid #fff;
+}
+
+.timeline-content {
+    background: #f8f9fa;
+    border-radius: 8px;
+    padding: 15px;
+    margin-left: 15px;
+}
+</style>
+
+<script>
+function loadHistory() {
+    const productId = document.getElementById('product-select').value;
+    const period = document.getElementById('period-select').value;
+    
+    window.location.href = `?product=${productId}&period=${period}`;
+}
+</script>
+{% endblock %}

@@ -1,0 +1,278 @@
+<!-- inventory/admin/audit_log.html -->
+{% extends "dashboard_base.html" %}
+{% load static %}
+
+{% block page_title %}Audit Log Viewer{% endblock %}
+
+{% block dashboard_content %}
+<div class="row">
+    <div class="col-12">
+        <div class="card shadow">
+            <div class="card-header bg-dark text-white">
+                <h5 class="card-title mb-0">
+                    <i class="bi bi-file-text"></i> System Audit Log
+                </h5>
+            </div>
+            <div class="card-body">
+                <!-- Filter Controls -->
+                <form method="get" class="row mb-4">
+                    <div class="col-md-2">
+                        <label class="form-label">Date From:</label>
+                        <input type="date" name="date_from" class="form-control" value="{{ filters.date_from }}">
+                    </div>
+                    <div class="col-md-2">
+                        <label class="form-label">Date To:</label>
+                        <input type="date" name="date_to" class="form-control" value="{{ filters.date_to }}">
+                    </div>
+                    <div class="col-md-2">
+                        <label class="form-label">User:</label>
+                        <select name="user" class="form-select">
+                            <option value="">All Users</option>
+                            {% for user in users %}
+                            <option value="{{ user.id }}" {% if user.id|stringformat:"s" == filters.user %}selected{% endif %}>
+                                {{ user.get_full_name|default:user.username }}
+                            </option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="col-md-2">
+                        <label class="form-label">Action:</label>
+                        <select name="action" class="form-select">
+                            <option value="">All Actions</option>
+                            <option value="create" {% if filters.action == 'create' %}selected{% endif %}>Create</option>
+                            <option value="update" {% if filters.action == 'update' %}selected{% endif %}>Update</option>
+                            <option value="delete" {% if filters.action == 'delete' %}selected{% endif %}>Delete</option>
+                            <option value="login" {% if filters.action == 'login' %}selected{% endif %}>Login</option>
+                            <option value="logout" {% if filters.action == 'logout' %}selected{% endif %}>Logout</option>
+                        </select>
+                    </div>
+                    <div class="col-md-2">
+                        <label class="form-label">Object Type:</label>
+                        <select name="object_type" class="form-select">
+                            <option value="">All Types</option>
+                            <option value="product" {% if filters.object_type == 'product' %}selected{% endif %}>Product</option>
+                            <option value="category" {% if filters.object_type == 'category' %}selected{% endif %}>Category</option>
+                            <option value="supplier" {% if filters.object_type == 'supplier' %}selected{% endif %}>Supplier</option>
+                            <option value="user" {% if filters.object_type == 'user' %}selected{% endif %}>User</option>
+                        </select>
+                    </div>
+                    <div class="col-md-2">
+                        <label class="form-label">&nbsp;</label>
+                        <div>
+                            <button type="submit" class="btn btn-primary">
+                                <i class="bi bi-funnel"></i> Filter
+                            </button>
+                            <a href="{% url 'inventory:audit_log' %}" class="btn btn-secondary">
+                                <i class="bi bi-arrow-clockwise"></i>
+                            </a>
+                        </div>
+                    </div>
+                </form>
+
+                <!-- Quick Stats -->
+                <div class="row mb-4">
+                    <div class="col-md-3">
+                        <div class="card bg-primary text-white">
+                            <div class="card-body text-center">
+                                <h4>{{ total_entries }}</h4>
+                                <small>Total Entries</small>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-3">
+                        <div class="card bg-success text-white">
+                            <div class="card-body text-center">
+                                <h4>{{ unique_users }}</h4>
+                                <small>Active Users</small>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-3">
+                        <div class="card bg-info text-white">
+                            <div class="card-body text-center">
+                                <h4>{{ today_actions }}</h4>
+                                <small>Today's Actions</small>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-3">
+                        <div class="card bg-warning text-white">
+                            <div class="card-body text-center">
+                                <h4>{{ failed_actions }}</h4>
+                                <small>Failed Actions</small>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Audit Log Table -->
+                <div class="table-responsive">
+                    <table class="table table-striped table-hover">
+                        <thead class="table-dark">
+                            <tr>
+                                <th>Timestamp</th>
+                                <th>User</th>
+                                <th>Action</th>
+                                <th>Object</th>
+                                <th>Description</th>
+                                <th>IP Address</th>
+                                <th>Result</th>
+                                <th>Details</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for entry in audit_entries %}
+                            <tr>
+                                <td>
+                                    <span class="text-nowrap">{{ entry.timestamp|date:"M d, Y" }}</span><br>
+                                    <small class="text-muted">{{ entry.timestamp|time:"H:i:s" }}</small>
+                                </td>
+                                <td>
+                                    {% if entry.user %}
+                                        <strong>{{ entry.user.get_full_name|default:entry.user.username }}</strong><br>
+                                        <small class="text-muted">{{ entry.user.username }}</small>
+                                    {% else %}
+                                        <span class="text-muted">System</span>
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    <span class="badge 
+                                        {% if entry.action == 'create' %}bg-success
+                                        {% elif entry.action == 'update' %}bg-primary
+                                        {% elif entry.action == 'delete' %}bg-danger
+                                        {% elif entry.action == 'login' %}bg-info
+                                        {% else %}bg-secondary{% endif %}">
+                                        {{ entry.get_action_display }}
+                                    </span>
+                                </td>
+                                <td>
+                                    {% if entry.object_type %}
+                                        <strong>{{ entry.object_type|title }}</strong>
+                                        {% if entry.object_id %}
+                                            <br><small class="text-muted">ID: {{ entry.object_id }}</small>
+                                        {% endif %}
+                                    {% else %}
+                                        <span class="text-muted">-</span>
+                                    {% endif %}
+                                </td>
+                                <td>{{ entry.description|truncatechars:50 }}</td>
+                                <td>
+                                    {{ entry.ip_address|default:"-" }}<br>
+                                    <small class="text-muted">{{ entry.user_agent|truncatechars:20|default:"-" }}</small>
+                                </td>
+                                <td>
+                                    {% if entry.success %}
+                                        <span class="badge bg-success">Success</span>
+                                    {% elif entry.success == False %}
+                                        <span class="badge bg-danger">Failed</span>
+                                    {% else %}
+                                        <span class="badge bg-secondary">Unknown</span>
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    {% if entry.extra_data %}
+                                        <button class="btn btn-sm btn-outline-info" onclick="showDetails({{ entry.id }})">
+                                            <i class="bi bi-eye"></i>
+                                        </button>
+                                    {% else %}
+                                        <span class="text-muted">-</span>
+                                    {% endif %}
+                                </td>
+                            </tr>
+                            {% empty %}
+                            <tr>
+                                <td colspan="8" class="text-center text-muted">No audit entries found for the selected criteria</td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+
+                <!-- Pagination -->
+                {% if audit_entries.has_other_pages %}
+                <nav aria-label="Audit log pagination">
+                    <ul class="pagination justify-content-center">
+                        {% if audit_entries.has_previous %}
+                            <li class="page-item">
+                                <a class="page-link" href="?page={{ audit_entries.previous_page_number }}{{ url_params }}">&laquo; Previous</a>
+                            </li>
+                        {% endif %}
+                        
+                        {% for num in audit_entries.paginator.page_range %}
+                            {% if audit_entries.number == num %}
+                                <li class="page-item active">
+                                    <span class="page-link">{{ num }}</span>
+                                </li>
+                            {% elif num > audit_entries.number|add:'-3' and num < audit_entries.number|add:'3' %}
+                                <li class="page-item">
+                                    <a class="page-link" href="?page={{ num }}{{ url_params }}">{{ num }}</a>
+                                </li>
+                            {% endif %}
+                        {% endfor %}
+                        
+                        {% if audit_entries.has_next %}
+                            <li class="page-item">
+                                <a class="page-link" href="?page={{ audit_entries.next_page_number }}{{ url_params }}">Next &raquo;</a>
+                            </li>
+                        {% endif %}
+                    </ul>
+                </nav>
+                {% endif %}
+
+                <!-- Export Options -->
+                <div class="row mt-4">
+                    <div class="col-12 text-end">
+                        <div class="btn-group">
+                            <button class="btn btn-success" onclick="exportAuditLog('csv')">
+                                <i class="bi bi-filetype-csv"></i> Export CSV
+                            </button>
+                            <button class="btn btn-primary" onclick="exportAuditLog('excel')">
+                                <i class="bi bi-file-earmark-excel"></i> Export Excel
+                            </button>
+                            <button class="btn btn-info" onclick="exportAuditLog('pdf')">
+                                <i class="bi bi-filetype-pdf"></i> Export PDF
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Details Modal -->
+<div class="modal fade" id="detailsModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Audit Entry Details</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div id="details-content">
+                    <!-- Details will be loaded here -->
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+function showDetails(entryId) {
+    fetch(`/inventory/admin/audit-log/${entryId}/details/`)
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                document.getElementById('details-content').innerHTML = data.html;
+                new bootstrap.Modal(document.getElementById('detailsModal')).show();
+            }
+        });
+}
+
+function exportAuditLog(format) {
+    const params = new URLSearchParams(window.location.search);
+    params.set('export', format);
+    window.location.href = window.location.pathname + '?' + params.toString();
+}
+</script>
+{% endblock %}

@@ -1,0 +1,129 @@
+<!-- inventory/configuration/overhead_factors_form.html -->
+{% extends "dashboard_base.html" %}
+{% load static %}
+{% load crispy_forms_tags %}
+
+{% block page_title %}
+{% if form.instance.pk %}Edit Overhead Factor{% else %}Create Overhead Factor{% endif %}
+{% endblock %}
+
+{% block dashboard_content %}
+<div class="row">
+    <div class="col-md-8 mx-auto">
+        <div class="card shadow">
+            <div class="card-header bg-success text-white">
+                <h5 class="card-title mb-0">
+                    <i class="bi bi-calculator"></i> 
+                    {% if form.instance.pk %}Edit Overhead Factor{% else %}Create New Overhead Factor{% endif %}
+                </h5>
+            </div>
+            <div class="card-body">
+                <form method="post">
+                    {% csrf_token %}
+                    
+                    <div class="row">
+                        <div class="col-md-6">
+                            {{ form.name|as_crispy_field }}
+                            {{ form.factor_type|as_crispy_field }}
+                            {{ form.percentage|as_crispy_field }}
+                        </div>
+                        <div class="col-md-6">
+                            {{ form.applies_to|as_crispy_field }}
+                            {{ form.is_active|as_crispy_field }}
+                            {{ form.effective_date|as_crispy_field }}
+                        </div>
+                    </div>
+                    
+                    <div class="row">
+                        <div class="col-12">
+                            {{ form.description|as_crispy_field }}
+                            {{ form.calculation_notes|as_crispy_field }}
+                        </div>
+                    </div>
+
+                    <div class="row">
+                        <div class="col-md-6">
+                            {{ form.minimum_amount|as_crispy_field }}
+                        </div>
+                        <div class="col-md-6">
+                            {{ form.maximum_amount|as_crispy_field }}
+                        </div>
+                    </div>
+
+                    <div class="alert alert-info mt-3" role="alert">
+                        <i class="bi bi-info-circle"></i>
+                        <strong>Usage Examples:</strong>
+                        <ul class="mb-0 mt-2">
+                            <li><strong>Shipping:</strong> Fixed percentage applied to all products</li>
+                            <li><strong>Handling:</strong> Labor costs for processing orders</li>
+                            <li><strong>Storage:</strong> Warehouse and storage costs</li>
+                            <li><strong>Insurance:</strong> Risk and insurance overhead</li>
+                            <li><strong>Admin:</strong> Administrative and overhead costs</li>
+                        </ul>
+                    </div>
+
+                    <div class="d-flex justify-content-between">
+                        <a href="{% url 'inventory:overhead_factor_list' %}" class="btn btn-secondary">
+                            <i class="bi bi-arrow-left"></i> Cancel
+                        </a>
+                        <button type="submit" class="btn btn-success">
+                            <i class="bi bi-check"></i> 
+                            {% if form.instance.pk %}Update Factor{% else %}Create Factor{% endif %}
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+        
+        <!-- Calculation Preview -->
+        {% if form.instance.pk %}
+        <div class="card shadow mt-4">
+            <div class="card-header bg-light">
+                <h6 class="card-title mb-0">
+                    <i class="bi bi-calculator"></i> Calculation Preview
+                </h6>
+            </div>
+            <div class="card-body">
+                <div class="row">
+                    <div class="col-md-4">
+                        <label class="form-label">Base Cost:</label>
+                        <input type="number" class="form-control" id="base-cost" placeholder="100.00" step="0.01">
+                    </div>
+                    <div class="col-md-4">
+                        <label class="form-label">Overhead ({{ object.percentage }}%):</label>
+                        <input type="text" class="form-control" id="overhead-amount" readonly>
+                    </div>
+                    <div class="col-md-4">
+                        <label class="form-label">Total Cost:</label>
+                        <input type="text" class="form-control" id="total-cost" readonly>
+                    </div>
+                </div>
+                <small class="text-muted">Enter a base cost to see how this overhead factor affects pricing</small>
+            </div>
+        </div>
+        {% endif %}
+    </div>
+</div>
+
+{% if form.instance.pk %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const baseCostInput = document.getElementById('base-cost');
+    const overheadAmountInput = document.getElementById('overhead-amount');
+    const totalCostInput = document.getElementById('total-cost');
+    const percentage = parseFloat('{{ object.percentage|default:0 }}') || 0;
+    
+    function calculateOverhead() {
+        const baseCost = parseFloat(baseCostInput.value) || 0;
+        const overheadAmount = (baseCost * percentage) / 100;
+        const totalCost = baseCost + overheadAmount;
+        
+        overheadAmountInput.value = overheadAmount.toFixed(2);
+        totalCostInput.value = totalCost.toFixed(2);
+    }
+    
+    baseCostInput.addEventListener('input', calculateOverhead);
+});
+</script>
+{% endif %}
+{% endblock %}

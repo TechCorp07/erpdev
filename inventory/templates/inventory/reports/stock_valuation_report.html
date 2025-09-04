@@ -1,0 +1,217 @@
+<!-- inventory/reports/stock_valuation_report.html -->
+{% extends "dashboard_base.html" %}
+{% load static %}
+
+{% block page_title %}Stock Valuation Report{% endblock %}
+
+{% block dashboard_content %}
+<div class="row mb-4">
+    <div class="col-12">
+        <div class="card shadow">
+            <div class="card-header bg-success text-white d-flex justify-content-between align-items-center">
+                <h5 class="card-title mb-0">
+                    <i class="bi bi-currency-dollar"></i> Stock Valuation Report
+                </h5>
+                <div>
+                    <small>As of: {{ report_date|date:"M d, Y H:i" }}</small>
+                </div>
+            </div>
+            <div class="card-body">
+                <!-- Filter Controls -->
+                <form method="get" class="row mb-4">
+                    <div class="col-md-3">
+                        <label class="form-label">Valuation Method:</label>
+                        <select name="method" class="form-select">
+                            <option value="cost" {% if method == 'cost' %}selected{% endif %}>Cost Price</option>
+                            <option value="sell" {% if method == 'sell' %}selected{% endif %}>Selling Price</option>
+                            <option value="avg" {% if method == 'avg' %}selected{% endif %}>Average Cost</option>
+                        </select>
+                    </div>
+                    <div class="col-md-3">
+                        <label class="form-label">Category:</label>
+                        <select name="category" class="form-select">
+                            <option value="">All Categories</option>
+                            {% for category in categories %}
+                            <option value="{{ category.id }}" {% if category.id|stringformat:"s" == category_filter %}selected{% endif %}>
+                                {{ category.name }}
+                            </option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="col-md-3">
+                        <label class="form-label">Location:</label>
+                        <select name="location" class="form-select">
+                            <option value="">All Locations</option>
+                            {% for location in locations %}
+                            <option value="{{ location.id }}" {% if location.id|stringformat:"s" == location_filter %}selected{% endif %}>
+                                {{ location.name }}
+                            </option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="col-md-3">
+                        <label class="form-label">&nbsp;</label>
+                        <div>
+                            <button type="submit" class="btn btn-primary">
+                                <i class="bi bi-funnel"></i> Update
+                            </button>
+                            <button type="button" class="btn btn-success" onclick="exportReport()">
+                                <i class="bi bi-download"></i> Export
+                            </button>
+                        </div>
+                    </div>
+                </form>
+
+                <!-- Summary Cards -->
+                <div class="row mb-4">
+                    <div class="col-md-3">
+                        <div class="card bg-primary text-white">
+                            <div class="card-body">
+                                <div class="d-flex justify-content-between">
+                                    <div>
+                                        <h6>Total Products</h6>
+                                        <h4>{{ summary.total_products }}</h4>
+                                    </div>
+                                    <i class="bi bi-box-seam fa-2x"></i>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-3">
+                        <div class="card bg-success text-white">
+                            <div class="card-body">
+                                <div class="d-flex justify-content-between">
+                                    <div>
+                                        <h6>Total Stock Value</h6>
+                                        <h4>${{ summary.total_stock_value|floatformat:0 }}</h4>
+                                    </div>
+                                    <i class="bi bi-currency-dollar fa-2x"></i>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-3">
+                        <div class="card bg-info text-white">
+                            <div class="card-body">
+                                <div class="d-flex justify-content-between">
+                                    <div>
+                                        <h6>Total Quantity</h6>
+                                        <h4>{{ summary.total_quantity|floatformat:0 }}</h4>
+                                    </div>
+                                    <i class="bi bi-boxes fa-2x"></i>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-3">
+                        <div class="card bg-warning text-white">
+                            <div class="card-body">
+                                <div class="d-flex justify-content-between">
+                                    <div>
+                                        <h6>Avg Value/Unit</h6>
+                                        <h4>${{ summary.avg_value_per_unit|floatformat:2 }}</h4>
+                                    </div>
+                                    <i class="bi bi-calculator fa-2x"></i>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Valuation by Category -->
+                <div class="row mb-4">
+                    <div class="col-12">
+                        <h6>Valuation by Category</h6>
+                        <div class="table-responsive">
+                            <table class="table table-sm">
+                                <thead class="table-light">
+                                    <tr>
+                                        <th>Category</th>
+                                        <th>Products</th>
+                                        <th>Total Quantity</th>
+                                        <th>Total Value</th>
+                                        <th>% of Total</th>
+                                        <th>Avg Value/Unit</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {% for category in category_breakdown %}
+                                    <tr>
+                                        <td><strong>{{ category.name }}</strong></td>
+                                        <td>{{ category.product_count }}</td>
+                                        <td>{{ category.total_quantity|floatformat:0 }}</td>
+                                        <td>${{ category.total_value|floatformat:0 }}</td>
+                                        <td>
+                                            <div class="progress" style="height: 15px;">
+                                                <div class="progress-bar" style="width: {{ category.percentage }}%">
+                                                    {{ category.percentage|floatformat:1 }}%
+                                                </div>
+                                            </div>
+                                        </td>
+                                        <td>${{ category.avg_value_per_unit|floatformat:2 }}</td>
+                                    </tr>
+                                    {% endfor %}
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Detailed Product Valuation -->
+                <div class="table-responsive">
+                    <table class="table table-striped">
+                        <thead class="table-dark">
+                            <tr>
+                                <th>Product</th>
+                                <th>Category</th>
+                                <th>Location</th>
+                                <th>Current Stock</th>
+                                <th>Unit Cost</th>
+                                <th>Total Value</th>
+                                <th>Last Updated</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for item in valuation_data %}
+                            <tr>
+                                <td>
+                                    <strong>{{ item.product.name }}</strong><br>
+                                    <small class="text-muted">{{ item.product.sku }}</small>
+                                </td>
+                                <td>{{ item.product.category.name }}</td>
+                                <td>{{ item.location.name|default:"Default" }}</td>
+                                <td>{{ item.quantity|floatformat:0 }}</td>
+                                <td>${{ item.unit_cost|floatformat:2 }}</td>
+                                <td>
+                                    <strong>${{ item.total_value|floatformat:2 }}</strong>
+                                </td>
+                                <td>{{ item.last_updated|date:"M d, Y" }}</td>
+                            </tr>
+                            {% empty %}
+                            <tr>
+                                <td colspan="7" class="text-center text-muted">No products found with current stock</td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                        <tfoot class="table-light">
+                            <tr>
+                                <th colspan="5">Total Valuation:</th>
+                                <th>${{ summary.total_stock_value|floatformat:2 }}</th>
+                                <th></th>
+                            </tr>
+                        </tfoot>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+function exportReport() {
+    const params = new URLSearchParams(window.location.search);
+    params.set('export', 'excel');
+    window.location.href = window.location.pathname + '?' + params.toString();
+}
+</script>
+{% endblock %}

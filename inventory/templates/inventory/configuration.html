@@ -1,0 +1,274 @@
+<!-- inventory/configuration.html -->
+{% extends "dashboard_base.html" %}
+{% load static %}
+
+{% block page_title %}Inventory Configuration{% endblock %}
+
+{% block dashboard_content %}
+<div class="row">
+    <div class="col-12">
+        <div class="card shadow">
+            <div class="card-header bg-primary text-white">
+                <h5 class="card-title mb-0">
+                    <i class="bi bi-gear"></i> Inventory Configuration Dashboard
+                </h5>
+            </div>
+            <div class="card-body">
+                <!-- Configuration Sections -->
+                <div class="row">
+                    <!-- Basic Configuration -->
+                    <div class="col-md-4 mb-4">
+                        <div class="card h-100">
+                            <div class="card-header bg-success text-white">
+                                <h6 class="card-title mb-0">
+                                    <i class="bi bi-list"></i> Basic Configuration
+                                </h6>
+                            </div>
+                            <div class="card-body">
+                                <div class="list-group list-group-flush">
+                                    <a href="{% url 'inventory:category_list' %}" class="list-group-item list-group-item-action d-flex justify-content-between align-items-center">
+                                        <div>
+                                            <i class="bi bi-tag me-2"></i>Categories
+                                        </div>
+                                        <span class="badge bg-primary">{{ categories_count }}</span>
+                                    </a>
+                                    <a href="{% url 'inventory:brand_list' %}" class="list-group-item list-group-item-action d-flex justify-content-between align-items-center">
+                                        <div>
+                                            <i class="bi bi-award me-2"></i>Brands
+                                        </div>
+                                        <span class="badge bg-primary">{{ brands_count }}</span>
+                                    </a>
+                                    <a href="{% url 'inventory:supplier_list' %}" class="list-group-item list-group-item-action d-flex justify-content-between align-items-center">
+                                        <div>
+                                            <i class="bi bi-truck me-2"></i>Suppliers
+                                        </div>
+                                        <span class="badge bg-primary">{{ suppliers_count }}</span>
+                                    </a>
+                                    <a href="{% url 'inventory:location_list' %}" class="list-group-item list-group-item-action d-flex justify-content-between align-items-center">
+                                        <div>
+                                            <i class="bi bi-geo-alt me-2"></i>Locations
+                                        </div>
+                                        <span class="badge bg-primary">{{ locations_count }}</span>
+                                    </a>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Storage Configuration -->
+                    <div class="col-md-4 mb-4">
+                        <div class="card h-100">
+                            <div class="card-header bg-info text-white">
+                                <h6 class="card-title mb-0">
+                                    <i class="bi bi-building"></i> Storage Configuration
+                                </h6>
+                            </div>
+                            <div class="card-body">
+                                <div class="list-group list-group-flush">
+                                    <a href="{% url 'inventory:storage_location_list' %}" class="list-group-item list-group-item-action d-flex justify-content-between align-items-center">
+                                        <div>
+                                            <i class="bi bi-house me-2"></i>Storage Locations
+                                        </div>
+                                        <span class="badge bg-primary">{{ storage_locations_count }}</span>
+                                    </a>
+                                    <a href="{% url 'inventory:storage_bin_list' %}" class="list-group-item list-group-item-action d-flex justify-content-between align-items-center">
+                                        <div>
+                                            <i class="bi bi-box me-2"></i>Storage Bins
+                                        </div>
+                                        <span class="badge bg-primary">{{ storage_bins_count }}</span>
+                                    </a>
+                                    <a href="{% url 'inventory:component_family_list' %}" class="list-group-item list-group-item-action d-flex justify-content-between align-items-center">
+                                        <div>
+                                            <i class="bi bi-diagram-3 me-2"></i>Component Families
+                                        </div>
+                                        <span class="badge bg-primary">{{ component_families_count }}</span>
+                                    </a>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Advanced Configuration -->
+                    <div class="col-md-4 mb-4">
+                        <div class="card h-100">
+                            <div class="card-header bg-warning text-white">
+                                <h6 class="card-title mb-0">
+                                    <i class="bi bi-sliders"></i> Advanced Configuration
+                                </h6>
+                            </div>
+                            <div class="card-body">
+                                <div class="list-group list-group-flush">
+                                    <a href="{% url 'inventory:product_attribute_list' %}" class="list-group-item list-group-item-action d-flex justify-content-between align-items-center">
+                                        <div>
+                                            <i class="bi bi-tags me-2"></i>Product Attributes
+                                        </div>
+                                        <span class="badge bg-primary">{{ product_attributes_count }}</span>
+                                    </a>
+                                    <a href="{% url 'inventory:overhead_factor_list' %}" class="list-group-item list-group-item-action d-flex justify-content-between align-items-center">
+                                        <div>
+                                            <i class="bi bi-calculator me-2"></i>Overhead Factors
+                                        </div>
+                                        <span class="badge bg-primary">{{ overhead_factors_count }}</span>
+                                    </a>
+                                    <a href="{% url 'inventory:currency_list' %}" class="list-group-item list-group-item-action d-flex justify-content-between align-items-center">
+                                        <div>
+                                            <i class="bi bi-currency-exchange me-2"></i>Currencies
+                                        </div>
+                                        <span class="badge bg-primary">{{ currencies_count }}</span>
+                                    </a>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Pricing Configuration -->
+                <div class="row">
+                    <div class="col-12 mb-4">
+                        <div class="card">
+                            <div class="card-header bg-secondary text-white">
+                                <h6 class="card-title mb-0">
+                                    <i class="bi bi-currency-dollar"></i> Pricing & Cost Configuration
+                                </h6>
+                            </div>
+                            <div class="card-body">
+                                <div class="row">
+                                    <div class="col-md-3">
+                                        <div class="text-center">
+                                            <a href="{% url 'inventory:markup_rule_list' %}" class="btn btn-outline-primary btn-lg">
+                                                <i class="bi bi-percent fa-2x d-block mb-2"></i>
+                                                Markup Rules
+                                            </a>
+                                            <p class="mt-2 text-muted">{{ markup_rules_count }} rules configured</p>
+                                        </div>
+                                    </div>
+                                    <div class="col-md-3">
+                                        <div class="text-center">
+                                            <a href="{% url 'inventory:pricing_rules' %}" class="btn btn-outline-success btn-lg">
+                                                <i class="bi bi-gear fa-2x d-block mb-2"></i>
+                                                Pricing Rules
+                                            </a>
+                                            <p class="mt-2 text-muted">{{ pricing_rules_count }} rules active</p>
+                                        </div>
+                                    </div>
+                                    <div class="col-md-3">
+                                        <div class="text-center">
+                                            <a href="{% url 'inventory:overhead_analysis' %}" class="btn btn-outline-warning btn-lg">
+                                                <i class="bi bi-graph-up fa-2x d-block mb-2"></i>
+                                                Overhead Analysis
+                                            </a>
+                                            <p class="mt-2 text-muted">{{ total_overhead_percentage|floatformat:1 }}% total overhead</p>
+                                        </div>
+                                    </div>
+                                    <div class="col-md-3">
+                                        <div class="text-center">
+                                            <a href="{% url 'inventory:bulk_price_update' %}" class="btn btn-outline-info btn-lg">
+                                                <i class="bi bi-arrow-up-circle fa-2x d-block mb-2"></i>
+                                                Bulk Updates
+                                            </a>
+                                            <p class="mt-2 text-muted">Batch price management</p>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Quick Setup Wizard -->
+                <div class="row">
+                    <div class="col-12">
+                        <div class="card">
+                            <div class="card-header bg-dark text-white">
+                                <h6 class="card-title mb-0">
+                                    <i class="bi bi-magic"></i> Quick Setup Wizard
+                                </h6>
+                            </div>
+                            <div class="card-body">
+                                <p class="text-muted">Get your inventory system configured quickly with our step-by-step wizard.</p>
+                                
+                                <div class="row">
+                                    <div class="col-md-2 text-center">
+                                        <div class="progress-step {% if setup_progress.categories %}completed{% endif %}">
+                                            <i class="bi bi-tag fa-2x"></i>
+                                            <p class="mt-2 small">Categories</p>
+                                        </div>
+                                    </div>
+                                    <div class="col-md-2 text-center">
+                                        <div class="progress-step {% if setup_progress.suppliers %}completed{% endif %}">
+                                            <i class="bi bi-truck fa-2x"></i>
+                                            <p class="mt-2 small">Suppliers</p>
+                                        </div>
+                                    </div>
+                                    <div class="col-md-2 text-center">
+                                        <div class="progress-step {% if setup_progress.locations %}completed{% endif %}">
+                                            <i class="bi bi-geo-alt fa-2x"></i>
+                                            <p class="mt-2 small">Locations</p>
+                                        </div>
+                                    </div>
+                                    <div class="col-md-2 text-center">
+                                        <div class="progress-step {% if setup_progress.attributes %}completed{% endif %}">
+                                            <i class="bi bi-tags fa-2x"></i>
+                                            <p class="mt-2 small">Attributes</p>
+                                        </div>
+                                    </div>
+                                    <div class="col-md-2 text-center">
+                                        <div class="progress-step {% if setup_progress.pricing %}completed{% endif %}">
+                                            <i class="bi bi-currency-dollar fa-2x"></i>
+                                            <p class="mt-2 small">Pricing</p>
+                                        </div>
+                                    </div>
+                                    <div class="col-md-2 text-center">
+                                        <div class="progress-step {% if setup_progress.complete %}completed{% endif %}">
+                                            <i class="bi bi-check-circle fa-2x"></i>
+                                            <p class="mt-2 small">Complete</p>
+                                        </div>
+                                    </div>
+                                </div>
+                                
+                                <div class="text-center mt-4">
+                                    {% if not setup_progress.complete %}
+                                    <a href="{% url 'inventory:setup_wizard' %}" class="btn btn-success">
+                                        <i class="bi bi-play"></i> Continue Setup
+                                    </a>
+                                    {% else %}
+                                    <span class="text-success">
+                                        <i class="bi bi-check-circle"></i> Setup Complete!
+                                    </span>
+                                    {% endif %}
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<style>
+.progress-step {
+    padding: 20px;
+    border-radius: 10px;
+    transition: all 0.3s ease;
+}
+
+.progress-step:not(.completed) {
+    color: #6c757d;
+    background-color: #f8f9fa;
+}
+
+.progress-step.completed {
+    color: #28a745;
+    background-color: #d4edda;
+}
+
+.progress-step i {
+    transition: all 0.3s ease;
+}
+
+.progress-step.completed i {
+    color: #28a745;
+}
+</style>
+{% endblock %}

@@ -1,0 +1,89 @@
+<!-- inventory/reports/executive_summary.html -->
+{% extends "dashboard_base.html" %}
+{% load static %}
+
+{% block page_title %}Executive Summary Report{% endblock %}
+
+{% block dashboard_content %}
+<div class="row mb-4">
+    <div class="col-12">
+        <div class="card shadow">
+            <div class="card-header bg-dark text-white">
+                <h5 class="card-title mb-0">
+                    <i class="bi bi-clipboard-data"></i> Executive Inventory Summary
+                </h5>
+                <small>{{ report_date|date:"F d, Y" }}</small>
+            </div>
+            <div class="card-body">
+                <!-- Key Metrics -->
+                <div class="row mb-4">
+                    <div class="col-md-6">
+                        <h6>Inventory Health</h6>
+                        <ul class="list-unstyled">
+                            <li><strong>Total Inventory Value:</strong> ${{ total_inventory_value|floatformat:0 }}</li>
+                            <li><strong>Active Products:</strong> {{ active_products_count }}</li>
+                            <li><strong>Average Turnover:</strong> {{ avg_turnover|floatformat:2 }}x</li>
+                            <li><strong>Days of Inventory:</strong> {{ days_of_inventory|floatformat:0 }} days</li>
+                        </ul>
+                    </div>
+                    <div class="col-md-6">
+                        <h6>Critical Alerts</h6>
+                        <ul class="list-unstyled">
+                            <li><strong>Out of Stock:</strong> <span class="text-danger">{{ out_of_stock_count }}</span> items</li>
+                            <li><strong>Low Stock:</strong> <span class="text-warning">{{ low_stock_count }}</span> items</li>
+                            <li><strong>Dead Stock:</strong> <span class="text-muted">{{ dead_stock_count }}</span> items</li>
+                            <li><strong>Overstock:</strong> <span class="text-info">{{ overstock_count }}</span> items</li>
+                        </ul>
+                    </div>
+                </div>
+
+                <!-- Top Categories -->
+                <div class="row mb-4">
+                    <div class="col-12">
+                        <h6>Top Performing Categories</h6>
+                        <div class="table-responsive">
+                            <table class="table table-sm">
+                                <thead>
+                                    <tr>
+                                        <th>Category</th>
+                                        <th>Revenue</th>
+                                        <th>Growth</th>
+                                        <th>Margin</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {% for category in top_categories %}
+                                    <tr>
+                                        <td>{{ category.name }}</td>
+                                        <td>${{ category.revenue|floatformat:0 }}</td>
+                                        <td>
+                                            {% if category.growth >= 0 %}
+                                                <span class="text-success">+{{ category.growth|floatformat:1 }}%</span>
+                                            {% else %}
+                                                <span class="text-danger">{{ category.growth|floatformat:1 }}%</span>
+                                            {% endif %}
+                                        </td>
+                                        <td>{{ category.margin|floatformat:1 }}%</td>
+                                    </tr>
+                                    {% endfor %}
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Recommendations -->
+                <div class="alert alert-info">
+                    <h6><i class="bi bi-lightbulb"></i> Key Recommendations</h6>
+                    <ul class="mb-0">
+                        <li>Immediate reorder required for {{ urgent_reorder_count }} critical items</li>
+                        <li>Consider liquidation of {{ dead_stock_value|floatformat:0 }} dead stock items worth ${{ dead_stock_value|floatformat:0 }}</li>
+                        <li>{{ top_category_name }} category shows {{ top_category_growth|floatformat:1 }}% growth - consider expanding</li>
+                        <li>Average inventory turnover is {{ avg_turnover|floatformat:2 }}x - industry standard is 4-6x</li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

@@ -1,0 +1,403 @@
+<!-- inventory/admin/system_maintenance.html -->
+{% extends "dashboard_base.html" %}
+{% load static %}
+
+{% block page_title %}System Maintenance{% endblock %}
+
+{% block dashboard_content %}
+<div class="row">
+    <div class="col-12">
+        <div class="card shadow">
+            <div class="card-header bg-warning text-white">
+                <h5 class="card-title mb-0">
+                    <i class="bi bi-tools"></i> System Maintenance Tools
+                </h5>
+            </div>
+            <div class="card-body">
+                <!-- System Health Status -->
+                <div class="row mb-4">
+                    <div class="col-md-3">
+                        <div class="card bg-{{ system_health.overall_status }} text-white">
+                            <div class="card-body text-center">
+                                <i class="bi bi-heart-pulse fa-2x mb-2"></i>
+                                <h4>{{ system_health.overall_score }}%</h4>
+                                <h6>System Health</h6>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-3">
+                        <div class="card bg-info text-white">
+                            <div class="card-body text-center">
+                                <i class="bi bi-hdd fa-2x mb-2"></i>
+                                <h4>{{ database_size|filesizeformat }}</h4>
+                                <h6>Database Size</h6>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-3">
+                        <div class="card bg-success text-white">
+                            <div class="card-body text-center">
+                                <i class="bi bi-clock-history fa-2x mb-2"></i>
+                                <h4>{{ last_backup|timesince }}</h4>
+                                <h6>Last Backup</h6>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-3">
+                        <div class="card bg-secondary text-white">
+                            <div class="card-body text-center">
+                                <i class="bi bi-gear fa-2x mb-2"></i>
+                                <h4>{{ maintenance_tasks_count }}</h4>
+                                <h6>Scheduled Tasks</h6>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Maintenance Actions -->
+                <div class="row mb-4">
+                    <div class="col-md-4">
+                        <div class="card h-100">
+                            <div class="card-header bg-primary text-white">
+                                <h6 class="card-title mb-0">Database Maintenance</h6>
+                            </div>
+                            <div class="card-body">
+                                <div class="d-grid gap-2">
+                                    <button class="btn btn-outline-primary" onclick="optimizeDatabase()">
+                                        <i class="bi bi-speedometer2"></i> Optimize Database
+                                    </button>
+                                    <button class="btn btn-outline-info" onclick="rebuildIndexes()">
+                                        <i class="bi bi-arrow-clockwise"></i> Rebuild Indexes
+                                    </button>
+                                    <button class="btn btn-outline-success" onclick="createBackup()">
+                                        <i class="bi bi-download"></i> Create Backup
+                                    </button>
+                                    <button class="btn btn-outline-warning" onclick="analyzeDatabase()">
+                                        <i class="bi bi-graph-up"></i> Analyze Tables
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-4">
+                        <div class="card h-100">
+                            <div class="card-header bg-success text-white">
+                                <h6 class="card-title mb-0">Cache & Performance</h6>
+                            </div>
+                            <div class="card-body">
+                                <div class="d-grid gap-2">
+                                    <button class="btn btn-outline-danger" onclick="clearCache()">
+                                        <i class="bi bi-trash"></i> Clear All Caches
+                                    </button>
+                                    <button class="btn btn-outline-warning" onclick="warmupCache()">
+                                        <i class="bi bi-thermometer-sun"></i> Warmup Cache
+                                    </button>
+                                    <button class="btn btn-outline-info" onclick="clearSessions()">
+                                        <i class="bi bi-person-x"></i> Clear Old Sessions
+                                    </button>
+                                    <button class="btn btn-outline-primary" onclick="generateSitemap()">
+                                        <i class="bi bi-map"></i> Generate Sitemap
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-4">
+                        <div class="card h-100">
+                            <div class="card-header bg-warning text-white">
+                                <h6 class="card-title mb-0">Data Cleanup</h6>
+                            </div>
+                            <div class="card-body">
+                                <div class="d-grid gap-2">
+                                    <button class="btn btn-outline-danger" onclick="cleanupLogs()">
+                                        <i class="bi bi-journal-x"></i> Cleanup Old Logs
+                                    </button>
+                                    <button class="btn btn-outline-warning" onclick="removeOrphanedData()">
+                                        <i class="bi bi-unlink"></i> Remove Orphaned Data
+                                    </button>
+                                    <button class="btn btn-outline-info" onclick="compressImages()">
+                                        <i class="bi bi-image"></i> Compress Images
+                                    </button>
+                                    <button class="btn btn-outline-secondary" onclick="archiveOldData()">
+                                        <i class="bi bi-archive"></i> Archive Old Data
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Scheduled Tasks -->
+                <div class="card mb-4">
+                    <div class="card-header">
+                        <h6 class="card-title mb-0">Scheduled Maintenance Tasks</h6>
+                    </div>
+                    <div class="card-body">
+                        <div class="table-responsive">
+                            <table class="table table-striped">
+                                <thead>
+                                    <tr>
+                                        <th>Task</th>
+                                        <th>Frequency</th>
+                                        <th>Last Run</th>
+                                        <th>Next Run</th>
+                                        <th>Status</th>
+                                        <th>Actions</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {% for task in maintenance_tasks %}
+                                    <tr>
+                                        <td>
+                                            <strong>{{ task.name }}</strong><br>
+                                            <small class="text-muted">{{ task.description }}</small>
+                                        </td>
+                                        <td>{{ task.get_frequency_display }}</td>
+                                        <td>
+                                            {% if task.last_run %}
+                                                {{ task.last_run|date:"M d, Y H:i" }}<br>
+                                                <small class="text-muted">{{ task.last_run|timesince }} ago</small>
+                                            {% else %}
+                                                <span class="text-muted">Never</span>
+                                            {% endif %}
+                                        </td>
+                                        <td>
+                                            {% if task.next_run %}
+                                                {{ task.next_run|date:"M d, Y H:i" }}<br>
+                                                <small class="text-muted">{{ task.next_run|timeuntil }} from now</small>
+                                            {% else %}
+                                                <span class="text-muted">Not scheduled</span>
+                                            {% endif %}
+                                        </td>
+                                        <td>
+                                            <span class="badge 
+                                                {% if task.status == 'active' %}bg-success
+                                                {% elif task.status == 'running' %}bg-warning
+                                                {% elif task.status == 'failed' %}bg-danger
+                                                {% else %}bg-secondary{% endif %}">
+                                                {{ task.get_status_display }}
+                                            </span>
+                                        </td>
+                                        <td>
+                                            <div class="btn-group btn-group-sm">
+                                                <button class="btn btn-outline-primary" onclick="runTask({{ task.id }})" title="Run Now">
+                                                    <i class="bi bi-play"></i>
+                                                </button>
+                                                <button class="btn btn-outline-info" onclick="viewTaskLog({{ task.id }})" title="View Log">
+                                                    <i class="bi bi-journal-text"></i>
+                                                </button>
+                                                <button class="btn btn-outline-secondary" onclick="editTask({{ task.id }})" title="Edit">
+                                                    <i class="bi bi-pencil"></i>
+                                                </button>
+                                            </div>
+                                        </td>
+                                    </tr>
+                                    {% empty %}
+                                    <tr>
+                                        <td colspan="6" class="text-center text-muted">No scheduled maintenance tasks</td>
+                                    </tr>
+                                    {% endfor %}
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- System Information -->
+                <div class="card">
+                    <div class="card-header">
+                        <h6 class="card-title mb-0">System Information</h6>
+                    </div>
+                    <div class="card-body">
+                        <div class="row">
+                            <div class="col-md-6">
+                                <table class="table table-borderless">
+                                    <tr>
+                                        <td><strong>Django Version:</strong></td>
+                                        <td>{{ system_info.django_version }}</td>
+                                    </tr>
+                                    <tr>
+                                        <td><strong>Python Version:</strong></td>
+                                        <td>{{ system_info.python_version }}</td>
+                                    </tr>
+                                    <tr>
+                                        <td><strong>Database:</strong></td>
+                                        <td>{{ system_info.database_engine }}</td>
+                                    </tr>
+                                    <tr>
+                                        <td><strong>Server OS:</strong></td>
+                                        <td>{{ system_info.server_os }}</td>
+                                    </tr>
+                                </table>
+                            </div>
+                            <div class="col-md-6">
+                                <table class="table table-borderless">
+                                    <tr>
+                                        <td><strong>Total Products:</strong></td>
+                                        <td>{{ system_info.total_products|default:0 }}</td>
+                                    </tr>
+                                    <tr>
+                                        <td><strong>Total Users:</strong></td>
+                                        <td>{{ system_info.total_users|default:0 }}</td>
+                                    </tr>
+                                    <tr>
+                                        <td><strong>Database Connections:</strong></td>
+                                        <td>{{ system_info.db_connections|default:0 }}</td>
+                                    </tr>
+                                    <tr>
+                                        <td><strong>Cache Backend:</strong></td>
+                                        <td>{{ system_info.cache_backend|default:"None" }}</td>
+                                    </tr>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Task Progress Modal -->
+<div class="modal fade" id="progressModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Maintenance Task Progress</h5>
+            </div>
+            <div class="modal-body">
+                <div class="d-flex align-items-center mb-3">
+                    <div class="spinner-border text-primary me-3" role="status"></div>
+                    <div>
+                        <p class="mb-0" id="task-status">Running maintenance task...</p>
+                        <small class="text-muted" id="task-details">Please wait while the task completes.</small>
+                    </div>
+                </div>
+                <div class="progress">
+                    <div class="progress-bar progress-bar-striped progress-bar-animated" 
+                         style="width: 0%" id="task-progress">0%</div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+function optimizeDatabase() {
+    executeMaintenanceTask('optimize_database', 'Optimizing database tables...');
+}
+
+function rebuildIndexes() {
+    executeMaintenanceTask('rebuild_indexes', 'Rebuilding database indexes...');
+}
+
+function createBackup() {
+    executeMaintenanceTask('create_backup', 'Creating database backup...');
+}
+
+function analyzeDatabase() {
+    executeMaintenanceTask('analyze_database', 'Analyzing database tables...');
+}
+
+function clearCache() {
+    if (confirm('This will clear all cached data. Continue?')) {
+        executeMaintenanceTask('clear_cache', 'Clearing system caches...');
+    }
+}
+
+function warmupCache() {
+    executeMaintenanceTask('warmup_cache', 'Warming up application cache...');
+}
+
+function clearSessions() {
+    if (confirm('This will log out all users except yourself. Continue?')) {
+        executeMaintenanceTask('clear_sessions', 'Clearing old sessions...');
+    }
+}
+
+function generateSitemap() {
+    executeMaintenanceTask('generate_sitemap', 'Generating XML sitemap...');
+}
+
+function cleanupLogs() {
+    if (confirm('Delete log files older than 30 days?')) {
+        executeMaintenanceTask('cleanup_logs', 'Cleaning up old log files...');
+    }
+}
+
+function removeOrphanedData() {
+    executeMaintenanceTask('remove_orphaned_data', 'Removing orphaned data records...');
+}
+
+function compressImages() {
+    executeMaintenanceTask('compress_images', 'Compressing uploaded images...');
+}
+
+function archiveOldData() {
+    if (confirm('Archive data older than 1 year?')) {
+        executeMaintenanceTask('archive_old_data', 'Archiving old data records...');
+    }
+}
+
+function executeMaintenanceTask(taskType, description) {
+    // Show progress modal
+    const modal = new bootstrap.Modal(document.getElementById('progressModal'));
+    document.getElementById('task-status').textContent = description;
+    document.getElementById('task-details').textContent = 'Initializing...';
+    modal.show();
+    
+    // Start task
+    fetch(`/inventory/admin/maintenance/${taskType}/`, {
+        method: 'POST',
+        headers: {
+            'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value
+        }
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            // Simulate progress
+            let progress = 0;
+            const interval = setInterval(() => {
+                progress += Math.random() * 20;
+                if (progress >= 100) {
+                    progress = 100;
+                    clearInterval(interval);
+                    document.getElementById('task-status').textContent = 'Task completed successfully!';
+                    document.getElementById('task-details').textContent = data.message || 'Maintenance task finished.';
+                    setTimeout(() => {
+                        modal.hide();
+                        window.location.reload();
+                    }, 2000);
+                }
+                document.getElementById('task-progress').style.width = progress + '%';
+                document.getElementById('task-progress').textContent = Math.round(progress) + '%';
+            }, 500);
+        } else {
+            document.getElementById('task-status').textContent = 'Task failed!';
+            document.getElementById('task-details').textContent = data.message || 'An error occurred.';
+            document.querySelector('.spinner-border').style.display = 'none';
+        }
+    })
+    .catch(error => {
+        document.getElementById('task-status').textContent = 'Task failed!';
+        document.getElementById('task-details').textContent = 'Network error: ' + error.message;
+        document.querySelector('.spinner-border').style.display = 'none';
+    });
+}
+
+function runTask(taskId) {
+    if (confirm('Run this maintenance task now?')) {
+        window.location.href = `/inventory/admin/run-task/${taskId}/`;
+    }
+}
+
+function viewTaskLog(taskId) {
+    window.open(`/inventory/admin/task-log/${taskId}/`, '_blank');
+}
+
+function editTask(taskId) {
+    window.location.href = `/inventory/admin/edit-task/${taskId}/`;
+}
+</script>
+{% endblock %}

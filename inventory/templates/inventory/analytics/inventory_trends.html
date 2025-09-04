@@ -1,0 +1,419 @@
+<!-- inventory/analytics/inventory_trends.html -->
+{% extends "dashboard_base.html" %}
+{% load static %}
+
+{% block page_title %}Inventory Trends Analysis{% endblock %}
+
+{% block extra_css %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+{% endblock %}
+
+{% block dashboard_content %}
+<div class="row mb-4">
+    <div class="col-12">
+        <div class="card shadow">
+            <div class="card-header bg-info text-white">
+                <h5 class="card-title mb-0">
+                    <i class="bi bi-graph-up-arrow"></i> Inventory Trends Analysis
+                </h5>
+            </div>
+            <div class="card-body">
+                <!-- Time Period Selection -->
+                <div class="row mb-4">
+                    <div class="col-md-3">
+                        <select class="form-select" id="period-select">
+                            <option value="7">Last 7 Days</option>
+                            <option value="30">Last 30 Days</option>
+                            <option value="90" selected>Last 90 Days</option>
+                            <option value="180">Last 6 Months</option>
+                            <option value="365">Last Year</option>
+                        </select>
+                    </div>
+                    <div class="col-md-3">
+                        <select class="form-select" id="metric-select">
+                            <option value="stock_levels">Stock Levels</option>
+                            <option value="stock_value">Stock Value</option>
+                            <option value="movements">Stock Movements</option>
+                            <option value="turnover">Turnover Ratio</option>
+                        </select>
+                    </div>
+                    <div class="col-md-3">
+                        <select class="form-select" id="category-select">
+                            <option value="">All Categories</option>
+                            {% for category in categories %}
+                            <option value="{{ category.id }}">{{ category.name }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="col-md-3">
+                        <button class="btn btn-primary" onclick="updateTrends()">
+                            <i class="bi bi-arrow-clockwise"></i> Update
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Trend Summary Cards -->
+                <div class="row mb-4">
+                    <div class="col-md-3">
+                        <div class="card bg-primary text-white">
+                            <div class="card-body">
+                                <div class="d-flex justify-content-between">
+                                    <div>
+                                        <h6>Stock Level Trend</h6>
+                                        <h4>
+                                            {% if stock_trend >= 0 %}
+                                                <i class="bi bi-trend-up"></i> +{{ stock_trend|floatformat:1 }}%
+                                            {% else %}
+                                                <i class="bi bi-trend-down"></i> {{ stock_trend|floatformat:1 }}%
+                                            {% endif %}
+                                        </h4>
+                                    </div>
+                                    <i class="bi bi-boxes fa-2x"></i>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-3">
+                        <div class="card bg-success text-white">
+                            <div class="card-body">
+                                <div class="d-flex justify-content-between">
+                                    <div>
+                                        <h6>Value Trend</h6>
+                                        <h4>
+                                            {% if value_trend >= 0 %}
+                                                <i class="bi bi-trend-up"></i> +{{ value_trend|floatformat:1 }}%
+                                            {% else %}
+                                                <i class="bi bi-trend-down"></i> {{ value_trend|floatformat:1 }}%
+                                            {% endif %}
+                                        </h4>
+                                    </div>
+                                    <i class="bi bi-currency-dollar fa-2x"></i>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-3">
+                        <div class="card bg-warning text-white">
+                            <div class="card-body">
+                                <div class="d-flex justify-content-between">
+                                    <div>
+                                        <h6>Movement Trend</h6>
+                                        <h4>
+                                            {% if movement_trend >= 0 %}
+                                                <i class="bi bi-trend-up"></i> +{{ movement_trend|floatformat:1 }}%
+                                            {% else %}
+                                                <i class="bi bi-trend-down"></i> {{ movement_trend|floatformat:1 }}%
+                                            {% endif %}
+                                        </h4>
+                                    </div>
+                                    <i class="bi bi-arrow-left-right fa-2x"></i>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-3">
+                        <div class="card bg-info text-white">
+                            <div class="card-body">
+                                <div class="d-flex justify-content-between">
+                                    <div>
+                                        <h6>Turnover Trend</h6>
+                                        <h4>
+                                            {% if turnover_trend >= 0 %}
+                                                <i class="bi bi-trend-up"></i> +{{ turnover_trend|floatformat:1 }}%
+                                            {% else %}
+                                                <i class="bi bi-trend-down"></i> {{ turnover_trend|floatformat:1 }}%
+                                            {% endif %}
+                                        </h4>
+                                    </div>
+                                    <i class="bi bi-arrow-repeat fa-2x"></i>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Main Trend Chart -->
+                <div class="row mb-4">
+                    <div class="col-12">
+                        <canvas id="trendChart" height="120"></canvas>
+                    </div>
+                </div>
+
+                <!-- Category Comparison -->
+                <div class="row mb-4">
+                    <div class="col-md-6">
+                        <canvas id="categoryTrendChart" height="200"></canvas>
+                    </div>
+                    <div class="col-md-6">
+                        <canvas id="seasonalChart" height="200"></canvas>
+                    </div>
+                </div>
+
+                <!-- Trend Analysis Table -->
+                <div class="table-responsive">
+                    <table class="table table-striped">
+                        <thead class="table-dark">
+                            <tr>
+                                <th>Category</th>
+                                <th>Stock Level Change</th>
+                                <th>Value Change</th>
+                                <th>Movement Change</th>
+                                <th>Turnover Change</th>
+                                <th>Trend Status</th>
+                                <th>Forecast</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for trend in category_trends %}
+                            <tr>
+                                <td><strong>{{ trend.category.name }}</strong></td>
+                                <td>
+                                    <div class="d-flex align-items-center">
+                                        {% if trend.stock_change >= 0 %}
+                                            <i class="bi bi-arrow-up text-success me-1"></i>
+                                            <span class="text-success">+{{ trend.stock_change|floatformat:1 }}%</span>
+                                        {% else %}
+                                            <i class="bi bi-arrow-down text-danger me-1"></i>
+                                            <span class="text-danger">{{ trend.stock_change|floatformat:1 }}%</span>
+                                        {% endif %}
+                                    </div>
+                                </td>
+                                <td>
+                                    <div class="d-flex align-items-center">
+                                        {% if trend.value_change >= 0 %}
+                                            <i class="bi bi-arrow-up text-success me-1"></i>
+                                            <span class="text-success">+{{ trend.value_change|floatformat:1 }}%</span>
+                                        {% else %}
+                                            <i class="bi bi-arrow-down text-danger me-1"></i>
+                                            <span class="text-danger">{{ trend.value_change|floatformat:1 }}%</span>
+                                        {% endif %}
+                                    </div>
+                                </td>
+                                <td>
+                                    <div class="d-flex align-items-center">
+                                        {% if trend.movement_change >= 0 %}
+                                            <i class="bi bi-arrow-up text-success me-1"></i>
+                                            <span class="text-success">+{{ trend.movement_change|floatformat:1 }}%</span>
+                                        {% else %}
+                                            <i class="bi bi-arrow-down text-danger me-1"></i>
+                                            <span class="text-danger">{{ trend.movement_change|floatformat:1 }}%</span>
+                                        {% endif %}
+                                    </div>
+                                </td>
+                                <td>
+                                    <div class="d-flex align-items-center">
+                                        {% if trend.turnover_change >= 0 %}
+                                            <i class="bi bi-arrow-up text-success me-1"></i>
+                                            <span class="text-success">+{{ trend.turnover_change|floatformat:1 }}%</span>
+                                        {% else %}
+                                            <i class="bi bi-arrow-down text-danger me-1"></i>
+                                            <span class="text-danger">{{ trend.turnover_change|floatformat:1 }}%</span>
+                                        {% endif %}
+                                    </div>
+                                </td>
+                                <td>
+                                    {% if trend.overall_trend == 'improving' %}
+                                        <span class="badge bg-success">Improving</span>
+                                    {% elif trend.overall_trend == 'declining' %}
+                                        <span class="badge bg-danger">Declining</span>
+                                    {% else %}
+                                        <span class="badge bg-secondary">Stable</span>
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    <small class="text-muted">{{ trend.forecast_text }}</small>
+                                </td>
+                            </tr>
+                            {% empty %}
+                            <tr>
+                                <td colspan="7" class="text-center text-muted">No trend data available for the selected period</td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+
+                <!-- Insights and Recommendations -->
+                <div class="row mt-4">
+                    <div class="col-md-6">
+                        <div class="card">
+                            <div class="card-header bg-success text-white">
+                                <h6 class="card-title mb-0">
+                                    <i class="bi bi-lightbulb"></i> Key Insights
+                                </h6>
+                            </div>
+                            <div class="card-body">
+                                <ul class="list-unstyled">
+                                    {% for insight in key_insights %}
+                                    <li class="mb-2">
+                                        <i class="bi bi-check-circle text-success"></i> {{ insight }}
+                                    </li>
+                                    {% endfor %}
+                                </ul>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-6">
+                        <div class="card">
+                            <div class="card-header bg-warning text-white">
+                                <h6 class="card-title mb-0">
+                                    <i class="bi bi-exclamation-triangle"></i> Recommendations
+                                </h6>
+                            </div>
+                            <div class="card-body">
+                                <ul class="list-unstyled">
+                                    {% for recommendation in recommendations %}
+                                    <li class="mb-2">
+                                        <i class="bi bi-arrow-right text-warning"></i> {{ recommendation }}
+                                    </li>
+                                    {% endfor %}
+                                </ul>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+// Main trend chart
+const ctx1 = document.getElementById('trendChart').getContext('2d');
+const trendChart = new Chart(ctx1, {
+    type: 'line',
+    data: {
+        labels: [{% for point in trend_data %}'{{ point.date }}'{% if not forloop.last %},{% endif %}{% endfor %}],
+        datasets: [{
+            label: 'Stock Levels',
+            data: [{% for point in trend_data %}{{ point.stock_level }}{% if not forloop.last %},{% endif %}{% endfor %}],
+            borderColor: 'rgb(75, 192, 192)',
+            backgroundColor: 'rgba(75, 192, 192, 0.1)',
+            tension: 0.1,
+            yAxisID: 'y'
+        }, {
+            label: 'Stock Value',
+            data: [{% for point in trend_data %}{{ point.stock_value }}{% if not forloop.last %},{% endif %}{% endfor %}],
+            borderColor: 'rgb(255, 99, 132)',
+            backgroundColor: 'rgba(255, 99, 132, 0.1)',
+            tension: 0.1,
+            yAxisID: 'y1'
+        }]
+    },
+    options: {
+        responsive: true,
+        interaction: {
+            mode: 'index',
+            intersect: false,
+        },
+        scales: {
+            x: {
+                display: true,
+                title: {
+                    display: true,
+                    text: 'Date'
+                }
+            },
+            y: {
+                type: 'linear',
+                display: true,
+                position: 'left',
+                title: {
+                    display: true,
+                    text: 'Stock Levels'
+                }
+            },
+            y1: {
+                type: 'linear',
+                display: true,
+                position: 'right',
+                title: {
+                    display: true,
+                    text: 'Stock Value ($)'
+                },
+                grid: {
+                    drawOnChartArea: false,
+                }
+            }
+        }
+    }
+});
+
+// Category comparison chart
+const ctx2 = document.getElementById('categoryTrendChart').getContext('2d');
+const categoryChart = new Chart(ctx2, {
+    type: 'radar',
+    data: {
+        labels: ['Stock Change', 'Value Change', 'Movement Change', 'Turnover Change'],
+        datasets: [
+            {% for category in top_categories %}
+            {
+                label: '{{ category.name }}',
+                data: [{{ category.stock_change }}, {{ category.value_change }}, {{ category.movement_change }}, {{ category.turnover_change }}],
+                borderColor: 'rgba({{ category.color_r }}, {{ category.color_g }}, {{ category.color_b }}, 1)',
+                backgroundColor: 'rgba({{ category.color_r }}, {{ category.color_g }}, {{ category.color_b }}, 0.1)',
+                pointBackgroundColor: 'rgba({{ category.color_r }}, {{ category.color_g }}, {{ category.color_b }}, 1)'
+            }{% if not forloop.last %},{% endif %}
+            {% endfor %}
+        ]
+    },
+    options: {
+        responsive: true,
+        plugins: {
+            title: {
+                display: true,
+                text: 'Category Comparison'
+            }
+        },
+        scales: {
+            r: {
+                beginAtZero: true
+            }
+        }
+    }
+});
+
+// Seasonal analysis chart
+const ctx3 = document.getElementById('seasonalChart').getContext('2d');
+const seasonalChart = new Chart(ctx3, {
+    type: 'bar',
+    data: {
+        labels: ['Q1', 'Q2', 'Q3', 'Q4'],
+        datasets: [{
+            label: 'Average Stock Turnover',
+            data: [{{ seasonal_data.q1 }}, {{ seasonal_data.q2 }}, {{ seasonal_data.q3 }}, {{ seasonal_data.q4 }}],
+            backgroundColor: ['#FF6384', '#36A2EB', '#FFCE56', '#4BC0C0']
+        }]
+    },
+    options: {
+        responsive: true,
+        plugins: {
+            title: {
+                display: true,
+                text: 'Seasonal Patterns'
+            }
+        },
+        scales: {
+            y: {
+                beginAtZero: true,
+                title: {
+                    display: true,
+                    text: 'Turnover Ratio'
+                }
+            }
+        }
+    }
+});
+
+function updateTrends() {
+    const period = document.getElementById('period-select').value;
+    const metric = document.getElementById('metric-select').value;
+    const category = document.getElementById('category-select').value;
+    
+    let url = window.location.pathname + '?period=' + period + '&metric=' + metric;
+    if (category) url += '&category=' + category;
+    
+    window.location.href = url;
+}
+</script>
+{% endblock %}

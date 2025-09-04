@@ -1,0 +1,106 @@
+<!-- inventory/configuration/attributes_form.html -->
+{% extends "dashboard_base.html" %}
+{% load static %}
+{% load crispy_forms_tags %}
+
+{% block page_title %}
+{% if form.instance.pk %}Edit Attribute{% else %}Create Attribute{% endif %}
+{% endblock %}
+
+{% block dashboard_content %}
+<div class="row">
+    <div class="col-md-10 mx-auto">
+        <div class="card shadow">
+            <div class="card-header bg-primary text-white">
+                <h5 class="card-title mb-0">
+                    <i class="bi bi-tags"></i> 
+                    {% if form.instance.pk %}Edit Attribute{% else %}Create New Attribute{% endif %}
+                </h5>
+            </div>
+            <div class="card-body">
+                <form method="post">
+                    {% csrf_token %}
+                    
+                    <div class="row">
+                        <div class="col-md-6">
+                            {{ form.name|as_crispy_field }}
+                            {{ form.display_name|as_crispy_field }}
+                            {{ form.component_family|as_crispy_field }}
+                            {{ form.attribute_type|as_crispy_field }}
+                        </div>
+                        <div class="col-md-6">
+                            {{ form.unit|as_crispy_field }}
+                            {{ form.is_required|as_crispy_field }}
+                            {{ form.is_filterable|as_crispy_field }}
+                            {{ form.is_active|as_crispy_field }}
+                        </div>
+                    </div>
+                    
+                    <div class="row">
+                        <div class="col-12">
+                            {{ form.description|as_crispy_field }}
+                            {{ form.help_text|as_crispy_field }}
+                        </div>
+                    </div>
+
+                    <div class="row" id="validation-fields" style="display: none;">
+                        <div class="col-md-6">
+                            {{ form.min_value|as_crispy_field }}
+                            {{ form.max_value|as_crispy_field }}
+                        </div>
+                        <div class="col-md-6">
+                            {{ form.default_value|as_crispy_field }}
+                            {{ form.validation_regex|as_crispy_field }}
+                        </div>
+                    </div>
+
+                    <div class="row" id="choice-fields" style="display: none;">
+                        <div class="col-12">
+                            {{ form.choices|as_crispy_field }}
+                            <small class="form-text text-muted">
+                                For choice fields, enter options separated by commas (e.g., "Small, Medium, Large")
+                            </small>
+                        </div>
+                    </div>
+
+                    <div class="d-flex justify-content-between">
+                        <a href="{% url 'inventory:product_attribute_list' %}" class="btn btn-secondary">
+                            <i class="bi bi-arrow-left"></i> Cancel
+                        </a>
+                        <button type="submit" class="btn btn-primary">
+                            <i class="bi bi-check"></i> 
+                            {% if form.instance.pk %}Update Attribute{% else %}Create Attribute{% endif %}
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const typeField = document.getElementById('id_attribute_type');
+    const validationFields = document.getElementById('validation-fields');
+    const choiceFields = document.getElementById('choice-fields');
+    
+    function toggleFields() {
+        const selectedType = typeField.value;
+        
+        if (selectedType === 'number' || selectedType === 'decimal') {
+            validationFields.style.display = 'block';
+            choiceFields.style.display = 'none';
+        } else if (selectedType === 'choice') {
+            validationFields.style.display = 'none';
+            choiceFields.style.display = 'block';
+        } else {
+            validationFields.style.display = 'none';
+            choiceFields.style.display = 'none';
+        }
+    }
+    
+    typeField.addEventListener('change', toggleFields);
+    toggleFields(); // Initial call
+});
+</script>
+{% endblock %}

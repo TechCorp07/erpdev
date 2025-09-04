@@ -1,0 +1,252 @@
+<!-- inventory/pricing/overhead_analysis.html -->
+{% extends "dashboard_base.html" %}
+{% load static %}
+
+{% block page_title %}Overhead Analysis{% endblock %}
+
+{% block extra_css %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+{% endblock %}
+
+{% block dashboard_content %}
+<div class="row mb-4">
+    <div class="col-12">
+        <div class="card shadow">
+            <div class="card-header bg-warning text-white">
+                <h5 class="card-title mb-0">
+                    <i class="bi bi-calculator"></i> Overhead Cost Analysis
+                </h5>
+            </div>
+            <div class="card-body">
+                <!-- Overhead Summary -->
+                <div class="row mb-4">
+                    <div class="col-md-3">
+                        <div class="card bg-primary text-white">
+                            <div class="card-body">
+                                <h6>Total Overhead</h6>
+                                <h4>{{ total_overhead_percentage|floatformat:2 }}%</h4>
+                                <small>Applied to cost price</small>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-3">
+                        <div class="card bg-success text-white">
+                            <div class="card-body">
+                                <h6>Active Factors</h6>
+                                <h4>{{ active_overhead_factors }}</h4>
+                                <small>Currently applied</small>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-3">
+                        <div class="card bg-info text-white">
+                            <div class="card-body">
+                                <h6>Monthly Impact</h6>
+                                <h4>${{ monthly_overhead_cost|floatformat:0 }}</h4>
+                                <small>Estimated cost</small>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-3">
+                        <div class="card bg-warning text-white">
+                            <div class="card-body">
+                                <h6>Price Impact</h6>
+                                <h4>${{ avg_price_impact|floatformat:2 }}</h4>
+                                <small>Avg per product</small>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Overhead Breakdown Chart -->
+                <div class="row mb-4">
+                    <div class="col-md-8">
+                        <canvas id="overheadChart" height="100"></canvas>
+                    </div>
+                    <div class="col-md-4">
+                        <canvas id="overheadPieChart" height="200"></canvas>
+                    </div>
+                </div>
+
+                <!-- Overhead Factors Table -->
+                <div class="table-responsive">
+                    <table class="table table-striped">
+                        <thead class="table-dark">
+                            <tr>
+                                <th>Factor</th>
+                                <th>Type</th>
+                                <th>Percentage</th>
+                                <th>Applies To</th>
+                                <th>Monthly Est.</th>
+                                <th>Status</th>
+                                <th>Last Updated</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for factor in overhead_factors %}
+                            <tr>
+                                <td>
+                                    <strong>{{ factor.name }}</strong><br>
+                                    <small class="text-muted">{{ factor.description|truncatechars:50 }}</small>
+                                </td>
+                                <td>
+                                    <span class="badge 
+                                        {% if factor.factor_type == 'shipping' %}bg-primary
+                                        {% elif factor.factor_type == 'storage' %}bg-info
+                                        {% elif factor.factor_type == 'handling' %}bg-warning
+                                        {% elif factor.factor_type == 'admin' %}bg-secondary
+                                        {% else %}bg-success{% endif %}">
+                                        {{ factor.get_factor_type_display }}
+                                    </span>
+                                </td>
+                                <td><strong>{{ factor.percentage }}%</strong></td>
+                                <td>{{ factor.get_applies_to_display|default:"All Products" }}</td>
+                                <td>${{ factor.monthly_estimate|floatformat:0 }}</td>
+                                <td>
+                                    <span class="badge {% if factor.is_active %}bg-success{% else %}bg-secondary{% endif %}">
+                                        {% if factor.is_active %}Active{% else %}Inactive{% endif %}
+                                    </span>
+                                </td>
+                                <td>{{ factor.modified_at|date:"M d, Y" }}</td>
+                                <td>
+                                    <div class="btn-group btn-group-sm">
+                                        <a href="{% url 'inventory:overhead_factor_edit' factor.pk %}" class="btn btn-outline-primary" title="Edit">
+                                            <i class="bi bi-pencil"></i>
+                                        </a>
+                                        <button class="btn btn-outline-info" onclick="analyzeFactor({{ factor.pk }})" title="Analyze Impact">
+                                            <i class="bi bi-graph-up"></i>
+                                        </button>
+                                        <button class="btn btn-outline-danger" onclick="deleteFactor({{ factor.pk }})" title="Delete">
+                                            <i class="bi bi-trash"></i>
+                                        </button>
+                                    </div>
+                                </td>
+                            </tr>
+                            {% empty %}
+                            <tr>
+                                <td colspan="8" class="text-center text-muted">
+                                    No overhead factors defined. 
+                                    <a href="{% url 'inventory:overhead_factor_create' %}" class="btn btn-sm btn-primary ms-2">
+                                        Add Overhead Factor
+                                    </a>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+
+                <!-- Cost Impact Calculator -->
+                <div class="card mt-4">
+                    <div class="card-header">
+                        <h6 class="card-title mb-0">Overhead Impact Calculator</h6>
+                    </div>
+                    <div class="card-body">
+                        <div class="row">
+                            <div class="col-md-3">
+                                <label class="form-label">Base Cost:</label>
+                                <input type="number" class="form-control" id="base-cost" placeholder="100.00" step="0.01">
+                            </div>
+                            <div class="col-md-3">
+                                <label class="form-label">Total with Overhead:</label>
+                                <input type="text" class="form-control" id="total-cost" readonly>
+                            </div>
+                            <div class="col-md-3">
+                                <label class="form-label">Overhead Amount:</label>
+                                <input type="text" class="form-control" id="overhead-amount" readonly>
+                            </div>
+                            <div class="col-md-3">
+                                <label class="form-label">&nbsp;</label>
+                                <button class="btn btn-primary d-block" onclick="calculateOverhead()">
+                                    <i class="bi bi-calculator"></i> Calculate
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+// Overhead breakdown chart
+const ctx1 = document.getElementById('overheadChart').getContext('2d');
+const overheadChart = new Chart(ctx1, {
+    type: 'bar',
+    data: {
+        labels: [{% for factor in overhead_factors %}'{{ factor.name }}'{% if not forloop.last %},{% endif %}{% endfor %}],
+        datasets: [{
+            label: 'Overhead Percentage',
+            data: [{% for factor in overhead_factors %}{{ factor.percentage }}{% if not forloop.last %},{% endif %}{% endfor %}],
+            backgroundColor: [
+                '#007bff', '#28a745', '#ffc107', '#dc3545', '#6c757d', '#17a2b8'
+            ]
+        }]
+    },
+    options: {
+        responsive: true,
+        scales: {
+            y: {
+                beginAtZero: true,
+                title: {
+                    display: true,
+                    text: 'Percentage (%)'
+                }
+            }
+        }
+    }
+});
+
+// Overhead pie chart
+const ctx2 = document.getElementById('overheadPieChart').getContext('2d');
+const overheadPieChart = new Chart(ctx2, {
+    type: 'doughnut',
+    data: {
+        labels: [{% for factor in overhead_factors %}'{{ factor.name }}'{% if not forloop.last %},{% endif %}{% endfor %}],
+        datasets: [{
+            data: [{% for factor in overhead_factors %}{{ factor.percentage }}{% if not forloop.last %},{% endif %}{% endfor %}],
+            backgroundColor: [
+                '#007bff', '#28a745', '#ffc107', '#dc3545', '#6c757d', '#17a2b8'
+            ]
+        }]
+    },
+    options: {
+        responsive: true,
+        plugins: {
+            legend: {
+                position: 'bottom'
+            }
+        }
+    }
+});
+
+function calculateOverhead() {
+    const baseCost = parseFloat(document.getElementById('base-cost').value) || 0;
+    const totalOverheadPercentage = {{ total_overhead_percentage }};
+    
+    if (baseCost > 0) {
+        const overheadAmount = baseCost * (totalOverheadPercentage / 100);
+        const totalCost = baseCost + overheadAmount;
+        
+        document.getElementById('overhead-amount').value = '$' + overheadAmount.toFixed(2);
+        document.getElementById('total-cost').value = '$' + totalCost.toFixed(2);
+    }
+}
+
+function analyzeFactor(factorId) {
+    // Redirect to factor analysis page
+    window.location.href = `/inventory/pricing/overhead-factors/${factorId}/analyze/`;
+}
+
+function deleteFactor(factorId) {
+    if (confirm('Are you sure you want to delete this overhead factor?')) {
+        window.location.href = `/inventory/configuration/overhead-factors/${factorId}/delete/`;
+    }
+}
+
+// Auto-calculate when base cost changes
+document.getElementById('base-cost').addEventListener('input', calculateOverhead);
+</script>
+{% endblock %}

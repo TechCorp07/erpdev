@@ -1,0 +1,92 @@
+<!-- inventory/reports/brand_performance.html -->
+{% extends "dashboard_base.html" %}
+{% load static %}
+
+{% block page_title %}Brand Performance Report{% endblock %}
+
+{% block extra_css %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+{% endblock %}
+
+{% block dashboard_content %}
+<div class="row mb-4">
+    <div class="col-12">
+        <div class="card shadow">
+            <div class="card-header bg-info text-white">
+                <h5 class="card-title mb-0">
+                    <i class="bi bi-award"></i> Brand Performance Analysis
+                </h5>
+            </div>
+            <div class="card-body">
+                <!-- Brand Performance Chart -->
+                <div class="row mb-4">
+                    <div class="col-12">
+                        <canvas id="brandChart" height="100"></canvas>
+                    </div>
+                </div>
+
+                <!-- Brand Performance Table -->
+                <div class="table-responsive">
+                    <table class="table table-striped">
+                        <thead class="table-dark">
+                            <tr>
+                                <th>Brand</th>
+                                <th>Products</th>
+                                <th>Revenue</th>
+                                <th>Units Sold</th>
+                                <th>Avg Price</th>
+                                <th>Market Share</th>
+                                <th>Trend</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for brand in brand_performance %}
+                            <tr>
+                                <td><strong>{{ brand.name }}</strong></td>
+                                <td>{{ brand.product_count }}</td>
+                                <td>${{ brand.revenue|floatformat:0 }}</td>
+                                <td>{{ brand.units_sold|floatformat:0 }}</td>
+                                <td>${{ brand.avg_price|floatformat:2 }}</td>
+                                <td>{{ brand.market_share|floatformat:1 }}%</td>
+                                <td>
+                                    {% if brand.growth_trend > 0 %}
+                                        <i class="bi bi-trend-up text-success"></i>
+                                    {% elif brand.growth_trend < 0 %}
+                                        <i class="bi bi-trend-down text-danger"></i>
+                                    {% else %}
+                                        <i class="bi bi-dash text-muted"></i>
+                                    {% endif %}
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+const ctx = document.getElementById('brandChart').getContext('2d');
+const brandChart = new Chart(ctx, {
+    type: 'bar',
+    data: {
+        labels: [{% for brand in brand_performance %}'{{ brand.name }}'{% if not forloop.last %},{% endif %}{% endfor %}],
+        datasets: [{
+            label: 'Revenue',
+            data: [{% for brand in brand_performance %}{{ brand.revenue }}{% if not forloop.last %},{% endif %}{% endfor %}],
+            backgroundColor: 'rgba(54, 162, 235, 0.5)'
+        }]
+    },
+    options: {
+        responsive: true,
+        scales: {
+            y: {
+                beginAtZero: true
+            }
+        }
+    }
+});
+</script>
+{% endblock %}

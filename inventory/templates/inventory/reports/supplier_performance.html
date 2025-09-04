@@ -1,0 +1,159 @@
+<!-- inventory/reports/supplier_performance.html -->
+{% extends "dashboard_base.html" %}
+{% load static %}
+
+{% block page_title %}Supplier Performance Report{% endblock %}
+
+{% block extra_css %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+{% endblock %}
+
+{% block dashboard_content %}
+<div class="row mb-4">
+    <div class="col-12">
+        <div class="card shadow">
+            <div class="card-header bg-primary text-white">
+                <h5 class="card-title mb-0">
+                    <i class="bi bi-truck"></i> Supplier Performance Analysis
+                </h5>
+            </div>
+            <div class="card-body">
+                <!-- Filter Controls -->
+                <div class="row mb-4">
+                    <div class="col-md-3">
+                        <select class="form-select" id="period-filter">
+                            <option value="90" selected>Last 90 Days</option>
+                            <option value="180">Last 6 Months</option>
+                            <option value="365">Last Year</option>
+                        </select>
+                    </div>
+                    <div class="col-md-3">
+                        <select class="form-select" id="supplier-filter">
+                            <option value="">All Suppliers</option>
+                            {% for supplier in suppliers %}
+                            <option value="{{ supplier.id }}">{{ supplier.name }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="col-md-3">
+                        <button class="btn btn-primary" onclick="refreshReport()">
+                            <i class="bi bi-arrow-clockwise"></i> Refresh
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Performance Summary -->
+                <div class="row mb-4">
+                    <div class="col-md-3">
+                        <div class="card bg-success text-white">
+                            <div class="card-body">
+                                <h6>Avg Delivery Time</h6>
+                                <h4>{{ avg_delivery_days|floatformat:1 }} days</h4>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-3">
+                        <div class="card bg-info text-white">
+                            <div class="card-body">
+                                <h6>On-Time Delivery</h6>
+                                <h4>{{ on_time_delivery_rate|floatformat:1 }}%</h4>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-3">
+                        <div class="card bg-warning text-white">
+                            <div class="card-body">
+                                <h6>Quality Rating</h6>
+                                <h4>{{ avg_quality_score|floatformat:1 }}/5</h4>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-3">
+                        <div class="card bg-primary text-white">
+                            <div class="card-body">
+                                <h6>Total Orders</h6>
+                                <h4>{{ total_orders }}</h4>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Supplier Performance Table -->
+                <div class="table-responsive">
+                    <table class="table table-striped">
+                        <thead class="table-dark">
+                            <tr>
+                                <th>Supplier</th>
+                                <th>Orders</th>
+                                <th>Total Value</th>
+                                <th>Avg Lead Time</th>
+                                <th>On-Time %</th>
+                                <th>Quality Score</th>
+                                <th>Response Time</th>
+                                <th>Rating</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for supplier in supplier_performance %}
+                            <tr>
+                                <td>
+                                    <strong>{{ supplier.name }}</strong><br>
+                                    <small class="text-muted">{{ supplier.country.name }}</small>
+                                </td>
+                                <td>{{ supplier.total_orders }}</td>
+                                <td>${{ supplier.total_value|floatformat:0 }}</td>
+                                <td>{{ supplier.avg_lead_time|floatformat:1 }} days</td>
+                                <td>
+                                    <div class="progress" style="height: 15px;">
+                                        <div class="progress-bar 
+                                            {% if supplier.on_time_rate >= 90 %}bg-success
+                                            {% elif supplier.on_time_rate >= 70 %}bg-warning
+                                            {% else %}bg-danger{% endif %}" 
+                                            style="width: {{ supplier.on_time_rate }}%">
+                                            {{ supplier.on_time_rate|floatformat:0 }}%
+                                        </div>
+                                    </div>
+                                </td>
+                                <td>
+                                    {% for i in "12345" %}
+                                        {% if forloop.counter <= supplier.quality_score %}
+                                            <i class="bi bi-star-fill text-warning"></i>
+                                        {% else %}
+                                            <i class="bi bi-star text-muted"></i>
+                                        {% endif %}
+                                    {% endfor %}
+                                </td>
+                                <td>{{ supplier.avg_response_time|floatformat:1 }}h</td>
+                                <td>
+                                    {% if supplier.overall_rating >= 4.5 %}
+                                        <span class="badge bg-success">Excellent</span>
+                                    {% elif supplier.overall_rating >= 3.5 %}
+                                        <span class="badge bg-primary">Good</span>
+                                    {% elif supplier.overall_rating >= 2.5 %}
+                                        <span class="badge bg-warning">Average</span>
+                                    {% else %}
+                                        <span class="badge bg-danger">Poor</span>
+                                    {% endif %}
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+function refreshReport() {
+    const period = document.getElementById('period-filter').value;
+    const supplier = document.getElementById('supplier-filter').value;
+    
+    let url = window.location.pathname + '?period=' + period;
+    if (supplier) url += '&supplier=' + supplier;
+    
+    window.location.href = url;
+}
+</script>
+{% endblock %}

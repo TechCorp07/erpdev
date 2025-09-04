@@ -1,0 +1,227 @@
+<!-- inventory/pricing/markup_rule_list.html -->
+{% extends "dashboard_base.html" %}
+{% load static %}
+
+{% block page_title %}Markup Rules Management{% endblock %}
+
+{% block dashboard_content %}
+<div class="row mb-4">
+    <div class="col-12">
+        <div class="card shadow">
+            <div class="card-header bg-primary text-white d-flex justify-content-between align-items-center">
+                <h5 class="card-title mb-0">
+                    <i class="bi bi-percent"></i> Markup Rules Management
+                </h5>
+                <a href="{% url 'inventory:markup_rule_create' %}" class="btn btn-light btn-sm">
+                    <i class="bi bi-plus"></i> Add New Rule
+                </a>
+            </div>
+            <div class="card-body">
+                <!-- Rules Table -->
+                <div class="table-responsive">
+                    <table class="table table-striped">
+                        <thead class="table-dark">
+                            <tr>
+                                <th>Rule Name</th>
+                                <th>Apply To</th>
+                                <th>Conditions</th>
+                                <th>Markup %</th>
+                                <th>Priority</th>
+                                <th>Status</th>
+                                <th>Last Modified</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for rule in markup_rules %}
+                            <tr>
+                                <td>
+                                    <strong>{{ rule.name }}</strong><br>
+                                    <small class="text-muted">{{ rule.description|truncatechars:50 }}</small>
+                                </td>
+                                <td>
+                                    {% if rule.category %}
+                                        <span class="badge bg-info">{{ rule.category.name }}</span>
+                                    {% elif rule.supplier %}
+                                        <span class="badge bg-warning">{{ rule.supplier.name }}</span>
+                                    {% elif rule.brand %}
+                                        <span class="badge bg-success">{{ rule.brand.name }}</span>
+                                    {% else %}
+                                        <span class="badge bg-secondary">All Products</span>
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    <small>
+                                        {% if rule.min_cost %}Min Cost: ${{ rule.min_cost }}<br>{% endif %}
+                                        {% if rule.max_cost %}Max Cost: ${{ rule.max_cost }}<br>{% endif %}
+                                        {% if rule.min_quantity %}Min Qty: {{ rule.min_quantity }}{% endif %}
+                                    </small>
+                                </td>
+                                <td>
+                                    <span class="badge bg-primary">{{ rule.markup_percentage }}%</span>
+                                    {% if rule.min_margin %}
+                                        <br><small class="text-muted">Min: {{ rule.min_margin }}%</small>
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    <span class="badge {% if rule.priority == 1 %}bg-danger{% elif rule.priority <= 5 %}bg-warning{% else %}bg-secondary{% endif %}">
+                                        {{ rule.priority }}
+                                    </span>
+                                </td>
+                                <td>
+                                    <span class="badge {% if rule.is_active %}bg-success{% else %}bg-secondary{% endif %}">
+                                        {% if rule.is_active %}Active{% else %}Inactive{% endif %}
+                                    </span>
+                                </td>
+                                <td>
+                                    {{ rule.modified_at|date:"M d, Y" }}<br>
+                                    <small class="text-muted">{{ rule.modified_by.username }}</small>
+                                </td>
+                                <td>
+                                    <div class="btn-group btn-group-sm">
+                                        <button class="btn btn-outline-info" onclick="testRule({{ rule.pk }})" title="Test Rule">
+                                            <i class="bi bi-play"></i>
+                                        </button>
+                                        <a href="{% url 'inventory:markup_rule_edit' rule.pk %}" class="btn btn-outline-primary" title="Edit">
+                                            <i class="bi bi-pencil"></i>
+                                        </a>
+                                        <button class="btn btn-outline-danger" onclick="deleteRule({{ rule.pk }})" title="Delete">
+                                            <i class="bi bi-trash"></i>
+                                        </button>
+                                    </div>
+                                </td>
+                            </tr>
+                            {% empty %}
+                            <tr>
+                                <td colspan="8" class="text-center text-muted">
+                                    No markup rules defined. 
+                                    <a href="{% url 'inventory:markup_rule_create' %}" class="btn btn-sm btn-primary ms-2">
+                                        Create First Rule
+                                    </a>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+
+                <!-- Rule Testing Section -->
+                <div class="card mt-4">
+                    <div class="card-header">
+                        <h6 class="card-title mb-0">Rule Testing</h6>
+                    </div>
+                    <div class="card-body">
+                        <div class="row">
+                            <div class="col-md-6">
+                                <label class="form-label">Test Product:</label>
+                                <select class="form-select" id="test-product">
+                                    <option value="">Select a product to test</option>
+                                    {% for product in products %}
+                                    <option value="{{ product.pk }}">{{ product.name }} ({{ product.sku }})</option>
+                                    {% endfor %}
+                                </select>
+                            </div>
+                            <div class="col-md-3">
+                                <label class="form-label">Test Cost:</label>
+                                <input type="number" class="form-control" id="test-cost" placeholder="0.00" step="0.01">
+                            </div>
+                            <div class="col-md-3">
+                                <label class="form-label">&nbsp;</label>
+                                <button class="btn btn-primary d-block" onclick="testAllRules()">
+                                    <i class="bi bi-calculator"></i> Test Rules
+                                </button>
+                            </div>
+                        </div>
+                        <div id="test-results" class="mt-3" style="display: none;">
+                            <div class="alert alert-info">
+                                <h6>Test Results:</h6>
+                                <div id="test-results-content"></div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+function testRule(ruleId) {
+    const productId = document.getElementById('test-product').value;
+    const testCost = document.getElementById('test-cost').value;
+    
+    if (!productId) {
+        alert('Please select a product to test');
+        return;
+    }
+    
+    fetch(`/inventory/pricing/markup-rules/${ruleId}/test/`, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value
+        },
+        body: JSON.stringify({
+            product_id: productId,
+            test_cost: testCost
+        })
+    })
+    .then(response => response.json())
+    .then(data => {
+        displayTestResults(data);
+    });
+}
+
+function testAllRules() {
+    const productId = document.getElementById('test-product').value;
+    const testCost = document.getElementById('test-cost').value;
+    
+    if (!productId) {
+        alert('Please select a product to test');
+        return;
+    }
+    
+    fetch('/inventory/pricing/markup-rules/test-all/', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value
+        },
+        body: JSON.stringify({
+            product_id: productId,
+            test_cost: testCost
+        })
+    })
+    .then(response => response.json())
+    .then(data => {
+        displayTestResults(data);
+    });
+}
+
+function displayTestResults(data) {
+    const resultsContent = document.getElementById('test-results-content');
+    let html = `<strong>Product:</strong> ${data.product_name}<br>`;
+    html += `<strong>Test Cost:</strong> $${data.test_cost}<br>`;
+    html += `<strong>Applied Rules:</strong><br>`;
+    
+    if (data.applied_rules.length > 0) {
+        data.applied_rules.forEach(rule => {
+            html += `- ${rule.name}: ${rule.markup}% markup → $${rule.calculated_price}<br>`;
+        });
+        html += `<strong>Final Price:</strong> $${data.final_price}`;
+    } else {
+        html += '<em>No rules applied</em>';
+    }
+    
+    resultsContent.innerHTML = html;
+    document.getElementById('test-results').style.display = 'block';
+}
+
+function deleteRule(ruleId) {
+    if (confirm('Are you sure you want to delete this markup rule?')) {
+        // Implement delete functionality
+        window.location.href = `/inventory/pricing/markup-rules/${ruleId}/delete/`;
+    }
+}
+</script>
+{% endblock %}

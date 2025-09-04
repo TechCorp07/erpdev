@@ -1,0 +1,223 @@
+<!-- inventory/pricing/markup_rule_form.html -->
+{% extends "dashboard_base.html" %}
+{% load static %}
+{% load crispy_forms_tags %}
+
+{% block page_title %}
+{% if form.instance.pk %}Edit Markup Rule{% else %}Create Markup Rule{% endif %}
+{% endblock %}
+
+{% block dashboard_content %}
+<div class="row">
+    <div class="col-md-10 mx-auto">
+        <div class="card shadow">
+            <div class="card-header bg-primary text-white">
+                <h5 class="card-title mb-0">
+                    <i class="bi bi-percent"></i> 
+                    {% if form.instance.pk %}Edit Markup Rule{% else %}Create New Markup Rule{% endif %}
+                </h5>
+            </div>
+            <div class="card-body">
+                <form method="post">
+                    {% csrf_token %}
+                    
+                    <!-- Basic Information -->
+                    <div class="card mb-4">
+                        <div class="card-header">
+                            <h6 class="card-title mb-0">Basic Information</h6>
+                        </div>
+                        <div class="card-body">
+                            <div class="row">
+                                <div class="col-md-6">
+                                    {{ form.name|as_crispy_field }}
+                                    {{ form.priority|as_crispy_field }}
+                                </div>
+                                <div class="col-md-6">
+                                    {{ form.markup_percentage|as_crispy_field }}
+                                    {{ form.is_active|as_crispy_field }}
+                                </div>
+                            </div>
+                            <div class="row">
+                                <div class="col-12">
+                                    {{ form.description|as_crispy_field }}
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Application Scope -->
+                    <div class="card mb-4">
+                        <div class="card-header">
+                            <h6 class="card-title mb-0">Application Scope</h6>
+                        </div>
+                        <div class="card-body">
+                            <div class="row">
+                                <div class="col-md-4">
+                                    {{ form.category|as_crispy_field }}
+                                </div>
+                                <div class="col-md-4">
+                                    {{ form.supplier|as_crispy_field }}
+                                </div>
+                                <div class="col-md-4">
+                                    {{ form.brand|as_crispy_field }}
+                                </div>
+                            </div>
+                            <div class="alert alert-info mt-3">
+                                <i class="bi bi-info-circle"></i>
+                                <strong>Note:</strong> Leave all scope fields empty to apply this rule to all products. 
+                                If multiple fields are specified, the rule applies to products matching ALL criteria.
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Conditions -->
+                    <div class="card mb-4">
+                        <div class="card-header">
+                            <h6 class="card-title mb-0">Conditions</h6>
+                        </div>
+                        <div class="card-body">
+                            <div class="row">
+                                <div class="col-md-3">
+                                    {{ form.min_cost|as_crispy_field }}
+                                </div>
+                                <div class="col-md-3">
+                                    {{ form.max_cost|as_crispy_field }}
+                                </div>
+                                <div class="col-md-3">
+                                    {{ form.min_quantity|as_crispy_field }}
+                                </div>
+                                <div class="col-md-3">
+                                    {{ form.min_margin|as_crispy_field }}
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Advanced Settings -->
+                    <div class="card mb-4">
+                        <div class="card-header">
+                            <h6 class="card-title mb-0">Advanced Settings</h6>
+                        </div>
+                        <div class="card-body">
+                            <div class="row">
+                                <div class="col-md-4">
+                                    {{ form.round_to_nearest|as_crispy_field }}
+                                </div>
+                                <div class="col-md-4">
+                                    {{ form.max_price|as_crispy_field }}
+                                </div>
+                                <div class="col-md-4">
+                                    {{ form.effective_date|as_crispy_field }}
+                                </div>
+                            </div>
+                            <div class="row">
+                                <div class="col-md-6">
+                                    {{ form.apply_to_existing|as_crispy_field }}
+                                </div>
+                                <div class="col-md-6">
+                                    {{ form.auto_update|as_crispy_field }}
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Rule Preview -->
+                    <div class="card mb-4">
+                        <div class="card-header">
+                            <h6 class="card-title mb-0">Rule Preview</h6>
+                        </div>
+                        <div class="card-body">
+                            <div class="row">
+                                <div class="col-md-4">
+                                    <label class="form-label">Test Cost Price:</label>
+                                    <input type="number" class="form-control" id="test-cost" placeholder="100.00" step="0.01">
+                                </div>
+                                <div class="col-md-4">
+                                    <label class="form-label">Calculated Price:</label>
+                                    <input type="text" class="form-control" id="calculated-price" readonly>
+                                </div>
+                                <div class="col-md-4">
+                                    <label class="form-label">Resulting Margin:</label>
+                                    <input type="text" class="form-control" id="resulting-margin" readonly>
+                                </div>
+                            </div>
+                            <div class="mt-3">
+                                <button type="button" class="btn btn-info" onclick="calculatePreview()">
+                                    <i class="bi bi-calculator"></i> Calculate Preview
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="d-flex justify-content-between">
+                        <a href="{% url 'inventory:markup_rule_list' %}" class="btn btn-secondary">
+                            <i class="bi bi-arrow-left"></i> Cancel
+                        </a>
+                        <button type="submit" class="btn btn-primary">
+                            <i class="bi bi-check"></i> 
+                            {% if form.instance.pk %}Update Rule{% else %}Create Rule{% endif %}
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+function calculatePreview() {
+    const testCost = parseFloat(document.getElementById('test-cost').value) || 0;
+    const markupPercentage = parseFloat(document.querySelector('[name="markup_percentage"]').value) || 0;
+    const minMargin = parseFloat(document.querySelector('[name="min_margin"]').value) || 0;
+    const maxPrice = parseFloat(document.querySelector('[name="max_price"]').value) || 0;
+    const roundTo = parseFloat(document.querySelector('[name="round_to_nearest"]').value) || 0.01;
+    
+    if (testCost <= 0) {
+        alert('Please enter a valid test cost');
+        return;
+    }
+    
+    // Calculate base price with markup
+    let calculatedPrice = testCost * (1 + (markupPercentage / 100));
+    
+    // Apply minimum margin if specified
+    if (minMargin > 0) {
+        const minPriceForMargin = testCost / (1 - (minMargin / 100));
+        if (calculatedPrice < minPriceForMargin) {
+            calculatedPrice = minPriceForMargin;
+        }
+    }
+    
+    // Apply maximum price if specified
+    if (maxPrice > 0 && calculatedPrice > maxPrice) {
+        calculatedPrice = maxPrice;
+    }
+    
+    // Apply rounding
+    if (roundTo > 0) {
+        calculatedPrice = Math.round(calculatedPrice / roundTo) * roundTo;
+    }
+    
+    // Calculate resulting margin
+    const resultingMargin = ((calculatedPrice - testCost) / calculatedPrice) * 100;
+    
+    // Update preview fields
+    document.getElementById('calculated-price').value = '$' + calculatedPrice.toFixed(2);
+    document.getElementById('resulting-margin').value = resultingMargin.toFixed(2) + '%';
+}
+
+// Auto-calculate when markup percentage changes
+document.querySelector('[name="markup_percentage"]').addEventListener('input', function() {
+    if (document.getElementById('test-cost').value) {
+        calculatePreview();
+    }
+});
+
+// Auto-calculate when test cost changes
+document.getElementById('test-cost').addEventListener('input', function() {
+    if (this.value) {
+        calculatePreview();
+    }
+});
+</script>
+{% endblock %}

@@ -1,0 +1,509 @@
+<!-- inventory/barcodes/mobile_barcode_scanner.html -->
+{% extends "dashboard_base.html" %}
+{% load static %}
+
+{% block page_title %}Mobile Barcode Scanner{% endblock %}
+
+{% block extra_css %}
+<script src="https://unpkg.com/@zxing/library@latest"></script>
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<style>
+.mobile-scanner {
+    min-height: 100vh;
+    background: #000;
+}
+
+#mobile-scanner-video {
+    width: 100vw;
+    height: 100vh;
+    object-fit: cover;
+}
+
+.mobile-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(0, 0, 0, 0.5);
+    pointer-events: none;
+}
+
+.scan-area {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    width: 250px;
+    height: 150px;
+    border: 3px solid #00ff00;
+    border-radius: 8px;
+    background: transparent;
+}
+
+.mobile-controls {
+    position: fixed;
+    bottom: 20px;
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 1000;
+    pointer-events: all;
+}
+
+.mobile-result {
+    position: fixed;
+    top: 20px;
+    left: 20px;
+    right: 20px;
+    z-index: 1000;
+    pointer-events: all;
+}
+
+.flashlight-btn {
+    position: fixed;
+    top: 20px;
+    right: 20px;
+    z-index: 1000;
+    width: 50px;
+    height: 50px;
+    border-radius: 50%;
+    border: none;
+    background: rgba(255, 255, 255, 0.3);
+    color: white;
+    pointer-events: all;
+}
+
+.back-btn {
+    position: fixed;
+    top: 20px;
+    left: 20px;
+    z-index: 1000;
+    width: 50px;
+    height: 50px;
+    border-radius: 50%;
+    border: none;
+    background: rgba(255, 255, 255, 0.3);
+    color: white;
+    pointer-events: all;
+}
+</style>
+{% endblock %}
+
+{% block dashboard_content %}
+<div class="mobile-scanner">
+    <video id="mobile-scanner-video" autoplay muted playsinline></video>
+    
+    <div class="mobile-overlay">
+        <div class="scan-area">
+            <div class="scanner-line"></div>
+        </div>
+    </div>
+    
+    <button class="back-btn" onclick="goBack()">
+        <i class="bi bi-arrow-left"></i>
+    </button>
+    
+    <button class="flashlight-btn" id="flashlight-toggle" onclick="toggleFlashlight()">
+        <i class="bi bi-lightbulb"></i>
+    </button>
+    
+    <div class="mobile-result" id="mobile-result" style="display: none;">
+        <div class="card">
+            <div class="card-body">
+                <div class="d-flex justify-content-between align-items-start">
+                    <div>
+                        <h6 class="card-title">Product Found!</h6>
+                        <div id="mobile-product-info">
+                            <!-- Product info will be loaded here -->
+                        </div>
+                    </div>
+                    <button class="btn-close" onclick="closeResult()"></button>
+                </div>
+                <div class="mt-3">
+                    <div class="btn-group w-100">
+                        <button class="btn btn-primary btn-sm" onclick="viewProductDetails()">
+                            <i class="bi bi-eye"></i> View
+                        </button>
+                        <button class="btn btn-success btn-sm" onclick="adjustStockMobile()">
+                            <i class="bi bi-plus-minus"></i> Stock
+                        </button>
+                        <button class="btn btn-warning btn-sm" onclick="continueScan()">
+                            <i class="bi bi-arrow-clockwise"></i> Continue
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <div class="mobile-controls">
+        <div class="btn-group">
+            <button class="btn btn-primary" id="mobile-start-scan" onclick="startMobileScanning()">
+                <i class="bi bi-play"></i> Start
+            </button>
+            <button class="btn btn-danger" id="mobile-stop-scan" onclick="stopMobileScanning()" style="display: none;">
+                <i class="bi bi-stop"></i> Stop
+            </button>
+            <button class="btn btn-secondary" onclick="switchToManualEntry()">
+                <i class="bi bi-keyboard"></i> Manual
+            </button>
+        </div>
+    </div>
+</div>
+
+<!-- Manual Entry Modal for Mobile -->
+<div class="modal fade" id="mobileManualModal" tabindex="-1">
+    <div class="modal-dialog modal-fullscreen">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Enter Barcode</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div class="mb-3">
+                    <label class="form-label">Barcode:</label>
+                    <input type="text" class="form-control form-control-lg" id="mobile-manual-barcode" 
+                           placeholder="Enter barcode..." autocomplete="off">
+                </div>
+                <div class="d-grid">
+                    <button class="btn btn-primary btn-lg" onclick="processMobileManualBarcode()">
+                        <i class="bi bi-search"></i> Search Product
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Mobile Quick Stock Adjustment -->
+<div class="modal fade" id="mobileStockModal" tabindex="-1">
+    <div class="modal-dialog modal-fullscreen">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Stock Adjustment</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <form id="mobile-stock-form">
+                    <div class="mb-3">
+                        <label class="form-label">Product:</label>
+                        <input type="text" class="form-control" id="mobile-product-name" readonly>
+                        <input type="hidden" id="mobile-product-id">
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Current Stock:</label>
+                        <input type="text" class="form-control" id="mobile-current-stock" readonly>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Action:</label>
+                        <div class="btn-group w-100" role="group">
+                            <input type="radio" class="btn-check" name="mobile-action" id="mobile-add" value="add" checked>
+                            <label class="btn btn-outline-success" for="mobile-add">Add Stock</label>
+                            
+                            <input type="radio" class="btn-check" name="mobile-action" id="mobile-remove" value="remove">
+                            <label class="btn btn-outline-danger" for="mobile-remove">Remove Stock</label>
+                        </div>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Quantity:</label>
+                        <input type="number" class="form-control form-control-lg" id="mobile-quantity" 
+                               min="1" step="1" required>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Reason:</label>
+                        <select class="form-select" id="mobile-reason">
+                            <option value="Received shipment">Received shipment</option>
+                            <option value="Sale">Sale</option>
+                            <option value="Damaged">Damaged</option>
+                            <option value="Lost">Lost</option>
+                            <option value="Returned">Returned</option>
+                            <option value="Count adjustment">Count adjustment</option>
+                            <option value="Other">Other</option>
+                        </select>
+                    </div>
+                    <div class="d-grid">
+                        <button type="button" class="btn btn-primary btn-lg" onclick="saveMobileStockAdjustment()">
+                            <i class="bi bi-check"></i> Save Adjustment
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+let mobileCodeReader = null;
+let mobileSelectedDeviceId = null;
+let currentMobileProduct = null;
+let flashlightOn = false;
+let mediaStream = null;
+
+document.addEventListener('DOMContentLoaded', function() {
+    initializeMobileScanner();
+    
+    // Prevent zoom on mobile
+    document.addEventListener('touchstart', function(e) {
+        if (e.touches.length > 1) {
+            e.preventDefault();
+        }
+    }, { passive: false });
+    
+    let lastTouchEnd = 0;
+    document.addEventListener('touchend', function(e) {
+        const now = (new Date()).getTime();
+        if (now - lastTouchEnd <= 300) {
+            e.preventDefault();
+        }
+        lastTouchEnd = now;
+    }, false);
+    
+    // Auto-start scanning on mobile
+    setTimeout(startMobileScanning, 1000);
+});
+
+function initializeMobileScanner() {
+    mobileCodeReader = new ZXing.BrowserBarcodeReader();
+    
+    // Check for flashlight support
+    navigator.mediaDevices.getSupportedConstraints().then(constraints => {
+        if (!constraints.torch) {
+            document.getElementById('flashlight-toggle').style.display = 'none';
+        }
+    });
+}
+
+async function startMobileScanning() {
+    try {
+        const videoInputDevices = await mobileCodeReader.listVideoInputDevices();
+        
+        if (videoInputDevices.length === 0) {
+            alert('No camera devices found');
+            return;
+        }
+        
+        // Prefer back camera on mobile
+        mobileSelectedDeviceId = videoInputDevices.find(device => 
+            device.label.toLowerCase().includes('back') || 
+            device.label.toLowerCase().includes('rear')
+        )?.deviceId || videoInputDevices[0].deviceId;
+        
+        // Get media stream for flashlight control
+        const constraints = {
+            video: {
+                deviceId: mobileSelectedDeviceId,
+                facingMode: 'environment',
+                width: { ideal: 1920 },
+                height: { ideal: 1080 }
+            }
+        };
+        
+        mediaStream = await navigator.mediaDevices.getUserMedia(constraints);
+        const video = document.getElementById('mobile-scanner-video');
+        video.srcObject = mediaStream;
+        
+        await mobileCodeReader.decodeFromVideoDevice(mobileSelectedDeviceId, 'mobile-scanner-video', (result, err) => {
+            if (result) {
+                processMobileScannedBarcode(result.text);
+                // Haptic feedback if available
+                if (navigator.vibrate) {
+                    navigator.vibrate(200);
+                }
+            }
+            if (err && !(err instanceof ZXing.NotFoundException)) {
+                console.error(err);
+            }
+        });
+        
+        document.getElementById('mobile-start-scan').style.display = 'none';
+        document.getElementById('mobile-stop-scan').style.display = 'inline-block';
+        
+    } catch (err) {
+        console.error('Error starting mobile scanner:', err);
+        alert('Error starting camera: ' + err.message);
+    }
+}
+
+function stopMobileScanning() {
+    if (mobileCodeReader) {
+        mobileCodeReader.reset();
+    }
+    
+    if (mediaStream) {
+        mediaStream.getTracks().forEach(track => track.stop());
+        mediaStream = null;
+    }
+    
+    document.getElementById('mobile-start-scan').style.display = 'inline-block';
+    document.getElementById('mobile-stop-scan').style.display = 'none';
+    
+    // Turn off flashlight
+    if (flashlightOn) {
+        toggleFlashlight();
+    }
+}
+
+async function toggleFlashlight() {
+    if (!mediaStream) return;
+    
+    const track = mediaStream.getVideoTracks()[0];
+    if (!track) return;
+    
+    try {
+        const capabilities = track.getCapabilities();
+        if (capabilities.torch) {
+            flashlightOn = !flashlightOn;
+            await track.applyConstraints({
+                advanced: [{ torch: flashlightOn }]
+            });
+            
+            const btn = document.getElementById('flashlight-toggle');
+            btn.style.background = flashlightOn ? 'rgba(255, 255, 0, 0.8)' : 'rgba(255, 255, 255, 0.3)';
+        }
+    } catch (err) {
+        console.error('Error toggling flashlight:', err);
+    }
+}
+
+function processMobileScannedBarcode(barcode) {
+    // Stop scanning temporarily
+    stopMobileScanning();
+    
+    // Lookup product
+    fetch(`/inventory/api/barcodes/lookup/${encodeURIComponent(barcode)}/`)
+        .then(response => response.json())
+        .then(data => {
+            if (data.success && data.product) {
+                currentMobileProduct = data.product;
+                showMobileProductInfo(data.product);
+                document.getElementById('mobile-result').style.display = 'block';
+            } else {
+                alert('Product not found: ' + barcode);
+                continueScan();
+            }
+        })
+        .catch(error => {
+            console.error('Error looking up barcode:', error);
+            alert('Error looking up product');
+            continueScan();
+        });
+}
+
+function showMobileProductInfo(product) {
+    const productInfo = document.getElementById('mobile-product-info');
+    productInfo.innerHTML = `
+        <p class="mb-1"><strong>${product.name}</strong></p>
+        <p class="mb-1">SKU: ${product.sku}</p>
+        <p class="mb-1">Stock: ${product.current_stock}</p>
+        <p class="mb-0">Price: ${product.sell_price}</p>
+    `;
+}
+
+function closeResult() {
+    document.getElementById('mobile-result').style.display = 'none';
+    continueScan();
+}
+
+function continueScan() {
+    document.getElementById('mobile-result').style.display = 'none';
+    setTimeout(startMobileScanning, 500);
+}
+
+function viewProductDetails() {
+    if (currentMobileProduct) {
+        window.open(`/inventory/products/${currentMobileProduct.id}/`, '_blank');
+    }
+}
+
+function adjustStockMobile() {
+    if (!currentMobileProduct) return;
+    
+    document.getElementById('mobile-product-name').value = currentMobileProduct.name;
+    document.getElementById('mobile-product-id').value = currentMobileProduct.id;
+    document.getElementById('mobile-current-stock').value = currentMobileProduct.current_stock;
+    
+    new bootstrap.Modal(document.getElementById('mobileStockModal')).show();
+}
+
+function switchToManualEntry() {
+    new bootstrap.Modal(document.getElementById('mobileManualModal')).show();
+}
+
+function processMobileManualBarcode() {
+    const barcode = document.getElementById('mobile-manual-barcode').value.trim();
+    if (barcode) {
+        bootstrap.Modal.getInstance(document.getElementById('mobileManualModal')).hide();
+        processMobileScannedBarcode(barcode);
+        document.getElementById('mobile-manual-barcode').value = '';
+    }
+}
+
+function saveMobileStockAdjustment() {
+    const productId = document.getElementById('mobile-product-id').value;
+    const action = document.querySelector('input[name="mobile-action"]:checked').value;
+    const quantity = parseInt(document.getElementById('mobile-quantity').value);
+    const reason = document.getElementById('mobile-reason').value;
+    
+    if (!quantity || quantity <= 0) {
+        alert('Please enter a valid quantity');
+        return;
+    }
+    
+    const data = {
+        product_id: productId,
+        adjustment_type: action,
+        quantity: quantity,
+        reason: reason
+    };
+    
+    fetch('/inventory/api/stock/adjust/', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value
+        },
+        body: JSON.stringify(data)
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            // Haptic feedback
+            if (navigator.vibrate) {
+                navigator.vibrate([100, 50, 100]);
+            }
+            
+            alert('Stock adjustment saved successfully');
+            bootstrap.Modal.getInstance(document.getElementById('mobileStockModal')).hide();
+            
+            // Update current product stock display
+            if (currentMobileProduct) {
+                currentMobileProduct.current_stock = data.new_stock_level;
+                showMobileProductInfo(currentMobileProduct);
+            }
+            
+            continueScan();
+        } else {
+            alert('Error saving adjustment: ' + data.message);
+        }
+    })
+    .catch(error => {
+        alert('Error saving adjustment: ' + error.message);
+    });
+}
+
+function goBack() {
+    if (confirm('Exit scanner?')) {
+        stopMobileScanning();
+        window.history.back();
+    }
+}
+
+// Cleanup on page unload
+window.addEventListener('beforeunload', function() {
+    stopMobileScanning();
+});
+
+// Prevent page refresh on pull down
+document.body.style.overscrollBehavior = 'none';
+</script>
+{% endblock %}
